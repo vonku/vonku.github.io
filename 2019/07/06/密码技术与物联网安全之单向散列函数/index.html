@@ -88,7 +88,7 @@
 <meta property="og:description" content="0 前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：1">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/hash.png">
-<meta property="og:updated_time" content="2019-07-06T08:33:30.947Z">
+<meta property="og:updated_time" content="2019-07-06T08:53:50.069Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
 <meta name="twitter:description" content="0 前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：1">
@@ -397,7 +397,11 @@
 <li>效率不同。crc计算很快，sha效率相对慢很多；</li>
 <li>用途不同。crc一般用做通信数据的校验；sha用于安全领域，比如文件校验、数字签名等。</li>
 </ul>
-<h4 id="1-2-单项散列函数的应用"><a href="#1-2-单项散列函数的应用" class="headerlink" title="1.2 单项散列函数的应用"></a>1.2 单项散列函数的应用</h4>
+<h4 id="1-2-单项散列函数的应用"><a href="#1-2-单项散列函数的应用" class="headerlink" title="1.2 单项散列函数的应用"></a>1.2 单项散列函数的应用</h4><h5 id="1-2-1-消息完整性检测"><a href="#1-2-1-消息完整性检测" class="headerlink" title="1.2.1 消息完整性检测"></a>1.2.1 消息完整性检测</h5><p>单向散列函数的一个重要应用是对消息的完整性进行检测。例如在传输消息的后面添加散列值，在传输完成之后再比较计算出来的散列值和收到的散列值是否相等，来检测是否发生了篡改。</p>
+<h5 id="1-2-2-伪随机数生成器"><a href="#1-2-2-伪随机数生成器" class="headerlink" title="1.2.2 伪随机数生成器"></a>1.2.2 伪随机数生成器</h5><p>单向散列函数可以用来构造伪随机数生成算法，如TLS1.2中的PRF函数。</p>
+<h5 id="1-2-3-消息认证码"><a href="#1-2-3-消息认证码" class="headerlink" title="1.2.3 消息认证码"></a>1.2.3 消息认证码</h5><p>消息认证码用来检测消息传输过程中的错误、篡改和伪装。什么是伪装呢？比如Alice向Bob传输了一条带有散列值的消息，但是这个传输过程被Mallory截获，并且Mallory伪装成Alice发了一条新的消息+散列值给Bob。消息认证码就是为了完成认证的过程：它除了单项散列函数外还加入了共享密钥，该密钥只有Alice和Bob有，这样就能防止伪装，完成认证。</p>
+<h5 id="1-2-4-数字签名"><a href="#1-2-4-数字签名" class="headerlink" title="1.2.4 数字签名"></a>1.2.4 数字签名</h5><p>因为“指纹”代表了数据的真实性，因此一般对“指纹”进行签名而不是对完整消息进行签名（太慢）。</p>
+
       
     </div>
     
@@ -560,7 +564,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#0-前言"><span class="nav-number">1.</span> <span class="nav-text">0 前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-单向散列函数"><span class="nav-number">2.</span> <span class="nav-text">1 单向散列函数</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-什么是单向散列函数"><span class="nav-number">2.1.</span> <span class="nav-text">1.1 什么是单向散列函数</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-单项散列函数的应用"><span class="nav-number">2.2.</span> <span class="nav-text">1.2 单项散列函数的应用</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#0-前言"><span class="nav-number">1.</span> <span class="nav-text">0 前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-单向散列函数"><span class="nav-number">2.</span> <span class="nav-text">1 单向散列函数</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-什么是单向散列函数"><span class="nav-number">2.1.</span> <span class="nav-text">1.1 什么是单向散列函数</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-单项散列函数的应用"><span class="nav-number">2.2.</span> <span class="nav-text">1.2 单项散列函数的应用</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1-2-1-消息完整性检测"><span class="nav-number">2.2.1.</span> <span class="nav-text">1.2.1 消息完整性检测</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#1-2-2-伪随机数生成器"><span class="nav-number">2.2.2.</span> <span class="nav-text">1.2.2 伪随机数生成器</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#1-2-3-消息认证码"><span class="nav-number">2.2.3.</span> <span class="nav-text">1.2.3 消息认证码</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#1-2-4-数字签名"><span class="nav-number">2.2.4.</span> <span class="nav-text">1.2.4 数字签名</span></a></li></ol></li></ol></li></ol></div>
             
 
           </div>
