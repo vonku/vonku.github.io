@@ -92,7 +92,7 @@
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/logic_symbol.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/abc.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/1280px-SHA-2.svg.png">
-<meta property="og:updated_time" content="2019-07-06T11:57:32.843Z">
+<meta property="og:updated_time" content="2019-07-06T12:00:25.655Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
 <meta name="twitter:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbed">
@@ -392,7 +392,7 @@
 <p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/hash.png" alt="hash"></p>
 <p>根据上面的描述，我们很容易联想到通信校验中常用到的crc。这时候我们会冒出一个问题：crc8/crc32能否作为单向散列函数，它和常用的散列函数如sha256有什么区别？</p>
 <p>这个问题在我们了解了单项散列函数的性质之后再做回答。<br>单项散列函数为了满足安全的要求，需要满足以下性质：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1. 输出长度可变，输出长度固定；</span><br><span class="line">2. 高效率：计算`h(x)`较为容易；</span><br><span class="line">3. 单向性：给定输出`z`，通过计算找到满足`h(x) = z`的输入是不可行的；</span><br><span class="line">4. 抗碰撞性：找到满足h(x1) = h(x2)的一对x1、x2（x1 ≠ x2）在计算上是不可行的；</span><br><span class="line">5. 伪随机性：满足伪随机性测试标准。</span><br></pre></td></tr></table></figure>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1. 输出长度可变，输出长度固定；</span><br><span class="line">2. 高效率：计算h(x)较为容易；</span><br><span class="line">3. 单向性：给定输出z，通过计算找到满足h(x) = z的输入是不可行的；</span><br><span class="line">4. 抗碰撞性：找到满足h(x1) = h(x2)的一对x1、x2（x1 ≠ x2）在计算上是不可行的；</span><br><span class="line">5. 伪随机性：满足伪随机性测试标准。</span><br></pre></td></tr></table></figure>
 
 <p>满足以上性质的散列函数，如SHA256，和CRC的区别有以下几点：</p>
 <ul>
