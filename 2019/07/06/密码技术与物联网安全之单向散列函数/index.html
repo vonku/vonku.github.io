@@ -79,18 +79,18 @@
 
 
 
-<meta name="description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：19年">
+<meta name="description" content="0 前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：1">
 <meta name="keywords" content="物联网安全 mbedtls 单向散列函数">
 <meta property="og:type" content="article">
 <meta property="og:title" content="密码技术与物联网安全之单向散列函数">
 <meta property="og:url" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：19年">
+<meta property="og:description" content="0 前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：1">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2019-07-06T07:23:51.651Z">
+<meta property="og:updated_time" content="2019-07-06T08:07:00.175Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
-<meta name="twitter:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：19年">
+<meta name="twitter:description" content="0 前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：1">
 
 
 
@@ -371,13 +371,37 @@
       
 
       
-        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。<del>为了避免过段时间不用又全部忘记掉，故</del>在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。<br>我主要参考了以下三本书籍，感兴趣的同学可以看看：</p>
+        <h3 id="0-前言"><a href="#0-前言" class="headerlink" title="0 前言"></a>0 前言</h3><p>由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。<del>为了避免过段时间不用又全部忘记掉，故</del>在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。<br>我主要参考了以下三本书籍，感兴趣的同学可以看看：</p>
 <ul>
 <li><a href="https://book.douban.com/subject/26265544/" target="_blank" rel="noopener">《图解密码技术》</a> ：非常浅显易懂的入门书籍，强烈推荐！</li>
 <li><a href="https://item.jd.com/12507477.html" target="_blank" rel="noopener">《密码技术与物联网安全 – mbedtls开发实战》</a>：19年出的mbedtls相关的书籍</li>
 <li><a href="https://book.douban.com/subject/1142306/" target="_blank" rel="noopener">《密码编码学与网络安全 – 原理与实践》</a>：有很多推导证明的教科书，<del>比较枯燥，没怎么看。</del></li>
 </ul>
-<h3 id="单向散列函数"><a href="#单向散列函数" class="headerlink" title="单向散列函数"></a>单向散列函数</h3>
+<a id="more"></a>
+
+<h3 id="1-单向散列函数"><a href="#1-单向散列函数" class="headerlink" title="1 单向散列函数"></a>1 单向散列函数</h3><h4 id="1-1-什么是单向散列函数"><a href="#1-1-什么是单向散列函数" class="headerlink" title="1.1 什么是单向散列函数"></a>1.1 什么是单向散列函数</h4><p>单项散列函数又称安全散列函数或哈希函数（Hash function），是一种从任何数据中创建小的数字“指纹”的方法(from wiki)，可用于检查消息的完整性。</p>
+<p>Okay，用我自己的话来理解一遍：</p>
+<ul>
+<li>它是一个函数，输入是你的消息（任意长度的），输出是小的数字“指纹”（长度固定的）；</li>
+<li>既然是指纹，那么它对和消息必须是唯一对应（抗碰撞性）；</li>
+<li>散列函数可以用来检查消息的完整性。</li>
+</ul>
+<p>根据上面的描述，我们很容易联想到通信校验中常用到的crc。这时候我们会冒出一个问题：crc8/crc32能否作为单向散列函数，它和常用的散列函数如sha256有什么区别？<br>在这里我列举几点crc和sha的区别：</p>
+<ul>
+<li>算法不同。crc用的是多项式除法，sha用的是替换、轮转等更复杂的运算；</li>
+<li>安全性不同。crc的安全性较弱，sha的安全性则高很多；</li>
+<li>效率不同。crc计算很快，sha效率相对慢很多；</li>
+<li>用途不同。crc一般用做通信数据的校验；sha用于安全领域，比如文件校验、数字签名等。</li>
+</ul>
+<p>单项散列函数需要满足以下性质：</p>
+<ol>
+<li>输出长度可变，输出长度固定；</li>
+<li>高效率：计算<code>h(x)</code>较为容易；</li>
+<li>单向性：给定输出<code>z</code>，通过计算找到满足<code>h(x) = z</code>的输入是不可行的；</li>
+<li>抗碰撞性：找到满足h(x1) = h(x2)的一对x1、x2（x1 ≠ x2）在计算上是不可行的；</li>
+<li>伪随机性：满足伪随机性测试标准。</li>
+</ol>
+
       
     </div>
     
@@ -540,7 +564,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#单向散列函数"><span class="nav-number">2.</span> <span class="nav-text">单向散列函数</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#0-前言"><span class="nav-number">1.</span> <span class="nav-text">0 前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-单向散列函数"><span class="nav-number">2.</span> <span class="nav-text">1 单向散列函数</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-什么是单向散列函数"><span class="nav-number">2.1.</span> <span class="nav-text">1.1 什么是单向散列函数</span></a></li></ol></li></ol></div>
             
 
           </div>
