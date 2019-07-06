@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="Hexo, NexT">
+  <meta name="keywords" content="物联网安全 mbedtls 单向散列函数,">
 
 
 
@@ -79,17 +79,18 @@
 
 
 
-<meta name="description" content="说个鬼故事">
+<meta name="description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 (非常好的入门书籍，强烈推荐) 《密码技术与物联网安全 – mbedtls开发实战》（19年出的m">
+<meta name="keywords" content="物联网安全 mbedtls 单向散列函数">
 <meta property="og:type" content="article">
-<meta property="og:title" content="late night">
-<meta property="og:url" content="http://yoursite.com/2019/07/03/late-night/index.html">
+<meta property="og:title" content="密码技术与物联网安全之单向散列函数">
+<meta property="og:url" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="说个鬼故事">
+<meta property="og:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 (非常好的入门书籍，强烈推荐) 《密码技术与物联网安全 – mbedtls开发实战》（19年出的m">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2019-07-04T15:10:45.567Z">
+<meta property="og:updated_time" content="2019-07-06T07:12:05.774Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="late night">
-<meta name="twitter:description" content="说个鬼故事">
+<meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
+<meta name="twitter:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 (非常好的入门书籍，强烈推荐) 《密码技术与物联网安全 – mbedtls开发实战》（19年出的m">
 
 
 
@@ -119,13 +120,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/07/03/late-night/">
+  <link rel="canonical" href="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/">
 
 
 
 
 
-  <title>late night | Vonku's Blog</title>
+  <title>密码技术与物联网安全之单向散列函数 | Vonku's Blog</title>
   
 
 
@@ -292,7 +293,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/07/03/late-night/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="Vonku">
@@ -309,7 +310,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">late night</h1>
+          <h1 class="post-title" itemprop="name headline">密码技术与物联网安全之单向散列函数</h1>
         
 
         <div class="post-meta">
@@ -321,8 +322,8 @@
               
                 <span class="post-meta-item-text">发表于</span>
               
-              <time title="创建于" itemprop="dateCreated datePublished" datetime="2019-07-03T01:04:06+08:00">
-                2019-07-03
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2019-07-06T14:44:47+08:00">
+                2019-07-06
               </time>
             
 
@@ -339,7 +340,7 @@
 
           
           
-             <span id="/2019/07/03/late-night/" class="leancloud_visitors" data-flag-title="late night">
+             <span id="/2019/07/06/密码技术与物联网安全之单向散列函数/" class="leancloud_visitors" data-flag-title="密码技术与物联网安全之单向散列函数">
                <span class="post-meta-divider">|</span>
                <span class="post-meta-item-icon">
                  <i class="fa fa-eye"></i>
@@ -370,9 +371,14 @@
       
 
       
-        <h3 id="说个鬼故事"><a href="#说个鬼故事" class="headerlink" title="说个鬼故事"></a>说个鬼故事</h3><a id="more"></a>
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。<br>我主要参考了以下三本书籍，感兴趣的同学可以看看：</p>
+<ul>
+<li><a href="https://book.douban.com/subject/26265544/" target="_blank" rel="noopener">《图解密码技术》</a> (非常好的入门书籍，强烈推荐)</li>
+<li><a href="https://item.jd.com/12507477.html" target="_blank" rel="noopener">《密码技术与物联网安全 – mbedtls开发实战》</a>（19年出的mbedtls相关的书籍）</li>
+<li><a href="https://book.douban.com/subject/1142306/" target="_blank" rel="noopener">《密码编码学与网络安全 – 原理与实践》</a>（比较枯燥但是详细的教科书，没怎么看…）</li>
+</ul>
+<p>### </p>
 
-<h3 id="又12点了！"><a href="#又12点了！" class="headerlink" title="又12点了！"></a>又12点了！</h3>
       
     </div>
     
@@ -387,6 +393,12 @@
 
     <footer class="post-footer">
       
+        <div class="post-tags">
+          
+            <a href="/tags/物联网安全-mbedtls-单向散列函数/" rel="tag"># 物联网安全 mbedtls 单向散列函数</a>
+          
+        </div>
+      
 
       
       
@@ -396,8 +408,8 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2019/07/03/hello-world/" rel="next" title="Hello World">
-                <i class="fa fa-chevron-left"></i> Hello World
+              <a href="/2019/07/03/late-night/" rel="next" title="late night">
+                <i class="fa fa-chevron-left"></i> late night
               </a>
             
           </div>
@@ -405,10 +417,6 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-            
-              <a href="/2019/07/06/密码技术与物联网安全之单向散列函数/" rel="prev" title="密码技术与物联网安全之单向散列函数">
-                密码技术与物联网安全之单向散列函数 <i class="fa fa-chevron-right"></i>
-              </a>
             
           </div>
         </div>
@@ -533,7 +541,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#说个鬼故事"><span class="nav-number">1.</span> <span class="nav-text">说个鬼故事</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#又12点了！"><span class="nav-number">2.</span> <span class="nav-text">又12点了！</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li></ol></div>
             
 
           </div>
