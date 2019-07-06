@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="0 前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：1">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2019-07-06T08:07:00.175Z">
+<meta property="og:updated_time" content="2019-07-06T08:13:39.399Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
 <meta name="twitter:description" content="0 前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍，强烈推荐！ 《密码技术与物联网安全 – mbedtls开发实战》：1">
@@ -381,26 +381,19 @@
 
 <h3 id="1-单向散列函数"><a href="#1-单向散列函数" class="headerlink" title="1 单向散列函数"></a>1 单向散列函数</h3><h4 id="1-1-什么是单向散列函数"><a href="#1-1-什么是单向散列函数" class="headerlink" title="1.1 什么是单向散列函数"></a>1.1 什么是单向散列函数</h4><p>单项散列函数又称安全散列函数或哈希函数（Hash function），是一种从任何数据中创建小的数字“指纹”的方法(from wiki)，可用于检查消息的完整性。</p>
 <p>Okay，用我自己的话来理解一遍：</p>
-<ul>
-<li>它是一个函数，输入是你的消息（任意长度的），输出是小的数字“指纹”（长度固定的）；</li>
-<li>既然是指纹，那么它对和消息必须是唯一对应（抗碰撞性）；</li>
-<li>散列函数可以用来检查消息的完整性。</li>
-</ul>
-<p>根据上面的描述，我们很容易联想到通信校验中常用到的crc。这时候我们会冒出一个问题：crc8/crc32能否作为单向散列函数，它和常用的散列函数如sha256有什么区别？<br>在这里我列举几点crc和sha的区别：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">- 它是一个函数，输入是你的消息（任意长度的），输出是小的数字“指纹”（长度固定的）；</span><br><span class="line">- 既然是指纹，那么它对和消息必须是唯一对应（抗碰撞性）；</span><br><span class="line">- 散列函数可以用来检查消息的完整性。</span><br></pre></td></tr></table></figure>
+
+<p>根据上面的描述，我们很容易联想到通信校验中常用到的crc。这时候我们会冒出一个问题：crc8/crc32能否作为单向散列函数，它和常用的散列函数如sha256有什么区别？</p>
+<p>这个问题在我们了解了单项散列函数的性质之后再做回答。<br>单项散列函数为了满足安全的要求，需要满足以下性质：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1. 输出长度可变，输出长度固定；</span><br><span class="line">2. 高效率：计算`h(x)`较为容易；</span><br><span class="line">3. 单向性：给定输出`z`，通过计算找到满足`h(x) = z`的输入是不可行的；</span><br><span class="line">4. 抗碰撞性：找到满足h(x1) = h(x2)的一对x1、x2（x1 ≠ x2）在计算上是不可行的；</span><br><span class="line">5. 伪随机性：满足伪随机性测试标准。</span><br></pre></td></tr></table></figure>
+
+<p>满足以上性质的散列函数，如SHA256，和CRC的区别有以下几点：</p>
 <ul>
 <li>算法不同。crc用的是多项式除法，sha用的是替换、轮转等更复杂的运算；</li>
 <li>安全性不同。crc的安全性较弱，sha的安全性则高很多；</li>
 <li>效率不同。crc计算很快，sha效率相对慢很多；</li>
 <li>用途不同。crc一般用做通信数据的校验；sha用于安全领域，比如文件校验、数字签名等。</li>
 </ul>
-<p>单项散列函数需要满足以下性质：</p>
-<ol>
-<li>输出长度可变，输出长度固定；</li>
-<li>高效率：计算<code>h(x)</code>较为容易；</li>
-<li>单向性：给定输出<code>z</code>，通过计算找到满足<code>h(x) = z</code>的输入是不可行的；</li>
-<li>抗碰撞性：找到满足h(x1) = h(x2)的一对x1、x2（x1 ≠ x2）在计算上是不可行的；</li>
-<li>伪随机性：满足伪随机性测试标准。</li>
-</ol>
 
       
     </div>
