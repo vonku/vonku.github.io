@@ -8,14 +8,14 @@ tags: linux0.11 kernal ubuntu
 
 系统是虚拟机下的ubuntu18.04LTS，主要软件环境是Bochs+gcc+vim+Linux 0.11 源代码。
 
-后续希望能编写自己的应用程序，修改Linux 0.11的源代码，用gcc编译后，在Bochs的虚拟环境中运行、调试目标代码，在实践中加深对Linux操作系统的理解。
+希望后续能编写自己的应用程序，修改Linux 0.11的源代码，用gcc编译后，在Bochs的虚拟环境中运行、调试目标代码，在实践中加深对Linux操作系统的理解。
 
 话不多说，现在开始吧。
 
 <!--more-->
 
 ## 1. 准备环境
-本文主要参考了哈工大的[《操作系统之基础》][link1]的课程，该课程提供了基本的实验环境压缩包**hit-oslab**，下载链接: http://pan.baidu.com/s/1rP0Bc1_DUVCL-7_g_YJHeQ 提取码: u3nb。
+本文主要参考了哈工大的[《操作系统之基础》][link1]的课程，该课程提供了基本的实验环境压缩包**hit-oslab**，[下载链接][link4]在这里，提取码: u3nb。
 
 ``` shell
 # 下载hit-oslab-linux-20110823.tar.gz到个人目录/home/vonku，进入该目录 
@@ -37,7 +37,7 @@ $ ls -al
 
 oslab工作在一个宿主操作系统之上，我们使用的是Ubuntu18.04，我们在宿主操作系统上完成对Linu0.11的开发、修改和编译之后，在linux-0.11目录下会生成一个名为Image文件，这个文件就是编译之后的目标文件。
 
-该文件已经包含引导和所有内核的二进制代码。如果拿来一张软盘，从它的0上去扇区开始，逐字节写入Image文件的内容，就可以从这张软盘启动一台真正的计算机，并进入Linux0.11内核。
+该文件已经包含引导和所有内核的二进制代码。如果拿来一张软盘，从它的0扇区开始，逐字节写入Image文件的内容，就可以从这张软盘启动一台真正的计算机，并进入Linux0.11内核。
 
 >**oslab**采用bochs模拟器加载这个Image文件，模拟执行Linux0.11。
 
@@ -153,7 +153,7 @@ sudo apt-get install gcc-multilib
 这时候再**make**，终于可以了。linux-0.11源码终于编译完成了 T T
 
 ## 3. bochs模拟器运行linux0.11内核
-编译好内核后，我们试一下启动bochs模拟器加载内核和挂在文件系统。
+编译好内核后，我们试一下启动bochs模拟器加载内核和挂载文件系统。
 ```shell
 $ ./run
 ```
@@ -174,7 +174,7 @@ $ sudo apt-get install libx11-6:i386
 $ sudo apt-get install libxpm4:i386
 ```
 
-**Finally**，这时候再rum，终于可以运行linux-0.11内核了。
+**Finally**，这时候再run，终于可以运行linux-0.11内核了。
 
 ![abc](在ubuntu18-04上编译运行linux0-11/2.png)
 
@@ -184,6 +184,8 @@ Good luck!
 
 
 ## One More Thing
+~~其实是叨逼逼~~
+
 在使用linux安装一些软件和环境的时候，总是很容易出现各种报错。其实这些报错别人基本都遇到过了，仔细阅读提示信息，或者直接ctrl c + ctrl v 到google上找一下，大部分情况都是能找到比较好的解决方法的。
 
 另外我们也要总结一下一些常见的问题比如版本不对、库缺失等等，了解常见的安装方式，如何查找安装软件(如apt-cache search xxx) ...这样我们就能慢慢地自己解决一些问题了。
@@ -194,3 +196,4 @@ Good luck!
 [link1]:https://mooc.study.163.com/course/1000002004#/info
 [link2]:https://blog.csdn.net/u014069939/article/details/90726175
 [link3]:https://blog.csdn.net/littleflypig/article/details/79584349
+[link4]:http://pan.baidu.com/s/1rP0Bc1_DUVCL-7_g_YJHeQ 
