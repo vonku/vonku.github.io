@@ -89,7 +89,7 @@
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2019/09/21/在ubuntu18-04上编译运行linux0-11/1.png">
 <meta property="og:image" content="http://yoursite.com/2019/09/21/在ubuntu18-04上编译运行linux0-11/2.png">
-<meta property="og:updated_time" content="2019-09-21T04:04:45.119Z">
+<meta property="og:updated_time" content="2019-09-21T04:18:01.396Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="在ubuntu18.04上编译运行linux0.11">
 <meta name="twitter:description" content="本文的目的是在Ubuntu18.04上编译运行Linux0.11。  系统是虚拟机下的ubuntu18.04LTS，主要软件环境是Bochs+gcc+vim+Linux 0.11 源代码。 后续希望能编写自己的应用程序，修改Linux 0.11的源代码，用gcc编译后，在Bochs的虚拟环境中运行、调试目标代码，在实践中加深对Linux操作系统的理解。 话不多说，现在开始吧。">
@@ -385,7 +385,8 @@
 <h2 id="1-准备环境"><a href="#1-准备环境" class="headerlink" title="1. 准备环境"></a>1. 准备环境</h2><p>本文主要参考了哈工大的<a href="https://mooc.study.163.com/course/1000002004#/info" target="_blank" rel="noopener">《操作系统之基础》</a>的课程，该课程提供了基本的实验环境压缩包<strong>hit-oslab</strong>，下载链接: <a href="http://pan.baidu.com/s/1rP0Bc1_DUVCL-7_g_YJHeQ" target="_blank" rel="noopener">http://pan.baidu.com/s/1rP0Bc1_DUVCL-7_g_YJHeQ</a> 提取码: u3nb。</p>
 <figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#</span><span class="bash"> 下载hit-oslab-linux-20110823.tar.gz到个人目录/home/vonku，进入该目录 </span></span><br><span class="line"><span class="meta">$</span><span class="bash"> <span class="built_in">cd</span> /home/vonku/</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 解压</span></span><br><span class="line"><span class="meta">$</span><span class="bash"> tar -zxvf hit-oslab-linux-20110823.tar.gz </span></span><br><span class="line"></span><br><span class="line"><span class="meta">#</span><span class="bash"> 查看是否解压成功</span></span><br><span class="line"><span class="meta">$</span><span class="bash"> ls -al</span></span><br><span class="line"><span class="meta">#</span><span class="bash"> 解压后得到的oslab就是实验环境的主文件夹</span></span><br></pre></td></tr></table></figure>
 
-<p>现在我们查看以下文件结构：<br><img src="/2019/09/21/在ubuntu18-04上编译运行linux0-11/1.png" alt="abc"></p>
+<p>现在我们查看一下文件结构：</p>
+<p><img src="/2019/09/21/在ubuntu18-04上编译运行linux0-11/1.png" alt="abc"></p>
 <ul>
 <li>Image文件</li>
 </ul>
@@ -460,6 +461,8 @@
 <p><img src="/2019/09/21/在ubuntu18-04上编译运行linux0-11/2.png" alt="abc"></p>
 <p>接下来，自由地修改、编译linux-0.11的内核，在实践中加深对操作系统的理解吧！</p>
 <p>Good luck!</p>
+<h2 id="One-More-Thing"><a href="#One-More-Thing" class="headerlink" title="One More Thing"></a>One More Thing</h2><p>在使用linux安装一些软件和环境的时候，总是很容易出现各种报错。其实这些报错别人基本都遇到过了，仔细阅读提示信息，或者直接ctrl c + ctrl v 到google上找一下，大部分情况都是能找到比较好的解决方法的。</p>
+<p>另外我们也要总结一下一些常见的问题比如版本不对、库缺失等等，了解常见的安装方式，如何查找安装软件(如apt-cache search xxx) …这样我们就能慢慢地自己解决一些问题了。</p>
 
       
     </div>
@@ -623,7 +626,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-准备环境"><span class="nav-number">1.</span> <span class="nav-text">1. 准备环境</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-编译内核"><span class="nav-number">2.</span> <span class="nav-text">2. 编译内核</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#step1-安装8086-16位编译链接器"><span class="nav-number">2.0.1.</span> <span class="nav-text">step1. 安装8086 16位编译链接器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#step2-安装gcc环境"><span class="nav-number">2.0.2.</span> <span class="nav-text">step2. 安装gcc环境</span></a></li></ol></li></ol><li class="nav-item nav-level-2"><a class="nav-link" href="#3-bochs模拟器运行linux0-11内核"><span class="nav-number">3.</span> <span class="nav-text">3. bochs模拟器运行linux0.11内核</span></a></li></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-准备环境"><span class="nav-number">1.</span> <span class="nav-text">1. 准备环境</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-编译内核"><span class="nav-number">2.</span> <span class="nav-text">2. 编译内核</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#step1-安装8086-16位编译链接器"><span class="nav-number">2.0.1.</span> <span class="nav-text">step1. 安装8086 16位编译链接器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#step2-安装gcc环境"><span class="nav-number">2.0.2.</span> <span class="nav-text">step2. 安装gcc环境</span></a></li></ol></li></ol><li class="nav-item nav-level-2"><a class="nav-link" href="#3-bochs模拟器运行linux0-11内核"><span class="nav-number">3.</span> <span class="nav-text">3. bochs模拟器运行linux0.11内核</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#One-More-Thing"><span class="nav-number">4.</span> <span class="nav-text">One More Thing</span></a></li></div>
             
 
           </div>
