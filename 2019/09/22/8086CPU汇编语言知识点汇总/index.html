@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言 本文的初衷是对8086汇编语言的基本知识点进行汇总，参考的书籍是王爽编著的《汇编语言第三版》。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="8086CPU汇编语言知识点汇总">
+<meta property="og:url" content="http://yoursite.com/2019/09/22/8086CPU汇编语言知识点汇总/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="前言 本文的初衷是对8086汇编语言的基本知识点进行汇总，参考的书籍是王爽编著的《汇编语言第三版》。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-09-22T15:22:46.506Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="8086CPU汇编语言知识点汇总">
+<meta name="twitter:description" content="前言 本文的初衷是对8086汇编语言的基本知识点进行汇总，参考的书籍是王爽编著的《汇编语言第三版》。">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2019/09/22/8086CPU汇编语言知识点汇总/">
+
+
+
+
+
+  <title>8086CPU汇编语言知识点汇总 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">脑子不够用，随便写一下</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-schedule">
+          <a href="/schedule/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-calendar"></i> <br>
+            
+            日程表
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-sitemap">
+          <a href="/sitemap.xml" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-sitemap"></i> <br>
+            
+            站点地图
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-commonweal">
+          <a href="/404/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-heartbeat"></i> <br>
+            
+            公益404
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/09/22/8086CPU汇编语言知识点汇总/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">8086CPU汇编语言知识点汇总</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2019-09-22T22:46:19+08:00">
+                2019-09-22
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2019/09/22/8086CPU汇编语言知识点汇总/" class="leancloud_visitors" data-flag-title="8086CPU汇编语言知识点汇总">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><blockquote>
+<p>本文的初衷是对8086汇编语言的基本知识点进行汇总，参考的书籍是王爽编著的《汇编语言第三版》。</p>
+</blockquote>
+<a id="more"></a>
+
+<h4 id="ch1-基础知识"><a href="#ch1-基础知识" class="headerlink" title="ch1 基础知识"></a>ch1 基础知识</h4><ol>
+<li><p>汇编指令是机器指令的助记符，同机器指令一一对应。</p>
+</li>
+<li><p>在存储器中指令和数据没有任何区别，都是二进制信息。</p>
+</li>
+<li><p>一个CPU可以引出3种总线的宽度标志了这个CPU的不同方面的性能：</p>
+<p> 地址总线的宽度决定了CPU的寻址能力；     </p>
+<p> 数据总线的宽度决定了CPU与其他器件进行数据传输时的一次数据传送量；</p>
+<p> 控制总线的宽度决定了CPU对系统中其他器件的控制能力。</p>
+</li>
+<li><p>8086CPU的地址总线的宽度为20，内存地址空间大小为1MB;</p>
+<p> 80386CPU的地址总线宽度为32，内存地址空间最大为4GB. </p>
+</li>
+<li><p>8086PC机内存地址空间分配的基本情况：</p>
+</li>
+</ol>
+<h4 id="Ch2-寄存器组"><a href="#Ch2-寄存器组" class="headerlink" title="Ch2 寄存器组"></a>Ch2 寄存器组</h4><p>8086CPU一共有14个寄存器，分别是:</p>
+<ul>
+<li>通用寄存器：<code>AX、BX、CX、DX、</code></li>
+<li><code>SI、DI、</code></li>
+<li><code>SP、BP、IP、</code></li>
+<li>段寄存器：<code>CS、SS、DS、ES、</code></li>
+<li><code>PSW</code></li>
+</ul>
+<p>其中，<code>CS：IP</code>表示执行代码；<code>SS：SP</code>表示栈顶；<code>DS</code>表示当前的内存段地址</p>
+<p><strong>Q:</strong> CPU在执行 <code>add al, 93H</code> 指令时，<code>al</code>的进位会加到<code>ah</code>中吗？ </p>
+<p><strong>A:</strong> 不会，<code>al</code>和<code>ah</code>被当做两个不相关的寄存器</p>
+<p><strong>Q:</strong> 8086CPU为什么要有段地址和偏移地址的概念，如<code>CS:IP</code></p>
+<p><strong>A:</strong> 8086CPU的寻址范围是<code>20位（1MB）</code>，但是地址总线只有<code>16位</code>，因此用<code>两个16位</code>表示一个<code>20位</code>的地址</p>
+<pre><code>物理地址 = 段地址 * 16 + 偏移地址
+        = 基础地址 + 偏移地址
+一个段可寻址的最大范围是64KB，因为偏移地址寄存器只有16位的。</code></pre><p><strong>Q:</strong> 指令和数据在内存中是没有区别的，什么时候把内存中的信息看做指令？</p>
+<p><strong>A:</strong> 被<code>CS:IP</code>指向的内存单元看做是指令，被取址执行。</p>
+<p><strong>Q:</strong> <code>MOV</code>指令可以修改<code>CS:IP</code>吗？</p>
+<p><strong>A:</strong> 不可以。需要用专门的指令修改<code>CS:IP</code>，如<code>jmp</code>指令。</p>
+<pre><code>jmp 段地址:偏移地址    -&gt; 修改CS、IP
+jmp 某一合法寄存器     -&gt;  修改IP</code></pre><h4 id="Ch3-寄存器（内存访问）"><a href="#Ch3-寄存器（内存访问）" class="headerlink" title="Ch3 寄存器（内存访问）"></a>Ch3 寄存器（内存访问）</h4><p><strong>1. DS和[address]</strong></p>
+<p>内存访问示例：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">mov bx,1000H</span><br><span class="line">mov ds,bx</span><br><span class="line">mov al,[0]     //把1000:0内存地址的1字节内容拷贝到al寄存器</span><br><span class="line">mov [0],al     //把al寄存器的值拷贝到1000:0内存地址处</span><br></pre></td></tr></table></figure>
+
+<p><code>注意：不能直接把数据送给ds寄存器，需要寄存器中转。这是8086CPU硬件决定的</code></p>
+<p><strong>2. 栈</strong></p>
+<ul>
+<li><p><code>push</code>和<code>pop</code>指令用于压栈和出栈</p>
+</li>
+<li><p><code>SS：SP</code>指向栈顶元素</p>
+</li>
+<li><p>8086CPU不保证对栈的操作不会越界，要程序员自己保证！</p>
+</li>
+</ul>
+<p><strong>Q:</strong> <code>mov</code>指令和<code>push\pop</code>指令的区别？</p>
+<p><strong>A:</strong> <code>mov</code>指令只需一步操作；但是<code>push</code>和<code>pop</code>需要两步。<code>push</code>是先改变<code>SP</code>，然后拷贝；<code>pop</code>是先拷贝，再改<code>SP</code>。</p>
+<p><code>小结：栈段完全是我们自己的安排。CS：IP指向哪，就从哪取址执行；DS指向哪，就在哪操作内存；SS：SP指向哪，哪里就是栈顶。</code></p>
+<h4 id="Ch4-第一个程序"><a href="#Ch4-第一个程序" class="headerlink" title="Ch4 第一个程序"></a>Ch4 第一个程序</h4><p>一段简单的汇编程序：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">assume cs:codesg</span><br><span class="line"></span><br><span class="line">codesg segment</span><br><span class="line">    mov ax,0123H</span><br><span class="line">    mov bx,0456H</span><br><span class="line">    add ax,bx</span><br><span class="line">    add ax,ax</span><br><span class="line"></span><br><span class="line">    mov ax,4c00H     //程序返回</span><br><span class="line">    int 21H</span><br><span class="line"></span><br><span class="line">codesg ends</span><br><span class="line">end</span><br></pre></td></tr></table></figure>
+
+<h4 id="Ch5-BX-和loop程序"><a href="#Ch5-BX-和loop程序" class="headerlink" title="Ch5 [BX]和loop程序"></a>Ch5 [BX]和loop程序</h4><p>一段简单的代码：把内存<code>ffff:0~ffff:b</code>单元中的数据复制到<code>0:200~0:20b</code>中</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">assume cs:code</span><br><span class="line">code segment</span><br><span class="line">    mov ax,0ffffh</span><br><span class="line">    mov ds,ax     ;(ds) = 0ffffh</span><br><span class="line"></span><br><span class="line">     mov ax,0020h</span><br><span class="line">     mov es,ax     ;(es) = 0020h</span><br><span class="line">     mov bx,0     </span><br><span class="line">     mov cx,12     ;(cx) = 12,循环12次</span><br><span class="line"></span><br><span class="line">s:   mov dl,[bx]</span><br><span class="line">     mov es:[bx],dl</span><br><span class="line">     inc bx</span><br><span class="line">     loop s</span><br><span class="line"></span><br><span class="line">     mov ax,4c00h</span><br><span class="line">     int 21h</span><br><span class="line">code ends</span><br><span class="line">end</span><br></pre></td></tr></table></figure>
+
+<p><code>说明：用loop做循环，循环次数由cx决定； 可以明确指定段地址如es:[bx]，否则默认用ds</code></p>
+<h4 id="Ch6-包含多个段的程序"><a href="#Ch6-包含多个段的程序" class="headerlink" title="Ch6 包含多个段的程序"></a>Ch6 包含多个段的程序</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">assume cs:b,ds:a,ss:c</span><br><span class="line">a segment</span><br><span class="line">    dw 0123h,...     //define word</span><br><span class="line">a ends</span><br><span class="line"></span><br><span class="line">c segment</span><br><span class="line">    dw 0,0,...     </span><br><span class="line">c ends</span><br><span class="line"></span><br><span class="line">b segment</span><br><span class="line">d: mov ax,c</span><br><span class="line">    mov ss,ax</span><br><span class="line">    mov sp,20h     ；希望用c段做栈空间，设置ss:sp指向c:20</span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">b ends</span><br><span class="line">end d    ;d处是要执行的第一条指令，即程序的入口</span><br></pre></td></tr></table></figure>
+
+<p><code>说明：</code></p>
+<p><code>一个段中的数据的段地址可以由段名代表，偏移地址看它在段中的位置。</code></p>
+<p><code>如想要将a作为数据段，则把a通过ax寄存器赋给ds即可（不能直接把a赋给ds,cpu不允许）</code></p>
+<p><code>如想要把c作为栈段，则把c通过ax赋给ss即可，当然还要指定sp为段中的最高位置。</code></p>
+<h4 id="Ch7-更灵活的定位内存地址的方法"><a href="#Ch7-更灵活的定位内存地址的方法" class="headerlink" title="Ch7 更灵活的定位内存地址的方法"></a>Ch7 更灵活的定位内存地址的方法</h4><ul>
+<li><code>[idata]</code> 用一个常量来表示地址，可以直接定位一个内存单元               </li>
+<li><code>[bx]</code> 用一个变量来表示内存地址，可用于间接定位一个内存单元</li>
+<li><code>[bx+idata]</code> 用一个变量和常量表示地址，可在一个起始地址的基础上用变量间接定位一个内存单元</li>
+<li><code>[bx+si]</code> 用两个变量表示内存地址</li>
+<li><code>[bx+si+idata]</code> 用两个变量和一个常量表示内存地址</li>
+</ul>
+<h4 id="Ch8-数据处理的两个基本问题"><a href="#Ch8-数据处理的两个基本问题" class="headerlink" title="Ch8 数据处理的两个基本问题"></a>Ch8 数据处理的两个基本问题</h4><p><strong>1. bx、si、di和bp</strong></p>
+<ul>
+<li>在8086CPU中，只有这4个寄存器可以用在<code>“[...]”</code>中来进行内存单元的寻址</li>
+<li>这4个寄存器可以单独出现，两两组合只能是：<code>bx和si，bx和di，bp和si，bp和di</code></li>
+<li>只要在<code>[...]</code>中使用寄存器<code>bp</code>，而指令中没有显式地给出段地址，则默认使用的是<code>ss</code></li>
+</ul>
+<p><strong>2. 寻址方式综合</strong>                     </p>
+<ul>
+<li>直接寻址：<br><code>[idata]</code></li>
+<li>寄存器间接寻址：<ul>
+<li><code>[bx]</code></li>
+<li><code>[si]</code></li>
+<li><code>[di]</code></li>
+<li><code>[bp]</code>     //段地址默认是(ss)</li>
+</ul>
+</li>
+<li>寄存器相对寻址：<ul>
+<li><code>[bx+idata]</code></li>
+<li><code>[si+idata]</code></li>
+<li><code>[di+idata]</code></li>
+<li><code>[bp+idata]</code></li>
+</ul>
+</li>
+<li>基址变址寻址：<ul>
+<li><code>[bx+si]</code></li>
+<li><code>[bx+di]</code></li>
+<li><code>[bp+si]</code></li>
+<li><code>[bp+di]</code></li>
+</ul>
+</li>
+<li>相对基址变址寻址：<ul>
+<li><code>[bx+si+idata]</code></li>
+<li><code>[bx+di+idata]</code></li>
+<li><code>[bp+si+idata]</code>    </li>
+<li><code>[bp+di+idata]</code></li>
+</ul>
+</li>
+</ul>
+<p><strong>3. 指令要处理的数据有多长</strong></p>
+<ul>
+<li>通过寄存器名确定</li>
+</ul>
+<p>如：ax是字操作，ah是半字操作</p>
+<ul>
+<li>通过 <code>word ptr</code>或<code>byte ptr</code>指明</li>
+</ul>
+<p>如：<code>mov word ptr ds:[0],1</code></p>
+<p><code>mov byte ptr ds:[0],1</code></p>
+<ul>
+<li>其他方法</li>
+</ul>
+<p>有些指令是默认的，比如<code>push</code>和<code>pop</code>都是字操作</p>
+<p><strong>4. div除法</strong></p>
+<p>除数有8位和16位两种，如果除数是8位，则被除数位16位；如果除数是16位，则被除数是32位。<br>格式：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">div reg</span><br><span class="line">div 内存单元</span><br></pre></td></tr></table></figure>
+
+<p>举例：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">div byte ptr ds:[0]</span><br><span class="line">含义 (al) = (ax) / ((ds) * 16 + 0)的商</span><br><span class="line">     (ah) = (ax) / ((ds) * 16 + 0)的余数</span><br><span class="line"></span><br><span class="line">div word ptr es:[0]</span><br><span class="line">含义 (ax) = [(dx)*10000H + (ax)]/ ((es) * 16 + 0)的商</span><br><span class="line">     (dx) = [(dx)*10000H + (ax)] / ((es) * 16 + 0)的余数</span><br></pre></td></tr></table></figure>
+
+<p><strong>5. dup</strong></p>
+<p>举例说明：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">db 3 dup (0)</span><br><span class="line">db 3 dup (0,1,2)     //0,1,2,0,1,2,0,1,2</span><br><span class="line">db 3 dup (&apos;abc&apos;, &apos;ABC&apos;)   //&apos;abcABCabcABCabcABC&apos;</span><br><span class="line">dw 200 dup (0)     //200个word，值都是0</span><br></pre></td></tr></table></figure>
+
+<h4 id="Ch9-转移指令的原理"><a href="#Ch9-转移指令的原理" class="headerlink" title="Ch9 转移指令的原理"></a>Ch9 转移指令的原理</h4><p>8086CPU的转移指令有几种 ：</p>
+<ul>
+<li>无条件转移指令（如jmp）</li>
+<li>条件转移指令</li>
+<li>循环指令（如loop）</li>
+<li>过程</li>
+<li>中断</li>
+</ul>
+<p><strong>1. offset操作符</strong></p>
+<p>功能：取得标号的偏移地址</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">assume cs:codesg</span><br><span class="line">codesg segment</span><br><span class="line">    start: mov ax,offset start     ;相当于mov ax,0</span><br><span class="line">    s:       mov ax,offset s           ;相当于mov ax,3</span><br><span class="line">codesg ends</span><br><span class="line">end start</span><br></pre></td></tr></table></figure>
+
+<p><strong>2. jmp</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">jmp short 标号     ;近跳转到标号处，对IP的修改范围是-128~127 ：只改IP，CS不变</span><br><span class="line">jmp far ptr 标号   ;实现的是段间转移，又称为远转移：(cs)=标号所在的段；(IP)=标号在段中的偏移地址</span><br><span class="line">jmp 段地址：偏移地址</span><br><span class="line">jmp reg     ;(IP) = (reg)</span><br><span class="line">jmp word ptr 内存单元地址     ;段内转移，(IP) = 内存中的值</span><br><span class="line">jmp dword ptr 内存单元地址   ;段间转移，(IP) = 内存中的值；(CS)=(内存地址+2 地方的值)</span><br></pre></td></tr></table></figure>
+
+<p><strong>3. jcxz</strong></p>
+<p>条件转移指令</p>
+<p>所有的条件转移指令都是短转移！</p>
+<p>功能：如果<code>cx</code>不等于0，则跳转到标号的地方</p>
+<p><strong>4. loop指令</strong></p>
+<p>功能：<code>(cx) = (cx) - 1</code>; <code>如果cx不等于0，则跳到标号的地方</code></p>
+<h4 id="Ch10-CALL和RET指令"><a href="#Ch10-CALL和RET指令" class="headerlink" title="Ch10 CALL和RET指令"></a>Ch10 CALL和RET指令</h4><p><strong>1. ret和retf</strong></p>
+<p><code>ret</code> 修改IP的内容，实现近转移</p>
+<p>功能：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(IP)=((ss)*16+(sp))</span><br><span class="line">(sp) = (sp) + 2</span><br></pre></td></tr></table></figure>
+
+<p><code>retf</code> 修改CS IP的内容，实现远转移</p>
+<p>功能：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">(IP)=((ss)*16+(sp))</span><br><span class="line">(sp) = (sp) + 2</span><br><span class="line">(CS)=((ss)*16+(sp))</span><br><span class="line">(sp) = (sp) + 2</span><br></pre></td></tr></table></figure>
+
+<p><strong>2. call指令</strong></p>
+<p>功能：</p>
+<p>(1) 将当前的<code>IP</code>或<code>CS和IP</code>压入栈中</p>
+<p>(2) 转移</p>
+<p>几种用法：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">call 标号</span><br><span class="line">call far ptr 标号</span><br><span class="line">call 16位reg</span><br><span class="line">call word ptr 内存单元地址</span><br><span class="line">call dword ptr 内存单元地址</span><br></pre></td></tr></table></figure>
+
+<p><strong>3. mul指令</strong></p>
+<p>被乘的两个数要么都是8位，要么都是16位</p>
+<p><code>mul byte ptr ds:[0]</code></p>
+<p>含义：<code>(ax) = (al) * ((ds)*16+0)</code></p>
+<p><code>mul word ptr [bi+si+8]</code></p>
+<p>含义：</p>
+<p><code>(ax) = (ax)* ((ds)*16+(bi)+(si)+8)结果的低16位</code></p>
+<p><code>(dx) = (ax)* ((ds)*16+(bi)+(si)+8)结果的高16位</code></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/09/21/在ubuntu18-04上编译运行linux0-11/" rel="next" title="在ubuntu18.04上编译运行linux0.11">
+                <i class="fa fa-chevron-left"></i> 在ubuntu18.04上编译运行linux0.11
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-name">标签</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#ch1-基础知识"><span class="nav-number">1.1.</span> <span class="nav-text">ch1 基础知识</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch2-寄存器组"><span class="nav-number">1.2.</span> <span class="nav-text">Ch2 寄存器组</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch3-寄存器（内存访问）"><span class="nav-number">1.3.</span> <span class="nav-text">Ch3 寄存器（内存访问）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch4-第一个程序"><span class="nav-number">1.4.</span> <span class="nav-text">Ch4 第一个程序</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch5-BX-和loop程序"><span class="nav-number">1.5.</span> <span class="nav-text">Ch5 [BX]和loop程序</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch6-包含多个段的程序"><span class="nav-number">1.6.</span> <span class="nav-text">Ch6 包含多个段的程序</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch7-更灵活的定位内存地址的方法"><span class="nav-number">1.7.</span> <span class="nav-text">Ch7 更灵活的定位内存地址的方法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch8-数据处理的两个基本问题"><span class="nav-number">1.8.</span> <span class="nav-text">Ch8 数据处理的两个基本问题</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch9-转移指令的原理"><span class="nav-number">1.9.</span> <span class="nav-text">Ch9 转移指令的原理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Ch10-CALL和RET指令"><span class="nav-number">1.10.</span> <span class="nav-text">Ch10 CALL和RET指令</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
