@@ -79,24 +79,35 @@
 
 
 
-<meta name="description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbed">
+<meta name="description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。在这里做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbedtls相关的书籍 Understa">
 <meta name="keywords" content="物联网安全 mbedtls 单向散列函数">
 <meta property="og:type" content="article">
 <meta property="og:title" content="密码技术与物联网安全之单向散列函数">
 <meta property="og:url" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbed">
+<meta property="og:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。在这里做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbedtls相关的书籍 Understa">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/hash.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/insecure_signing_long_message.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/hash_sign.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/propertities.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/1.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/2.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/3.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/4.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/5.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/6.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/7.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/8.png">
+<meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/10.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/logic_function.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/logic_symbol.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/abc.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/1280px-SHA-2.svg.png">
-<meta property="og:updated_time" content="2019-08-11T13:05:15.526Z">
+<meta property="og:updated_time" content="2019-10-27T03:29:22.639Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
-<meta name="twitter:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。为了避免过段时间不用又全部忘记掉，故在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbed">
-<meta name="twitter:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/hash.png">
+<meta name="twitter:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。在这里做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbedtls相关的书籍 Understa">
+<meta name="twitter:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/insecure_signing_long_message.png">
 
 
 
@@ -377,11 +388,11 @@
       
 
       
-        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。<del>为了避免过段时间不用又全部忘记掉，故</del>在此做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。<br>我主要参考了以下三本书籍，感兴趣的同学可以看看：</p>
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。在这里做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。<br>我主要参考了以下三本书籍，感兴趣的同学可以看看：</p>
 <ul>
 <li><a href="https://book.douban.com/subject/26265544/" target="_blank" rel="noopener">《图解密码技术》</a> ：非常浅显易懂的入门书籍</li>
 <li><a href="https://item.jd.com/12507477.html" target="_blank" rel="noopener">《密码技术与物联网安全 – mbedtls开发实战》</a>：19年出的mbedtls相关的书籍</li>
-<li><a href="https://book.douban.com/subject/1142306/" target="_blank" rel="noopener">《密码编码学与网络安全 – 原理与实践》</a>：有很多推导证明的教科书，<del>比较枯燥，没怎么看。</del></li>
+<li><a href="https://www.amazon.com/Understanding-Cryptography-Textbook-Students-Practitioners/dp/3642446493" target="_blank" rel="noopener">Understanding Cryptography, by Christo Paar</a></li>
 </ul>
 <p>另外参考了别人的博文和维基百科，在此表示感谢：</p>
 <ul>
@@ -390,30 +401,72 @@
 </ul>
 <a id="more"></a>
 
-<h2 id="单向散列函数"><a href="#单向散列函数" class="headerlink" title="单向散列函数"></a>单向散列函数</h2><h3 id="什么是单向散列函数"><a href="#什么是单向散列函数" class="headerlink" title="什么是单向散列函数"></a>什么是单向散列函数</h3><p>单项散列函数又称安全散列函数或哈希函数（Hash function），是一种从任何数据中创建小的数字“指纹”(fingerprint)的方法，可用于检查消息的完整性。</p>
-<p>Okay，用我自己的话来理解一遍：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">- 它是一个函数，输入是你的消息（任意长度的），输出是小的数字“指纹”（长度固定的）；</span><br><span class="line">- 既然是指纹，那么它对和消息必须是唯一对应（抗碰撞性）；</span><br><span class="line">- 散列函数可以用来检查消息的完整性。</span><br></pre></td></tr></table></figure>
-
-<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/hash.png" alt="hash"></p>
-<p>根据上面的描述，我们很容易联想到通信校验中常用到的crc。这时候我们会冒出一个问题：crc8/crc32能否作为单向散列函数，它和常用的散列函数如sha256有什么区别？</p>
-<p>这个问题在我们了解了单项散列函数的性质之后再做回答。<br>单项散列函数为了满足安全的要求，需要满足以下性质：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">输出长度可变，输出长度固定；</span><br><span class="line">高效率：计算h(x)较为容易；</span><br><span class="line">单向性：给定输出z，通过计算找到满足h(x) = z的输入是不可行的；</span><br><span class="line">抗碰撞性：找到满足h(x1) = h(x2)的一对x1、x2（x1 ≠ x2）在计算上是不可行的；</span><br><span class="line">伪随机性：满足伪随机性测试标准。</span><br></pre></td></tr></table></figure>
-
-<p>满足以上性质的散列函数，如SHA256，和CRC的区别有以下几点：</p>
+<h2 id="单向散列函数"><a href="#单向散列函数" class="headerlink" title="单向散列函数"></a>单向散列函数</h2><p>单项散列函数又称安全散列函数或哈希函数（Hash function），是一种从任何数据中创建小的数字“指纹”(fingerprint)的方法，可用于检查消息的完整性。</p>
+<h3 id="Motivation"><a href="#Motivation" class="headerlink" title="Motivation"></a>Motivation</h3><p>在现代密码学中，哈希运算有着非常多的应用，最著名的是在数字签名中的运用。</p>
+<p>在数字签名中，经常采用基于离散对数问题的非对称算法RSA算法，这种算法要求消息的长度不能比模数(modulus)小。实际常用的是模数长度是1024和3072-bits，而我们一封邮件就很可能比这个长度要大。</p>
+<p>那么，怎么解决这种问题呢？</p>
+<p>很容易想到的一种方法是，对消息分段，使得每段签名的长度，都比模数的长度小。</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/insecure_signing_long_message.png" alt="hash"></p>
+<p>这种方法有什么坏处呢？</p>
 <ul>
-<li>算法不同。crc用的是多项式除法，sha用的是替换、轮转等更复杂的运算；</li>
-<li>安全性不同。crc的安全性较弱，sha的安全性则高很多；</li>
-<li>效率不同。crc计算很快，sha效率相对慢很多；</li>
-<li>用途不同。crc一般用做通信数据的校验；sha用于安全领域，比如文件校验、数字签名等。</li>
+<li>很大的运算负载。非对称的签名算法计算得很慢，全部计算效率太低。</li>
+<li>长度太长。消息+签名，使得输出的长度直接变成了两倍。</li>
+<li>安全的限制。攻击者从中截取掉部分消息和签名、对消息和签名变换顺序、重复消息和签名，都不会被发现。</li>
 </ul>
-<h3 id="单项散列函数的应用"><a href="#单项散列函数的应用" class="headerlink" title="单项散列函数的应用"></a>单项散列函数的应用</h3><h4 id="消息完整性检测"><a href="#消息完整性检测" class="headerlink" title="消息完整性检测"></a>消息完整性检测</h4><p>单向散列函数的一个重要应用是对消息的完整性进行检测。例如在传输消息的后面添加散列值，在传输完成之后再比较计算出来的散列值和收到的散列值是否相等，来检测是否发生了篡改。</p>
-<h4 id="伪随机数生成器"><a href="#伪随机数生成器" class="headerlink" title="伪随机数生成器"></a>伪随机数生成器</h4><p>单向散列函数可以用来构造伪随机数生成算法，如TLS1.2中的PRF函数。</p>
-<h4 id="消息认证码"><a href="#消息认证码" class="headerlink" title="消息认证码"></a>消息认证码</h4><p>消息认证码用来检测消息传输过程中的错误、篡改和伪装。什么是伪装呢？比如Alice向Bob传输了一条带有散列值的消息，但是这个传输过程被Mallory截获，并且Mallory伪装成Alice发了一条新的消息+散列值给Bob。消息认证码就是为了完成认证的过程：它除了单项散列函数外还加入了共享密钥，该密钥只有Alice和Bob有，这样就能防止伪装，完成认证。</p>
-<h4 id="数字签名"><a href="#数字签名" class="headerlink" title="数字签名"></a>数字签名</h4><p>因为“指纹”代表了数据的真实性，因此一般对“指纹”进行签名而不是对完整消息进行签名（太慢）。</p>
+<p>因此，对消息进行分段加密使不可行的，在实际使用中，签名都是对消息的哈希（散列值）进行签名。首先，对完整的消息计算哈希值，然后再用签名算法对消息进行签名，这个哈希值，就代表了消息本身。消息的哈希值也常常叫做消息摘要（message digest）或者消息的指纹（fingerprint of the message）。<br><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/hash_sign.png" alt="hash"></p>
+<p>在讨论哈希的安全性之前，我们先总结以下哈希运算希望拥有的几个特性：</p>
+<ul>
+<li>它能接受任意长度的消息输入，然后输出固定长度的哈希值（128-512bits）</li>
+<li>这个哈希值跟输入的消息紧密相关（highly sensitive），输入做一点点小小的改变,哈希值都完全不一样。</li>
+<li>运算尽量地快。</li>
+</ul>
+<h3 id="哈希函数的安全性要求"><a href="#哈希函数的安全性要求" class="headerlink" title="哈希函数的安全性要求"></a>哈希函数的安全性要求</h3><p>哈希函数跟加密算法不一样，哈希函数是不需要密钥的。为了保证哈希函数的安全，焊锡函数需要用有三个最主要的特性：</p>
+<ul>
+<li>单向性（one-wayness）</li>
+<li>抗弱碰撞性</li>
+<li>抗强碰撞性</li>
+</ul>
+<p>这三点特性描述如下图：</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/propertities.png" alt="hash"></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">单向性:只能由输入计算输出，不能由输出反过来得到输入。</span><br><span class="line">抗弱碰撞性：给定x1，（计算上）求不到x2，使得它们的哈希值相等。</span><br><span class="line">抗强碰撞性：（计算上）找不到任意得x1和x2，使得它们得哈希值相等。</span><br></pre></td></tr></table></figure>
+
+<h5 id="单向性"><a href="#单向性" class="headerlink" title="单向性"></a>单向性</h5><p>考虑以下为什么哈希函数需要具有单向性。我们假设Bob向Alice传输了加密的消息，以及（对明文哈希的）签名。</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/1.png" alt="hash"></p>
+<p>e()是对称加密算法，密钥是k。z是对明文的哈希，用Bob自己的公钥对z进行签名。</p>
+<p>假设Bob用的是RSA签名算法，则签名由下式进行计算：</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/2.png" alt="hash"></p>
+<p>攻击这Oscar可以用Bob的公钥得到消息的哈希值：</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/3.png" alt="hash"></p>
+<p>如果哈希函数不是单向的，那么通过z，就可以反过来得到明文x。而在这个传输中，Bob并不希望其他人知道明文。</p>
+<p>此外，在哈希函数的另外一些应用中，比如密钥派生，单向性显得更为重要。</p>
+<h5 id="抗弱碰撞性"><a href="#抗弱碰撞性" class="headerlink" title="抗弱碰撞性"></a>抗弱碰撞性</h5><p>抗弱碰撞性很好理解，如果给定x1，能找到x2，使得它们得哈希值相等，则哈希值就不能作为消息的指纹了。</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/4.png" alt="hash"></p>
+<p>需要说明的是，由于我们输出的长度是有限的，根据鸽笼原理，100个笼子，101个鸽子，那么总是有1个笼子里面有不止一个鸽子。因此，我们指的抗弱碰撞性，是指的不能实现分析计算上的攻击，且穷举所有的可能，是不实际的。</p>
+<h5 id="抗强碰撞性"><a href="#抗强碰撞性" class="headerlink" title="抗强碰撞性"></a>抗强碰撞性</h5><p>为什么需要抗强碰撞性呢？如果攻击者能修改x1，也能修改x2，那么并且能找到x1、x2的哈希值相等，那么攻击也同样能成为可能。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">x1： Transfer $10 into Oscar&apos;s acount</span><br><span class="line">x2： Transfer $10,000 into Oscar&apos;s acount</span><br></pre></td></tr></table></figure>
+
+<p>过程如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Oscar -&gt; Bob：转10美元到我（Oscar）的账户</span><br><span class="line">Bob -&gt; Alice：转10美元到Oscar的账户（消息x1 + 签名）</span><br><span class="line">Oscar截获了消息并做修改</span><br><span class="line">Oscar-&gt;Alice：转10000美元到Oscar的账户（消息x2 + 签名）</span><br></pre></td></tr></table></figure>
+
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/5.png" alt="hash"></p>
+<p><strong>生日攻击</strong></p>
+<p>这里说明以下，抗强碰撞性的概率计算问题。</p>
+<p>一年365天。366个人中，一定有至少2个人生日相同。但是如果我们想要求有两个人的生日相同的概率是50%，那么需要多少人呢？实际只需要23个人！</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/6.png" alt="hash"></p>
+<p>假设哈希函数的输出位数是n，碰撞的概率是lamda,输入尝试次数是t，它们之间存在关系：</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/7.png" alt="hash"></p>
+<p>如果哈希函数输出长度是80位，碰撞概率是50%时，只需要尝试这么多次：</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/8.png" alt="hash"></p>
+<p>因此，所有的哈希函数，输出都至少有128位，有一些则会更多。</p>
+<p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/10.png" alt="hash"></p>
+<h3 id="单向散列函数的应用"><a href="#单向散列函数的应用" class="headerlink" title="单向散列函数的应用"></a>单向散列函数的应用</h3><h5 id="消息完整性检测"><a href="#消息完整性检测" class="headerlink" title="消息完整性检测"></a>消息完整性检测</h5><p>单向散列函数的一个重要应用是对消息的完整性进行检测。例如在传输消息的后面添加散列值，在传输完成之后再比较计算出来的散列值和收到的散列值是否相等，来检测是否发生了篡改。</p>
+<h5 id="伪随机数生成器"><a href="#伪随机数生成器" class="headerlink" title="伪随机数生成器"></a>伪随机数生成器</h5><p>单向散列函数可以用来构造伪随机数生成算法，如TLS1.2中的PRF函数。</p>
+<h5 id="消息认证码"><a href="#消息认证码" class="headerlink" title="消息认证码"></a>消息认证码</h5><p>消息认证码用来检测消息传输过程中的错误、篡改和伪装。什么是伪装呢？比如Alice向Bob传输了一条带有散列值的消息，但是这个传输过程被Mallory截获，并且Mallory伪装成Alice发了一条新的消息+散列值给Bob。消息认证码就是为了完成认证的过程：它除了单项散列函数外还加入了共享密钥，该密钥只有Alice和Bob有，这样就能防止伪装，完成认证。</p>
+<h5 id="数字签名"><a href="#数字签名" class="headerlink" title="数字签名"></a>数字签名</h5><p>因为“指纹”代表了数据的真实性，因此一般对“指纹”进行签名而不是对完整消息进行签名（太慢）。</p>
 <h3 id="SHA256详细描述"><a href="#SHA256详细描述" class="headerlink" title="SHA256详细描述"></a>SHA256详细描述</h3><p>单向散列函数的实现方法有很多种，常用的包括MD4、MD5、SHA-256、SHA384-512等。</p>
 <p>MD4、MD5算法的碰撞性已被攻破，SHA0、SHA1算法存在缺陷不推荐使用，因此推荐使用的是SHA2和SHA3算法。</p>
 <p>下面以SHA256为例详细描述哈希算法的计算过程。</p>
-<h4 id="常量初始化"><a href="#常量初始化" class="headerlink" title="常量初始化"></a>常量初始化</h4><p>首先介绍一下SHA256算法需要用到的常量以及逻辑运算。</p>
+<h5 id="常量初始化"><a href="#常量初始化" class="headerlink" title="常量初始化"></a>常量初始化</h5><p>首先介绍一下SHA256算法需要用到的常量以及逻辑运算。</p>
 <p>SHA256算法使用到的<strong>8个哈希初值：</strong></p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">(first 32 bits of the fractional parts of the square roots of the first 8 primes 2..19):</span><br><span class="line">h0 := 0x6a09e667</span><br><span class="line">h1 := 0xbb67ae85</span><br><span class="line">h2 := 0x3c6ef372</span><br><span class="line">h3 := 0xa54ff53a</span><br><span class="line">h4 := 0x510e527f</span><br><span class="line">h5 := 0x9b05688c</span><br><span class="line">h6 := 0x1f83d9ab</span><br><span class="line">h7 := 0x5be0cd19</span><br></pre></td></tr></table></figure>
 
@@ -425,12 +478,12 @@
 <p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/logic_function.png" alt="abc"></p>
 <p>其中：</p>
 <p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/logic_symbol.png" alt="abc"></p>
-<h4 id="消息预处理"><a href="#消息预处理" class="headerlink" title="消息预处理"></a>消息预处理</h4><p>算法首先要对消息进行填充。</p>
+<h5 id="消息预处理"><a href="#消息预处理" class="headerlink" title="消息预处理"></a>消息预处理</h5><p>算法首先要对消息进行填充。</p>
 <p><strong>消息填充</strong></p>
 <p>SHA256算法的分组长度是512bit，因此需要先经过填充使长度达到512的整数倍。<br>假设原始数据长度是L比特，则在后面填充一个比特1、K个比特0和长度L的二进制表示（64比特）。<br><code>K = (512 - 64 - 1 - L) mod 512</code><br>假设消息是”abc”，则填充后的消息为：<br><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/abc.png" alt="abc"></p>
 <p><strong>消息分割:</strong></p>
 <p>完成消息填充后，将消息M其分解成N个512比特的分组chunk： <code>M(1)~M(N)</code>。</p>
-<h4 id="哈希计算"><a href="#哈希计算" class="headerlink" title="哈希计算"></a>哈希计算</h4><p>计算哈希的过程，就是对消息进行<code>N</code>轮的映射计算的过程，表示为：</p>
+<h5 id="哈希计算"><a href="#哈希计算" class="headerlink" title="哈希计算"></a>哈希计算</h5><p>计算哈希的过程，就是对消息进行<code>N</code>轮的映射计算的过程，表示为：</p>
 <pre><code>H_i = Map(H_i-1, M(i))          //最外层循环，N轮</code></pre><p>H_0是前面提到的8个哈希初值，利用Map映射函数对H进行更新，更新N轮后的输出H_N，就是最后的哈希值。</p>
 <p><strong>Map映射函数</strong></p>
 <p>首先，Map映射函数需要构造64个字(<strong>WORD</strong>)</p>
@@ -621,7 +674,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#单向散列函数"><span class="nav-number">2.</span> <span class="nav-text">单向散列函数</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#什么是单向散列函数"><span class="nav-number">2.1.</span> <span class="nav-text">什么是单向散列函数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#单项散列函数的应用"><span class="nav-number">2.2.</span> <span class="nav-text">单项散列函数的应用</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#消息完整性检测"><span class="nav-number">2.2.1.</span> <span class="nav-text">消息完整性检测</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#伪随机数生成器"><span class="nav-number">2.2.2.</span> <span class="nav-text">伪随机数生成器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#消息认证码"><span class="nav-number">2.2.3.</span> <span class="nav-text">消息认证码</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数字签名"><span class="nav-number">2.2.4.</span> <span class="nav-text">数字签名</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SHA256详细描述"><span class="nav-number">2.3.</span> <span class="nav-text">SHA256详细描述</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#常量初始化"><span class="nav-number">2.3.1.</span> <span class="nav-text">常量初始化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#消息预处理"><span class="nav-number">2.3.2.</span> <span class="nav-text">消息预处理</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#哈希计算"><span class="nav-number">2.3.3.</span> <span class="nav-text">哈希计算</span></a></li></ol></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#单向散列函数"><span class="nav-number">2.</span> <span class="nav-text">单向散列函数</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Motivation"><span class="nav-number">2.1.</span> <span class="nav-text">Motivation</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#哈希函数的安全性要求"><span class="nav-number">2.2.</span> <span class="nav-text">哈希函数的安全性要求</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#单向性"><span class="nav-number">2.2.0.1.</span> <span class="nav-text">单向性</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#抗弱碰撞性"><span class="nav-number">2.2.0.2.</span> <span class="nav-text">抗弱碰撞性</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#抗强碰撞性"><span class="nav-number">2.2.0.3.</span> <span class="nav-text">抗强碰撞性</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#单向散列函数的应用"><span class="nav-number">2.3.</span> <span class="nav-text">单向散列函数的应用</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#消息完整性检测"><span class="nav-number">2.3.0.1.</span> <span class="nav-text">消息完整性检测</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#伪随机数生成器"><span class="nav-number">2.3.0.2.</span> <span class="nav-text">伪随机数生成器</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#消息认证码"><span class="nav-number">2.3.0.3.</span> <span class="nav-text">消息认证码</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#数字签名"><span class="nav-number">2.3.0.4.</span> <span class="nav-text">数字签名</span></a></li></ol></li></ol><li class="nav-item nav-level-3"><a class="nav-link" href="#SHA256详细描述"><span class="nav-number">2.4.</span> <span class="nav-text">SHA256详细描述</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#常量初始化"><span class="nav-number">2.4.0.1.</span> <span class="nav-text">常量初始化</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#消息预处理"><span class="nav-number">2.4.0.2.</span> <span class="nav-text">消息预处理</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#哈希计算"><span class="nav-number">2.4.0.3.</span> <span class="nav-text">哈希计算</span></a></li></ol></li></div>
             
 
           </div>
