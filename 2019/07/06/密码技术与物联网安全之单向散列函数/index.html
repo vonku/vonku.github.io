@@ -103,7 +103,7 @@
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/logic_symbol.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/abc.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/1280px-SHA-2.svg.png">
-<meta property="og:updated_time" content="2019-10-27T03:29:22.639Z">
+<meta property="og:updated_time" content="2019-10-27T03:30:31.708Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
 <meta name="twitter:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。在这里做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbedtls相关的书籍 Understa">
@@ -414,7 +414,7 @@
 <li>安全的限制。攻击者从中截取掉部分消息和签名、对消息和签名变换顺序、重复消息和签名，都不会被发现。</li>
 </ul>
 <p>因此，对消息进行分段加密使不可行的，在实际使用中，签名都是对消息的哈希（散列值）进行签名。首先，对完整的消息计算哈希值，然后再用签名算法对消息进行签名，这个哈希值，就代表了消息本身。消息的哈希值也常常叫做消息摘要（message digest）或者消息的指纹（fingerprint of the message）。<br><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/hash_sign.png" alt="hash"></p>
-<p>在讨论哈希的安全性之前，我们先总结以下哈希运算希望拥有的几个特性：</p>
+<p>在讨论哈希的安全性之前，我们先总结一下哈希运算希望拥有的几个特性：</p>
 <ul>
 <li>它能接受任意长度的消息输入，然后输出固定长度的哈希值（128-512bits）</li>
 <li>这个哈希值跟输入的消息紧密相关（highly sensitive），输入做一点点小小的改变,哈希值都完全不一样。</li>
@@ -430,7 +430,7 @@
 <p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/propertities.png" alt="hash"></p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">单向性:只能由输入计算输出，不能由输出反过来得到输入。</span><br><span class="line">抗弱碰撞性：给定x1，（计算上）求不到x2，使得它们的哈希值相等。</span><br><span class="line">抗强碰撞性：（计算上）找不到任意得x1和x2，使得它们得哈希值相等。</span><br></pre></td></tr></table></figure>
 
-<h5 id="单向性"><a href="#单向性" class="headerlink" title="单向性"></a>单向性</h5><p>考虑以下为什么哈希函数需要具有单向性。我们假设Bob向Alice传输了加密的消息，以及（对明文哈希的）签名。</p>
+<h5 id="单向性"><a href="#单向性" class="headerlink" title="单向性"></a>单向性</h5><p>考虑一下为什么哈希函数需要具有单向性。我们假设Bob向Alice传输了加密的消息，以及（对明文哈希的）签名。</p>
 <p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/1.png" alt="hash"></p>
 <p>e()是对称加密算法，密钥是k。z是对明文的哈希，用Bob自己的公钥对z进行签名。</p>
 <p>假设Bob用的是RSA签名算法，则签名由下式进行计算：</p>
@@ -450,7 +450,7 @@
 
 <p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/5.png" alt="hash"></p>
 <p><strong>生日攻击</strong></p>
-<p>这里说明以下，抗强碰撞性的概率计算问题。</p>
+<p>这里说明一下，抗强碰撞性的概率计算问题。</p>
 <p>一年365天。366个人中，一定有至少2个人生日相同。但是如果我们想要求有两个人的生日相同的概率是50%，那么需要多少人呢？实际只需要23个人！</p>
 <p><img src="/2019/07/06/密码技术与物联网安全之单向散列函数/6.png" alt="hash"></p>
 <p>假设哈希函数的输出位数是n，碰撞的概率是lamda,输入尝试次数是t，它们之间存在关系：</p>
