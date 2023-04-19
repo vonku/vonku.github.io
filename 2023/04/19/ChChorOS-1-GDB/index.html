@@ -79,17 +79,17 @@
 
 
 
-<meta name="description" content="启动调试12sudo make qemu-gdbsudo make gdb  gdb调试命令设置断点 1b stack_test  查看断点 1info breakpoint  清除断点 1clear location  location 为某一行代码的行号或者某个具体的函数名。 1delete [breakpoints][num]  删除某一个特定的断点或全部断点。禁用/使能断点 12disab">
+<meta name="description" content="前言 本章是qemu gdb调试基础。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ChChorOS-1-GDB">
 <meta property="og:url" content="http://yoursite.com/2023/04/19/ChChorOS-1-GDB/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="启动调试12sudo make qemu-gdbsudo make gdb  gdb调试命令设置断点 1b stack_test  查看断点 1info breakpoint  清除断点 1clear location  location 为某一行代码的行号或者某个具体的函数名。 1delete [breakpoints][num]  删除某一个特定的断点或全部断点。禁用/使能断点 12disab">
+<meta property="og:description" content="前言 本章是qemu gdb调试基础。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2023-04-19T15:50:36.711Z">
+<meta property="og:updated_time" content="2023-04-19T15:53:40.486Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-1-GDB">
-<meta name="twitter:description" content="启动调试12sudo make qemu-gdbsudo make gdb  gdb调试命令设置断点 1b stack_test  查看断点 1info breakpoint  清除断点 1clear location  location 为某一行代码的行号或者某个具体的函数名。 1delete [breakpoints][num]  删除某一个特定的断点或全部断点。禁用/使能断点 12disab">
+<meta name="twitter:description" content="前言 本章是qemu gdb调试基础。">
 
 
 
@@ -362,7 +362,12 @@
       
 
       
-        <h4 id="启动调试"><a href="#启动调试" class="headerlink" title="启动调试"></a>启动调试</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo make qemu-gdb</span><br><span class="line">sudo make gdb</span><br></pre></td></tr></table></figure>
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><blockquote>
+<p>本章是qemu gdb调试基础。</p>
+</blockquote>
+<a id="more"></a>
+
+<h4 id="启动调试"><a href="#启动调试" class="headerlink" title="启动调试"></a>启动调试</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo make qemu-gdb</span><br><span class="line">sudo make gdb</span><br></pre></td></tr></table></figure>
 
 <h4 id="gdb调试命令"><a href="#gdb调试命令" class="headerlink" title="gdb调试命令"></a>gdb调试命令</h4><p><strong>设置断点</strong></p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">b stack_test</span><br></pre></td></tr></table></figure>
@@ -611,7 +616,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#启动调试"><span class="nav-number">1.</span> <span class="nav-text">启动调试</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#gdb调试命令"><span class="nav-number">2.</span> <span class="nav-text">gdb调试命令</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#二进制分析"><span class="nav-number">3.</span> <span class="nav-text">二进制分析</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#启动调试"><span class="nav-number">1.1.</span> <span class="nav-text">启动调试</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#gdb调试命令"><span class="nav-number">1.2.</span> <span class="nav-text">gdb调试命令</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#二进制分析"><span class="nav-number">1.3.</span> <span class="nav-text">二进制分析</span></a></li></ol></li></ol></div>
             
 
           </div>

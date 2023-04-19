@@ -362,70 +362,16 @@
 
       
         
-          
-            <h4 id="启动调试"><a href="#启动调试" class="headerlink" title="启动调试"></a>启动调试</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">sudo make qemu-gdb</span><br><span class="line">sudo make gdb</span><br></pre></td></tr></table></figure>
-
-<h4 id="gdb调试命令"><a href="#gdb调试命令" class="headerlink" title="gdb调试命令"></a>gdb调试命令</h4><p><strong>设置断点</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">b stack_test</span><br></pre></td></tr></table></figure>
-
-<p><strong>查看断点</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">info breakpoint</span><br></pre></td></tr></table></figure>
-
-<p><strong>清除断点</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">clear location</span><br></pre></td></tr></table></figure>
-
-<p>location 为某一行代码的行号或者某个具体的函数名。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">delete [breakpoints][num]</span><br></pre></td></tr></table></figure>
-
-<p>删除某一个特定的断点或全部断点。<br><strong>禁用/使能断点</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">disable [breakpoints][num]</span><br><span class="line">enable [breakpoints][num]</span><br></pre></td></tr></table></figure>
-
-<p><strong>查看变量</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">info variables</span><br></pre></td></tr></table></figure>
-
-<p><strong>查看寄存器</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">info register sp</span><br><span class="line">info register fp  // $x29</span><br></pre></td></tr></table></figure>
-
-<p><strong>查看内存</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">x/32xg $x29</span><br></pre></td></tr></table></figure>
-
-<p>命令格式：  x /nfu <addr></addr></p>
-<ul>
-<li><p>n 是要显示内存单元的个数</p>
-</li>
-<li><p>f 表示显示格式</p>
-<ul>
-<li>x 十六进制</li>
-<li>d 十进制</li>
-<li>u 十进制无符号整型</li>
-<li>o 八进制</li>
-<li>t 二进制</li>
-<li>i 指令地址格式</li>
-<li>c 字符串格式</li>
-<li>f 浮点格式</li>
-</ul>
-</li>
-<li><p>u 一个地址单元的长度</p>
-<ul>
-<li>b/h/w/g，分别表示单字节、双字节、四字节、八字节</li>
-</ul>
-</li>
-</ul>
-<h4 id="二进制分析"><a href="#二进制分析" class="headerlink" title="二进制分析"></a>二进制分析</h4><p><strong>查看ELF头部信息</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">readelf -h build/kernel.img</span><br></pre></td></tr></table></figure>
-
-<p><strong>查看ELF包含的程序段</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">readelf -S build/kernel.img</span><br></pre></td></tr></table></figure>
-
-<p><strong>查看ELF的LMA和VMA</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">objdump -h build/kernel.img</span><br></pre></td></tr></table></figure>
-
-<p><strong>汇编单步调试</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">si</span><br></pre></td></tr></table></figure>
-
-<p><strong>实时查看寄存器变化</strong></p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">打开gdb之后运行 layout regs</span><br></pre></td></tr></table></figure>
-          
+          <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><blockquote>
+<p>本章是qemu gdb调试基础。</p>
+</blockquote>
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/2023/04/19/ChChorOS-1-GDB/#more" rel="contents">
+              阅读全文 &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
         
       
     </div>
