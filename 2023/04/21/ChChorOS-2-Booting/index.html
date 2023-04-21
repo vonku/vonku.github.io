@@ -87,7 +87,8 @@
 <meta property="og:description" content="前言 主要内容：理解ChChor多核启动流程。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-2-Booting/startup.png">
-<meta property="og:updated_time" content="2023-04-21T14:43:16.856Z">
+<meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-2-Booting/%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4.jpg">
+<meta property="og:updated_time" content="2023-04-21T14:50:23.003Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-2-Booting">
 <meta name="twitter:description" content="前言 主要内容：理解ChChor多核启动流程。">
@@ -379,6 +380,7 @@
 </ul>
 <p>这里要也别说明一下：TTBR0_EL1和TTBR1_EL1，都是给内核使用的（EL1特权级别），用哪个完全是根据虚拟地址范围来决定。</p>
 <p>基于以上特性，我们可以在链接的时候，把boot阶段的代码指定在低地址（由TTBR0_EL1的页表进行翻译），把kernel的代码指定在高地址（由TTBR1_EL1）的页表进行翻译。</p>
+<p><img src="/2023/04/21/ChChorOS-2-Booting/%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4.jpg" alt="地址空间"></p>
 
       
     </div>
