@@ -13,7 +13,7 @@ tags:
 
 ![startup](ChChorOS-2-Booting/startup.png)
 
-#### MMU开启过程及内核地址映射
+### MMU开启过程及内核地址映射
 
 内核和用户的虚拟内存空间是如何映射的？刚启动的时候，MMU还没有配置，没有地址翻译；MMU启动后，开始进行地址翻译，内核是如何保证这个转换顺利进行的呢？
 
@@ -28,3 +28,7 @@ tags:
 基于以上特性，我们可以在链接的时候，把boot阶段的代码指定在低地址（由TTBR0_EL1的页表进行翻译），把kernel的代码指定在高地址（由TTBR1_EL1）的页表进行翻译。
 
 ![地址空间](ChChorOS-2-Booting/地址空间.jpg)
+
+### MMU开启过程
+
+![mmu](ChChorOS-2-Booting/mmu.png)
