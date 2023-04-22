@@ -11,13 +11,13 @@ tags:
 
 <!--more-->
 
-![memory-层次图](ChChorOS-2-Booting/memory-层次图.jpg)
+![memory-层次图](ChChorOS-3-Memory/memory-层次图.jpg)
 
-### 内存布局
+### 1. 内存布局
 
-![内存布局](ChChorOS-2-Booting/内存布局.png)
+![内存布局](ChChorOS-3-Memory/内存布局.png)
 
-### Buddy系统
+### 2. Buddy系统
 
 物理页的内存管理方法，以4KB的page为单位。
 
@@ -29,7 +29,7 @@ tags:
 
 在分配和释放时做merge和split的动作，避免浪费。
 
-### Slab系统
+### 3. Slab系统
 
 slab时建立在buddy system上的分配器，用于分配小于4KB的内存。操作系统里面的结构体大小常为几十、几百字节。
 
@@ -48,9 +48,9 @@ slab_header_t *slabs[SLAB_MAX_ORDER + 1];
 
 它只分配固定大小的size，分别是32，64，128...2048
 
-![slab](ChChorOS-2-Booting/slab.png)
+![slab](ChChorOS-3-Memory/slab.png)
 
-#### slab分配器初始化
+#### 3.1 slab分配器初始化
 
 1. 只能分配固定大小的obj，从32,64...到2048，每个大小的slab用全局数据管理
 
@@ -58,7 +58,7 @@ slab_header_t *slabs[SLAB_MAX_ORDER + 1];
 
 3. 第一个物理对象，用来存放slab_header，slab_header的free_list_head链表把所有的空闲对象串联起来；next_slab指向相同大小的下一个slab对象
 
-#### slab内存分配
+#### 3.2 slab内存分配
 
 1. 根据size找到对应的slab对象，超过2048则直接从buddy system分配page
 
@@ -66,7 +66,7 @@ slab_header_t *slabs[SLAB_MAX_ORDER + 1];
 
 3. 如果都没有了，则重新向buddy system申请slab cache
 
-#### slab内存释放
+#### 3.3 slab内存释放
 
 1. 根据addr得到page
 
@@ -80,9 +80,11 @@ slab_header_t *slabs[SLAB_MAX_ORDER + 1];
 - chcore中只实现了slab分配器，没有实现slub（没有current，partial，full等链表来加快分配过程）
 - slab分配器中只看到了init_slab_cach，不够时一直从buddy system申请物理页，但是没有看到释放物理页，因此它会一直保持峰值时占用的物理内存，即使后面不再使用了。
 
-### 虚拟内存映射
+### 4. 虚拟内存映射
 
-![page-table](ChChorOS-2-Booting/page-table.png)
+虚拟内存映射简单来说是怎么根据虚拟地址得到真正的物理地址的过程。地址翻译的过程是由硬件MMU来自动完成的。
+
+![page-table](ChChorOS-3-Memory/page-table.png)
 
 AArch64支持的物理内存地址空间的大小为48位，对应4级页表9位的页表索引（每个页表512个条目）+12位的页偏移（每页4KB大小）。
 

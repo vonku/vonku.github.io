@@ -11,9 +11,11 @@ tags:
 
 <!--more-->
 
+### 1. 启动流程
+
 ![startup](ChChorOS-2-Booting/startup.png)
 
-### MMU开启过程及内核地址映射
+### 2. MMU开启过程及内核地址映射
 
 内核和用户的虚拟内存空间是如何映射的？刚启动的时候，MMU还没有配置，没有地址翻译；MMU启动后，开始进行地址翻译，内核是如何保证这个转换顺利进行的呢？
 
@@ -29,6 +31,6 @@ tags:
 
 ![地址空间](ChChorOS-2-Booting/地址空间.jpg)
 
-### MMU开启过程
+#### 2.1 MMU开启过程
 
 ![mmu](ChChorOS-2-Booting/mmu.png)
