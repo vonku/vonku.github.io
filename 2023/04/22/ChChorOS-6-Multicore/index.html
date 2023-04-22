@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言 本章ChChor多核相关内容。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ChChorOS-6-Multicore">
+<meta property="og:url" content="http://yoursite.com/2023/04/22/ChChorOS-6-Multicore/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="前言 本章ChChor多核相关内容。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-6-Multicore/startup.png">
+<meta property="og:updated_time" content="2023-04-22T07:57:22.479Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ChChorOS-6-Multicore">
+<meta name="twitter:description" content="前言 本章ChChor多核相关内容。">
+<meta name="twitter:image" content="http://yoursite.com/2023/04/22/ChChorOS-6-Multicore/startup.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2023/04/22/ChChorOS-6-Multicore/">
+
+
+
+
+
+  <title>ChChorOS-6-Multicore | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/04/22/ChChorOS-6-Multicore/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">ChChorOS-6-Multicore</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2023-04-22T15:17:42+08:00">
+                2023-04-22
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/OS/" itemprop="url" rel="index">
+                    <span itemprop="name">OS</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2023/04/22/ChChorOS-6-Multicore/" class="leancloud_visitors" data-flag-title="ChChorOS-6-Multicore">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><blockquote>
+<p>本章ChChor多核相关内容。</p>
+</blockquote>
+<a id="more"></a>
+
+<h3 id="1-多核启动"><a href="#1-多核启动" class="headerlink" title="1 多核启动"></a>1 多核启动</h3><p>所有的CPU核心在开机时被同时启动，在引导时则会被分为两种类型。</p>
+<p>一个指定的CPI核心会引导整个操作系统和初始化自身，被称为<strong>主CPU</strong>。</p>
+<p>其他CPU只初始化自身即可，被称为<strong>副CPU</strong>。</p>
+<p>CPU核心仅在系统引导时有所区分，在其他阶段，每个CPU核心都是被相同对待的。</p>
+<p><strong>选定主CPU：</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mrs x8, mpidr_el1</span><br><span class="line">and x8, x8, #0xFF</span><br><span class="line">cbz x8, primary</span><br></pre></td></tr></table></figure>
+
+<p>mpidr_el1 寄存器低8位为0，则表示主CPU。</p>
+<p><strong>阻塞其他副CPU的执行：</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">wait_for_bss_clear:</span><br><span class="line">	adr	x0, clear_bss_flag</span><br><span class="line">	ldr	x1, [x0]</span><br><span class="line">	cmp     x1, #0</span><br><span class="line">	bne	wait_for_bss_clear</span><br><span class="line"></span><br><span class="line">	/* Turn to el1 from other exception levels. */</span><br><span class="line">	bl 	arm64_elX_to_el1</span><br><span class="line"></span><br><span class="line">	/* Prepare stack pointer and jump to C. */</span><br><span class="line">	mov	x1, #0x1000</span><br><span class="line">	mul	x1, x8, x1</span><br><span class="line">	adr 	x0, boot_cpu_stack</span><br><span class="line">	add	x0, x0, x1</span><br><span class="line">	add	x0, x0, #0x1000</span><br><span class="line">        mov	sp, x0</span><br><span class="line"></span><br><span class="line">wait_until_smp_enabled:</span><br><span class="line">	/* CPU ID should be stored in x8 from the first line */</span><br><span class="line">	mov	x1, #8</span><br><span class="line">	mul	x2, x8, x1</span><br><span class="line">	ldr	x1, =secondary_boot_flag</span><br><span class="line">	add	x1, x1, x2</span><br><span class="line">	ldr	x3, [x1]</span><br><span class="line">	cbz	x3, wait_until_smp_enabled</span><br><span class="line"></span><br><span class="line">	/* Set CPU id */</span><br><span class="line">	mov	x0, x8</span><br><span class="line">	bl 	secondary_init_c</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>等待主CPU清除<code>bss</code>段，循环检查<code>clear_bss_flag</code>变量</li>
+<li>转为<code>EL1</code>异常级别</li>
+<li>准备栈指针，这里的<code>boot_cpu_stack</code>是每个cpu都有自己单独的栈</li>
+<li>循环检查<code>secondary_boot_flag</code>变量</li>
+<li>设置<code>cpu id</code>后跳转到<code>secondary_init_c</code>执行，激活副cpu</li>
+</ol>
+<p>这里引用boot一文中的流程图：</p>
+<p><img src="/2023/04/22/ChChorOS-6-Multicore/startup.png" alt="startup"></p>
+<p>思考：这里所有的副核心是依次激活，而不是并行激活。如果并行激活，会有问题吗？</p>
+<ul>
+<li><p>每个CPU核心不共享内核栈。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">char</span> kernel_stack[PLAT_CPU_NUM][KERNEL_STACK_SIZE];</span><br></pre></td></tr></table></figure>
+
+<p>各个副CPU仅共享<code>clear_bss_flag</code>，但仅读取其中的数据，不会导致数据竞争。</p>
+</li>
+</ul>
+<h3 id="2-大内核锁"><a href="#2-大内核锁" class="headerlink" title="2 大内核锁"></a>2 大内核锁</h3><p>现在，内核代码已经可以运行在多核上了。为了确保代码不会由于并行执行而引起错误，需要先解决并发问题。这里使用的是大内核锁，即内核的全局共享锁。</p>
+<p><strong>在CPU核心以内核态访问任何数据之前，应该先获得大内核锁。在退出内核态之前释放大内核锁。以确保同时只有一个CPU核心执行内核代码、访问内核数据。</strong></p>
+<p>kernel/common/lock.c中提供了一个简单的排号锁，以充当大内核锁。</p>
+<p><strong>排号锁 （ticket lock）</strong></p>
+<p>排号锁是sync一节的内容，这里用到了，简单介绍写实现：</p>
+<p>数据结构：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">lock</span> &#123;</span></span><br><span class="line"> <span class="keyword">volatile</span> u32 owner;</span><br><span class="line"> <span class="keyword">char</span> pad0[pad_to_cache_line(<span class="keyword">sizeof</span>(u32))];</span><br><span class="line"></span><br><span class="line"> <span class="keyword">volatile</span> u32 next;</span><br><span class="line"> <span class="keyword">char</span> pad1[pad_to_cache_line(<span class="keyword">sizeof</span>(u32))];</span><br><span class="line">&#125; __attribute__ ((aligned(CACHELINE_SZ)));</span><br></pre></td></tr></table></figure>
+
+<p>主要是一个owner和一个next成员，owner == next 的时候，才是给自己的锁，否则是别人的锁。这样实现了先来后到。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line">struct lock big_kernel_lock;</span><br><span class="line"></span><br><span class="line">int lock_init(struct lock *lock)</span><br><span class="line">&#123;</span><br><span class="line">	BUG_ON(!lock);</span><br><span class="line">	/* Initialize ticket lock */</span><br><span class="line">	lock-&gt;owner = 0;</span><br><span class="line">	lock-&gt;next = 0;</span><br><span class="line">	return 0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">/* 持锁 */</span><br><span class="line">void lock(struct lock *lock)</span><br><span class="line">&#123;</span><br><span class="line">	u32 lockval = 0, newval = 0, ret = 0;</span><br><span class="line"></span><br><span class="line">	BUG_ON(!lock);</span><br><span class="line"></span><br><span class="line">	/* 原子操作 */</span><br><span class="line">	lock-&gt;next = fetch_and_add(1);</span><br><span class="line">	while(locl-&gt;next != lock-&gt;owner);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">/* 释放锁：由于同时只有一个人可以持锁，因此释放锁不需要原子操作 */</span><br><span class="line">void unlock(struct lock *lock)</span><br><span class="line">&#123;</span><br><span class="line">	BUG_ON(!lock);</span><br><span class="line">	asm volatile(&quot;dmb ish&quot;);</span><br><span class="line"></span><br><span class="line">	lock-&gt;owner++;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">int is_locked(struct lock *lock)</span><br><span class="line">&#123;</span><br><span class="line">	return (lock-&gt;owner &lt; lock-&gt;next);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">void kernel_lock_init(void)</span><br><span class="line">&#123;</span><br><span class="line">	lock_init(&amp;big_kernel_lock);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">void lock_kernel(void)</span><br><span class="line">&#123;</span><br><span class="line">	lock(&amp;big_kernel_lock);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">void unlock_kernel(void)</span><br><span class="line">&#123;</span><br><span class="line">	unlock(&amp;big_kernel_lock);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-锁、放锁时机"><a href="#3-锁、放锁时机" class="headerlink" title="3 锁、放锁时机"></a>3 锁、放锁时机</h3><ol>
+<li>在主CPU激活副CPU之前需要先获取大内核锁</li>
+<li>副CPU初始化完成之后且副CPU返回用户态之前获取大内核锁</li>
+<li>exception_table.S中的el0_syscall：在跳转到syscall_table中相应的syscall条目之前获取大内核锁</li>
+<li>handle_entry_c：在该异常处理函数第一行获取大内核锁。但是内核态也可能发生异常，如果异常是在内核中捕获的，则不应该获取大内核锁</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">handle_entry_c</span><span class="params">(<span class="keyword">int</span> type, u64 esr, u64 address)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line"> <span class="comment">/** </span></span><br><span class="line"><span class="comment">  *</span></span><br><span class="line"><span class="comment">  * Acquire the big kernel lock, if the exception is not from kernel</span></span><br><span class="line"><span class="comment">  */</span></span><br><span class="line"> <span class="keyword">if</span> (type &gt;= SYNC_EL0_64) &#123; </span><br><span class="line">  lock_kernel();</span><br><span class="line"> &#125;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="5">
+<li>handle_irq：在中断处理函数第一行获取大内核锁（同样如果是内核异常，则不获取）</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">handle_irq</span><span class="params">(<span class="keyword">int</span> type)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line"> <span class="comment">// 如果是内核态捕获的异常，不需要持锁，因为进内核态的时候已经持过锁了。</span></span><br><span class="line"> <span class="comment">// 但是在idle线程（以内核态运行）中捕获了错误，还是需要获取大内核锁，原因是idle线程运行时并不会持锁</span></span><br><span class="line"> <span class="keyword">if</span>(type == IRQ_EL0_64 || type == IRQ_EL0_32 || current_thread-&gt;thread_ctx-&gt;type == TYPE_IDLE)&#123; <span class="comment">//see thread.h and sched.h</span></span><br><span class="line">  lock_kernel();</span><br><span class="line"> &#125;</span><br><span class="line"></span><br><span class="line"> plat_handle_irq();</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"> sched_handle_timer_irq();</span><br><span class="line"> sched();</span><br><span class="line"> eret_to_thread(switch_context());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="6">
+<li>exception_return：释放大内核锁。所有情况下，内核态返回用户态都使用exception_return，因此这是唯一需要调用 <code>unlock_kernel()</code>的位置。</li>
+</ol>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2023/04/22/ChChorOS-5-Exception/" rel="next" title="ChChorOS-5-Exception">
+                <i class="fa fa-chevron-left"></i> ChChorOS-5-Exception
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2023/04/22/ChChorOS-7-Sched/" rel="prev" title="ChChorOS-7-Sched">
+                ChChorOS-7-Sched <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">13</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">4</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-多核启动"><span class="nav-number">2.</span> <span class="nav-text">1 多核启动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-大内核锁"><span class="nav-number">3.</span> <span class="nav-text">2 大内核锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-锁、放锁时机"><span class="nav-number">4.</span> <span class="nav-text">3 锁、放锁时机</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
