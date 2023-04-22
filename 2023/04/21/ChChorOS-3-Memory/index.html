@@ -90,7 +90,7 @@
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/slab.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/page-table.png">
-<meta property="og:updated_time" content="2023-04-21T15:57:11.623Z">
+<meta property="og:updated_time" content="2023-04-22T02:26:30.977Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-3-Memory">
 <meta name="twitter:description" content="前言 主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。">
@@ -373,20 +373,20 @@
 <a id="more"></a>
 
 <p><img src="/2023/04/21/ChChorOS-3-Memory/memory-%E5%B1%82%E6%AC%A1%E5%9B%BE.jpg" alt="memory-层次图"></p>
-<h3 id="内存布局"><a href="#内存布局" class="headerlink" title="内存布局"></a>内存布局</h3><p><img src="/2023/04/21/ChChorOS-3-Memory/%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80.png" alt="内存布局"></p>
-<h3 id="Buddy系统"><a href="#Buddy系统" class="headerlink" title="Buddy系统"></a>Buddy系统</h3><p>物理页的内存管理方法，以4KB的page为单位。</p>
+<h3 id="1-内存布局"><a href="#1-内存布局" class="headerlink" title="1. 内存布局"></a>1. 内存布局</h3><p><img src="/2023/04/21/ChChorOS-3-Memory/%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80.png" alt="内存布局"></p>
+<h3 id="2-Buddy系统"><a href="#2-Buddy系统" class="headerlink" title="2. Buddy系统"></a>2. Buddy系统</h3><p>物理页的内存管理方法，以4KB的page为单位。</p>
 <p>一个物理page对应一个struct page的管理结构体。</p>
 <p>以order为单位分配，对应1，2，4，8，16…个page。</p>
 <p>每个order对应一个free_lists链表</p>
 <p>在分配和释放时做merge和split的动作，避免浪费。</p>
-<h3 id="Slab系统"><a href="#Slab系统" class="headerlink" title="Slab系统"></a>Slab系统</h3><p>slab时建立在buddy system上的分配器，用于分配小于4KB的内存。操作系统里面的结构体大小常为几十、几百字节。</p>
+<h3 id="3-Slab系统"><a href="#3-Slab系统" class="headerlink" title="3. Slab系统"></a>3. Slab系统</h3><p>slab时建立在buddy system上的分配器，用于分配小于4KB的内存。操作系统里面的结构体大小常为几十、几百字节。</p>
 <p>这里分析下ChChor里的使用的slab分配器。</p>
 <p>首先，slab定义了一个全局数组：</p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* order range: [SLAB_MIN_ORDER, SLAB_MAX_ORDER] */</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SLAB_MIN_ORDER (5)</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> SLAB_MAX_ORDER (11)</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* local variables */</span></span><br><span class="line"><span class="keyword">slab_header_t</span> *slabs[SLAB_MAX_ORDER + <span class="number">1</span>];</span><br></pre></td></tr></table></figure>
 
 <p>它只分配固定大小的size，分别是32，64，128…2048</p>
 <p><img src="/2023/04/21/ChChorOS-3-Memory/slab.png" alt="slab"></p>
-<h4 id="slab分配器初始化"><a href="#slab分配器初始化" class="headerlink" title="slab分配器初始化"></a>slab分配器初始化</h4><ol>
+<h4 id="3-1-slab分配器初始化"><a href="#3-1-slab分配器初始化" class="headerlink" title="3.1 slab分配器初始化"></a>3.1 slab分配器初始化</h4><ol>
 <li><p>只能分配固定大小的obj，从32,64…到2048，每个大小的slab用全局数据管理</p>
 </li>
 <li><p>初始化时，先分配物理page(2MB)，然后初始化物理页，按照obj大小划分为n个物理对象</p>
@@ -394,7 +394,7 @@
 <li><p>第一个物理对象，用来存放slab_header，slab_header的free_list_head链表把所有的空闲对象串联起来；next_slab指向相同大小的下一个slab对象</p>
 </li>
 </ol>
-<h4 id="slab内存分配"><a href="#slab内存分配" class="headerlink" title="slab内存分配"></a>slab内存分配</h4><ol>
+<h4 id="3-2-slab内存分配"><a href="#3-2-slab内存分配" class="headerlink" title="3.2 slab内存分配"></a>3.2 slab内存分配</h4><ol>
 <li><p>根据size找到对应的slab对象，超过2048则直接从buddy system分配page</p>
 </li>
 <li><p>首先从第一个slab_header分配，如果free_list_head为NULL，表示没有空闲的了，尝试从next_slab分配</p>
@@ -402,7 +402,7 @@
 <li><p>如果都没有了，则重新向buddy system申请slab cache</p>
 </li>
 </ol>
-<h4 id="slab内存释放"><a href="#slab内存释放" class="headerlink" title="slab内存释放"></a>slab内存释放</h4><ol>
+<h4 id="3-3-slab内存释放"><a href="#3-3-slab内存释放" class="headerlink" title="3.3 slab内存释放"></a>3.3 slab内存释放</h4><ol>
 <li><p>根据addr得到page</p>
 </li>
 <li><p>page的元数据区保存了slab的指针，找到slab对象</p>
@@ -416,7 +416,8 @@
 <li>chcore中只实现了slab分配器，没有实现slub（没有current，partial，full等链表来加快分配过程）</li>
 <li>slab分配器中只看到了init_slab_cach，不够时一直从buddy system申请物理页，但是没有看到释放物理页，因此它会一直保持峰值时占用的物理内存，即使后面不再使用了。</li>
 </ul>
-<h3 id="虚拟内存映射"><a href="#虚拟内存映射" class="headerlink" title="虚拟内存映射"></a>虚拟内存映射</h3><p><img src="/2023/04/21/ChChorOS-3-Memory/page-table.png" alt="page-table"></p>
+<h3 id="4-虚拟内存映射"><a href="#4-虚拟内存映射" class="headerlink" title="4. 虚拟内存映射"></a>4. 虚拟内存映射</h3><p>虚拟内存映射简单来说是怎么根据虚拟地址得到真正的物理地址的过程。地址翻译的过程是由硬件MMU来自动完成的。</p>
+<p><img src="/2023/04/21/ChChorOS-3-Memory/page-table.png" alt="page-table"></p>
 <p>AArch64支持的物理内存地址空间的大小为48位，对应4级页表9位的页表索引（每个页表512个条目）+12位的页偏移（每页4KB大小）。</p>
 <p>页表基地址寄存器：TTBR0_EL1（存储用户程序映射的页表）和TTBR1_EL1（存储内核映射的页表）。</p>
 <p>AArch64页表的项被称为<strong>描述符</strong>。一共有三种：</p>
@@ -468,6 +469,10 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2023/04/22/ChChorOS-4-Process/" rel="prev" title="ChChorOS-3-Process">
+                ChChorOS-3-Process <i class="fa fa-chevron-right"></i>
+              </a>
             
           </div>
         </div>
@@ -546,7 +551,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">8</span>
+                  <span class="site-state-item-count">9</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
@@ -623,7 +628,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#内存布局"><span class="nav-number">2.</span> <span class="nav-text">内存布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Buddy系统"><span class="nav-number">3.</span> <span class="nav-text">Buddy系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Slab系统"><span class="nav-number">4.</span> <span class="nav-text">Slab系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#slab分配器初始化"><span class="nav-number">4.1.</span> <span class="nav-text">slab分配器初始化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#slab内存分配"><span class="nav-number">4.2.</span> <span class="nav-text">slab内存分配</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#slab内存释放"><span class="nav-number">4.3.</span> <span class="nav-text">slab内存释放</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#虚拟内存映射"><span class="nav-number">5.</span> <span class="nav-text">虚拟内存映射</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-内存布局"><span class="nav-number">2.</span> <span class="nav-text">1. 内存布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Buddy系统"><span class="nav-number">3.</span> <span class="nav-text">2. Buddy系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Slab系统"><span class="nav-number">4.</span> <span class="nav-text">3. Slab系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-1-slab分配器初始化"><span class="nav-number">4.1.</span> <span class="nav-text">3.1 slab分配器初始化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-slab内存分配"><span class="nav-number">4.2.</span> <span class="nav-text">3.2 slab内存分配</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-slab内存释放"><span class="nav-number">4.3.</span> <span class="nav-text">3.3 slab内存释放</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-虚拟内存映射"><span class="nav-number">5.</span> <span class="nav-text">4. 虚拟内存映射</span></a></li></ol></div>
             
 
           </div>
