@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="本文介绍RPMsg-Lite核间通信协议的工作原理与应用。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="RPMsg-Lite-一种轻量级核间通信协议">
+<meta property="og:url" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍RPMsg-Lite核间通信协议的工作原理与应用。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/architecture.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/datastruct.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/sm.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/oneshot.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/ns.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/vring.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/idx.png">
+<meta property="og:updated_time" content="2023-04-26T14:56:27.837Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="RPMsg-Lite-一种轻量级核间通信协议">
+<meta name="twitter:description" content="本文介绍RPMsg-Lite核间通信协议的工作原理与应用。">
+<meta name="twitter:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/architecture.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/">
+
+
+
+
+
+  <title>RPMsg-Lite-一种轻量级核间通信协议 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">RPMsg-Lite-一种轻量级核间通信协议</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2023-04-26T22:02:21+08:00">
+                2023-04-26
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Components/" itemprop="url" rel="index">
+                    <span itemprop="name">Components</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/" class="leancloud_visitors" data-flag-title="RPMsg-Lite-一种轻量级核间通信协议">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>本文介绍RPMsg-Lite核间通信协议的工作原理与应用。</p>
+</blockquote>
+<a id="more"></a>
+
+<p>RPMsg-Lite是NXP开源的一个核间通信组件，它可以作为eRPC的IPC传输层实现核间RPC调用，本文介绍该组件的核心工作原理，以及它在项目中的实施方案。</p>
+<p>开源链接：<a href="https://github.com/nxp-mcuxpresso/rpmsg-lite" target="_blank" rel="noopener">https://github.com/nxp-mcuxpresso/rpmsg-lite</a></p>
+<h3 id="1-Architecture"><a href="#1-Architecture" class="headerlink" title="1 Architecture"></a>1 Architecture</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/architecture.png" alt="architecture"></p>
+<p>rpmsg_lite.c：核心文件，实现了核间通信的主要功能</p>
+<p>rpmsg_ns.c：name service，用于声明服务，对应端点的概念</p>
+<p>rpmsg_queue.c：消息缓存队列，配合eRPC实现了零拷贝的传输层</p>
+<p>virtqueue.c：实现了一个基于共享内存的环形缓冲区，参考了Linux virtio的实现</p>
+<p>env&amp;platform：适配层，主要是osal和核间通信硬件设施</p>
+<h3 id="2-数据结构"><a href="#2-数据结构" class="headerlink" title="2 数据结构"></a>2 数据结构</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/datastruct.png" alt="datastruct"></p>
+<p><strong>rpmsg_lite_Instance</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">rpmsg_lite_instance</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">virtqueue</span> *<span class="title">rvq</span>;</span>      <span class="comment">// 接收队列</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">virtqueue</span> *<span class="title">tvq</span>;</span>      <span class="comment">// 发送队列</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">llist</span> *<span class="title">rl_endpoints</span>;</span> <span class="comment">// 端点的list</span></span><br><span class="line">    LOCK *lock;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">uint32_t</span> link_state;</span><br><span class="line">    <span class="keyword">char</span> *sh_mem_base;                  <span class="comment">// 共享内存起始地址</span></span><br><span class="line">    <span class="keyword">uint32_t</span> sh_mem_remaining;         </span><br><span class="line">    <span class="keyword">uint32_t</span> sh_mem_total;              </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">virtqueue_ops</span> <span class="title">const</span> *<span class="title">vq_ops</span>;</span> <span class="comment">// virtqueue的ops，master和remote有不同的ops</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">uint32_t</span> link_id;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>全局的rpmsg_lite实例，对应一组核间通信实现。</p>
+<p>在master和remote都有对应的实例。</p>
+<p>master和remote的实例在初始化的时候做的动作稍微有点差异，初始化过程由master完成对共享内存数据结构的配置。</p>
+<p>注意：virtqueue类型的tvq和rvq，分别是自己的发送queue和接收queue。</p>
+<p><strong>virtqueue_ops</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">virtqueue_ops</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="keyword">void</span> (*vq_tx)(struct virtqueue *vq, <span class="keyword">void</span> *buffer, <span class="keyword">uint32_t</span> len, <span class="keyword">uint16_t</span> idx);</span><br><span class="line">    <span class="keyword">void</span> *(*vq_tx_alloc)(struct virtqueue *vq, <span class="keyword">uint32_t</span> *len, <span class="keyword">uint16_t</span> *idx);</span><br><span class="line">    <span class="keyword">void</span> *(*vq_rx)(struct virtqueue *vq, <span class="keyword">uint32_t</span> *len, <span class="keyword">uint16_t</span> *idx);</span><br><span class="line">    <span class="keyword">void</span> (*vq_rx_free)(struct virtqueue *vq, <span class="keyword">void</span> *buffer, <span class="keyword">uint32_t</span> len, <span class="keyword">uint16_t</span> idx);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>用来和virtqueue层交互的操作接口，master和remote使用的是不同的接口。</p>
+<p><strong>virtqueue</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">virtqueue</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="comment">/* 32bit aligned &#123; */</span></span><br><span class="line">    <span class="keyword">char</span> vq_name[VIRTQUEUE_MAX_NAME_SZ];</span><br><span class="line">    <span class="keyword">uint32_t</span> vq_flags;</span><br><span class="line">    <span class="keyword">int32_t</span> vq_alignment;</span><br><span class="line">    <span class="keyword">int32_t</span> vq_ring_size;</span><br><span class="line">    <span class="keyword">void</span> *vq_ring_mem;							<span class="comment">// 指向vring的起始地址</span></span><br><span class="line">    <span class="keyword">void</span> (*callback_fc)(struct virtqueue *vq);  <span class="comment">// 如果是tvq则是tx callback，如果是rvq则是rx callback</span></span><br><span class="line">    <span class="keyword">void</span> (*notify_fc)(struct virtqueue *vq);	<span class="comment">// 如果是tvq则是tx notify</span></span><br><span class="line">    <span class="keyword">int32_t</span> vq_max_indirect_size;</span><br><span class="line">    <span class="keyword">int32_t</span> vq_indirect_mem_size;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vring</span> <span class="title">vq_ring</span>;</span>						<span class="comment">// 核心数据结构！这里是结构体，不是指针</span></span><br><span class="line">    <span class="comment">/* &#125; 32bit aligned */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 16bit aligned &#123; */</span></span><br><span class="line">    <span class="keyword">uint16_t</span> vq_queue_index;</span><br><span class="line">    <span class="keyword">uint16_t</span> vq_nentries;</span><br><span class="line">    <span class="keyword">uint16_t</span> vq_free_cnt;</span><br><span class="line">    <span class="keyword">uint16_t</span> vq_queued_cnt;</span><br><span class="line"></span><br><span class="line">	<span class="comment">// 一组用来指示数据位置的索引</span></span><br><span class="line">    <span class="keyword">uint16_t</span> vq_desc_head_idx;</span><br><span class="line">    <span class="keyword">uint16_t</span> vq_used_cons_idx;</span><br><span class="line">    <span class="keyword">uint16_t</span> vq_available_idx;</span><br><span class="line">    <span class="comment">/* &#125; 16bit aligned */</span></span><br><span class="line"></span><br><span class="line">    boolean avail_read;  <span class="comment">/* 8bit wide */</span></span><br><span class="line">    boolean avail_write; <span class="comment">/* 8bit wide */</span></span><br><span class="line">    boolean used_read;   <span class="comment">/* 8bit wide */</span></span><br><span class="line">    boolean used_write;  <span class="comment">/* 8bit wide */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">uint16_t</span> padd; <span class="comment">/* aligned to 32bits after this: */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">void</span> *priv; <span class="comment">// 指向rpmsg_lite_instance</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">vring</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="keyword">uint32_t</span> num;</span><br><span class="line"></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vring_desc</span> *<span class="title">desc</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vring_avail</span> *<span class="title">avail</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">vring_used</span> *<span class="title">used</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>virtqueue数据结构是完成共享内存数据交换的关键。</p>
+<p>接下来我们看下这些virtqueue数据结构，和共享内存的关系。</p>
+<h3 id="3-共享内存"><a href="#3-共享内存" class="headerlink" title="3 共享内存"></a>3 共享内存</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/sm.png" alt="sm"></p>
+<p>共享内存初始化后是上图的布局。其中，vring0和vring1都是为了管理共享buffer而增加的数据结构。</p>
+<p><strong>vring_desc</strong>： 指向了各个数据buffer</p>
+<p><strong>vring_avail</strong> 和 <strong>vring_used</strong>：用来做发送和接收的索引管理，它们的idx取模后就是 desc 的 idx，也就是指向一个buffer。</p>
+<h3 id="4-数据收发流程"><a href="#4-数据收发流程" class="headerlink" title="4 数据收发流程"></a>4 数据收发流程</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/oneshot.png" alt="oneshot"></p>
+<h3 id="5-声明服务"><a href="#5-声明服务" class="headerlink" title="5 声明服务"></a>5 声明服务</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/ns.png" alt="ns"></p>
+<h3 id="6-vqueue-amp-vring数据流"><a href="#6-vqueue-amp-vring数据流" class="headerlink" title="6 vqueue&amp;vring数据流"></a>6 vqueue&amp;vring数据流</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/vring.png" alt="vring"><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/idx.png" alt="idx"></p>
+<p>简单总结这些指针的变化过程：</p>
+<p><strong>master-&gt;remote</strong></p>
+<ol>
+<li><p>master发送：master tvq的avail-&gt;idx++，vq_used_cons_idx++</p>
+</li>
+<li><p>remote接收：remote rvq的used-&gt;idx++，vq_available_idx++</p>
+</li>
+</ol>
+<p>初始化的时候，<code>used-&gt;idx - avail-&gt;idx = vq_nentries</code>，也就是说，刚开始的时候，全部都是空的，master一个数据都还没发送</p>
+<p>注意：master的tvq和remote的rvq是同一片内存，同一个数据结构！</p>
+<p><strong>remote-&gt;master</strong></p>
+<ol>
+<li><p>remote发送：remote tvq 的 used-&gt;idx++，vq_available_idx++</p>
+</li>
+<li><p>master接收：masterrvq 的 avail-&gt;idx++，vq_used_cons_idx++</p>
+</li>
+</ol>
+<p>初始化的时候，<code>avail-&gt;idx - used-&gt;idx = vq_nentries</code>，也就是说，刚开始的时候，全部都是空的，remote一个数据都还没发送</p>
+<h3 id="7-硬件视图"><a href="#7-硬件视图" class="headerlink" title="7 硬件视图"></a>7 硬件视图</h3><p>为了完成核间通信，rpmsg-lite需要：</p>
+<ol>
+<li>一片共享内存，用来存放vitrqueue的数据结构，以及共享数据的buffer，两个核都要可以访问</li>
+<li>中断<ul>
+<li>发送中断：发送方告诉接收方数据准备好了</li>
+<li>接收中断：接收方收到接收中断之后，然后从共享内存读数据</li>
+<li>接收完成中断：接收方接收完数据后，通知发送方数据已经被收完了</li>
+<li>发送完成中断：发送方知道自己数据被处理完了</li>
+</ul>
+</li>
+</ol>
+<h3 id="8-项目实施"><a href="#8-项目实施" class="headerlink" title="8 项目实施"></a>8 项目实施</h3><p>在项目实施过程中，遇到了一些比较棘手的问题。</p>
+<ol>
+<li>两个核都可以独立休眠，在对端休眠期间，一端是无法正确访问对端数据的</li>
+<li>这些中断不是随时想发就可以发的，上面的几个中断需要是顺序的</li>
+<li>两个核之间的内存有cache问题，需要做好cache同步</li>
+</ol>
+<p>为了解决这些问题，我们需要：</p>
+<ol>
+<li>使用两块独立的共享内存，master和remote需要初始化自己的共享内存的tvq，因此这需要我们修改初始化流程</li>
+<li>提供休眠锁机制，可以控制自己在发送数据到收到tx done中断期间，不进入休眠，保证对端能正确访问自己的数据</li>
+<li>做好cache同步机制<ul>
+<li>发送方发送数据，在发tx irq之前，需要确保内存被更新到内存中（cache sync）</li>
+<li>接收方接收数据，以及收完数据之后更新索引，也需要确保从真正的共享内存中读写， 而不是cache</li>
+<li>发送方收到tx done中断，需要检查索引，为了确保是真实的内存中的数据，需要做cache invalidate</li>
+</ul>
+</li>
+</ol>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2023/04/26/Security-in-Bluetooth-Low-Energy/" rel="next" title="Security in Bluetooth Low Energy">
+                <i class="fa fa-chevron-left"></i> Security in Bluetooth Low Energy
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">17</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Architecture"><span class="nav-number">1.</span> <span class="nav-text">1 Architecture</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-数据结构"><span class="nav-number">2.</span> <span class="nav-text">2 数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-共享内存"><span class="nav-number">3.</span> <span class="nav-text">3 共享内存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-数据收发流程"><span class="nav-number">4.</span> <span class="nav-text">4 数据收发流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-声明服务"><span class="nav-number">5.</span> <span class="nav-text">5 声明服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-vqueue-amp-vring数据流"><span class="nav-number">6.</span> <span class="nav-text">6 vqueue&amp;vring数据流</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-硬件视图"><span class="nav-number">7.</span> <span class="nav-text">7 硬件视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-项目实施"><span class="nav-number">8.</span> <span class="nav-text">8 项目实施</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
