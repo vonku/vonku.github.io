@@ -35,34 +35,34 @@ mpidr_el1 寄存器低8位为0，则表示主CPU。
 
 ```asm
 wait_for_bss_clear:
-	adr	x0, clear_bss_flag
-	ldr	x1, [x0]
-	cmp     x1, #0
-	bne	wait_for_bss_clear
+    adr x0, clear_bss_flag
+    ldr x1, [x0]
+    cmp     x1, #0
+    bne wait_for_bss_clear
 
-	/* Turn to el1 from other exception levels. */
-	bl 	arm64_elX_to_el1
+    /* Turn to el1 from other exception levels. */
+    bl  arm64_elX_to_el1
 
-	/* Prepare stack pointer and jump to C. */
-	mov	x1, #0x1000
-	mul	x1, x8, x1
-	adr 	x0, boot_cpu_stack
-	add	x0, x0, x1
-	add	x0, x0, #0x1000
-        mov	sp, x0
+    /* Prepare stack pointer and jump to C. */
+    mov x1, #0x1000
+    mul x1, x8, x1
+    adr     x0, boot_cpu_stack
+    add x0, x0, x1
+    add x0, x0, #0x1000
+        mov sp, x0
 
 wait_until_smp_enabled:
-	/* CPU ID should be stored in x8 from the first line */
-	mov	x1, #8
-	mul	x2, x8, x1
-	ldr	x1, =secondary_boot_flag
-	add	x1, x1, x2
-	ldr	x3, [x1]
-	cbz	x3, wait_until_smp_enabled
+    /* CPU ID should be stored in x8 from the first line */
+    mov x1, #8
+    mul x2, x8, x1
+    ldr x1, =secondary_boot_flag
+    add x1, x1, x2
+    ldr x3, [x1]
+    cbz x3, wait_until_smp_enabled
 
-	/* Set CPU id */
-	mov	x0, x8
-	bl 	secondary_init_c
+    /* Set CPU id */
+    mov x0, x8
+    bl  secondary_init_c
 ```
 
 1. 等待主CPU清除`bss`段，循环检查`clear_bss_flag`变量
@@ -116,56 +116,56 @@ struct lock big_kernel_lock;
 
 int lock_init(struct lock *lock)
 {
-	BUG_ON(!lock);
-	/* Initialize ticket lock */
-	lock->owner = 0;
-	lock->next = 0;
-	return 0;
+    BUG_ON(!lock);
+    /* Initialize ticket lock */
+    lock->owner = 0;
+    lock->next = 0;
+    return 0;
 }
 
 /* 持锁 */
 void lock(struct lock *lock)
 {
-	u32 lockval = 0, newval = 0, ret = 0;
+    u32 lockval = 0, newval = 0, ret = 0;
 
-	BUG_ON(!lock);
+    BUG_ON(!lock);
 
-	/* 原子操作 */
-	lock->next = fetch_and_add(1);
-	while(locl->next != lock->owner);
+    /* 原子操作 */
+    lock->next = fetch_and_add(1);
+    while(locl->next != lock->owner);
 }
 
 /* 释放锁：由于同时只有一个人可以持锁，因此释放锁不需要原子操作 */
 void unlock(struct lock *lock)
 {
-	BUG_ON(!lock);
-	asm volatile("dmb ish");
+    BUG_ON(!lock);
+    asm volatile("dmb ish");
 
-	lock->owner++;
+    lock->owner++;
 }
 
 
 int is_locked(struct lock *lock)
 {
-	return (lock->owner < lock->next);
+    return (lock->owner < lock->next);
 }
 
 
 void kernel_lock_init(void)
 {
-	lock_init(&big_kernel_lock);
+    lock_init(&big_kernel_lock);
 }
 
 
 void lock_kernel(void)
 {
-	lock(&big_kernel_lock);
+    lock(&big_kernel_lock);
 }
 
 
 void unlock_kernel(void)
 {
-	unlock(&big_kernel_lock);
+    unlock(&big_kernel_lock);
 }
 ```
 

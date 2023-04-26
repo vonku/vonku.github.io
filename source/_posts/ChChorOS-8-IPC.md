@@ -30,31 +30,31 @@ tags:
 ```c
 int client()
 {
-	/* 1. client需要知道server的thread cap */
+    /* 1. client需要知道server的thread cap */
     // get server_thread_cap
 
-	/* 2. 注册 IPC client */
-	ret = ipc_register_client(new_thread_cap, &client_ipc_struct);
+    /* 2. 注册 IPC client */
+    ret = ipc_register_client(new_thread_cap, &client_ipc_struct);
 
-	/* 3. 创建共享内存 */
-	shared_page_pmo_cap = usys_create_pmo(PAGE_SIZE, PMO_DATA);
+    /* 3. 创建共享内存 */
+    shared_page_pmo_cap = usys_create_pmo(PAGE_SIZE, PMO_DATA);
 
-	/* 4. 映射共享内存 */
-	ret = usys_map_pmo(SELF_CAP, shared_page_pmo_cap, SHARED_PAGE_VADDR,
-			   VM_READ | VM_WRITE);
+    /* 4. 映射共享内存 */
+    ret = usys_map_pmo(SELF_CAP, shared_page_pmo_cap, SHARED_PAGE_VADDR,
+               VM_READ | VM_WRITE);
 
-	/* 5. 往共享内存写数据 */
-	*(int *)SHARED_PAGE_VADDR = MAGIC_NUM;
-	
+    /* 5. 往共享内存写数据 */
+    *(int *)SHARED_PAGE_VADDR = MAGIC_NUM;
+    
     /* 6. 创建ipc消息，设置要共享的cap，IPC发送cap */
-	ipc_msg = ipc_create_msg(&client_ipc_struct, 0, 1);
-	
+    ipc_msg = ipc_create_msg(&client_ipc_struct, 0, 1);
+    
     /* 7. 把共享的cap放到ipc_msg中 */
     ipc_set_msg_cap(ipc_msg, 0, shared_page_pmo_cap);
-	
+    
     /* 8. ipc call, 让server thread处理消息 */
     ipc_call(&client_ipc_struct, ipc_msg);
-	
+    
     ipc_destroy_msg(ipc_msg);
 
     return 0;
@@ -69,26 +69,26 @@ int client()
 void ipc_dispatcher(ipc_msg_t * ipc_msg)
 {
     int ret = 0;
-	/* 获取 ipc_msg 的cap */
-	int cap = ipc_get_msg_cap(ipc_msg, 0);
+    /* 获取 ipc_msg 的cap */
+    int cap = ipc_get_msg_cap(ipc_msg, 0);
 
-	/* 把pmo映射到自己的虚拟地址空间 */
-	ret = usys_map_pmo(SELF_CAP, cap, SHARED_PAGE_VADDR + PAGE_SIZE,
-			   VM_READ | VM_WRITE);
+    /* 把pmo映射到自己的虚拟地址空间 */
+    ret = usys_map_pmo(SELF_CAP, cap, SHARED_PAGE_VADDR + PAGE_SIZE,
+               VM_READ | VM_WRITE);
 
-	/* 现在就可以访问共享内存数据了 */
-	printf("[Server] read %x\n", *(int *)(SHARED_PAGE_VADDR + PAGE_SIZE));
-	ret = 0;
+    /* 现在就可以访问共享内存数据了 */
+    printf("[Server] read %x\n", *(int *)(SHARED_PAGE_VADDR + PAGE_SIZE));
+    ret = 0;
 
-	ipc_return(ret);
+    ipc_return(ret);
 }
 
 int main(int argc, char *argv[], char *envp[])
 {
-	int ret;
-	//...
-	info_page = (struct info_page *)info_page_addr;
-	// ...
+    int ret;
+    //...
+    info_page = (struct info_page *)info_page_addr;
+    // ...
 }
 
 ```
@@ -112,31 +112,31 @@ int main(int argc, char *argv[], char *envp[])
 ```c
 u64 sys_register_server(u64 callback, u64 max_client, u64 vm_config_ptr)
 {
-	return register_server(current_thread, callback, max_client,
-			       vm_config_ptr);
+    return register_server(current_thread, callback, max_client,
+                   vm_config_ptr);
 }
 
 static int register_server(struct thread *server, u64 callback, u64 max_client,
-			   u64 vm_config_ptr)
+               u64 vm_config_ptr)
 {
-	// ...
+    // ...
 
-	// 创建 server_ipc_config，挂到server现成的控制块上
-	server_ipc_config = kmalloc(sizeof(struct server_ipc_config));
-	server->server_ipc_config = server_ipc_config;
+    // 创建 server_ipc_config，挂到server现成的控制块上
+    server_ipc_config = kmalloc(sizeof(struct server_ipc_config));
+    server->server_ipc_config = server_ipc_config;
 
-	// 初始化 server ipc_config
-	server_ipc_config->callback = callback;
+    // 初始化 server ipc_config
+    server_ipc_config->callback = callback;
 
     server_ipc_config->max_client = max_client;
-	server_ipc_config->conn_bmp =
-	    kzalloc(BITS_TO_LONGS(max_client) * sizeof(long));
-	
-	// 拷贝用户空间的 vm_config
-	vm_config = &server_ipc_config->vm_config;
-	r = copy_from_user((char *)vm_config, (char *)vm_config_ptr,
-			   sizeof(*vm_config));
-	// ...
+    server_ipc_config->conn_bmp =
+        kzalloc(BITS_TO_LONGS(max_client) * sizeof(long));
+    
+    // 拷贝用户空间的 vm_config
+    vm_config = &server_ipc_config->vm_config;
+    r = copy_from_user((char *)vm_config, (char *)vm_config_ptr,
+               sizeof(*vm_config));
+    // ...
 }
 ```
 
@@ -149,33 +149,33 @@ static int register_server(struct thread *server, u64 callback, u64 max_client,
 ```c
 u32 sys_register_client(u32 server_cap, u64 vm_config_ptr)
 {
-	// ...
+    // ...
     
     // 拷贝用户空间传过来的config数据
-	r = copy_from_user((char *)&vm_config, (char *)vm_config_ptr,
-			   sizeof(vm_config));
-	
+    r = copy_from_user((char *)&vm_config, (char *)vm_config_ptr,
+               sizeof(vm_config));
+    
     // 获取server thread
-	server = obj_get(current_thread->process, server_cap, TYPE_THREAD);
+    server = obj_get(current_thread->process, server_cap, TYPE_THREAD);
 
-	client_buf_size = vm_config.buf_size;
+    client_buf_size = vm_config.buf_size;
 
     // 创建connection
     conn_cap = create_connection(client, server, &vm_config);
-	conn = obj_get(current_process, conn_cap, TYPE_CONNECTION);
+    conn = obj_get(current_process, conn_cap, TYPE_CONNECTION);
 
-	if (client_buf_size != vm_config.buf_size) {
-		// 如果buf size有变化，（原因是client和server的size可能不一样），更新用户空间的config
+    if (client_buf_size != vm_config.buf_size) {
+        // 如果buf size有变化，（原因是client和server的size可能不一样），更新用户空间的config
         r = copy_to_user((char *)vm_config_ptr, (char *)&vm_config,
-				 sizeof(vm_config));
-		if (r < 0)
-			goto out_obj_put_conn;
-	}
+                 sizeof(vm_config));
+        if (r < 0)
+            goto out_obj_put_conn;
+    }
 
     // 返回一个conn_cap的内核对象，后面就是用这个conn_cap进行ipc_call
-	r = conn_cap;
+    r = conn_cap;
 
-	return r;
+    return r;
 }
 ```
 
@@ -183,75 +183,75 @@ u32 sys_register_client(u32 server_cap, u64 vm_config_ptr)
 
 ```c
 static int create_connection(struct thread *source, struct thread *target,
-			     struct ipc_vm_config *client_vm_config)
+                 struct ipc_vm_config *client_vm_config)
 {
-	// ...
+    // ...
 
-	// 首先申请一个connection obj
-	conn = obj_alloc(TYPE_CONNECTION, sizeof(*conn));
-	
-	// 创建server的影子线程
+    // 首先申请一个connection obj
+    conn = obj_alloc(TYPE_CONNECTION, sizeof(*conn));
+    
+    // 创建server的影子线程
     conn->target = create_server_thread(target);
 
-	// 获取server的config
-	server_ipc_config = target->server_ipc_config;
-	vm_config = &server_ipc_config->vm_config;
-	conn_idx = find_next_zero_bit(server_ipc_config->conn_bmp,
-				      server_ipc_config->max_client, 0);
-	set_bit(conn_idx, server_ipc_config->conn_bmp);
+    // 获取server的config
+    server_ipc_config = target->server_ipc_config;
+    vm_config = &server_ipc_config->vm_config;
+    conn_idx = find_next_zero_bit(server_ipc_config->conn_bmp,
+                      server_ipc_config->max_client, 0);
+    set_bit(conn_idx, server_ipc_config->conn_bmp);
 
-	// 创建server线程的栈
-	server_stack_base =
-	    vm_config->stack_base_addr + conn_idx * vm_config->stack_size;
-	stack_size = vm_config->stack_size;
-	kdebug("server stack base:%lx size:%lx\n", server_stack_base,
-	       stack_size);
+    // 创建server线程的栈
+    server_stack_base =
+        vm_config->stack_base_addr + conn_idx * vm_config->stack_size;
+    stack_size = vm_config->stack_size;
+    kdebug("server stack base:%lx size:%lx\n", server_stack_base,
+           stack_size);
     // stack也是一个pmo，需要申请并完成内存映射
-	stack_pmo = kmalloc(sizeof(struct pmobject));
-	if (!stack_pmo) {
-		ret = -ENOMEM;
-		goto out_free_obj;
-	}
-	pmo_init(stack_pmo, PMO_DATA, stack_size, 0);
-	vmspace_map_range(target->vmspace, server_stack_base, stack_size,
-			  VMR_READ | VMR_WRITE, stack_pmo);
+    stack_pmo = kmalloc(sizeof(struct pmobject));
+    if (!stack_pmo) {
+        ret = -ENOMEM;
+        goto out_free_obj;
+    }
+    pmo_init(stack_pmo, PMO_DATA, stack_size, 0);
+    vmspace_map_range(target->vmspace, server_stack_base, stack_size,
+              VMR_READ | VMR_WRITE, stack_pmo);
 
-	conn->server_stack_top = server_stack_base + stack_size;
+    conn->server_stack_top = server_stack_base + stack_size;
 
-	// 创建共享内存，完成client和server的映射
-	server_buf_base =
-	    vm_config->buf_base_addr + conn_idx * vm_config->buf_size;
-	client_buf_base = client_vm_config->buf_base_addr;
-	buf_size = MIN(vm_config->buf_size, client_vm_config->buf_size);
-	client_vm_config->buf_size = buf_size;
+    // 创建共享内存，完成client和server的映射
+    server_buf_base =
+        vm_config->buf_base_addr + conn_idx * vm_config->buf_size;
+    client_buf_base = client_vm_config->buf_base_addr;
+    buf_size = MIN(vm_config->buf_size, client_vm_config->buf_size);
+    client_vm_config->buf_size = buf_size;
 
-	buf_pmo = kmalloc(sizeof(struct pmobject));
+    buf_pmo = kmalloc(sizeof(struct pmobject));
 
-	pmo_init(buf_pmo, PMO_DATA, buf_size, 0);
+    pmo_init(buf_pmo, PMO_DATA, buf_size, 0);
 
 
-	vmspace_map_range(current_thread->vmspace, client_buf_base, buf_size,
-			  VMR_READ | VMR_WRITE, buf_pmo);
-	vmspace_map_range(target->vmspace, server_buf_base, buf_size,
-			  VMR_READ | VMR_WRITE, buf_pmo);
+    vmspace_map_range(current_thread->vmspace, client_buf_base, buf_size,
+              VMR_READ | VMR_WRITE, buf_pmo);
+    vmspace_map_range(target->vmspace, server_buf_base, buf_size,
+              VMR_READ | VMR_WRITE, buf_pmo);
 
     // 完成配置
-	conn->buf.client_user_addr = client_buf_base;
-	conn->buf.server_user_addr = server_buf_base;
+    conn->buf.client_user_addr = client_buf_base;
+    conn->buf.server_user_addr = server_buf_base;
 
     // client进程给conn申请 conn_cap
-	conn_cap = cap_alloc(current_process, conn, 0);
+    conn_cap = cap_alloc(current_process, conn, 0);
 
     // server的conn_cap保存在 conn 中
-	server_conn_cap =
-	    cap_copy(current_process, target->process, conn_cap, 0, 0);
-	if (server_conn_cap < 0) {
-		ret = server_conn_cap;
-		goto out_free_obj;
-	}
-	conn->server_conn_cap = server_conn_cap;
+    server_conn_cap =
+        cap_copy(current_process, target->process, conn_cap, 0, 0);
+    if (server_conn_cap < 0) {
+        ret = server_conn_cap;
+        goto out_free_obj;
+    }
+    conn->server_conn_cap = server_conn_cap;
 
-	return conn_cap;
+    return conn_cap;
 
 }
 ```
@@ -283,28 +283,28 @@ client 拿到了 conn_cap，这时候就可以开始进行 `ipc_call` 了。
 ```c
 u64 sys_ipc_call(u32 conn_cap, ipc_msg_t *ipc_msg)
 {
-	struct ipc_connection *conn = NULL;
-	u64 arg;
-	int r;
+    struct ipc_connection *conn = NULL;
+    u64 arg;
+    int r;
 
     // 获取conn数据结构
-	conn = obj_get(current_thread->process, conn_cap, TYPE_CONNECTION);
+    conn = obj_get(current_thread->process, conn_cap, TYPE_CONNECTION);
 
-	// 把内核conn数据结构中的server_conn_cap拷贝到 ipc_msg 中
-	r = copy_to_user((char *)&ipc_msg->server_conn_cap,
-					 (char *)&conn->server_conn_cap, sizeof(u64));
+    // 把内核conn数据结构中的server_conn_cap拷贝到 ipc_msg 中
+    r = copy_to_user((char *)&ipc_msg->server_conn_cap,
+                     (char *)&conn->server_conn_cap, sizeof(u64));
 
-	// 把cap发送到server线程，完成cap的拷贝
-	r = ipc_send_cap(conn, ipc_msg);
+    // 把cap发送到server线程，完成cap的拷贝
+    r = ipc_send_cap(conn, ipc_msg);
 
-	/*
-	 * 这个参数是传给ipc_dispatch的参数
-	 * 是共享内存在server的虚拟地址
-	 */
-	arg = conn->buf.server_user_addr;
-	thread_migrate_to_server(conn, arg);
+    /*
+     * 这个参数是传给ipc_dispatch的参数
+     * 是共享内存在server的虚拟地址
+     */
+    arg = conn->buf.server_user_addr;
+    thread_migrate_to_server(conn, arg);
 
-	return r;
+    return r;
 }
 ```
 
@@ -316,79 +316,79 @@ u64 sys_ipc_call(u32 conn_cap, ipc_msg_t *ipc_msg)
 ```c
 int ipc_send_cap(struct ipc_connection *conn, ipc_msg_t *ipc_msg)
 {
-	int i, r;
-	u64 cap_slot_number;
-	u64 cap_slots_offset;
-	u64 *cap_buf;
+    int i, r;
+    u64 cap_slot_number;
+    u64 cap_slots_offset;
+    u64 *cap_buf;
 
     // 这几步都是为了从client的用户空间拷贝cap
-	r = copy_from_user((char *)&cap_slot_number,
-					   (char *)&ipc_msg->cap_slot_number,
-					   sizeof(cap_slot_number));
+    r = copy_from_user((char *)&cap_slot_number,
+                       (char *)&ipc_msg->cap_slot_number,
+                       sizeof(cap_slot_number));
 
-	r = copy_from_user((char *)&cap_slots_offset,
-					   (char *)&ipc_msg->cap_slots_offset,
-					   sizeof(cap_slots_offset));
+    r = copy_from_user((char *)&cap_slots_offset,
+                       (char *)&ipc_msg->cap_slots_offset,
+                       sizeof(cap_slots_offset));
 
 
-	cap_buf = kmalloc(cap_slot_number * sizeof(*cap_buf));
+    cap_buf = kmalloc(cap_slot_number * sizeof(*cap_buf));
 
 
     
-	r = copy_from_user((char *)cap_buf, (char *)ipc_msg + cap_slots_offset,
-					   sizeof(*cap_buf) * cap_slot_number);
+    r = copy_from_user((char *)cap_buf, (char *)ipc_msg + cap_slots_offset,
+                       sizeof(*cap_buf) * cap_slot_number);
 
     // 依次 cap_copy 拷贝到server线程
-	for (i = 0; i < cap_slot_number; i++)
-	{
-		u64 dest_cap;
+    for (i = 0; i < cap_slot_number; i++)
+    {
+        u64 dest_cap;
 
-		kdebug("[IPC] send cap:%d\n", cap_buf[i]);
-		dest_cap = cap_copy(current_process, conn->target->process,
-							cap_buf[i], false, 0);
-		if (dest_cap < 0)
-			goto out_free_cap;
-		cap_buf[i] = dest_cap;
-	}
+        kdebug("[IPC] send cap:%d\n", cap_buf[i]);
+        dest_cap = cap_copy(current_process, conn->target->process,
+                            cap_buf[i], false, 0);
+        if (dest_cap < 0)
+            goto out_free_cap;
+        cap_buf[i] = dest_cap;
+    }
 
     // 放回到 ipc_msg 中，注意，这里就已经是 server 的 cap 了
-	r = copy_to_user((char *)ipc_msg + cap_slots_offset, (char *)cap_buf,
-					 sizeof(*cap_buf) * cap_slot_number);
+    r = copy_to_user((char *)ipc_msg + cap_slots_offset, (char *)cap_buf,
+                     sizeof(*cap_buf) * cap_slot_number);
 
-	return r;
+    return r;
 }
 ```
 
 ```c
 static u64 thread_migrate_to_server(struct ipc_connection *conn, u64 arg)
 {
-	struct thread *target = conn->target;
+    struct thread *target = conn->target;
 
-	conn->source = current_thread;
-	target->active_conn = conn;
-	current_thread->thread_ctx->state = TS_WAITING;
-	obj_put(conn);
+    conn->source = current_thread;
+    target->active_conn = conn;
+    current_thread->thread_ctx->state = TS_WAITING;
+    obj_put(conn);
 
 
-	// 这个stack是sp哦，所以是栈顶
-	arch_set_thread_stack(target, conn->server_stack_top);
-	
+    // 这个stack是sp哦，所以是栈顶
+    arch_set_thread_stack(target, conn->server_stack_top);
+    
     // 设置ip
-	arch_set_thread_next_ip(target, conn->target->server_ipc_config->callback);
-	
+    arch_set_thread_next_ip(target, conn->target->server_ipc_config->callback);
+    
     // 设置参数
     arch_set_thread_arg(target, arg);
 
-	// 设置调度上下文
-	target->thread_ctx->sc = current_thread->thread_ctx->sc;
+    // 设置调度上下文
+    target->thread_ctx->sc = current_thread->thread_ctx->sc;
 
-	// 切换到server
-	switch_to_thread(target);
-	eret_to_thread(switch_context());
+    // 切换到server
+    switch_to_thread(target);
+    eret_to_thread(switch_context());
 
-	/* Function never return */
-	BUG_ON(1);
-	return 0;
+    /* Function never return */
+    BUG_ON(1);
+    return 0;
 }
 ```
 
@@ -397,28 +397,27 @@ static u64 thread_migrate_to_server(struct ipc_connection *conn, u64 arg)
 ```c
 static int thread_migrate_to_client(struct ipc_connection *conn, u64 ret_value)
 {
-	struct thread *source = conn->source;
-	current_thread->active_conn = NULL;
+    struct thread *source = conn->source;
+    current_thread->active_conn = NULL;
 
-	
-	arch_set_thread_return(source, ret_value);
-	/* 切换到client */
-	switch_to_thread(source);
-	eret_to_thread(switch_context());
+    arch_set_thread_return(source, ret_value);
+    /* 切换到client */
+    switch_to_thread(source);
+    eret_to_thread(switch_context());
 
-	/* Function never return */
-	BUG_ON(1);
-	return 0;
+    /* Function never return */
+    BUG_ON(1);
+    return 0;
 }
 
 void sys_ipc_return(u64 ret)
 {
-	struct ipc_connection *conn = current_thread->active_conn;
+    struct ipc_connection *conn = current_thread->active_conn;
 
     thread_migrate_to_client(conn, ret);
 
-	BUG("This function should never\n");
-	return;
+    BUG("This function should never\n");
+    return;
 }
 ```
 

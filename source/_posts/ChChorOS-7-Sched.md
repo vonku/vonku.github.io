@@ -35,20 +35,20 @@ tags:
 ```c
 void main(void *addr)
 {
-	...
-        
-	kernel_lock_init();
-	
-	lock_kernel();
-
-	/* 选用roung-robin调度器算法 */
-	sched_init(&rr);
-	
     ...
-	
-	sched();
+        
+    kernel_lock_init();
+    
+    lock_kernel();
 
-	eret_to_thread(switch_context());
+    /* 选用roung-robin调度器算法 */
+    sched_init(&rr);
+    
+    ...
+    
+    sched();
+
+    eret_to_thread(switch_context());
 }
 ```
 
@@ -57,44 +57,44 @@ void main(void *addr)
 ```c
 int sched_init(struct sched_ops *sched_ops)
 {
-	BUG_ON(sched_ops == NULL);
+    BUG_ON(sched_ops == NULL);
 
     /* 确定调度器算法 */
-	cur_sched_ops = sched_ops;
-	/* 具体调度器算法的初始化 */
+    cur_sched_ops = sched_ops;
+    /* 具体调度器算法的初始化 */
     cur_sched_ops->sched_init();
-	return 0;
+    return 0;
 }
 ```
 
 ```c
 int rr_sched_init(void)
 {
-	int i = 0;
+    int i = 0;
 
-	/* 初始化全局变量 */
-	for (i = 0; i < PLAT_CPU_NUM; i++)
-	{
-		current_threads[i] = NULL;
-		init_list_head(&rr_ready_queue[i]);
-	}
+    /* 初始化全局变量 */
+    for (i = 0; i < PLAT_CPU_NUM; i++)
+    {
+        current_threads[i] = NULL;
+        init_list_head(&rr_ready_queue[i]);
+    }
 
-	/* 为每一个核创建一个idle线程，并加到对应的ready_queue */
-	for (i = 0; i < PLAT_CPU_NUM; i++)
-	{
-		/* 创建idle线程的线程上下文 */
-		BUG_ON(!(idle_threads[i].thread_ctx = create_thread_ctx()));
-		/* 初始化idle线程的上下文 */
-		init_thread_ctx(&idle_threads[i], 0, 0, MIN_PRIO, TYPE_IDLE, i);
-		/* 调用arch相关的线程初始化 */
-		arch_idle_ctx_init(idle_threads[i].thread_ctx,
-						   idle_thread_routine);
-		/* idle线程运行在内核态，没有vmspace */
-		idle_threads[i].vmspace = NULL;
-	}
-	kdebug("Scheduler initialized. Create %d idle threads.\n", i);
+    /* 为每一个核创建一个idle线程，并加到对应的ready_queue */
+    for (i = 0; i < PLAT_CPU_NUM; i++)
+    {
+        /* 创建idle线程的线程上下文 */
+        BUG_ON(!(idle_threads[i].thread_ctx = create_thread_ctx()));
+        /* 初始化idle线程的上下文 */
+        init_thread_ctx(&idle_threads[i], 0, 0, MIN_PRIO, TYPE_IDLE, i);
+        /* 调用arch相关的线程初始化 */
+        arch_idle_ctx_init(idle_threads[i].thread_ctx,
+                           idle_thread_routine);
+        /* idle线程运行在内核态，没有vmspace */
+        idle_threads[i].vmspace = NULL;
+    }
+    kdebug("Scheduler initialized. Create %d idle threads.\n", i);
 
-	return 0;
+    return 0;
 }
 ```
 
@@ -112,35 +112,35 @@ int rr_sched_init(void)
 ```c
 int rr_sched(void)
 {
-	/*  
-	 * 调度器应只能在某个线程预算等于零时才能调度该线程
-	 */
-	if (current_thread != NULL && current_thread->thread_ctx != NULL && current_thread->thread_ctx->sc != NULL && current_thread->thread_ctx->sc->budget != 0)
-	{
-		return 0;
-	}
-	/*
-	 * 首先检查当前是否正在运行某个线程
-	 * 如果是，它将调用rr_sched_enqueue()将线程添加回rr_ready_queue
-	 * rr_ready_queue 里面是不运行的线程哦
-	 */
-	if (current_thread != NULL)
-	{
-		rr_sched_enqueue(current_thread);
-	}
+    /*  
+     * 调度器应只能在某个线程预算等于零时才能调度该线程
+     */
+    if (current_thread != NULL && current_thread->thread_ctx != NULL && current_thread->thread_ctx->sc != NULL && current_thread->thread_ctx->sc->budget != 0)
+    {
+        return 0;
+    }
+    /*
+     * 首先检查当前是否正在运行某个线程
+     * 如果是，它将调用rr_sched_enqueue()将线程添加回rr_ready_queue
+     * rr_ready_queue 里面是不运行的线程哦
+     */
+    if (current_thread != NULL)
+    {
+        rr_sched_enqueue(current_thread);
+    }
 
     /* 选择一个线程来执行 */
-	struct thread *target_thread;
-	if ((target_thread = rr_sched_choose_thread()) == NULL)
-	{
-		return -EINVAL;
-	}
+    struct thread *target_thread;
+    if ((target_thread = rr_sched_choose_thread()) == NULL)
+    {
+        return -EINVAL;
+    }
 
-	/* 重新设置budget */
-	rr_sched_refill_budget(target_thread, DEFAULT_BUDGET);
+    /* 重新设置budget */
+    rr_sched_refill_budget(target_thread, DEFAULT_BUDGET);
 
     /* 切换到新的线程 */ 
-	return switch_to_thread(target_thread);
+    return switch_to_thread(target_thread);
 }
 ```
 
@@ -151,35 +151,35 @@ int rr_sched(void)
 ```c
 int rr_sched_enqueue(struct thread *thread)
 {
-	if (thread == NULL || thread->thread_ctx == NULL || thread->thread_ctx->state == TS_READY)
-	{
-		return -EINVAL;
-	}
-	/* If the thread is IDEL thread, do nothing! */
-	if (thread->thread_ctx->type == TYPE_IDLE)
-	{
-		return 0;
-	}
+    if (thread == NULL || thread->thread_ctx == NULL || thread->thread_ctx->state == TS_READY)
+    {
+        return -EINVAL;
+    }
+    /* If the thread is IDEL thread, do nothing! */
+    if (thread->thread_ctx->type == TYPE_IDLE)
+    {
+        return 0;
+    }
 
-	/* 
-	 * If affinity = NO_AFF, assign the core to the current cpu.
-	 * 将线程给他指定的cpu运行
-	 */
-	u32 cpu_id = smp_get_cpu_id();
-	if (thread->thread_ctx->affinity != NO_AFF)
-	{
-		cpu_id = thread->thread_ctx->affinity;
-		if (cpu_id >= PLAT_CPU_NUM)
-		{
-			return -EINVAL;
-		}
-	}
-	/* 添加到RQ的尾部 */
-	list_append(&thread->ready_queue_node, &rr_ready_queue[cpu_id]);
+    /* 
+     * If affinity = NO_AFF, assign the core to the current cpu.
+     * 将线程给他指定的cpu运行
+     */
+    u32 cpu_id = smp_get_cpu_id();
+    if (thread->thread_ctx->affinity != NO_AFF)
+    {
+        cpu_id = thread->thread_ctx->affinity;
+        if (cpu_id >= PLAT_CPU_NUM)
+        {
+            return -EINVAL;
+        }
+    }
+    /* 添加到RQ的尾部 */
+    list_append(&thread->ready_queue_node, &rr_ready_queue[cpu_id]);
     /* 设置线程状态 */
-	thread->thread_ctx->state = TS_READY;
-	thread->thread_ctx->cpuid = cpu_id;
-	return 0;
+    thread->thread_ctx->state = TS_READY;
+    thread->thread_ctx->cpuid = cpu_id;
+    return 0;
 }
 ```
 
@@ -190,25 +190,25 @@ int rr_sched_enqueue(struct thread *thread)
 ```c
 struct thread *rr_sched_choose_thread(void)
 {
-	/* 首先检查CPU 核心的rr_ready_queue是否为空
-	 * 如果是，rr_choose_thread返回CPU 核心自己的空闲线程 
-	 */
-	u32 cpu_id = smp_get_cpu_id();
-	if (list_empty(&(rr_ready_queue[cpu_id])))
-	{
-		return &(idle_threads[cpu_id]);
-	}
+    /* 首先检查CPU 核心的rr_ready_queue是否为空
+     * 如果是，rr_choose_thread返回CPU 核心自己的空闲线程 
+     */
+    u32 cpu_id = smp_get_cpu_id();
+    if (list_empty(&(rr_ready_queue[cpu_id])))
+    {
+        return &(idle_threads[cpu_id]);
+    }
 
-	/*
-	 * 如果没有，它将选择rr_ready_queue的队首
-	 * 并调用rr_sched_dequeue()使该队首出队，然后返回该队首
-	 */
-	struct thread *chosen_thread = list_entry(rr_ready_queue[cpu_id].next, struct thread, ready_queue_node);
-	if (rr_sched_dequeue(chosen_thread) < 0)
-	{
-		return NULL;
-	}
-	return chosen_thread;
+    /*
+     * 如果没有，它将选择rr_ready_queue的队首
+     * 并调用rr_sched_dequeue()使该队首出队，然后返回该队首
+     */
+    struct thread *chosen_thread = list_entry(rr_ready_queue[cpu_id].next, struct thread, ready_queue_node);
+    if (rr_sched_dequeue(chosen_thread) < 0)
+    {
+        return NULL;
+    }
+    return chosen_thread;
 }
 ```
 
@@ -217,21 +217,21 @@ struct thread *rr_sched_choose_thread(void)
 ```c
 int rr_sched_dequeue(struct thread *thread)
 {
-	if (thread == NULL || thread->thread_ctx == NULL || thread->thread_ctx->state != TS_READY)
-	{
-		return -EINVAL;
-	}
+    if (thread == NULL || thread->thread_ctx == NULL || thread->thread_ctx->state != TS_READY)
+    {
+        return -EINVAL;
+    }
 
-	/* 如果是空闲线程 则不用出队 */
-	if (thread->thread_ctx->type == TYPE_IDLE)
-	{
-		// thread->thread_ctx->state = TS_INTER;
-		return 0;
-	}
+    /* 如果是空闲线程 则不用出队 */
+    if (thread->thread_ctx->type == TYPE_IDLE)
+    {
+        // thread->thread_ctx->state = TS_INTER;
+        return 0;
+    }
 
-	list_del(&thread->ready_queue_node);
-	thread->thread_ctx->state = TS_INTER;
-	return 0;
+    list_del(&thread->ready_queue_node);
+    thread->thread_ctx->state = TS_INTER;
+    return 0;
 }
 ```
 
@@ -240,12 +240,12 @@ int rr_sched_dequeue(struct thread *thread)
 ```c
 int switch_to_thread(struct thread *target)
 {
-	target->thread_ctx->cpuid = smp_get_cpu_id();
-	target->thread_ctx->state = TS_RUNNING;
-	smp_wmb();
-	current_thread = target;
+    target->thread_ctx->cpuid = smp_get_cpu_id();
+    target->thread_ctx->state = TS_RUNNING;
+    smp_wmb();
+    current_thread = target;
 
-	return 0;
+    return 0;
 }
 ```
 
@@ -254,23 +254,23 @@ int switch_to_thread(struct thread *target)
 ```c
 u64 switch_context(void)
 {
-	struct thread *target_thread;
-	struct thread_ctx *target_ctx;
+    struct thread *target_thread;
+    struct thread_ctx *target_ctx;
 
-	target_thread = current_thread;		// want to change to *current_thread*
-	BUG_ON(!target_thread);
-	BUG_ON(!target_thread->thread_ctx);
+    target_thread = current_thread;     // want to change to *current_thread*
+    BUG_ON(!target_thread);
+    BUG_ON(!target_thread->thread_ctx);
 
-	target_ctx = target_thread->thread_ctx;
+    target_ctx = target_thread->thread_ctx;
 
-	/* These 3 types of thread do not have vmspace */
-	if (target_thread->thread_ctx->type != TYPE_IDLE &&
-	    target_thread->thread_ctx->type != TYPE_KERNEL &&
-	    target_thread->thread_ctx->type != TYPE_TESTS) {
-		BUG_ON(!target_thread->vmspace);
-		switch_thread_vmspace_to(target_thread);
-	}
-	return (u64)target_ctx->ec.reg;	
+    /* These 3 types of thread do not have vmspace */
+    if (target_thread->thread_ctx->type != TYPE_IDLE &&
+        target_thread->thread_ctx->type != TYPE_KERNEL &&
+        target_thread->thread_ctx->type != TYPE_TESTS) {
+        BUG_ON(!target_thread->vmspace);
+        switch_thread_vmspace_to(target_thread);
+    }
+    return (u64)target_ctx->ec.reg; 
 }
 ```
 
@@ -285,10 +285,10 @@ u64 switch_context(void)
 ```c
 void rr_sched_handle_timer_irq(void)
 {
-	if (current_thread != NULL && current_thread->thread_ctx->sc->budget > 0)
-	{
-		current_thread->thread_ctx->sc->budget--;
-	}
+    if (current_thread != NULL && current_thread->thread_ctx->sc->budget > 0)
+    {
+        current_thread->thread_ctx->sc->budget--;
+    }
 }
 ```
 

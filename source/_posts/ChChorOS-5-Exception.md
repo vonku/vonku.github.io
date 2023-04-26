@@ -33,9 +33,9 @@ tags:
 
 ```c
 BEGIN_FUNC(set_exception_vector)
-	adr	x0, el1_vector
-	msr	vbar_el1, x0
-	ret
+    adr x0, el1_vector
+    msr vbar_el1, x0
+    ret
 END_FUNC(set_exception_vector)
 ```
 
@@ -53,29 +53,29 @@ END_FUNC(set_exception_vector)
 
 ```c
 u64 syscall(u64 sys_no, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4,
-	    u64 arg5, u64 arg6, u64 arg7, u64 arg8)
+        u64 arg5, u64 arg6, u64 arg7, u64 arg8)
 {
 
-	u64 ret = 0;
-	/* 参数保存在x0-x7中，系统调用号保存在x8中
-	 * 返回值保存在x0中
-	 */
-	asm volatile("mov x0, %1\n\t"
-				"mov x1, %2\n\t"
-				"mov x2, %3\n\t"
-				"mov x3, %4\n\t"
-				"mov x4, %5\n\t"
-				"mov x5, %6\n\t"
-				"mov x6, %7\n\t"
-				"mov x7, %8\n\t"
-				"mov x8, %9\n\t"
-				"svc #0\n\t"
-				"mov %0, x0\n\t"
-				: "=r" (ret)
-				: "r" (arg0), "r" (arg1), "r" (arg2), "r" (arg3), "r" (arg4), "r" (arg5), "r" (arg6), "r" (arg7), "r" (sys_no)
-				: "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8");
+    u64 ret = 0;
+    /* 参数保存在x0-x7中，系统调用号保存在x8中
+     * 返回值保存在x0中
+     */
+    asm volatile("mov x0, %1\n\t"
+                "mov x1, %2\n\t"
+                "mov x2, %3\n\t"
+                "mov x3, %4\n\t"
+                "mov x4, %5\n\t"
+                "mov x5, %6\n\t"
+                "mov x6, %7\n\t"
+                "mov x7, %8\n\t"
+                "mov x8, %9\n\t"
+                "svc #0\n\t"
+                "mov %0, x0\n\t"
+                : "=r" (ret)
+                : "r" (arg0), "r" (arg1), "r" (arg2), "r" (arg3), "r" (arg4), "r" (arg5), "r" (arg6), "r" (arg7), "r" (sys_no)
+                : "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8");
 
-	return ret;
+    return ret;
 }
 ```
 
@@ -118,118 +118,118 @@ u64 syscall(u64 sys_no, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4,
 3. ELR_EL1写入PC，并执行应用程序的代码
 
 ```c
-.align	11
+.align  11
 EXPORT(el1_vector)
-		exception_entry sync_el1t
-		exception_entry irq_el1t
-		exception_entry fiq_el1t
-		exception_entry error_el1t
+        exception_entry sync_el1t
+        exception_entry irq_el1t
+        exception_entry fiq_el1t
+        exception_entry error_el1t
 
-		exception_entry sync_el1h
-		exception_entry irq_el1h
-		exception_entry fiq_el1h
-		exception_entry error_el1h
+        exception_entry sync_el1h
+        exception_entry irq_el1h
+        exception_entry fiq_el1h
+        exception_entry error_el1h
 
-    	/* svc时跳到sync_el0_64执行 */
-		exception_entry sync_el0_64
-		exception_entry irq_el0_64
-		exception_entry fiq_el0_64
-		exception_entry error_el0_64
+        /* svc时跳到sync_el0_64执行 */
+        exception_entry sync_el0_64
+        exception_entry irq_el0_64
+        exception_entry fiq_el0_64
+        exception_entry error_el0_64
 
-		exception_entry sync_el0_32
-		exception_entry irq_el0_32
-		exception_entry fiq_el0_32
-		exception_entry error_el0_32
+        exception_entry sync_el0_32
+        exception_entry irq_el0_32
+        exception_entry fiq_el0_32
+        exception_entry error_el0_32
 ```
 
 ```c
 sync_el0_64:
-	/* Since we cannot touch x0-x7, we need some extra work here */
-	/* 异常进入，保存处理器上下文 */
-	exception_enter
-	mrs	x25, esr_el1
+    /* Since we cannot touch x0-x7, we need some extra work here */
+    /* 异常进入，保存处理器上下文 */
+    exception_enter
+    mrs x25, esr_el1
     /* 检查ESR_EL1，确认是SVC异常 */
-	lsr	x24, x25, #ESR_EL1_EC_SHIFT
-	cmp	x24, #ESR_EL1_EC_SVC_64
+    lsr x24, x25, #ESR_EL1_EC_SHIFT
+    cmp x24, #ESR_EL1_EC_SVC_64
     /* 跳转执行 */
-	b.eq	el0_syscall
-	/* Not supported exception */
-	mov	x0, SYNC_EL0_64 
-	mrs	x1, esr_el1
-	mrs	x2, elr_el1
-	bl	handle_entry_c
-	exception_return
+    b.eq    el0_syscall
+    /* Not supported exception */
+    mov x0, SYNC_EL0_64 
+    mrs x1, esr_el1
+    mrs x2, elr_el1
+    bl  handle_entry_c
+    exception_return
 ```
 
 ```c
-.macro	exception_enter
-	sub	sp, sp, #ARCH_EXEC_CONT_SIZE
-	/* 保护用户态的寄存器 */
-	stp	x0, x1, [sp, #16 * 0]
-	stp	x2, x3, [sp, #16 * 1]
-	stp	x4, x5, [sp, #16 * 2]
-	stp	x6, x7, [sp, #16 * 3]
-	stp	x8, x9, [sp, #16 * 4]
-	stp	x10, x11, [sp, #16 * 5]
-	stp	x12, x13, [sp, #16 * 6]
-	stp	x14, x15, [sp, #16 * 7]
-	stp	x16, x17, [sp, #16 * 8]
-	stp	x18, x19, [sp, #16 * 9]
-	stp	x20, x21, [sp, #16 * 10]
-	stp	x22, x23, [sp, #16 * 11]
-	stp	x24, x25, [sp, #16 * 12]
-	stp	x26, x27, [sp, #16 * 13]
-	stp	x28, x29, [sp, #16 * 14]
-	mrs	x10, sp_el0
-	mrs	x11, elr_el1
-	mrs	x12, spsr_el1 
-	stp	x30, x10, [sp, #16 * 15]
-	stp	x11, x12, [sp, #16 * 16]
+.macro  exception_enter
+    sub sp, sp, #ARCH_EXEC_CONT_SIZE
+    /* 保护用户态的寄存器 */
+    stp x0, x1, [sp, #16 * 0]
+    stp x2, x3, [sp, #16 * 1]
+    stp x4, x5, [sp, #16 * 2]
+    stp x6, x7, [sp, #16 * 3]
+    stp x8, x9, [sp, #16 * 4]
+    stp x10, x11, [sp, #16 * 5]
+    stp x12, x13, [sp, #16 * 6]
+    stp x14, x15, [sp, #16 * 7]
+    stp x16, x17, [sp, #16 * 8]
+    stp x18, x19, [sp, #16 * 9]
+    stp x20, x21, [sp, #16 * 10]
+    stp x22, x23, [sp, #16 * 11]
+    stp x24, x25, [sp, #16 * 12]
+    stp x26, x27, [sp, #16 * 13]
+    stp x28, x29, [sp, #16 * 14]
+    mrs x10, sp_el0
+    mrs x11, elr_el1
+    mrs x12, spsr_el1 
+    stp x30, x10, [sp, #16 * 15]
+    stp x11, x12, [sp, #16 * 16]
 .endm
 ```
 ```c
 el0_syscall:
-	/* 省略一些不太理解的寄存器保存 */
-	...
+    /* 省略一些不太理解的寄存器保存 */
+    ...
     /* 找到系统调用号，根据syscall_table找到系统调用处理函数，并跳转执行 */
-	adr	x27, syscall_table		// syscall table in x27
-	uxtw	x16, w8				// syscall number in x16
-	ldr	x16, [x27, x16, lsl #3]		// find the syscall entry
-	blr	x16
+    adr x27, syscall_table      // syscall table in x27
+    uxtw    x16, w8             // syscall number in x16
+    ldr x16, [x27, x16, lsl #3]     // find the syscall entry
+    blr x16
 
-	/* 从syscall返回 */
-	//bl	disable_irq
-	str	x0, [sp] /* set the return value of the syscall */
+    /* 从syscall返回 */
+    //bl    disable_irq
+    str x0, [sp] /* set the return value of the syscall */
     /* 异常退出 */
-	exception_return
+    exception_return
 ```
 
 ```c
-.macro	exception_exit
+.macro  exception_exit
     /* 恢复应用程序的处理器上下文，并通过eret返回，执行应用程序 */
-	ldp	x11, x12, [sp, #16 * 16]
-	ldp	x30, x10, [sp, #16 * 15] 
-	msr	sp_el0, x10
-	msr	elr_el1, x11
-	msr	spsr_el1, x12
-	/* 恢复用户态的寄存器 */
-	ldp	x0, x1, [sp, #16 * 0]
-	ldp	x2, x3, [sp, #16 * 1]
-	ldp	x4, x5, [sp, #16 * 2]
-	ldp	x6, x7, [sp, #16 * 3]
-	ldp	x8, x9, [sp, #16 * 4]
-	ldp	x10, x11, [sp, #16 * 5]
-	ldp	x12, x13, [sp, #16 * 6]
-	ldp	x14, x15, [sp, #16 * 7]
-	ldp	x16, x17, [sp, #16 * 8]
-	ldp	x18, x19, [sp, #16 * 9]
-	ldp	x20, x21, [sp, #16 * 10]
-	ldp	x22, x23, [sp, #16 * 11]
-	ldp	x24, x25, [sp, #16 * 12]
-	ldp	x26, x27, [sp, #16 * 13]
-	ldp	x28, x29, [sp, #16 * 14]
-	add	sp, sp, #ARCH_EXEC_CONT_SIZE
-	eret
+    ldp x11, x12, [sp, #16 * 16]
+    ldp x30, x10, [sp, #16 * 15] 
+    msr sp_el0, x10
+    msr elr_el1, x11
+    msr spsr_el1, x12
+    /* 恢复用户态的寄存器 */
+    ldp x0, x1, [sp, #16 * 0]
+    ldp x2, x3, [sp, #16 * 1]
+    ldp x4, x5, [sp, #16 * 2]
+    ldp x6, x7, [sp, #16 * 3]
+    ldp x8, x9, [sp, #16 * 4]
+    ldp x10, x11, [sp, #16 * 5]
+    ldp x12, x13, [sp, #16 * 6]
+    ldp x14, x15, [sp, #16 * 7]
+    ldp x16, x17, [sp, #16 * 8]
+    ldp x18, x19, [sp, #16 * 9]
+    ldp x20, x21, [sp, #16 * 10]
+    ldp x22, x23, [sp, #16 * 11]
+    ldp x24, x25, [sp, #16 * 12]
+    ldp x26, x27, [sp, #16 * 13]
+    ldp x28, x29, [sp, #16 * 14]
+    add sp, sp, #ARCH_EXEC_CONT_SIZE
+    eret
 .endm
 ```
 
