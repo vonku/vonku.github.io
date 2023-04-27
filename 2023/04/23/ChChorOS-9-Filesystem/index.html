@@ -79,17 +79,21 @@
 
 
 
-<meta name="description" content="本文的主要内容是介绍文件系统基础知识。">
+<meta name="description" content="本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ChChorOS-9-Filesystem">
 <meta property="og:url" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="本文的主要内容是介绍文件系统基础知识。">
+<meta property="og:description" content="本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2023-04-23T13:17:12.477Z">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs2.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/dentry.png">
+<meta property="og:updated_time" content="2023-04-27T15:23:53.532Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-9-Filesystem">
-<meta name="twitter:description" content="本文的主要内容是介绍文件系统基础知识。">
+<meta name="twitter:description" content="本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。">
+<meta name="twitter:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs2.png">
 
 
 
@@ -363,11 +367,42 @@
 
       
         <blockquote>
-<p>本文的主要内容是介绍文件系统基础知识。</p>
+<p>本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。</p>
 </blockquote>
 <a id="more"></a>
 
-
+<h2 id="文件系统概念"><a href="#文件系统概念" class="headerlink" title="文件系统概念"></a>文件系统概念</h2><h3 id="1-基于inode的文件系统"><a href="#1-基于inode的文件系统" class="headerlink" title="1 基于inode的文件系统"></a>1 基于inode的文件系统</h3><p><img src="/2023/04/23/ChChorOS-9-Filesystem/fs2.png" alt="fs2"></p>
+<h4 id="1-1-inode与文件"><a href="#1-1-inode与文件" class="headerlink" title="1.1 inode与文件"></a>1.1 inode与文件</h4><p>inode，即index node，用于记录一个文件的数据所在的存储块号、文件大小以及其他更多的文件属性（包括权限、修改时间、访问时间等），这些属性称为文件的<strong>元数据</strong>。</p>
+<p>inode文件系统的存储布局可以分成几个组成部分：</p>
+<ol>
+<li><strong>超级块</strong>：指示各个区域的起始块号和大小等信息，文件系统开始的第一个块就是超级块</li>
+<li><strong>存储块分配信息</strong>：记录哪些磁盘块正在被使用，哪些块处于空闲状态</li>
+<li><strong>inode分配信息表</strong>：记录哪些inode正在被使用，哪些inode是空闲的</li>
+<li><strong>inode表</strong>：以数组的方式保存的inode的数组，inode和文件是一一对应的</li>
+<li><strong>文件数据区</strong>：用来存储实际文件的内容</li>
+</ol>
+<h4 id="1-2-多级inode"><a href="#1-2-多级inode" class="headerlink" title="1.2 多级inode"></a>1.2 多级inode</h4><p>每个文件的大小是不一样的，可以从1KB到几GB，如果一个文件所有的存储块号顺序地保存在inode中，就得为所有的inode分配相同的大小，造成空间极大的浪费。</p>
+<p>为了解决这个问题，借鉴虚拟内存页表管理的思想，可以采用多级inode的方式进行管理。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/fs.png" alt="fs"></p>
+<p>假设一个数据块的大小是4KB。一个索引块也是4KB，其中保存512个直接指针，那么一个间接指针能够管理512个4KB的数据块，共2MB数据。</p>
+<p>相应的，一个二级索引就可以间接管理1GB的数据。</p>
+<p>inode的结构就决定了文件系统能够支持的最大文件的大小。</p>
+<h4 id="1-3-文件名与目录"><a href="#1-3-文件名与目录" class="headerlink" title="1.3 文件名与目录"></a>1.3 文件名与目录</h4><p>一个文件对应一个inode，文件需要有文件名，那么文件名放在哪里保存呢？</p>
+<p>在inode文件系统中，文件名并不作为inode的一部分，文件名由目录文件进行管理。</p>
+<p>目录也是一个文件，只是它是一种特殊的由文件系统定义的文件。目录文件里面的数据，就是一条条从文件名到inode号的映射，每条映射成为一个<strong>目录项（Directory Entry，dentry）</strong>。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/dentry.png" alt="dentry"></p>
+<p>以<strong>文件路径</strong>确定一个文件的过程，就是从根目录开始，一级一级找到每一个目录的dentry，最后找到文件的inode的过程。</p>
+<h4 id="1-4-硬链接"><a href="#1-4-硬链接" class="headerlink" title="1.4 硬链接"></a>1.4 硬链接</h4><p>用dentry管理inode和文件名的方式，带来一个新的功能：链接。</p>
+<p>如果已经存在一个文件和目录项，又有另外一个目录项的文件名和该文件的inode建立了映射，那么我们称这种新的文件名映射为<strong>链接</strong>。</p>
+<p>为了管理这种链接，我们需要给inode增加一个<strong>引用计数器</strong>，也称<strong>链接数</strong>。</p>
+<p>限制：只能用于同一个文件系统。</p>
+<h4 id="1-5-软链接"><a href="#1-5-软链接" class="headerlink" title="1.5 软链接"></a>1.5 软链接</h4><p>如果是不同文件系统，我们要怎么链接呢？答案是使用<strong>符号链接</strong>，也叫<strong>软链接</strong>。</p>
+<p>软链接可以理解成：它就是一个独立的文件，只是这个文件里面存的是<strong>目标文件的路径</strong>。</p>
+<p>通常符号链接文件里面的内容就是路径字符串，因此我们可以不为它分配数据区，而是直接保存在inode中。</p>
+<h3 id="2-基于表的文件系统"><a href="#2-基于表的文件系统" class="headerlink" title="2 基于表的文件系统"></a>2 基于表的文件系统</h3><p>FAT 文件系统，是基于文件分配表（File Allocation Table）的文件系统。</p>
+<h3 id="3-VFS"><a href="#3-VFS" class="headerlink" title="3 VFS"></a>3 VFS</h3><p>#### </p>
+<h3 id="4-用户态文件系统"><a href="#4-用户态文件系统" class="headerlink" title="4 用户态文件系统"></a>4 用户态文件系统</h3><p>### </p>
+<h2 id="文件系统崩溃一致性"><a href="#文件系统崩溃一致性" class="headerlink" title="文件系统崩溃一致性"></a>文件系统崩溃一致性</h2><h3 id="1-崩溃一致性"><a href="#1-崩溃一致性" class="headerlink" title="1 崩溃一致性"></a>1 崩溃一致性</h3><h3 id="2-原子更新技术：日志"><a href="#2-原子更新技术：日志" class="headerlink" title="2 原子更新技术：日志"></a>2 原子更新技术：日志</h3><h3 id="3-原子更新技术：写时拷贝"><a href="#3-原子更新技术：写时拷贝" class="headerlink" title="3 原子更新技术：写时拷贝"></a>3 原子更新技术：写时拷贝</h3>
       
     </div>
     
@@ -455,8 +490,17 @@
       
 
       
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
 
-      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <section class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
           <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
             
@@ -540,6 +584,22 @@
         </div>
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#文件系统概念"><span class="nav-number">1.</span> <span class="nav-text">文件系统概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-基于inode的文件系统"><span class="nav-number">1.1.</span> <span class="nav-text">1 基于inode的文件系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-inode与文件"><span class="nav-number">1.1.1.</span> <span class="nav-text">1.1 inode与文件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-多级inode"><span class="nav-number">1.1.2.</span> <span class="nav-text">1.2 多级inode</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-3-文件名与目录"><span class="nav-number">1.1.3.</span> <span class="nav-text">1.3 文件名与目录</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-4-硬链接"><span class="nav-number">1.1.4.</span> <span class="nav-text">1.4 硬链接</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-5-软链接"><span class="nav-number">1.1.5.</span> <span class="nav-text">1.5 软链接</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-基于表的文件系统"><span class="nav-number">1.2.</span> <span class="nav-text">2 基于表的文件系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-VFS"><span class="nav-number">1.3.</span> <span class="nav-text">3 VFS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-用户态文件系统"><span class="nav-number">1.4.</span> <span class="nav-text">4 用户态文件系统</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#文件系统崩溃一致性"><span class="nav-number">2.</span> <span class="nav-text">文件系统崩溃一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-崩溃一致性"><span class="nav-number">2.1.</span> <span class="nav-text">1 崩溃一致性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-原子更新技术：日志"><span class="nav-number">2.2.</span> <span class="nav-text">2 原子更新技术：日志</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-原子更新技术：写时拷贝"><span class="nav-number">2.3.</span> <span class="nav-text">3 原子更新技术：写时拷贝</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       
