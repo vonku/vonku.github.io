@@ -79,20 +79,20 @@
 
 
 
-<meta name="description" content="前言 主要内容：掌握ChChor的内核调度策略与实现。">
+<meta name="description" content="主要内容：掌握ChChor的内核调度策略与实现。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ChChorOS-7-Sched">
 <meta property="og:url" content="http://yoursite.com/2023/04/22/ChChorOS-7-Sched/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="前言 主要内容：掌握ChChor的内核调度策略与实现。">
+<meta property="og:description" content="主要内容：掌握ChChor的内核调度策略与实现。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-7-Sched/sched1.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-7-Sched/sched-ops.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-7-Sched/thread-state.png">
-<meta property="og:updated_time" content="2023-04-23T10:06:37.018Z">
+<meta property="og:updated_time" content="2023-04-29T11:47:37.110Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-7-Sched">
-<meta name="twitter:description" content="前言 主要内容：掌握ChChor的内核调度策略与实现。">
+<meta name="twitter:description" content="主要内容：掌握ChChor的内核调度策略与实现。">
 <meta name="twitter:image" content="http://yoursite.com/2023/04/22/ChChorOS-7-Sched/sched1.png">
 
 
@@ -366,7 +366,7 @@
       
 
       
-        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><blockquote>
+        <blockquote>
 <p>主要内容：掌握ChChor的内核调度策略与实现。</p>
 </blockquote>
 <a id="more"></a>
@@ -531,7 +531,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">18</span>
+                  <span class="site-state-item-count">20</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
@@ -553,7 +553,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-count">10</span>
                   <span class="site-state-item-name">标签</span>
                 </a>
               </div>
@@ -608,7 +608,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#调度相关的数据结构"><span class="nav-number">2.</span> <span class="nav-text">调度相关的数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#调度器初始化"><span class="nav-number">3.</span> <span class="nav-text">调度器初始化</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#idle线程初始化"><span class="nav-number">3.1.</span> <span class="nav-text">idle线程初始化</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#线程调度"><span class="nav-number">4.</span> <span class="nav-text">线程调度</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched"><span class="nav-number">4.1.</span> <span class="nav-text">rr_sched</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-enqueue"><span class="nav-number">4.2.</span> <span class="nav-text">rr_sched_enqueue</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-choose-thread"><span class="nav-number">4.3.</span> <span class="nav-text">rr_sched_choose_thread</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-dequeue"><span class="nav-number">4.4.</span> <span class="nav-text">rr_sched_dequeue</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#switch-to-thread"><span class="nav-number">4.5.</span> <span class="nav-text">switch_to_thread</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#switch-context"><span class="nav-number">4.6.</span> <span class="nav-text">switch_context</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-handle-timer-irq"><span class="nav-number">4.7.</span> <span class="nav-text">rr_sched_handle_timer_irq</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#调度相关的数据结构"><span class="nav-number">1.</span> <span class="nav-text">调度相关的数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#调度器初始化"><span class="nav-number">2.</span> <span class="nav-text">调度器初始化</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#idle线程初始化"><span class="nav-number">2.1.</span> <span class="nav-text">idle线程初始化</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#线程调度"><span class="nav-number">3.</span> <span class="nav-text">线程调度</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched"><span class="nav-number">3.1.</span> <span class="nav-text">rr_sched</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-enqueue"><span class="nav-number">3.2.</span> <span class="nav-text">rr_sched_enqueue</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-choose-thread"><span class="nav-number">3.3.</span> <span class="nav-text">rr_sched_choose_thread</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-dequeue"><span class="nav-number">3.4.</span> <span class="nav-text">rr_sched_dequeue</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#switch-to-thread"><span class="nav-number">3.5.</span> <span class="nav-text">switch_to_thread</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#switch-context"><span class="nav-number">3.6.</span> <span class="nav-text">switch_context</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#rr-sched-handle-timer-irq"><span class="nav-number">3.7.</span> <span class="nav-text">rr_sched_handle_timer_irq</span></a></li></ol></li></ol></div>
             
 
           </div>
