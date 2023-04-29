@@ -90,7 +90,9 @@
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/dentry.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/FAT.png">
-<meta property="og:updated_time" content="2023-04-28T14:55:43.343Z">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fat-dir.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fat2.png">
+<meta property="og:updated_time" content="2023-04-29T11:06:07.476Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-9-Filesystem">
 <meta name="twitter:description" content="本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。">
@@ -403,7 +405,49 @@
 <h3 id="2-基于表的文件系统"><a href="#2-基于表的文件系统" class="headerlink" title="2 基于表的文件系统"></a>2 基于表的文件系统</h3><p>FAT 文件系统，是基于<strong>文件分配表（File Allocation Table）</strong>的文件系统。</p>
 <h4 id="2-1-存储布局"><a href="#2-1-存储布局" class="headerlink" title="2.1 存储布局"></a>2.1 存储布局</h4><p>FAT文件系统的基本存储布局如下图所示。</p>
 <p><img src="/2023/04/23/ChChorOS-9-Filesystem/FAT.png" alt="FAT"></p>
-<h3 id="3-VFS"><a href="#3-VFS" class="headerlink" title="3 VFS"></a>3 VFS</h3><h3 id="4-用户态文件系统"><a href="#4-用户态文件系统" class="headerlink" title="4 用户态文件系统"></a>4 用户态文件系统</h3>
+<ul>
+<li>引导记录：作用与超级块类似，其中记录了文件系统的元数据以及后续各个区域的位置。若此分区是可启动分区，还包含了引导整个操作系统启动所需要的代码。</li>
+<li>FAT表：通常由两份，互为备份。</li>
+</ul>
+<p>FAT文件系统以<strong>簇（Cluster）</strong>为逻辑存储单元，每个簇对应物理存储上的一个或多个连续的存储<strong>扇区（Sector）</strong>。</p>
+<h4 id="2-2-目录项格式"><a href="#2-2-目录项格式" class="headerlink" title="2.2 目录项格式"></a>2.2 目录项格式</h4><p>与基于inode文件系统不同，FAT中每个目录项的大小固定是32字节。</p>
+<ul>
+<li><p><strong>8.3格式的文件名（11字节）</strong></p>
+</li>
+<li><p><strong>属性（1字节）</strong></p>
+</li>
+<li><p>创建时间（3字节）</p>
+</li>
+<li><p>创建日期（2字节）</p>
+</li>
+<li><p>最后访问日期（2字节）</p>
+</li>
+<li><p>最后修改时间（2字节）</p>
+</li>
+<li><p>最后修改日期（2字节）</p>
+</li>
+<li><p>数据的起始簇号（2字节）</p>
+</li>
+<li><p>文件大小（4字节）</p>
+</li>
+<li><p>保留字节（3字节）</p>
+</li>
+</ul>
+<p>属性。用来表示该目录项的种类和状态。如果是长文件名，则属性字段固定是0x0F。</p>
+<p>短文件名。采用8.3格式，前8字节是文件名，3字节为扩展名。固定用大写存储。</p>
+<p>长文件名。在短文件名签名添加一个长文件名。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/fat-dir.png" alt="fat-dir"></p>
+<ul>
+<li>文件系统会自动为”OSBook File System.tex”这个文件生成短文件名。</li>
+<li>长文件名构建目录项保存在短文件名目录项之前。</li>
+<li>使用2字节的Unicode编码。</li>
+</ul>
+<h4 id="2-3-FAT和文件格式"><a href="#2-3-FAT和文件格式" class="headerlink" title="2.3 FAT和文件格式"></a>2.3 FAT和文件格式</h4><p>FAT实际上是一个由簇号组成的数组。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/fat2.png" alt="fat2"></p>
+<h4 id="2-4-FAT文件系统小结"><a href="#2-4-FAT文件系统小结" class="headerlink" title="2.4 FAT文件系统小结"></a>2.4 FAT文件系统小结</h4><p>FAT是FAT文件系统的核心。本质上，一个文件的多个数据簇以链表的形式进行索引。</p>
+<p>相比与基于inode的文件系统，这种方式更加简单直接。</p>
+<p>但是使用链表的结构在查找时并不高效。如果要访问一个文件的中间部分，FAT文件系统不得不逐个簇进行查找，使得大文件的访存变得尤为缓慢。</p>
+
       
     </div>
     
@@ -595,7 +639,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#文件系统概念"><span class="nav-number">1.</span> <span class="nav-text">文件系统概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-基于inode的文件系统"><span class="nav-number">1.1.</span> <span class="nav-text">1 基于inode的文件系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-inode与文件"><span class="nav-number">1.1.1.</span> <span class="nav-text">1.1 inode与文件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-多级inode"><span class="nav-number">1.1.2.</span> <span class="nav-text">1.2 多级inode</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-3-文件名与目录"><span class="nav-number">1.1.3.</span> <span class="nav-text">1.3 文件名与目录</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-4-硬链接"><span class="nav-number">1.1.4.</span> <span class="nav-text">1.4 硬链接</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-5-软链接"><span class="nav-number">1.1.5.</span> <span class="nav-text">1.5 软链接</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-基于表的文件系统"><span class="nav-number">1.2.</span> <span class="nav-text">2 基于表的文件系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-1-存储布局"><span class="nav-number">1.2.1.</span> <span class="nav-text">2.1 存储布局</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-VFS"><span class="nav-number">1.3.</span> <span class="nav-text">3 VFS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-用户态文件系统"><span class="nav-number">1.4.</span> <span class="nav-text">4 用户态文件系统</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#文件系统概念"><span class="nav-number">1.</span> <span class="nav-text">文件系统概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-基于inode的文件系统"><span class="nav-number">1.1.</span> <span class="nav-text">1 基于inode的文件系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-inode与文件"><span class="nav-number">1.1.1.</span> <span class="nav-text">1.1 inode与文件</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-多级inode"><span class="nav-number">1.1.2.</span> <span class="nav-text">1.2 多级inode</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-3-文件名与目录"><span class="nav-number">1.1.3.</span> <span class="nav-text">1.3 文件名与目录</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-4-硬链接"><span class="nav-number">1.1.4.</span> <span class="nav-text">1.4 硬链接</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-5-软链接"><span class="nav-number">1.1.5.</span> <span class="nav-text">1.5 软链接</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-基于表的文件系统"><span class="nav-number">1.2.</span> <span class="nav-text">2 基于表的文件系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-1-存储布局"><span class="nav-number">1.2.1.</span> <span class="nav-text">2.1 存储布局</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-2-目录项格式"><span class="nav-number">1.2.2.</span> <span class="nav-text">2.2 目录项格式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-FAT和文件格式"><span class="nav-number">1.2.3.</span> <span class="nav-text">2.3 FAT和文件格式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-FAT文件系统小结"><span class="nav-number">1.2.4.</span> <span class="nav-text">2.4 FAT文件系统小结</span></a></li></ol></li></ol></li></ol></div>
             
 
           </div>
