@@ -79,12 +79,12 @@
 
 
 
-<meta name="description" content="本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。">
+<meta name="description" content="本文的主要内容是介绍文件系统基础概念。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ChChorOS-9-Filesystem">
 <meta property="og:url" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。">
+<meta property="og:description" content="本文的主要内容是介绍文件系统基础概念。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs2.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs.png">
@@ -92,10 +92,10 @@
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/FAT.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fat-dir.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fat2.png">
-<meta property="og:updated_time" content="2023-04-29T11:06:07.476Z">
+<meta property="og:updated_time" content="2023-04-29T11:13:49.860Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-9-Filesystem">
-<meta name="twitter:description" content="本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。">
+<meta name="twitter:description" content="本文的主要内容是介绍文件系统基础概念。">
 <meta name="twitter:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs2.png">
 
 
@@ -370,7 +370,7 @@
 
       
         <blockquote>
-<p>本文的主要内容是介绍文件系统基础概念和文件系统的崩溃一致性。</p>
+<p>本文的主要内容是介绍文件系统基础概念。</p>
 </blockquote>
 <a id="more"></a>
 
@@ -447,6 +447,13 @@
 <h4 id="2-4-FAT文件系统小结"><a href="#2-4-FAT文件系统小结" class="headerlink" title="2.4 FAT文件系统小结"></a>2.4 FAT文件系统小结</h4><p>FAT是FAT文件系统的核心。本质上，一个文件的多个数据簇以链表的形式进行索引。</p>
 <p>相比与基于inode的文件系统，这种方式更加简单直接。</p>
 <p>但是使用链表的结构在查找时并不高效。如果要访问一个文件的中间部分，FAT文件系统不得不逐个簇进行查找，使得大文件的访存变得尤为缓慢。</p>
+<p><strong>参考资料</strong></p>
+<ol>
+<li><a href="https://en.wikipedia.org/wiki/File_Allocation_Table#External_links" target="_blank" rel="noopener">https://en.wikipedia.org/wiki/File_Allocation_Table#External_links</a></li>
+<li><a href="http://elm-chan.org/fsw/ff/00index_e.html" target="_blank" rel="noopener">http://elm-chan.org/fsw/ff/00index_e.html</a></li>
+<li><a href="http://elm-chan.org/docs/fat_e.html" target="_blank" rel="noopener">http://elm-chan.org/docs/fat_e.html</a></li>
+<li><a href="http://www.c-jump.com/CIS24/Slides/FAT/lecture.html" target="_blank" rel="noopener">http://www.c-jump.com/CIS24/Slides/FAT/lecture.html</a></li>
+</ol>
 
       
     </div>
