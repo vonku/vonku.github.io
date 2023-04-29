@@ -79,20 +79,20 @@
 
 
 
-<meta name="description" content="前言 主要内容：理解AArch64的异常机制和系统调用机制。">
+<meta name="description" content="主要内容：理解AArch64的异常机制和系统调用机制。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ChChorOS-5-Exception">
 <meta property="og:url" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="前言 主要内容：理解AArch64的异常机制和系统调用机制。">
+<meta property="og:description" content="主要内容：理解AArch64的异常机制和系统调用机制。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/vector-table.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/exception.jpg">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/exception-context.jpg">
-<meta property="og:updated_time" content="2023-04-23T10:07:08.798Z">
+<meta property="og:updated_time" content="2023-04-29T11:47:47.913Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-5-Exception">
-<meta name="twitter:description" content="前言 主要内容：理解AArch64的异常机制和系统调用机制。">
+<meta name="twitter:description" content="主要内容：理解AArch64的异常机制和系统调用机制。">
 <meta name="twitter:image" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/vector-table.png">
 
 
@@ -366,7 +366,7 @@
       
 
       
-        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><blockquote>
+        <blockquote>
 <p>主要内容：理解AArch64的异常机制和系统调用机制。</p>
 </blockquote>
 <a id="more"></a>
@@ -554,7 +554,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">18</span>
+                  <span class="site-state-item-count">20</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
@@ -576,7 +576,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-count">10</span>
                   <span class="site-state-item-name">标签</span>
                 </a>
               </div>
@@ -631,7 +631,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-AArch64中的异常"><span class="nav-number">2.</span> <span class="nav-text">1 AArch64中的异常</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-异步处理流程"><span class="nav-number">3.</span> <span class="nav-text">2 异步处理流程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#触发同步异常"><span class="nav-number">3.1.</span> <span class="nav-text">触发同步异常</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#处理器自动保存"><span class="nav-number">3.2.</span> <span class="nav-text">处理器自动保存</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#异常进入、处理和退出"><span class="nav-number">3.3.</span> <span class="nav-text">异常进入、处理和退出</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#异常返回eret"><span class="nav-number">3.4.</span> <span class="nav-text">异常返回eret</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-AArch64中的异常"><span class="nav-number">1.</span> <span class="nav-text">1 AArch64中的异常</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-异步处理流程"><span class="nav-number">2.</span> <span class="nav-text">2 异步处理流程</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#触发同步异常"><span class="nav-number">2.1.</span> <span class="nav-text">触发同步异常</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#处理器自动保存"><span class="nav-number">2.2.</span> <span class="nav-text">处理器自动保存</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#异常进入、处理和退出"><span class="nav-number">2.3.</span> <span class="nav-text">异常进入、处理和退出</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#异常返回eret"><span class="nav-number">2.4.</span> <span class="nav-text">异常返回eret</span></a></li></ol></li></ol></div>
             
 
           </div>

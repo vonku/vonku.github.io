@@ -79,21 +79,21 @@
 
 
 
-<meta name="description" content="前言 主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。">
+<meta name="description" content="主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="ChChorOS-3-Memory">
 <meta property="og:url" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="前言 主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。">
+<meta property="og:description" content="主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/memory-%E5%B1%82%E6%AC%A1%E5%9B%BE.jpg">
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/slab.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/page-table.png">
-<meta property="og:updated_time" content="2023-04-23T10:06:59.612Z">
+<meta property="og:updated_time" content="2023-04-29T11:48:01.419Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-3-Memory">
-<meta name="twitter:description" content="前言 主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。">
+<meta name="twitter:description" content="主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。">
 <meta name="twitter:image" content="http://yoursite.com/2023/04/21/ChChorOS-3-Memory/memory-%E5%B1%82%E6%AC%A1%E5%9B%BE.jpg">
 
 
@@ -367,7 +367,7 @@
       
 
       
-        <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><blockquote>
+        <blockquote>
 <p>主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。</p>
 </blockquote>
 <a id="more"></a>
@@ -551,7 +551,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">18</span>
+                  <span class="site-state-item-count">20</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
@@ -573,7 +573,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-count">10</span>
                   <span class="site-state-item-name">标签</span>
                 </a>
               </div>
@@ -628,7 +628,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-内存布局"><span class="nav-number">2.</span> <span class="nav-text">1. 内存布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Buddy系统"><span class="nav-number">3.</span> <span class="nav-text">2. Buddy系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Slab系统"><span class="nav-number">4.</span> <span class="nav-text">3. Slab系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-1-slab分配器初始化"><span class="nav-number">4.1.</span> <span class="nav-text">3.1 slab分配器初始化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-slab内存分配"><span class="nav-number">4.2.</span> <span class="nav-text">3.2 slab内存分配</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-slab内存释放"><span class="nav-number">4.3.</span> <span class="nav-text">3.3 slab内存释放</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-虚拟内存映射"><span class="nav-number">5.</span> <span class="nav-text">4. 虚拟内存映射</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-内存布局"><span class="nav-number">1.</span> <span class="nav-text">1. 内存布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-Buddy系统"><span class="nav-number">2.</span> <span class="nav-text">2. Buddy系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-Slab系统"><span class="nav-number">3.</span> <span class="nav-text">3. Slab系统</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-1-slab分配器初始化"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 slab分配器初始化</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-slab内存分配"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 slab内存分配</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-slab内存释放"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 slab内存释放</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-虚拟内存映射"><span class="nav-number">4.</span> <span class="nav-text">4. 虚拟内存映射</span></a></li></ol></div>
             
 
           </div>
