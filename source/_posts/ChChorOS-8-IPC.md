@@ -5,8 +5,6 @@ categories: OS
 tags:
 ---
 
-### 前言
-
 > 主要内容：了解ChChor中的IPC机制。
 
 <!--more-->

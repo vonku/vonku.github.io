@@ -5,8 +5,6 @@ categories: OS
 tags:
 ---
 
-### 前言
-
 > 主要内容：理解AArch64的异常机制和系统调用机制。
 
 <!--more-->

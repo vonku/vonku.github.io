@@ -5,8 +5,6 @@ categories: OS
 tags:
 ---
 
-### 前言
-
 > 主要内容：理解ChChor多核启动流程。
 
 <!--more-->

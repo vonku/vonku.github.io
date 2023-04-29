@@ -5,8 +5,6 @@ categories: OS
 tags:
 ---
 
-
-### 前言
 > 本章是 AArch64 qemu gdb 调试的基础。
 
 <!--more-->

@@ -5,8 +5,6 @@ categories: OS
 tags:
 ---
 
-### 前言
-
 > 本章ChChor多核相关内容。
 
 <!--more-->

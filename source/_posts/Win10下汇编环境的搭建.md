@@ -11,7 +11,7 @@ tags:
 
 &nbsp;&nbsp;&nbsp;&nbsp;由于书籍一开始的前三章只需要熟悉调试debug调试工具，因此用[CSDN上这位网友][link1]的DOSBox软件，完美地满足了我debug调试的需求。
 
-&nbsp;&nbsp;&nbsp;&nbsp;到了第四章，需要自己编写汇编程序，编译、链接、调试，之前的操作就不再满足需求了。自己动手丰衣足食，今天到网上搜集了一下资源，整理于此。
+&nbsp;&nbsp;&nbsp;&nbsp;到了第四章，需要自己编写汇编程序，编译、链接、调试，之前的操作就不再满足需求了。今天到网上搜集了一下资源，整理于此。
 - 实验平台：Win10 64位
 - 所需软件：DOSBox-0.74, MASM 6.11, debug.exe, edit.com
 
@@ -24,7 +24,7 @@ tags:
 ### 3. 下载MASM
 &nbsp;&nbsp;&nbsp;&nbsp;网上随便下载masm 6.11，[链接一][link3]，[链接二][link4]。将其中几个名为DISK?（?是数字）的文件夹合并到一起（把DISK?文件夹里边的内容放到一起），放在某个地方备用，假定为* D:\MASM611 。像这样：
 ![abc](Win10下汇编环境的搭建/1.png)
- 
+
 `提示：如果出现.TXT扩展名不对，如上图右边，可到[这个链接][link5]上下载替换.TXT文件，像左边才是正确的，不然安装会提示.TXT文件找不到。`
 ### 4. 安装MASM
 &nbsp;&nbsp;&nbsp;&nbsp;在DOSBox的安装目录下，找到DOSBox 0.74 Options，双击，在最后添加两行：
@@ -72,7 +72,7 @@ NEW-VARS
 
 [link1]:https://download.csdn.net/download/meifan33/10012764
 [link2]:https://www.dosbox.com/download.php?main=1
-[link3]:https://download.csdn.net/download/Winsock32/184125 
+[link3]:https://download.csdn.net/download/Winsock32/184125
 [link4]:https://sourceforge.net/projects/masm611/
 [link5]:https://github.com/fititnt/assembly-masm/tree/master/MASM611
 [link6]:https://download.csdn.net/download/m3470/2673081

@@ -14,8 +14,6 @@ tags:
 
 希望后续能编写自己的应用程序，修改Linux 0.11的源代码，用gcc编译后，在Bochs的虚拟环境中运行、调试目标代码，在实践中加深对Linux操作系统的理解。
 
-话不多说，现在开始吧。
-
 <!--more-->
 
 ## 1. 准备环境
@@ -200,4 +198,4 @@ Good luck!
 [link1]:https://mooc.study.163.com/course/1000002004#/info
 [link2]:https://blog.csdn.net/u014069939/article/details/90726175
 [link3]:https://blog.csdn.net/littleflypig/article/details/79584349
-[link4]:http://pan.baidu.com/s/1rP0Bc1_DUVCL-7_g_YJHeQ 
+[link4]:http://pan.baidu.com/s/1rP0Bc1_DUVCL-7_g_YJHeQ

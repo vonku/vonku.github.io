@@ -5,8 +5,6 @@ categories: OS
 tags:
 ---
 
-### 前言
-
 > 主要内容：理解ChChor的内存管理方法和虚拟内存映射方法。
 
 <!--more-->

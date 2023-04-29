@@ -5,8 +5,6 @@ categories: OS
 tags:
 ---
 
-### 前言
-
 > 主要内容：掌握ChChor的内核调度策略与实现。
 
 <!--more-->
