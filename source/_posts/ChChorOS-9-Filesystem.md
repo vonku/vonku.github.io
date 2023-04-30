@@ -267,7 +267,7 @@ static FRESULT follow_path (    /* FR_OK(0): successful, !=0: error code */
                     }
                 }
                 break;
-            }
+            } 
             // 如果找到了，并且follow_path已经到了最后，那么退出
             if (ns & NS_LAST) break;        /* Last segment matched. Function completed. */
             // 如果找到了，但是它并不是一个目录（如/a/b 并不是一个目录项，那么它是不能follow的）
