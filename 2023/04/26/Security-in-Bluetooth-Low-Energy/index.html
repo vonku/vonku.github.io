@@ -87,7 +87,7 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍BLE中安全相关的内容。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2023-05-01T08:31:14.307Z">
+<meta property="og:updated_time" content="2023-05-01T15:25:35.184Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Security in Bluetooth Low Energy">
 <meta name="twitter:description" content="本文介绍BLE中安全相关的内容。">
@@ -367,6 +367,57 @@
 <p>本文介绍BLE中安全相关的内容。</p>
 </blockquote>
 <a id="more"></a>
+
+<h3 id="1-Overview"><a href="#1-Overview" class="headerlink" title="1 Overview"></a>1 Overview</h3><h4 id="1-1-Referring-to-devices"><a href="#1-1-Referring-to-devices" class="headerlink" title="1.1 Referring to devices"></a>1.1 Referring to devices</h4><p>蓝牙核心规范使用不同的属于描述通信中的两个设备，使用什么属于需要根据语境来确定。概括如下表：</p>
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>语境</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>initiator and responder</td>
+<td>通常用在安全相关交互的语境中，如pairing</td>
+</tr>
+<tr>
+<td>master and slave</td>
+<td>BLE链路层相关问题中通常将它们成为主设备和从设备</td>
+</tr>
+<tr>
+<td>peripheral and central</td>
+<td>GAP中通常称之为外围设备和中心设备</td>
+</tr>
+<tr>
+<td>client and server</td>
+<td>GATT和ATT中通常成为客户端和服务器</td>
+</tr>
+</tbody></table>
+<h4 id="1-2-Security-Levels-and-Models"><a href="#1-2-Security-Levels-and-Models" class="headerlink" title="1.2 Security Levels and Models"></a>1.2 Security Levels and Models</h4><p>安全等级和模式定义了”设备，服务和服务请求“的安全要求。</p>
+<ul>
+<li><p>model 1</p>
+<ul>
+<li>L1 没有安全要求</li>
+<li>L2 Unauthenticated pairing with encryption 未经认证的加密配对</li>
+<li>L3 Authenticated pairing with encryption 经认证的加密配对</li>
+<li>L4 经认证的LE 安全链接与使用128为强度加密密钥的加密配对</li>
+</ul>
+</li>
+<li><p>model 2</p>
+<ul>
+<li>L1 Unauthenticated pairing with data signing 未经认证的数据签名配对</li>
+<li>L2 Authenticated pairing with data signing 未经认证的数据签名配对</li>
+</ul>
+</li>
+<li><p>model 3</p>
+<ul>
+<li>L1 没有安全要求</li>
+<li>L2 使用未经身份认证的 Broadcast_Code</li>
+<li>L3 使用经过认证的 Broadcast_Code</li>
+</ul>
+</li>
+</ul>
+
       
     </div>
     
@@ -462,8 +513,17 @@
       
 
       
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
 
-      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <section class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
           <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
             
@@ -547,6 +607,22 @@
         </div>
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Overview"><span class="nav-number">1.</span> <span class="nav-text">1 Overview</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-Referring-to-devices"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 Referring to devices</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-Security-Levels-and-Models"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 Security Levels and Models</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       
