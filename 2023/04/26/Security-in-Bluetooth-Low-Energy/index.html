@@ -87,12 +87,12 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍BLE中安全相关的内容。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:image" content="http://yoursite.com/2023/04/26/Security-in-Bluetooth-Low-Energy/Security-in-Bluetooth-Low-Energy%5Cpke.png">
-<meta property="og:updated_time" content="2023-05-02T02:12:45.640Z">
+<meta property="og:image" content="http://yoursite.com/2023/04/26/Security-in-Bluetooth-Low-Energy/pke.png">
+<meta property="og:updated_time" content="2023-05-02T02:18:37.955Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Security in Bluetooth Low Energy">
 <meta name="twitter:description" content="本文介绍BLE中安全相关的内容。">
-<meta name="twitter:image" content="http://yoursite.com/2023/04/26/Security-in-Bluetooth-Low-Energy/Security-in-Bluetooth-Low-Energy%5Cpke.png">
+<meta name="twitter:image" content="http://yoursite.com/2023/04/26/Security-in-Bluetooth-Low-Energy/pke.png">
 
 
 
@@ -460,7 +460,7 @@
 
 <h5 id="2-1-1-Alternative-Pairing-Methods"><a href="#2-1-1-Alternative-Pairing-Methods" class="headerlink" title="2.1.1 Alternative Pairing Methods"></a>2.1.1 Alternative Pairing Methods</h5><p> 4.2及以上的蓝牙协议栈，可以使用两种不同的配对方法。第一种是LE经典配对（LE Legacy Pairing），第二种则是LE安全连接（LE Secure Connections），是一种新的更安全的方法。</p>
 <p> 下图展示了配对的三个阶段。第一阶段决定了配对过程使用LE经典配对还是LE安全连接。第二阶段，包含了一个可选的身份认证过程，以及产生加密链路所需的密钥，并开始链路加密。第三个阶段，则主要是密钥的派发，包括LTK, CSRK和IRK。</p>
-<p>![high level pairing flow](Security-in-Bluetooth-Low-Energy\high level pairing flow.png)</p>
+<p>![high level pairing flow](Security-in-Bluetooth-Low-Energy/high level pairing flow.png)</p>
 <h5 id="2-1-2-Association-Models"><a href="#2-1-2-Association-Models" class="headerlink" title="2.1.2 Association Models"></a>2.1.2 Association Models</h5><p>每种配对方法，都提供了多种不同的配对方式，包括如何处理身份验证。这些不同的配对方式被称为关联模型（association models）。</p>
 <ul>
 <li><p>LE Legacy Pairing 具有三种可用的关联模型，称为 Just Works (JW)、Passkey Entry (PKE) 和 Out of Band (OOB)。</p>
@@ -490,7 +490,7 @@
 </tr>
 </tbody></table>
 <h5 id="2-1-4-Pairing-Feature-Exchange"><a href="#2-1-4-Pairing-Feature-Exchange" class="headerlink" title="2.1.4 Pairing Feature Exchange"></a>2.1.4 Pairing Feature Exchange</h5><p>在配对之前有一个步骤，叫做配对特征交换（Pairing Feature Exchange）。发起者发送一个SMP配对请求PDU到应答者，应答者回复一个SMP配对应答。</p>
-<p>![smp request](Security-in-Bluetooth-Low-Energy\smp request.png)</p>
+<p>![smp request](Security-in-Bluetooth-Low-Energy/smp request.png)</p>
 <p>该交换过程提供了两个设备所需要的一些信息：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">1. 决定是使用LE Legacy Pairing 还是LE Secure Connections pairing </span><br><span class="line"></span><br><span class="line">2. 决定配对过程中是否需要设备认证，以及采用何种格式认证</span><br><span class="line"></span><br><span class="line">3. 决定应该生成和派发哪些密钥类型</span><br><span class="line"></span><br><span class="line">4. 决定LTK的长度</span><br></pre></td></tr></table></figure>
 
@@ -569,7 +569,7 @@
 <li>An Overview of LE Legacy Pairing</li>
 </ul>
 <p>配对分为三步。第一步和第三步，在LE Legacy Pairing和Secure Connection pairing中是一样的。第二步有点差别。</p>
-<p>![le legacy pairing](Security-in-Bluetooth-Low-Energy\le legacy pairing.png)</p>
+<p>![le legacy pairing](Security-in-Bluetooth-Low-Energy/le legacy pairing.png)</p>
 <ul>
 <li><strong>Phase1</strong></li>
 </ul>
@@ -633,14 +633,14 @@
 <p> <strong>以下是该过程工作的原理：</strong></p>
 <p> 首先，每个设备计算一个128位的确认码（confirm value）。确认码使用了一个叫做c1的函数，参数包含了TK（请记住，TK从来没有在空中传输过）.</p>
 <p> 除了TK之外,创建确认码函数的其他输入包括两个设备都知道的字段以及一个随机数，在此阶段，只有创建确认码的设备才知道该随机数。 在 master 上，此值称为 Mrand。 在slave上，它被称为Srand。</p>
-<p>![c1 function](Security-in-Bluetooth-Low-Energy\c1 function.jpg)</p>
+<p>![c1 function](Security-in-Bluetooth-Low-Energy/c1 function.jpg)</p>
 <p>接着，主设备发送MConfirm, 从设备回复SConfirm。</p>
 <p>收到SC之后，master通过发送一个Pairing Random PDU把Mrand传给slave。</p>
 <p>slave现在知道计算MConfirm所需要的所有东西，slave将计算得到的MConfirm和收到的MConfirm进行比较。如果匹配的话，则完成了master对slave的认证。slave通过Pairing Random PDU回复Srand给master。</p>
 <p>master计算SConfirm并和收到的SConfirm进行比较。如果相同，则slave对master就是经认证的。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">每个设备都证明了它知道TK，此时身份认证已经完成。</span><br></pre></td></tr></table></figure>
 
-<p><img src="/2023/04/26/Security-in-Bluetooth-Low-Energy/Security-in-Bluetooth-Low-Energy%5Cpke.png" alt="pke"></p>
+<p><img src="/2023/04/26/Security-in-Bluetooth-Low-Energy/pke.png" alt="pke"></p>
 <p> <strong>Step 3 - Generate the Short Term Key (STK)</strong></p>
 <p>接着，我们可以用TK计算STK了：</p>
 <p><code>STK = s1(TK, Srand, Mrand)</code></p>
@@ -663,7 +663,7 @@
 <li>An Overview of LE Secure Connections Pairing</li>
 </ul>
 <p>LE Secure Connection也分为三步，其中第二步和LE Legacy Pairing明显不同。</p>
-<p>![le sc](Security-in-Bluetooth-Low-Energy\le sc.png)</p>
+<p>![le sc](Security-in-Bluetooth-Low-Energy/le sc.png)</p>
 <p>如上图所示，LE Secure Connections pairing使用公钥加密算法。更准确的，是使用P-256椭圆曲线的椭圆曲线加密算法。</p>
 <ul>
 <li><strong>Phase1 – Pairing Feature Exchange and Pairing Method Selection</strong></li>
@@ -724,9 +724,9 @@
 
 <p>每一次迭代中，confirm value互相交换和检查。20位的passkey，一共20轮。这种方法被称为Gradual Disclosure，其优点是 MITM 攻击在实际中更加困难，大多数攻击在没有看到完整和最终确认值的情况下提前失败。</p>
 <h5 id="LE-Secure-Connections-with-OOB"><a href="#LE-Secure-Connections-with-OOB" class="headerlink" title="LE Secure Connections with OOB"></a>LE Secure Connections with OOB</h5><p>The Out of Band Part</p>
-<p>![out of band part](Security-in-Bluetooth-Low-Energy\out of band part.png)</p>
+<p>![out of band part](Security-in-Bluetooth-Low-Energy/out of band part.png)</p>
 <p>The Out of Band Part</p>
-<p>![in band part](Security-in-Bluetooth-Low-Energy\in band part.png)</p>
+<p>![in band part](Security-in-Bluetooth-Low-Energy/in band part.png)</p>
 <p>如果两边都能认证通过，则成功，否则，配对失败。</p>
 <p><strong>step3 Authentication Stage 2</strong></p>
 <p>4个步骤：</p>
@@ -760,7 +760,7 @@
 <li><p>使用最大的密钥size</p>
 </li>
 </ul>
-<h4 id="2-2-Link-Encryption"><a href="#2-2-Link-Encryption" class="headerlink" title="2.2 Link Encryption"></a>2.2 Link Encryption</h4><h5 id="2-2-1-Starting-Link-Encryption"><a href="#2-2-1-Starting-Link-Encryption" class="headerlink" title="2.2.1 Starting Link Encryption"></a>2.2.1 Starting Link Encryption</h5><p>![starting encryption during pairing after an insufficient encryption error](Security-in-Bluetooth-Low-Energy\starting encryption during pairing after an insufficient encryption error.png)</p>
+<h4 id="2-2-Link-Encryption"><a href="#2-2-Link-Encryption" class="headerlink" title="2.2 Link Encryption"></a>2.2 Link Encryption</h4><h5 id="2-2-1-Starting-Link-Encryption"><a href="#2-2-1-Starting-Link-Encryption" class="headerlink" title="2.2.1 Starting Link Encryption"></a>2.2.1 Starting Link Encryption</h5><p>![starting encryption during pairing after an insufficient encryption error](Security-in-Bluetooth-Low-Energy/starting encryption during pairing after an insufficient encryption error.png)</p>
 <p>连接建立的时候，如果安全model和level表示需要链路加密的话，host on the master会告诉它的controller开始link encryption。同样的，访问需要encryption 权限的GATT attribute，如果链路没有加密的话，也会开始link encryption。</p>
 <p>注意，无连接的情况下是不能使用安全特性的。</p>
 <p>host发送HCI_LE_Start_Encryption命令来开始加密</p>
@@ -770,11 +770,11 @@
 <p>现在，两边就都有完整的相同的IV和SDK了。</p>
 <p>master和slave的host通过HCI_LE_Start_Encryption命令，为controller提供LTK。使用LE Legacy Pairing的话，响应者设备根据EDIV和RAND来从数据库中拿到LTK, LE Secure Connection pairing则使用发起者的蓝牙地址找到LTK。</p>
 <p>使用LTK作为key，对SKD进行加密，则计算得到session key。</p>
-<p>![session key creation](Security-in-Bluetooth-Low-Energy\session key creation.png)</p>
+<p>![session key creation](Security-in-Bluetooth-Low-Energy/session key creation.png)</p>
 <p>接下来，从设备向主设备发送一个未加密的 LL_START_ENC_REQ PDU。 主设备使用加密的 LL_START_ENC_RSP PDU 进行响应。 从设备用它自己的加密 LL_START_ENC_RSP PDU 进行响应。 可以在下图中看到两个响应 PDU，完成加密启动程序。</p>
-<p>![encryption start](Security-in-Bluetooth-Low-Energy\encryption start.png) </p>
+<p>![encryption start](Security-in-Bluetooth-Low-Energy/encryption start.png) </p>
 <h5 id="2-2-2-Encryption-and-Authentication-of-Link-Data"><a href="#2-2-2-Encryption-and-Authentication-of-Link-Data" class="headerlink" title="2.2.2 Encryption and Authentication of Link Data"></a>2.2.2 Encryption and Authentication of Link Data</h5><p>BLE使用AES-CCM来进行加密。</p>
-<p>![encrypted pdu layer](Security-in-Bluetooth-Low-Energy\encrypted pdu layer.png)</p>
+<p>![encrypted pdu layer](Security-in-Bluetooth-Low-Energy/encrypted pdu layer.png)</p>
 <p>当数据加密使能时，所有的PDU都有一个MIC加在Payload Data后面和CRC前面。</p>
 <p>MIC的计算包含了多个输入，其中包括一个随机数，其值包括一个包计数器。包计数器长39位，每一个非空包增加一次。</p>
 <p>接收设备解密并检查MIC是否一致。如果不一致，则连接断开。</p>
@@ -800,9 +800,9 @@
 <p>另一种是device privacy mode。这种模式下，local device将会接收对端设备的私有地址和public identity address的数据包。</p>
 <h5 id="2-3-3-The-Resolving-List"><a href="#2-3-3-The-Resolving-List" class="headerlink" title="2.3.3 The Resolving List"></a>2.3.3 The Resolving List</h5><p>IRK， identity address, privacy mode 组成的Resolving List。</p>
 <h5 id="2-3-4-Private-Address-Generation"><a href="#2-3-4-Private-Address-Generation" class="headerlink" title="2.3.4 Private Address Generation"></a>2.3.4 Private Address Generation</h5><p>non-resolvable：48位的地址，最高两位是0，剩下的46位是随机数（不全为0也不全为1）。</p>
-<p>![non-resolvable private address](Security-in-Bluetooth-Low-Energy\non-resolvable private address.png)</p>
+<p>![non-resolvable private address](Security-in-Bluetooth-Low-Energy/non-resolvable private address.png)</p>
 <p>resolvable:最高2位是0和1，接着的22位是随机数prand，剩下的24位是用IRK和prand计算得到的hash。</p>
-<p>![resolvable private address](Security-in-Bluetooth-Low-Energy\resolvable private address.png)</p>
+<p>![resolvable private address](Security-in-Bluetooth-Low-Energy/resolvable private address.png)</p>
 <h5 id="2-3-5-Private-Address-Resolution"><a href="#2-3-5-Private-Address-Resolution" class="headerlink" title="2.3.5 Private Address Resolution"></a>2.3.5 Private Address Resolution</h5><p>如果最高两位是0和1的话，那么该地址被识别为resolvable address。收到该地址后，local device将尝试resolve该地址。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">localHash = ah(IRK, prand)</span><br></pre></td></tr></table></figure>
 
