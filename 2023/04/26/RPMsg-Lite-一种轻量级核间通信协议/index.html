@@ -93,7 +93,7 @@
 <meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/ns.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/vring.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/idx.png">
-<meta property="og:updated_time" content="2023-05-02T01:19:51.477Z">
+<meta property="og:updated_time" content="2023-05-02T07:08:16.997Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="RPMsg-Lite-一种轻量级核间通信协议">
 <meta name="twitter:description" content="本文介绍RPMsg-Lite核间通信协议的工作原理与应用。">
@@ -377,13 +377,13 @@
 
 <p>RPMsg-Lite是NXP开源的一个核间通信组件，它可以作为eRPC的IPC传输层实现核间RPC调用，本文介绍该组件的核心工作原理，以及它在项目中的实施方案。</p>
 <p>开源链接：<a href="https://github.com/nxp-mcuxpresso/rpmsg-lite" target="_blank" rel="noopener">https://github.com/nxp-mcuxpresso/rpmsg-lite</a></p>
-<h3 id="1-Architecture"><a href="#1-Architecture" class="headerlink" title="1 Architecture"></a>1 Architecture</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/architecture.png" alt="architecture"></p>
+<h2 id="1-Architecture"><a href="#1-Architecture" class="headerlink" title="1 Architecture"></a>1 Architecture</h2><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/architecture.png" alt="architecture"></p>
 <p>rpmsg_lite.c：核心文件，实现了核间通信的主要功能</p>
 <p>rpmsg_ns.c：name service，用于声明服务，对应端点的概念</p>
 <p>rpmsg_queue.c：消息缓存队列，配合eRPC实现了零拷贝的传输层</p>
 <p>virtqueue.c：实现了一个基于共享内存的环形缓冲区，参考了Linux virtio的实现</p>
 <p>env&amp;platform：适配层，主要是osal和核间通信硬件设施</p>
-<h3 id="2-数据结构"><a href="#2-数据结构" class="headerlink" title="2 数据结构"></a>2 数据结构</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/datastruct.png" alt="datastruct"></p>
+<h2 id="2-数据结构"><a href="#2-数据结构" class="headerlink" title="2 数据结构"></a>2 数据结构</h2><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/datastruct.png" alt="datastruct"></p>
 <p><strong>rpmsg_lite_Instance</strong></p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">rpmsg_lite_instance</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">virtqueue</span> *<span class="title">rvq</span>;</span>      <span class="comment">// 接收队列</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">virtqueue</span> *<span class="title">tvq</span>;</span>      <span class="comment">// 发送队列</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">llist</span> *<span class="title">rl_endpoints</span>;</span> <span class="comment">// 端点的list</span></span><br><span class="line">    LOCK *lock;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">uint32_t</span> link_state;</span><br><span class="line">    <span class="keyword">char</span> *sh_mem_base;                  <span class="comment">// 共享内存起始地址</span></span><br><span class="line">    <span class="keyword">uint32_t</span> sh_mem_remaining;         </span><br><span class="line">    <span class="keyword">uint32_t</span> sh_mem_total;              </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">virtqueue_ops</span> <span class="title">const</span> *<span class="title">vq_ops</span>;</span> <span class="comment">// virtqueue的ops，master和remote有不同的ops</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">uint32_t</span> link_id;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
 
@@ -400,13 +400,13 @@
 
 <p>virtqueue数据结构是完成共享内存数据交换的关键。</p>
 <p>接下来我们看下这些virtqueue数据结构，和共享内存的关系。</p>
-<h3 id="3-共享内存"><a href="#3-共享内存" class="headerlink" title="3 共享内存"></a>3 共享内存</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/sm.png" alt="sm"></p>
+<h2 id="3-共享内存"><a href="#3-共享内存" class="headerlink" title="3 共享内存"></a>3 共享内存</h2><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/sm.png" alt="sm"></p>
 <p>共享内存初始化后是上图的布局。其中，vring0和vring1都是为了管理共享buffer而增加的数据结构。</p>
 <p><strong>vring_desc</strong>： 指向了各个数据buffer</p>
 <p><strong>vring_avail</strong> 和 <strong>vring_used</strong>：用来做发送和接收的索引管理，它们的idx取模后就是 desc 的 idx，也就是指向一个buffer。</p>
-<h3 id="4-数据收发流程"><a href="#4-数据收发流程" class="headerlink" title="4 数据收发流程"></a>4 数据收发流程</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/oneshot.png" alt="oneshot"></p>
-<h3 id="5-声明服务"><a href="#5-声明服务" class="headerlink" title="5 声明服务"></a>5 声明服务</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/ns.png" alt="ns"></p>
-<h3 id="6-vqueue-amp-vring数据流"><a href="#6-vqueue-amp-vring数据流" class="headerlink" title="6 vqueue&amp;vring数据流"></a>6 vqueue&amp;vring数据流</h3><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/vring.png" alt="vring"><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/idx.png" alt="idx"></p>
+<h2 id="4-数据收发流程"><a href="#4-数据收发流程" class="headerlink" title="4 数据收发流程"></a>4 数据收发流程</h2><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/oneshot.png" alt="oneshot"></p>
+<h2 id="5-声明服务"><a href="#5-声明服务" class="headerlink" title="5 声明服务"></a>5 声明服务</h2><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/ns.png" alt="ns"></p>
+<h2 id="6-vqueue-amp-vring数据流"><a href="#6-vqueue-amp-vring数据流" class="headerlink" title="6 vqueue&amp;vring数据流"></a>6 vqueue&amp;vring数据流</h2><p><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/vring.png" alt="vring"><img src="/2023/04/26/RPMsg-Lite-一种轻量级核间通信协议/idx.png" alt="idx"></p>
 <p>简单总结这些指针的变化过程：</p>
 <p><strong>master-&gt;remote</strong></p>
 <ol>
@@ -425,7 +425,7 @@
 </li>
 </ol>
 <p>初始化的时候，<code>avail-&gt;idx - used-&gt;idx = vq_nentries</code>，也就是说，刚开始的时候，全部都是空的，remote一个数据都还没发送</p>
-<h3 id="7-硬件视图"><a href="#7-硬件视图" class="headerlink" title="7 硬件视图"></a>7 硬件视图</h3><p>为了完成核间通信，rpmsg-lite需要：</p>
+<h2 id="7-硬件视图"><a href="#7-硬件视图" class="headerlink" title="7 硬件视图"></a>7 硬件视图</h2><p>为了完成核间通信，rpmsg-lite需要：</p>
 <ol>
 <li>一片共享内存，用来存放vitrqueue的数据结构，以及共享数据的buffer，两个核都要可以访问</li>
 <li>中断<ul>
@@ -436,7 +436,7 @@
 </ul>
 </li>
 </ol>
-<h3 id="8-项目实施"><a href="#8-项目实施" class="headerlink" title="8 项目实施"></a>8 项目实施</h3><p>在项目实施过程中，遇到了一些比较棘手的问题。</p>
+<h2 id="8-项目实施"><a href="#8-项目实施" class="headerlink" title="8 项目实施"></a>8 项目实施</h2><p>在项目实施过程中，遇到了一些比较棘手的问题。</p>
 <ol>
 <li>两个核都可以独立休眠，在对端休眠期间，一端是无法正确访问对端数据的</li>
 <li>这些中断不是随时想发就可以发的，上面的几个中断需要是顺序的</li>
@@ -645,7 +645,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-Architecture"><span class="nav-number">1.</span> <span class="nav-text">1 Architecture</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-数据结构"><span class="nav-number">2.</span> <span class="nav-text">2 数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-共享内存"><span class="nav-number">3.</span> <span class="nav-text">3 共享内存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-数据收发流程"><span class="nav-number">4.</span> <span class="nav-text">4 数据收发流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-声明服务"><span class="nav-number">5.</span> <span class="nav-text">5 声明服务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-vqueue-amp-vring数据流"><span class="nav-number">6.</span> <span class="nav-text">6 vqueue&amp;vring数据流</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-硬件视图"><span class="nav-number">7.</span> <span class="nav-text">7 硬件视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-项目实施"><span class="nav-number">8.</span> <span class="nav-text">8 项目实施</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-Architecture"><span class="nav-number">1.</span> <span class="nav-text">1 Architecture</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-数据结构"><span class="nav-number">2.</span> <span class="nav-text">2 数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-共享内存"><span class="nav-number">3.</span> <span class="nav-text">3 共享内存</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-数据收发流程"><span class="nav-number">4.</span> <span class="nav-text">4 数据收发流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-声明服务"><span class="nav-number">5.</span> <span class="nav-text">5 声明服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-vqueue-amp-vring数据流"><span class="nav-number">6.</span> <span class="nav-text">6 vqueue&amp;vring数据流</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-硬件视图"><span class="nav-number">7.</span> <span class="nav-text">7 硬件视图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-项目实施"><span class="nav-number">8.</span> <span class="nav-text">8 项目实施</span></a></li></ol></div>
             
 
           </div>
