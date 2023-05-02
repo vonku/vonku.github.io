@@ -13,7 +13,7 @@ RPMsg-Lite是NXP开源的一个核间通信组件，它可以作为eRPC的IPC传
 
 开源链接：https://github.com/nxp-mcuxpresso/rpmsg-lite
 
-### 1 Architecture
+## 1 Architecture
 
 ![architecture](RPMsg-Lite-一种轻量级核间通信协议/architecture.png)
 
@@ -27,7 +27,7 @@ virtqueue.c：实现了一个基于共享内存的环形缓冲区，参考了Lin
 
 env&platform：适配层，主要是osal和核间通信硬件设施
 
-### 2 数据结构
+## 2 数据结构
 
 ![datastruct](RPMsg-Lite-一种轻量级核间通信协议/datastruct.png)
 
@@ -127,7 +127,7 @@ virtqueue数据结构是完成共享内存数据交换的关键。
 
 接下来我们看下这些virtqueue数据结构，和共享内存的关系。
 
-### 3 共享内存
+## 3 共享内存
 
 ![sm](RPMsg-Lite-一种轻量级核间通信协议/sm.png)
 
@@ -137,15 +137,15 @@ virtqueue数据结构是完成共享内存数据交换的关键。
 
 **vring_avail** 和 **vring_used**：用来做发送和接收的索引管理，它们的idx取模后就是 desc 的 idx，也就是指向一个buffer。
 
-### 4 数据收发流程
+## 4 数据收发流程
 
 ![oneshot](RPMsg-Lite-一种轻量级核间通信协议/oneshot.png)
 
-### 5 声明服务
+## 5 声明服务
 
 ![ns](RPMsg-Lite-一种轻量级核间通信协议/ns.png)
 
-### 6 vqueue&vring数据流
+## 6 vqueue&vring数据流
 
 ![vring](RPMsg-Lite-一种轻量级核间通信协议/vring.png)![idx](RPMsg-Lite-一种轻量级核间通信协议/idx.png)
 
@@ -169,7 +169,7 @@ virtqueue数据结构是完成共享内存数据交换的关键。
 
 初始化的时候，`avail->idx - used->idx = vq_nentries`，也就是说，刚开始的时候，全部都是空的，remote一个数据都还没发送
 
-### 7 硬件视图
+## 7 硬件视图
 
 为了完成核间通信，rpmsg-lite需要：
 
@@ -180,7 +180,7 @@ virtqueue数据结构是完成共享内存数据交换的关键。
    - 接收完成中断：接收方接收完数据后，通知发送方数据已经被收完了
    - 发送完成中断：发送方知道自己数据被处理完了
 
-### 8 项目实施
+## 8 项目实施
 
 在项目实施过程中，遇到了一些比较棘手的问题。
 
