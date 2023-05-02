@@ -311,10 +311,10 @@ Fields in SCB CFSR_UFSR_BFSR_MMFSR:
 
 **参考资料：**
 
-*https://interrupt.memfault.com/blog/cortex-m-hardfault-debug*
+1. https://interrupt.memfault.com/blog/cortex-m-hardfault-debug
 
-*https://interrupt.memfault.com/blog/cortex-m-rtos-context-switching#basic-context-state-frame*
+2. *https://interrupt.memfault.com/blog/cortex-m-rtos-context-switching#basic-context-state-frame*
 
-*https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic*
+3. *https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic*
 
-*https://github.com/armink/CmBacktrace*
+4. *https://github.com/armink/CmBacktrace*

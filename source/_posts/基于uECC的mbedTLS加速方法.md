@@ -428,5 +428,5 @@ ecdsa 11.567000 seconds with uecc
 
 **参考资料**：
 
-https://github.com/kmackay/micro-ecc （注意使用static版本）
+1. *https://github.com/kmackay/micro-ecc （static版本）*
 

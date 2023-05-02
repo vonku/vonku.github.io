@@ -373,7 +373,7 @@ static FRESULT dir_sdi (    /* FR_OK(0):succeeded, !=0:error */
 }
 ```
 
-`move_window()`这个函数体现了，FAT是怎么缓存扇区内容的——它在`fs->win`中一个扇区的内容。`move_window()`就是把一个扇区的数据更新到`fs->win`中。如果之前`fs->win`的数据是dirty了，那么先提前sync到物理存储中。（这几乎就是FAT文件系统最主要的缓存机制了 = =！）
+`move_window()`这个函数体现了，FAT是怎么缓存扇区内容的——它在`fs->win`中缓存了一个扇区的内容。`move_window()`就是把一个扇区的数据更新到`fs->win`中。如果之前`fs->win`的数据是dirty了，那么先提前sync到物理存储中。（这几乎就是FAT文件系统最主要的缓存机制了 = =！）
 
 ```c
 static FRESULT move_window (    /* Returns FR_OK or FR_DISK_ERR */
@@ -627,7 +627,7 @@ static FRESULT dir_register (   /* FR_OK:succeeded, FR_DENIED:no free entry or t
 
 **参考资料**
 
-1. https://en.wikipedia.org/wiki/File_Allocation_Table#External_links
-2. http://elm-chan.org/fsw/ff/00index_e.html
-3. http://elm-chan.org/docs/fat_e.html
-4. http://www.c-jump.com/CIS24/Slides/FAT/lecture.html
+1. *https://en.wikipedia.org/wiki/File_Allocation_Table#External_links*
+2. *http://elm-chan.org/fsw/ff/00index_e.html*
+3. *http://elm-chan.org/docs/fat_e.html*
+4. *http://www.c-jump.com/CIS24/Slides/FAT/lecture.html*
