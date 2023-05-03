@@ -92,7 +92,7 @@
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/aircr.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/shcsr.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/ictr.png">
-<meta property="og:updated_time" content="2023-05-03T12:51:50.367Z">
+<meta property="og:updated_time" content="2023-05-03T13:53:35.268Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Cortex-m exception handling">
 <meta name="twitter:description" content="几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。 本文介绍ARM Cortex-m设备的异常模型。">
@@ -375,15 +375,14 @@
 </blockquote>
 <a id="more"></a>
 
-<h2 id="ARM-异常模型概述"><a href="#ARM-异常模型概述" class="headerlink" title="ARM 异常模型概述"></a>ARM 异常模型概述</h2><p>异常的定义：改变程序中正常控制流程的条件。</p>
-<p>中断和异常的差异：“中断”是用来描述一种“异常”。异常由以下几个信息组成：</p>
+<h2 id="ARM-异常模型概述"><a href="#ARM-异常模型概述" class="headerlink" title="ARM 异常模型概述"></a>ARM 异常模型概述</h2><p>异常的定义：改变程序正常控制流程的一种条件。</p>
+<p>中断和异常的差异：“中断”是用来描述“异常”的。异常由以下几个部分组成：</p>
 <ul>
 <li><p><strong>Exception Number 异常编号</strong></p>
-<p>异常编号是用来指示一个特定异常的唯一的数字（从1开始）。这个数字也作为<strong>中断向量表</strong>的索引，用来定位一个异常处理函数（<strong>Exception handler</strong>），通常也称为中断服务程序（<strong>Interrupt Service Routine</strong>）。当异常触发的时候，ARM硬件会自动查找中断向量表并开始执行相应的代码。</p>
+<p>异常编号是用来唯一指示一个特定异常的数字（从1开始）。这个数字也作为<strong>中断向量表</strong>的索引，用来定位一个异常处理函数（<strong>Exception handler</strong>），通常也称为中断服务程序（<strong>Interrupt Service Routine</strong>）。当异常触发的时候，ARM硬件会自动查找中断向量表并开始执行相应的代码。</p>
 </li>
 <li><p><strong>Priority Level 中断优先级</strong></p>
-<p>每个异常都有它自己的优先级。大多数的异常的优先级是可以配置的。</p>
-<p>数字越小，优先级越高。</p>
+<p>每个异常都有它自己的优先级。大多数异常的优先级是可以配置的。数字越小，优先级越高。</p>
 <p>如果两个异常由相同的优先级，那么，Exception Number 异常编号小的先执行。</p>
 </li>
 <li><p><strong>Synchronous or Asynchronous 同步或异步</strong></p>
@@ -393,99 +392,99 @@
 <p>异常可以处于下面几种状态中的一种：</p>
 <ul>
 <li><p><strong>Pending</strong></p>
-<p>MCU检测到中断但是还没有开始执行异常处理函数</p>
+<p>MCU检测到异常但是还没有开始执行异常处理函数</p>
 </li>
 <li><p><strong>Active</strong></p>
-<p>开始执行异常处理函数，但是还没有结束。这种情况下可能被更高优先级的中断抢占</p>
+<p>开始执行异常处理函数，但是还没有结束。这种情况下可以被更高优先级的中断抢占</p>
 </li>
 <li><p><strong>Pending &amp; Active</strong></p>
-<p>只在异步异常的时候发生。一般是正在处理之前的异常时，再次触发了相同的异常。</p>
+<p>只在异步异常的时候发生。一般是正在处理异常时，再次触发了相同的异常</p>
 </li>
 <li><p><strong>Inactive</strong></p>
 <p>既不是pending也不是active</p>
 </li>
 </ul>
 <blockquote>
-<p>即使中断被禁用了，它还是可以变成<strong>pending</strong>状态。一旦使能它，就会变成active。因此，在使能中断的时候，最好先清除pending。</p>
+<p>即使中断被禁用了，它还是可以变成 <strong>pending</strong> 状态的。一旦使能它，就会变成 <strong>active</strong>。因此，在使能中断的时候，最好先清除pending。</p>
 </blockquote>
 <h3 id="内置异常"><a href="#内置异常" class="headerlink" title="内置异常"></a>内置异常</h3><p>Cortex-M 保留 1-15 异常编号，这些异常被称为<strong>内置异常</strong>。</p>
 <blockquote>
-<p>异常编号同样是中断向量表的偏移。向量表的0号索引保存的是msp的复位值。剩余的1到15号，保存的是异常处理函数的指针。</p>
+<p>异常编号同样是中断向量表的偏移。向量表的0号索引保存的是 msp 的复位值。剩余的1到15号，保存的是异常处理函数的指针。</p>
 </blockquote>
-<p>这六个异常是默认都支持的：</p>
+<p>这六个异常默认是都支持的：</p>
 <ul>
-<li><strong>Reset</strong></li>
-<li><strong>NMI</strong> - 不可屏蔽中断。</li>
+<li><strong>Reset</strong> - 复位</li>
+<li><strong>NMI</strong> - 不可屏蔽中断，如果在异常处理函数中再发生错误，就会触发NMI异常</li>
 <li><strong>HardFault</strong> - 各种可能的系统故障的统括，包括内存非法访问、处理错误和非对齐访问等</li>
 <li>*<em>SVCall *</em> - 当执行svc指令时触发的异常</li>
-<li><strong>PendSV &amp; SysTick</strong> - 软件触发的系统层级的中断。RTOS系统常用的用来管理系统调度和上下文切换的中断</li>
+<li><strong>PendSV &amp; SysTick</strong> - 软件触发的系统层级的中断。RTOS系统常用它来管理系统调度和上下文切换</li>
 </ul>
-<h3 id="外部中断"><a href="#外部中断" class="headerlink" title="外部中断"></a>外部中断</h3><p>如DMA，GPIO等核外中断被成为外部中断。它们都是通过 <strong>Nested Vectored Interrupt Controller （NVIC）</strong> 来管理的。</p>
+<h3 id="外部中断"><a href="#外部中断" class="headerlink" title="外部中断"></a>外部中断</h3><p>如DMA，GPIO等核外中断被称为外部中断。它们都是通过 <strong>Nested Vectored Interrupt Controller （NVIC）</strong> 来管理的。</p>
 <p><img src="/2023/05/03/Cortex-m-exception-handling/exception-numbers.png" alt="img"></p>
 <h2 id="异常相关中断寄存器"><a href="#异常相关中断寄存器" class="headerlink" title="异常相关中断寄存器"></a>异常相关中断寄存器</h2><p>异常是通过 <strong>System Control Space (SCS)</strong> 的一组寄存器来进行配置的。</p>
-<h3 id="Interrupt-Control-and-State-Register-ICSR-0xE000ED04"><a href="#Interrupt-Control-and-State-Register-ICSR-0xE000ED04" class="headerlink" title="Interrupt Control and State Register (ICSR) - 0xE000ED04"></a>Interrupt Control and State Register (ICSR) - 0xE000ED04</h3><p>中断控制寄存器：</p>
+<h3 id="Interrupt-Control-and-State-Register-ICSR-0xE000ED04"><a href="#Interrupt-Control-and-State-Register-ICSR-0xE000ED04" class="headerlink" title="Interrupt Control and State Register (ICSR) - 0xE000ED04"></a>Interrupt Control and State Register (ICSR) - 0xE000ED04</h3><p><strong>中断控制和状态寄存器</strong></p>
 <p><img src="/2023/05/03/Cortex-m-exception-handling/icsr.png" alt="img"></p>
 <p>该寄存器控制NMI、PendSV和SysTick异常，并且指示系统当前中断的状态。</p>
 <p>其中，</p>
 <ul>
 <li><strong>VECTACTIVE</strong> - 当前正在运行的中断异常编号（没有时是0）。这个值同样保存在xPSR的IPSR位。</li>
 <li><strong>RETTOBASE</strong> - 如果为0，表示除了当前执行的中断外，还有另外的中断是active的。</li>
-<li><strong>VECTPENDING</strong> - 未完成的pending中断中最高的异常编号。</li>
+<li><strong>VECTPENDING</strong> - 未完成的 pending 中断中级别最高（值最小）的异常编号。</li>
 </ul>
-<h3 id="Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C"><a href="#Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C" class="headerlink" title="Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C"></a>Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C</h3><p>应用中断和复位控制寄存器：</p>
+<h3 id="Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C"><a href="#Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C" class="headerlink" title="Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C"></a>Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C</h3><p><strong>应用中断和复位控制寄存器</strong></p>
 <p><img src="/2023/05/03/Cortex-m-exception-handling/aircr.png" alt="img"></p>
 <p>其中，</p>
 <ul>
 <li><strong>SYSRESETREQ</strong>  - 写1将触发系统复位</li>
-<li><strong>PRIGROUP</strong> - 优先级组。该字段允许我们将异常优先级分为两部分（组优先级和子优先级）。这个值表示的是子优先级由多少位组成。组优先级用来控制哪些中断可以互相抢占。子优先级控制处理同一组中异常的顺序。</li>
+<li><strong>PRIGROUP</strong> - 优先级组。该字段允许我们将异常优先级分为两部分（组优先级和子优先级）。这个值表示的是子优先级由多少位组成。组优先级用来控制哪些中断可以互相抢占。子优先级控制处理同一组中异常的顺序。（不同组可抢占，同组的没有抢占只有先后）</li>
 </ul>
 <blockquote>
 <p>要写这个寄存器，必须将VECTKEY字段设置为0x05FA。</p>
 </blockquote>
-<h3 id="System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20"><a href="#System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20" class="headerlink" title="System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20"></a>System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20</h3><p>系统处理程序优先级寄存器：</p>
+<h3 id="System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20"><a href="#System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20" class="headerlink" title="System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20"></a>System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20</h3><p><strong>系统处理程序（Built in）优先级寄存器</strong></p>
 <p>8个字节为一组。之所以从1开始，是因为最开始的异常编号是不可以配置的（Reset，NMI，HardFault）。</p>
 <p>编号4~7对应的是SHPR1寄存器，以此类推。</p>
 <p>默认这些系统异常的优先级都是0，也就是最高优先级。一般是不需要配置的。</p>
-<h3 id="System-Handler-Control-and-State-Register-SHCSR-0xE000ED24"><a href="#System-Handler-Control-and-State-Register-SHCSR-0xE000ED24" class="headerlink" title="System Handler Control and State Register (SHCSR) - 0xE000ED24"></a>System Handler Control and State Register (SHCSR) - 0xE000ED24</h3><p>系统处理函数控制和状态寄存器。</p>
+<h3 id="System-Handler-Control-and-State-Register-SHCSR-0xE000ED24"><a href="#System-Handler-Control-and-State-Register-SHCSR-0xE000ED24" class="headerlink" title="System Handler Control and State Register (SHCSR) - 0xE000ED24"></a>System Handler Control and State Register (SHCSR) - 0xE000ED24</h3><p><strong>系统处理函数控制和状态寄存器</strong></p>
 <p>该寄存器用来指示系统（内置）异常的状态，或者使能（激活）系统异常。</p>
 <p><img src="/2023/05/03/Cortex-m-exception-handling/shcsr.png" alt="img"></p>
-<h3 id="Interrupt-Controller-Type-Register-ICTR-0xE000E004"><a href="#Interrupt-Controller-Type-Register-ICTR-0xE000E004" class="headerlink" title="Interrupt Controller Type Register (ICTR) - 0xE000E004"></a>Interrupt Controller Type Register (ICTR) - 0xE000E004</h3><p>中断控制类型寄存器</p>
-<p>该寄存器允许我们决定支持多少外部中断。Cortex-M系列最高时496。</p>
+<h3 id="Interrupt-Controller-Type-Register-ICTR-0xE000E004"><a href="#Interrupt-Controller-Type-Register-ICTR-0xE000E004" class="headerlink" title="Interrupt Controller Type Register (ICTR) - 0xE000E004"></a>Interrupt Controller Type Register (ICTR) - 0xE000E004</h3><p><strong>中断控制类型寄存器</strong></p>
+<p>该寄存器允许我们决定支持多少外部中断。Cortex-M系列最多是496。</p>
 <p><img src="/2023/05/03/Cortex-m-exception-handling/ictr.png" alt="img"></p>
-<p>支持的中断数：32 * (INTLINESNUM + 1)</p>
-<h3 id="NVIC-Registers"><a href="#NVIC-Registers" class="headerlink" title="NVIC Registers"></a>NVIC Registers</h3><p>NVIC有一组用来配置外部中断线的寄存器。</p>
-<p>外部中断是从16开始的，因此外部中断N的异常编号是16+N。</p>
-<h4 id="Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers"><a href="#Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers" class="headerlink" title="Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers"></a>Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers</h4><p>中断使能和清除寄存器</p>
+<p>支持的中断数为：32 * (INTLINESNUM + 1)</p>
+<h3 id="NVIC-Registers"><a href="#NVIC-Registers" class="headerlink" title="NVIC Registers"></a>NVIC Registers</h3><p>NVIC有一组用来配置外部中断的寄存器。</p>
+<p>外部中断是从16开始的，因此外部中断N的异常编号是 16 + N。</p>
+<h4 id="Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers"><a href="#Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers" class="headerlink" title="Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers"></a>Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers</h4><p><strong>中断使能和清除寄存器</strong></p>
 <ul>
 <li><code>NVIC_ISER0</code>-<code>NVIC_ISER15</code>: <code>0xE000E100</code>-<code>0xE000E13C</code></li>
 <li><code>NVIC_ICER0</code>-<code>NVIC_ICER15</code>: <code>0xE000E180</code>-<code>0xE000E1BC</code></li>
 </ul>
 <p>写1到对应的bit，可以使能和清除对应的中断。如果中断已经使能，那么读回来的值是1。</p>
-<h4 id="Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers"><a href="#Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers" class="headerlink" title="Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers"></a>Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers</h4><p>中断pending使能和清除寄存器</p>
+<h4 id="Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers"><a href="#Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers" class="headerlink" title="Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers"></a>Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers</h4><p><strong>中断pending使能和清除寄存器</strong></p>
 <ul>
 <li><code>NVIC_ISPR0</code>-<code>NVIC_ISPR15</code>: <code>0xE000E200</code>-<code>0xE000E23C</code></li>
 <li><code>NVIC_ICPR0</code>-<code>NVIC_ICPR15</code>: <code>0xE000E280</code>-<code>0xE000E2BC</code></li>
 </ul>
 <p>写1可以设置或清除中断的pending状态。</p>
-<h4 id="Interrupt-Active-Bit-Registers-NVIC-IABR"><a href="#Interrupt-Active-Bit-Registers-NVIC-IABR" class="headerlink" title="Interrupt Active Bit Registers (NVIC_IABR)"></a>Interrupt Active Bit Registers (NVIC_IABR)</h4><p>中断激活位寄存器</p>
+<h4 id="Interrupt-Active-Bit-Registers-NVIC-IABR"><a href="#Interrupt-Active-Bit-Registers-NVIC-IABR" class="headerlink" title="Interrupt Active Bit Registers (NVIC_IABR)"></a>Interrupt Active Bit Registers (NVIC_IABR)</h4><p><strong>中断激活位寄存器</strong></p>
 <ul>
 <li><code>NVIC_IABR0</code>-<code>NVIC_IABR15</code>: <code>0xE000E300</code>-<code>0xE000E33C</code></li>
 </ul>
 <p>只读的，如果中断已经激活，那么读回来的值是1。</p>
-<h4 id="Interrupt-Priority-Registers-NVIC-IPR"><a href="#Interrupt-Priority-Registers-NVIC-IPR" class="headerlink" title="Interrupt Priority Registers (NVIC_IPR)"></a>Interrupt Priority Registers (NVIC_IPR)</h4><p>中断优先级寄存器</p>
+<h4 id="Interrupt-Priority-Registers-NVIC-IPR"><a href="#Interrupt-Priority-Registers-NVIC-IPR" class="headerlink" title="Interrupt Priority Registers (NVIC_IPR)"></a>Interrupt Priority Registers (NVIC_IPR)</h4><p><strong>中断优先级寄存器</strong></p>
 <ul>
 <li><code>NVIC_IPR0</code>-<code>NVIC_IPR123</code>: <code>0xE000E400</code>-<code>0xE000E5EC</code></li>
 </ul>
 <p>设置中断的优先级。每个中断8位。只允许配置为4~256。</p>
-<p>如果只用了2bits，那么它的有效值为：</p>
+<p>它是用的高位，如，只用了2 bits 时，它的有效值为：</p>
 <p><strong>0b000.0000</strong> (<strong>0x0</strong>), <strong>0b0100.0000</strong> (<strong>0x40</strong>), <strong>0b1000.0000</strong> (<strong>0x80</strong>) and <strong>0b1100.0000</strong> (<strong>0xC0</strong>).</p>
-<h3 id="Software-Triggered-Interrupt-Register-STIR-0xE000EF00"><a href="#Software-Triggered-Interrupt-Register-STIR-0xE000EF00" class="headerlink" title="Software Triggered Interrupt Register (STIR) - 0xE000EF00"></a>Software Triggered Interrupt Register (STIR) - 0xE000EF00</h3><p>软件触发中断寄存器</p>
+<h3 id="Software-Triggered-Interrupt-Register-STIR-0xE000EF00"><a href="#Software-Triggered-Interrupt-Register-STIR-0xE000EF00" class="headerlink" title="Software Triggered Interrupt Register (STIR) - 0xE000EF00"></a>Software Triggered Interrupt Register (STIR) - 0xE000EF00</h3><p><strong>软件触发中断寄存器</strong></p>
 <p>跟设置NVIC_ISPR是一样的。</p>
-<p>这里设置到寄存器的值为<strong>外部中断号（中断编号 - 16）</strong>。</p>
-<h2 id="高级异常主题"><a href="#高级异常主题" class="headerlink" title="高级异常主题"></a>高级异常主题</h2><h3 id="异常进入与退出"><a href="#异常进入与退出" class="headerlink" title="异常进入与退出"></a>异常进入与退出</h3><p>异常发生时，会自动保存一些寄存器（caller-save）。x0, x1, x2, x3, x12, lr, pc, xpsr。</p>
-<p>异常退出时，会自动出栈这些caller-save寄存器。</p>
+<p>这里设置到寄存器的值为 <strong>外部中断号（中断编号 - 16）</strong>，而不是按 bit 设置的。</p>
+<h2 id="高级异常主题"><a href="#高级异常主题" class="headerlink" title="高级异常主题"></a>高级异常主题</h2><h3 id="异常进入与退出"><a href="#异常进入与退出" class="headerlink" title="异常进入与退出"></a>异常进入与退出</h3><p>异常发生时，会自动保存一些寄存器（<strong>caller-save</strong>）。至少保存8个寄存器：x0, x1, x2, x3, x12, lr, pc, xpsr。如果使能了FPU，可能还会保存 17个FPU寄存器。</p>
+<p>异常退出时，会自动出栈这些 caller-save 的寄存器。</p>
 <h3 id="Tail-Chaining-尾链"><a href="#Tail-Chaining-尾链" class="headerlink" title="Tail-Chaining 尾链"></a>Tail-Chaining 尾链</h3><p>退出异常的时候，硬件需要自动pop和restore最少8个caller-save的寄存器。</p>
-<p>但如果退出ISR的时候，新的异常已经pended了，那么就可以不需要pop和push这些寄存器，因为pop和push的是完全相同的寄存器。这个优化叫做“Tail-Chaining（尾链）”。</p>
+<p>但如果退出ISR的时候，新的异常已经pended了，那么就可以不需要pop和push这些寄存器，因为pop和push的是完全相同的寄存器。这个优化叫做 “Tail-Chaining（尾链）”。</p>
 <p>这个优化可以提升我们中断响应的速度。</p>
 <h3 id="Late-arriving-Preemption-迟到抢占"><a href="#Late-arriving-Preemption-迟到抢占" class="headerlink" title="Late-arriving Preemption 迟到抢占"></a>Late-arriving Preemption 迟到抢占</h3><p>ARM核可以在中断进入阶段（保存寄存器和取出ISR例程执行）检测更高优先级的中断。</p>
 <p>这种情况下，高优先级的ISR可以直接执行，而不再做已经做过的寄存器保存动作。这个优化可以提高高优先级中断响应的速度。</p>
@@ -495,22 +494,23 @@
 <p>如果每次发生异常都自动保存这17个寄存器，会带来额外的开销。</p>
 <p>一般ISR中是很少用到FPU的。因此，一种优化是在ISR中检测到FPU指令的时候，才保存这些FPU寄存器，这个优化叫做 <strong>“lazy context save”</strong>。</p>
 <h3 id="执行优先级和优先级提升"><a href="#执行优先级和优先级提升" class="headerlink" title="执行优先级和优先级提升"></a>执行优先级和优先级提升</h3><p><strong>执行优先级</strong>：当没有异常激活时，当前系统的执行优先级可以被认为是 “最大可配置优先级” + 1。这意味着，任何异常发生，都将会打断当前的流程。</p>
-<p>软件上有几种可以修改“执行优先级”的方法，使其高于线程模式的默认优先级或激活的异常来执行。这种操作叫做<strong>”优先级提升“</strong>。在RTOS上经常用来处理一些不能被中断打断的代码，如上下文切换。</p>
-<p><strong>优先级提升</strong>的方法：</p>
+<p>软件上有几种可以修改“执行优先级”的方法，使其高于线程模式的默认优先级或高于一些激活的异常来执行。这种操作叫做<strong>”优先级提升“</strong>。在RTOS上经常用来处理一些不能被中断打断的代码，如上下文切换。</p>
+<p>优先级提升的方法：</p>
 <ul>
-<li><strong>PRIMASK</strong>：对应CMSIS的 <code>__disable_irq()</code> 和 <code>__enable_irq()</code>，或者<code>cpsid i</code> 和 <code>cpsie i</code>。这会禁用所有<strong>可配置优先级</strong>的异常。（只有NMI，HardFault 和 Reset 可以触发）、</li>
-<li><strong>FAULTMASK</strong>：对应CMSIS的 <code>__disable_fault_irq()</code> 和 <code>__enable_fault_irq()</code>，或者<code>cpsid f</code> 和 `cpsie f。这会禁用所有<strong>除了 NMI 以外</strong>的异常。</li>
+<li><strong>PRIMASK</strong>：对应CMSIS的 <code>__disable_irq()</code> 和 <code>__enable_irq()</code>，或者<code>cpsid i</code> 和 <code>cpsie i</code>。这会禁用所有<strong>可配置优先级</strong>的异常。（只有 NMI，HardFault 和 Reset 可以触发）</li>
+<li><strong>FAULTMASK</strong>：对应CMSIS的 <code>__disable_fault_irq()</code> 和 <code>__enable_fault_irq()</code>，或者<code>cpsid f</code> 和 <code>cpsie f</code>。这会禁用所有<strong>除了 NMI 以外</strong>的异常。</li>
 <li><strong>BASEPRI</strong>：CMSIS <code>__set_BASEPRI()</code>。屏蔽低于特定优先级的异常。</li>
 </ul>
 <h3 id="可中断执行的指令"><a href="#可中断执行的指令" class="headerlink" title="可中断执行的指令"></a>可中断执行的指令</h3><p>很多ARM的指令是原子执行的。例如32位的内存访问就是一个原子操作。</p>
 <p>然而为了降低中断延迟，在异常发生时，一些多周期的指令会被丢弃，并在异常处理结束之后重新执行。如除法指令（udiv 和 sdiv）和双字加载/保存指令（ldrd &amp; strd）。</p>
-<p>一些指令是“可中断-继续”的，也就是说可以被中断打断，中断结束后继续执行。如多寄存器的加载/保存指令（ldm和stm）.</p>
+<p>另外，一些指令是“可中断-继续”的，也就是说这些指令可以被中断打断，中断结束后继续执行。如多寄存器的加载/保存指令（ldm和stm）。</p>
 <blockquote>
-<p>最好不要对重复读写会出问题的内存使用ldm和stm的指令，或者通过关部分中断来保护这些临界段的访问。</p>
+<p>最好不要对重复读写会出问题的内存使用 ldm 和 stm 指令，或者通过关部分中断来保护这些临界段的访问。</p>
 </blockquote>
 <p><strong>参考资料：</strong></p>
 <ol>
 <li><em><a href="https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic" target="_blank" rel="noopener">https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic</a></em></li>
+<li><em>Cortex -M4 Devices Generic User Guide</em></li>
 </ol>
 
       
