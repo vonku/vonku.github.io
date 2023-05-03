@@ -3,6 +3,8 @@ title: Cortex-m fault debug
 date: 2023-04-29 19:55:35
 categories: others
 tags:
+- ARM
+- debug
 ---
 
 > 嵌入式设备经常会遇到各种各样的异常，理解和掌握如何快速调试和解决这类问题非常重要。

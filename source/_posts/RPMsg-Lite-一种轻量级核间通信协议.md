@@ -3,6 +3,7 @@ title: RPMsg-Lite-一种轻量级核间通信协议
 date: 2023-04-26 22:02:21
 categories: Components
 tags:
+- IPC
 ---
 
 > 本文介绍RPMsg-Lite核间通信协议的工作原理与应用。
