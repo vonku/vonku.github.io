@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="debug,ARM,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。 本文介绍ARM Cortex-m设备的异常模型。">
+<meta name="keywords" content="debug,ARM">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cortex-m exception handling">
+<meta property="og:url" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。 本文介绍ARM Cortex-m设备的异常模型。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/exception-numbers.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/icsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/aircr.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/shcsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/ictr.png">
+<meta property="og:updated_time" content="2023-05-03T12:51:50.367Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Cortex-m exception handling">
+<meta name="twitter:description" content="几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。 本文介绍ARM Cortex-m设备的异常模型。">
+<meta name="twitter:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/exception-numbers.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/">
+
+
+
+
+
+  <title>Cortex-m exception handling | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Cortex-m exception handling</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2023-05-03T13:30:01+08:00">
+                2023-05-03
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/others/" itemprop="url" rel="index">
+                    <span itemprop="name">others</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2023/05/03/Cortex-m-exception-handling/" class="leancloud_visitors" data-flag-title="Cortex-m exception handling">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。</p>
+<p>本文介绍ARM Cortex-m设备的异常模型。</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="ARM-异常模型概述"><a href="#ARM-异常模型概述" class="headerlink" title="ARM 异常模型概述"></a>ARM 异常模型概述</h2><p>异常的定义：改变程序中正常控制流程的条件。</p>
+<p>中断和异常的差异：“中断”是用来描述一种“异常”。异常由以下几个信息组成：</p>
+<ul>
+<li><p><strong>Exception Number 异常编号</strong></p>
+<p>异常编号是用来指示一个特定异常的唯一的数字（从1开始）。这个数字也作为<strong>中断向量表</strong>的索引，用来定位一个异常处理函数（<strong>Exception handler</strong>），通常也称为中断服务程序（<strong>Interrupt Service Routine</strong>）。当异常触发的时候，ARM硬件会自动查找中断向量表并开始执行相应的代码。</p>
+</li>
+<li><p><strong>Priority Level 中断优先级</strong></p>
+<p>每个异常都有它自己的优先级。大多数的异常的优先级是可以配置的。</p>
+<p>数字越小，优先级越高。</p>
+<p>如果两个异常由相同的优先级，那么，Exception Number 异常编号小的先执行。</p>
+</li>
+<li><p><strong>Synchronous or Asynchronous 同步或异步</strong></p>
+<p>SVCall 这类的异常，是同步异常，相应的指令执行后会立刻触发异常。其他的叫做异步异常。</p>
+</li>
+</ul>
+<p>异常可以处于下面几种状态中的一种：</p>
+<ul>
+<li><p><strong>Pending</strong></p>
+<p>MCU检测到中断但是还没有开始执行异常处理函数</p>
+</li>
+<li><p><strong>Active</strong></p>
+<p>开始执行异常处理函数，但是还没有结束。这种情况下可能被更高优先级的中断抢占</p>
+</li>
+<li><p><strong>Pending &amp; Active</strong></p>
+<p>只在异步异常的时候发生。一般是正在处理之前的异常时，再次触发了相同的异常。</p>
+</li>
+<li><p><strong>Inactive</strong></p>
+<p>既不是pending也不是active</p>
+</li>
+</ul>
+<blockquote>
+<p>即使中断被禁用了，它还是可以变成<strong>pending</strong>状态。一旦使能它，就会变成active。因此，在使能中断的时候，最好先清除pending。</p>
+</blockquote>
+<h3 id="内置异常"><a href="#内置异常" class="headerlink" title="内置异常"></a>内置异常</h3><p>Cortex-M 保留 1-15 异常编号，这些异常被称为<strong>内置异常</strong>。</p>
+<blockquote>
+<p>异常编号同样是中断向量表的偏移。向量表的0号索引保存的是msp的复位值。剩余的1到15号，保存的是异常处理函数的指针。</p>
+</blockquote>
+<p>这六个异常是默认都支持的：</p>
+<ul>
+<li><strong>Reset</strong></li>
+<li><strong>NMI</strong> - 不可屏蔽中断。</li>
+<li><strong>HardFault</strong> - 各种可能的系统故障的统括，包括内存非法访问、处理错误和非对齐访问等</li>
+<li>*<em>SVCall *</em> - 当执行svc指令时触发的异常</li>
+<li><strong>PendSV &amp; SysTick</strong> - 软件触发的系统层级的中断。RTOS系统常用的用来管理系统调度和上下文切换的中断</li>
+</ul>
+<h3 id="外部中断"><a href="#外部中断" class="headerlink" title="外部中断"></a>外部中断</h3><p>如DMA，GPIO等核外中断被成为外部中断。它们都是通过 <strong>Nested Vectored Interrupt Controller （NVIC）</strong> 来管理的。</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/exception-numbers.png" alt="img"></p>
+<h2 id="异常相关中断寄存器"><a href="#异常相关中断寄存器" class="headerlink" title="异常相关中断寄存器"></a>异常相关中断寄存器</h2><p>异常是通过 <strong>System Control Space (SCS)</strong> 的一组寄存器来进行配置的。</p>
+<h3 id="Interrupt-Control-and-State-Register-ICSR-0xE000ED04"><a href="#Interrupt-Control-and-State-Register-ICSR-0xE000ED04" class="headerlink" title="Interrupt Control and State Register (ICSR) - 0xE000ED04"></a>Interrupt Control and State Register (ICSR) - 0xE000ED04</h3><p>中断控制寄存器：</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/icsr.png" alt="img"></p>
+<p>该寄存器控制NMI、PendSV和SysTick异常，并且指示系统当前中断的状态。</p>
+<p>其中，</p>
+<ul>
+<li><strong>VECTACTIVE</strong> - 当前正在运行的中断异常编号（没有时是0）。这个值同样保存在xPSR的IPSR位。</li>
+<li><strong>RETTOBASE</strong> - 如果为0，表示除了当前执行的中断外，还有另外的中断是active的。</li>
+<li><strong>VECTPENDING</strong> - 未完成的pending中断中最高的异常编号。</li>
+</ul>
+<h3 id="Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C"><a href="#Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C" class="headerlink" title="Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C"></a>Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C</h3><p>应用中断和复位控制寄存器：</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/aircr.png" alt="img"></p>
+<p>其中，</p>
+<ul>
+<li><strong>SYSRESETREQ</strong>  - 写1将触发系统复位</li>
+<li><strong>PRIGROUP</strong> - 优先级组。该字段允许我们将异常优先级分为两部分（组优先级和子优先级）。这个值表示的是子优先级由多少位组成。组优先级用来控制哪些中断可以互相抢占。子优先级控制处理同一组中异常的顺序。</li>
+</ul>
+<blockquote>
+<p>要写这个寄存器，必须将VECTKEY字段设置为0x05FA。</p>
+</blockquote>
+<h3 id="System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20"><a href="#System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20" class="headerlink" title="System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20"></a>System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20</h3><p>系统处理程序优先级寄存器：</p>
+<p>8个字节为一组。之所以从1开始，是因为最开始的异常编号是不可以配置的（Reset，NMI，HardFault）。</p>
+<p>编号4~7对应的是SHPR1寄存器，以此类推。</p>
+<p>默认这些系统异常的优先级都是0，也就是最高优先级。一般是不需要配置的。</p>
+<h3 id="System-Handler-Control-and-State-Register-SHCSR-0xE000ED24"><a href="#System-Handler-Control-and-State-Register-SHCSR-0xE000ED24" class="headerlink" title="System Handler Control and State Register (SHCSR) - 0xE000ED24"></a>System Handler Control and State Register (SHCSR) - 0xE000ED24</h3><p>系统处理函数控制和状态寄存器。</p>
+<p>该寄存器用来指示系统（内置）异常的状态，或者使能（激活）系统异常。</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/shcsr.png" alt="img"></p>
+<h3 id="Interrupt-Controller-Type-Register-ICTR-0xE000E004"><a href="#Interrupt-Controller-Type-Register-ICTR-0xE000E004" class="headerlink" title="Interrupt Controller Type Register (ICTR) - 0xE000E004"></a>Interrupt Controller Type Register (ICTR) - 0xE000E004</h3><p>中断控制类型寄存器</p>
+<p>该寄存器允许我们决定支持多少外部中断。Cortex-M系列最高时496。</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/ictr.png" alt="img"></p>
+<p>支持的中断数：32 * (INTLINESNUM + 1)</p>
+<h3 id="NVIC-Registers"><a href="#NVIC-Registers" class="headerlink" title="NVIC Registers"></a>NVIC Registers</h3><p>NVIC有一组用来配置外部中断线的寄存器。</p>
+<p>外部中断是从16开始的，因此外部中断N的异常编号是16+N。</p>
+<h4 id="Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers"><a href="#Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers" class="headerlink" title="Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers"></a>Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers</h4><p>中断使能和清除寄存器</p>
+<ul>
+<li><code>NVIC_ISER0</code>-<code>NVIC_ISER15</code>: <code>0xE000E100</code>-<code>0xE000E13C</code></li>
+<li><code>NVIC_ICER0</code>-<code>NVIC_ICER15</code>: <code>0xE000E180</code>-<code>0xE000E1BC</code></li>
+</ul>
+<p>写1到对应的bit，可以使能和清除对应的中断。如果中断已经使能，那么读回来的值是1。</p>
+<h4 id="Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers"><a href="#Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers" class="headerlink" title="Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers"></a>Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers</h4><p>中断pending使能和清除寄存器</p>
+<ul>
+<li><code>NVIC_ISPR0</code>-<code>NVIC_ISPR15</code>: <code>0xE000E200</code>-<code>0xE000E23C</code></li>
+<li><code>NVIC_ICPR0</code>-<code>NVIC_ICPR15</code>: <code>0xE000E280</code>-<code>0xE000E2BC</code></li>
+</ul>
+<p>写1可以设置或清除中断的pending状态。</p>
+<h4 id="Interrupt-Active-Bit-Registers-NVIC-IABR"><a href="#Interrupt-Active-Bit-Registers-NVIC-IABR" class="headerlink" title="Interrupt Active Bit Registers (NVIC_IABR)"></a>Interrupt Active Bit Registers (NVIC_IABR)</h4><p>中断激活位寄存器</p>
+<ul>
+<li><code>NVIC_IABR0</code>-<code>NVIC_IABR15</code>: <code>0xE000E300</code>-<code>0xE000E33C</code></li>
+</ul>
+<p>只读的，如果中断已经激活，那么读回来的值是1。</p>
+<h4 id="Interrupt-Priority-Registers-NVIC-IPR"><a href="#Interrupt-Priority-Registers-NVIC-IPR" class="headerlink" title="Interrupt Priority Registers (NVIC_IPR)"></a>Interrupt Priority Registers (NVIC_IPR)</h4><p>中断优先级寄存器</p>
+<ul>
+<li><code>NVIC_IPR0</code>-<code>NVIC_IPR123</code>: <code>0xE000E400</code>-<code>0xE000E5EC</code></li>
+</ul>
+<p>设置中断的优先级。每个中断8位。只允许配置为4~256。</p>
+<p>如果只用了2bits，那么它的有效值为：</p>
+<p><strong>0b000.0000</strong> (<strong>0x0</strong>), <strong>0b0100.0000</strong> (<strong>0x40</strong>), <strong>0b1000.0000</strong> (<strong>0x80</strong>) and <strong>0b1100.0000</strong> (<strong>0xC0</strong>).</p>
+<h3 id="Software-Triggered-Interrupt-Register-STIR-0xE000EF00"><a href="#Software-Triggered-Interrupt-Register-STIR-0xE000EF00" class="headerlink" title="Software Triggered Interrupt Register (STIR) - 0xE000EF00"></a>Software Triggered Interrupt Register (STIR) - 0xE000EF00</h3><p>软件触发中断寄存器</p>
+<p>跟设置NVIC_ISPR是一样的。</p>
+<p>这里设置到寄存器的值为<strong>外部中断号（中断编号 - 16）</strong>。</p>
+<h2 id="高级异常主题"><a href="#高级异常主题" class="headerlink" title="高级异常主题"></a>高级异常主题</h2><h3 id="异常进入与退出"><a href="#异常进入与退出" class="headerlink" title="异常进入与退出"></a>异常进入与退出</h3><p>异常发生时，会自动保存一些寄存器（caller-save）。x0, x1, x2, x3, x12, lr, pc, xpsr。</p>
+<p>异常退出时，会自动出栈这些caller-save寄存器。</p>
+<h3 id="Tail-Chaining-尾链"><a href="#Tail-Chaining-尾链" class="headerlink" title="Tail-Chaining 尾链"></a>Tail-Chaining 尾链</h3><p>退出异常的时候，硬件需要自动pop和restore最少8个caller-save的寄存器。</p>
+<p>但如果退出ISR的时候，新的异常已经pended了，那么就可以不需要pop和push这些寄存器，因为pop和push的是完全相同的寄存器。这个优化叫做“Tail-Chaining（尾链）”。</p>
+<p>这个优化可以提升我们中断响应的速度。</p>
+<h3 id="Late-arriving-Preemption-迟到抢占"><a href="#Late-arriving-Preemption-迟到抢占" class="headerlink" title="Late-arriving Preemption 迟到抢占"></a>Late-arriving Preemption 迟到抢占</h3><p>ARM核可以在中断进入阶段（保存寄存器和取出ISR例程执行）检测更高优先级的中断。</p>
+<p>这种情况下，高优先级的ISR可以直接执行，而不再做已经做过的寄存器保存动作。这个优化可以提高高优先级中断响应的速度。</p>
+<p>高优先级中断执行完之后，可以直接 tail-chain 到之前的异常来执行。</p>
+<h3 id="Lazy-State-Preservation-延迟状态保存"><a href="#Lazy-State-Preservation-延迟状态保存" class="headerlink" title="Lazy State Preservation 延迟状态保存"></a>Lazy State Preservation 延迟状态保存</h3><p>ARMv7 和 ARMv8 设备可选地支持FPU。</p>
+<p>支持FPU需要额外增加33个寄存器（s0-s31 &amp; fpscr）。其中17个是 caller-save 的。</p>
+<p>如果每次发生异常都自动保存这17个寄存器，会带来额外的开销。</p>
+<p>一般ISR中是很少用到FPU的。因此，一种优化是在ISR中检测到FPU指令的时候，才保存这些FPU寄存器，这个优化叫做 <strong>“lazy context save”</strong>。</p>
+<h3 id="执行优先级和优先级提升"><a href="#执行优先级和优先级提升" class="headerlink" title="执行优先级和优先级提升"></a>执行优先级和优先级提升</h3><p><strong>执行优先级</strong>：当没有异常激活时，当前系统的执行优先级可以被认为是 “最大可配置优先级” + 1。这意味着，任何异常发生，都将会打断当前的流程。</p>
+<p>软件上有几种可以修改“执行优先级”的方法，使其高于线程模式的默认优先级或激活的异常来执行。这种操作叫做<strong>”优先级提升“</strong>。在RTOS上经常用来处理一些不能被中断打断的代码，如上下文切换。</p>
+<p><strong>优先级提升</strong>的方法：</p>
+<ul>
+<li><strong>PRIMASK</strong>：对应CMSIS的 <code>__disable_irq()</code> 和 <code>__enable_irq()</code>，或者<code>cpsid i</code> 和 <code>cpsie i</code>。这会禁用所有<strong>可配置优先级</strong>的异常。（只有NMI，HardFault 和 Reset 可以触发）、</li>
+<li><strong>FAULTMASK</strong>：对应CMSIS的 <code>__disable_fault_irq()</code> 和 <code>__enable_fault_irq()</code>，或者<code>cpsid f</code> 和 `cpsie f。这会禁用所有<strong>除了 NMI 以外</strong>的异常。</li>
+<li><strong>BASEPRI</strong>：CMSIS <code>__set_BASEPRI()</code>。屏蔽低于特定优先级的异常。</li>
+</ul>
+<h3 id="可中断执行的指令"><a href="#可中断执行的指令" class="headerlink" title="可中断执行的指令"></a>可中断执行的指令</h3><p>很多ARM的指令是原子执行的。例如32位的内存访问就是一个原子操作。</p>
+<p>然而为了降低中断延迟，在异常发生时，一些多周期的指令会被丢弃，并在异常处理结束之后重新执行。如除法指令（udiv 和 sdiv）和双字加载/保存指令（ldrd &amp; strd）。</p>
+<p>一些指令是“可中断-继续”的，也就是说可以被中断打断，中断结束后继续执行。如多寄存器的加载/保存指令（ldm和stm）.</p>
+<blockquote>
+<p>最好不要对重复读写会出问题的内存使用ldm和stm的指令，或者通过关部分中断来保护这些临界段的访问。</p>
+</blockquote>
+<p><strong>参考资料：</strong></p>
+<ol>
+<li><em><a href="https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic" target="_blank" rel="noopener">https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic</a></em></li>
+</ol>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/debug/" rel="tag"># debug</a>
+          
+            <a href="/tags/ARM/" rel="tag"># ARM</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2023/05/03/eRPC-原理与应用/" rel="next" title="eRPC:原理与应用">
+                <i class="fa fa-chevron-left"></i> eRPC:原理与应用
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">28</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#ARM-异常模型概述"><span class="nav-number">1.</span> <span class="nav-text">ARM 异常模型概述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#内置异常"><span class="nav-number">1.1.</span> <span class="nav-text">内置异常</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#外部中断"><span class="nav-number">1.2.</span> <span class="nav-text">外部中断</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#异常相关中断寄存器"><span class="nav-number">2.</span> <span class="nav-text">异常相关中断寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Interrupt-Control-and-State-Register-ICSR-0xE000ED04"><span class="nav-number">2.1.</span> <span class="nav-text">Interrupt Control and State Register (ICSR) - 0xE000ED04</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C"><span class="nav-number">2.2.</span> <span class="nav-text">Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20"><span class="nav-number">2.3.</span> <span class="nav-text">System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#System-Handler-Control-and-State-Register-SHCSR-0xE000ED24"><span class="nav-number">2.4.</span> <span class="nav-text">System Handler Control and State Register (SHCSR) - 0xE000ED24</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Interrupt-Controller-Type-Register-ICTR-0xE000E004"><span class="nav-number">2.5.</span> <span class="nav-text">Interrupt Controller Type Register (ICTR) - 0xE000E004</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NVIC-Registers"><span class="nav-number">2.6.</span> <span class="nav-text">NVIC Registers</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers"><span class="nav-number">2.6.1.</span> <span class="nav-text">Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers"><span class="nav-number">2.6.2.</span> <span class="nav-text">Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Active-Bit-Registers-NVIC-IABR"><span class="nav-number">2.6.3.</span> <span class="nav-text">Interrupt Active Bit Registers (NVIC_IABR)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Priority-Registers-NVIC-IPR"><span class="nav-number">2.6.4.</span> <span class="nav-text">Interrupt Priority Registers (NVIC_IPR)</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Software-Triggered-Interrupt-Register-STIR-0xE000EF00"><span class="nav-number">2.7.</span> <span class="nav-text">Software Triggered Interrupt Register (STIR) - 0xE000EF00</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#高级异常主题"><span class="nav-number">3.</span> <span class="nav-text">高级异常主题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#异常进入与退出"><span class="nav-number">3.1.</span> <span class="nav-text">异常进入与退出</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Tail-Chaining-尾链"><span class="nav-number">3.2.</span> <span class="nav-text">Tail-Chaining 尾链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Late-arriving-Preemption-迟到抢占"><span class="nav-number">3.3.</span> <span class="nav-text">Late-arriving Preemption 迟到抢占</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Lazy-State-Preservation-延迟状态保存"><span class="nav-number">3.4.</span> <span class="nav-text">Lazy State Preservation 延迟状态保存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#执行优先级和优先级提升"><span class="nav-number">3.5.</span> <span class="nav-text">执行优先级和优先级提升</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#可中断执行的指令"><span class="nav-number">3.6.</span> <span class="nav-text">可中断执行的指令</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

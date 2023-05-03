@@ -89,7 +89,7 @@
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/vector-table.png">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/exception.jpg">
 <meta property="og:image" content="http://yoursite.com/2023/04/22/ChChorOS-5-Exception/exception-context.jpg">
-<meta property="og:updated_time" content="2023-04-29T11:47:47.913Z">
+<meta property="og:updated_time" content="2023-05-03T12:11:15.993Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ChChorOS-5-Exception">
 <meta name="twitter:description" content="主要内容：理解AArch64的异常机制和系统调用机制。">
@@ -402,7 +402,7 @@
 <p><code>svc #0</code>指令会出发同步异常，于是发生特权级别切换。</p>
 <h4 id="处理器自动保存"><a href="#处理器自动保存" class="headerlink" title="处理器自动保存"></a>处理器自动保存</h4><ol>
 <li>PC保存在ELR_EL1</li>
-<li>异常时间的原因保存在ESR_EL1</li>
+<li>异常事件的原因保存在ESR_EL1</li>
 <li>当前状态保存在SPSR_EL1</li>
 <li>异常信息保存在FAR_EL1</li>
 <li>栈寄存器开始使用SP_EL1，不在使用SP_EL0</li>
@@ -554,7 +554,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">27</span>
+                  <span class="site-state-item-count">28</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
