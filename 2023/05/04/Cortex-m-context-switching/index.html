@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="本文介绍ARM Cortex-m设备上下文切换相关内容。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cortex-m context switching">
+<meta property="og:url" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍ARM Cortex-m设备上下文切换相关内容。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/cpacr-reg-layout.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/mrs-msr-registers.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/control-reg.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/context-state-stacking-basic.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/fpccr-reg.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/context-state-stacking-extended-frame.png">
+<meta property="og:updated_time" content="2023-05-04T15:44:12.800Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Cortex-m context switching">
+<meta name="twitter:description" content="本文介绍ARM Cortex-m设备上下文切换相关内容。">
+<meta name="twitter:image" content="http://yoursite.com/2023/05/04/Cortex-m-context-switching/cpacr-reg-layout.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2023/05/04/Cortex-m-context-switching/">
+
+
+
+
+
+  <title>Cortex-m context switching | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/05/04/Cortex-m-context-switching/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Cortex-m context switching</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2023-05-04T23:00:07+08:00">
+                2023-05-04
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/others/" itemprop="url" rel="index">
+                    <span itemprop="name">others</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2023/05/04/Cortex-m-context-switching/" class="leancloud_visitors" data-flag-title="Cortex-m context switching">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>本文介绍ARM Cortex-m设备上下文切换相关内容。</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="Cortex-M-ARM-MCU-Features"><a href="#Cortex-M-ARM-MCU-Features" class="headerlink" title="Cortex-M ARM MCU Features"></a>Cortex-M ARM MCU Features</h2><p>ARM体系结构过程调用标准（AAPCS）定义了ARM编译器需要遵循的ABI接口。</p>
+<h3 id="Cortex-M-Operation-Modes"><a href="#Cortex-M-Operation-Modes" class="headerlink" title="Cortex-M Operation Modes"></a>Cortex-M Operation Modes</h3><p>运行在异常处理函数如 ISR 时，处于 <strong>Handler Mode</strong>。否则是 <strong>Thread Mode</strong>。</p>
+<p>在 Handler Mode 时，总是处于特权模式 (<strong>privileged</strong>)。</p>
+<p>在 Thread Mode 时，可以处于特权模式，也可以处于非特权模式（<strong>unprivileged</strong>）。</p>
+<p>一些指令或操作只允许在特权模式下执行，如访问 NVIC 寄存器。</p>
+<p>只有在 Handler Mode 的时候，才允许将 Thread Mode 从非特权模式切换到特权模式。</p>
+<h3 id="Registers"><a href="#Registers" class="headerlink" title="Registers"></a>Registers</h3><h4 id="Core-Registers"><a href="#Core-Registers" class="headerlink" title="Core Registers"></a>Core Registers</h4><table>
+<thead>
+<tr>
+<th align="left">Register</th>
+<th align="left">Alternative Names</th>
+<th align="left">Role in the procedure call standard</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left"><code>r15</code></td>
+<td align="left"><code>PC</code></td>
+<td align="left">The Program Counter (Current Instruction)</td>
+</tr>
+<tr>
+<td align="left"><code>r14</code></td>
+<td align="left"><code>LR</code></td>
+<td align="left">The Link Register (Return Address)</td>
+</tr>
+<tr>
+<td align="left"><code>r13</code></td>
+<td align="left"><code>SP</code></td>
+<td align="left">The Stack Pointer</td>
+</tr>
+<tr>
+<td align="left"><code>r12</code></td>
+<td align="left"><code>IP</code></td>
+<td align="left">The <a href="https://interrupt.memfault.com/blog/cortex-m-rtos-context-switching#ip-register" target="_blank" rel="noopener">Intra-Procedure-call</a> scratch register</td>
+</tr>
+<tr>
+<td align="left"><code>r11</code></td>
+<td align="left"><code>v8</code></td>
+<td align="left">Variable-register 8</td>
+</tr>
+<tr>
+<td align="left"><code>r10</code></td>
+<td align="left"><code>v7</code></td>
+<td align="left">Variable-register 7</td>
+</tr>
+<tr>
+<td align="left"><code>r9</code></td>
+<td align="left"><code>v6</code>, <code>SB</code>, <code>TR</code></td>
+<td align="left">Variable-register 6 or <a href="https://interrupt.memfault.com/blog/cortex-m-rtos-context-switching#r9-platform-register" target="_blank" rel="noopener">Platform Register</a></td>
+</tr>
+<tr>
+<td align="left"><code>r8</code>,<code>r7</code>, <code>r6</code>, <code>r5</code>, <code>r4</code></td>
+<td align="left"><code>v5</code>, <code>v4</code>, <code>v3</code>, <code>v2</code>, <code>v1</code></td>
+<td align="left">Variable-register 5 - Variable-register 1</td>
+</tr>
+<tr>
+<td align="left"><code>r3</code>, <code>r2</code>, <code>r1</code>, <code>r0</code></td>
+<td align="left"><code>a4</code>, <code>a3</code>, <code>a2</code>, <code>a1</code></td>
+<td align="left">Argument / scratch register 4 - Argument / scratch register 1</td>
+</tr>
+</tbody></table>
+<h5 id="r12-Intra-Procedure-call-Scratch-Register"><a href="#r12-Intra-Procedure-call-Scratch-Register" class="headerlink" title="r12 Intra-Procedure-call Scratch Register"></a>r12 Intra-Procedure-call Scratch Register</h5><p>当执行 <code>bl</code> 跳转指令时，并不是任意位置都可以跳转的（因为32 bits 的指令中有一些位被用来编码指令本身了）。</p>
+<p>这时候，要跳转到一个比较远的地址，需要用到链接器生成的 shim function （也叫 <strong>veneer</strong>）。这个函数可以使用 r12 寄存器而不需要保存它原来的值。</p>
+<h5 id="r9-as-Platform-Register"><a href="#r9-as-Platform-Register" class="headerlink" title="r9 as Platform Register"></a>r9 as Platform Register</h5><p>大多数时候，r9被用来作为变量寄存器（v6）。但有时候它也被用来作为其他用途。</p>
+<p>一种应用时把 r9 寄存器用作静态基址（<em>static base</em>）。当我们编写一段代码时，我们希望它可以在任意位置运行，这种代码叫做位置无关代码（<strong>Position Independent Code, PIC</strong>）。对于这种代码，我们需要给出全局和静态变量的地址，也叫做全局偏移表（<strong>Global Offset Table</strong>）。这个表的地址被保存在 r9 中。</p>
+<blockquote>
+<p>通过 -fpic 和 -msingle-pic-base 来使能这个特性。</p>
+</blockquote>
+<h4 id="Floating-Point-FP-registers"><a href="#Floating-Point-FP-registers" class="headerlink" title="Floating Point (FP) registers"></a>Floating Point (FP) registers</h4><p>即使支持FPU，复位后默认也是没有使能的。要打开FPU，需要设置 协处理器访问控制器 <em>Coprocessor Access Control Register</em> (<strong>CPACR</strong> - 0xE000ED88) 。</p>
+<p><img src="/2023/05/04/Cortex-m-context-switching/cpacr-reg-layout.png" alt="img"></p>
+<h4 id="Special-Registers"><a href="#Special-Registers" class="headerlink" title="Special Registers"></a>Special Registers</h4><p>特殊寄存器的访问用到两条指令：</p>
+<ul>
+<li>MRS - Move from Register to Special register</li>
+<li>MSR - Move to Special Register</li>
+</ul>
+<p><img src="/2023/05/04/Cortex-m-context-switching/mrs-msr-registers.png" alt="img"></p>
+<p>另外，</p>
+<blockquote>
+<p>非特权级的代码读取 stack pointer, priority masks, IPSR 都将返回0</p>
+<p>Thread Mode 的非特权级代码写 stack pointer, EPSR, IPSR, Masks，CONTROL，都会被忽略。如果在特权级的 Thread Mode 中写1 到CONTROL.nPriv 位，会切到非特权级。这时候需要跟这一个ISB指令，确保指令取址的正确性。</p>
+</blockquote>
+<p><img src="/2023/05/04/Cortex-m-context-switching/control-reg.png" alt="img"></p>
+<p>其中，</p>
+<ul>
+<li>SFPA - 指示安全浮点单元是否激活，只在 ARMv8-M上才实现了</li>
+<li>FPCA - 指示浮点上下文是否激活</li>
+<li>SPSEL - 控制用msp还是psp，为1时用psp</li>
+<li>nPriv - 为1时，Thread Mode 会处于非特权级</li>
+</ul>
+<h3 id="Stack-Pointers"><a href="#Stack-Pointers" class="headerlink" title="Stack Pointers"></a>Stack Pointers</h3><p>Cortex-M 实现了两个栈指针寄存器，msp和psp。</p>
+<p>复位后默认使用msp，且它的值保存在中断向量表的起始位置。</p>
+<p>在 Handler Mode，总是使用msp。在 Thread Mode，SPSEL为1时用psp。</p>
+<h3 id="Context-State-Stacking"><a href="#Context-State-Stacking" class="headerlink" title="Context State Stacking"></a>Context State Stacking</h3><p>AAPCS中规定，子例程必须要需要保存 r4-r8, r10, r11, SP（callee-save）。</p>
+<p>[C]PSR中保存了比较相关的一些状态，需要 caller-save。</p>
+<p>且AAPCS要求进入子函数时必须8字节对齐。</p>
+<blockquote>
+<p>自动压栈到psp还是msp，是根据异常发生前的状态决定的。如果之前是处于 Thread Mode，则会用psp压栈；否则会用msp。</p>
+</blockquote>
+<p><img src="/2023/05/04/Cortex-m-context-switching/context-state-stacking-basic.png" alt="img"></p>
+<blockquote>
+<p>ARM 用 xPSR 的 bit9 指示是否增加了4字节填充用来做8字节对齐。</p>
+</blockquote>
+<h4 id="FP-Extension-amp-Context-State-Stacking"><a href="#FP-Extension-amp-Context-State-Stacking" class="headerlink" title="FP Extension &amp; Context State Stacking"></a>FP Extension &amp; Context State Stacking</h4><p>如果有浮点数扩展，s0-s15以及FPSCR，总共16个寄存器可能会处理器自动压栈。</p>
+<p>s16-s31 这16个寄存器可能需要做额外的软件保存。</p>
+<p>一种优化是使用 lazy context  save。只有检测到 ISR 中用到了FPU，才做相关压栈。</p>
+<p><img src="/2023/05/04/Cortex-m-context-switching/fpccr-reg.png" alt="img"></p>
+<ul>
+<li>ASPEN - 为1时，所有的浮点数指令都会置位FPCA位</li>
+<li>LSPEN - 为1时，使用 laze context save</li>
+</ul>
+<p><img src="/2023/05/04/Cortex-m-context-switching/context-state-stacking-extended-frame.png" alt="img"></p>
+<h4 id="Exception-Return"><a href="#Exception-Return" class="headerlink" title="Exception Return"></a>Exception Return</h4><p>在异常退出时，需要给 lr 寄存器装载一个特殊的值，叫做EXC_RETURN。</p>
+<table>
+<thead>
+<tr>
+<th align="left">EXC_RETURN Value</th>
+<th align="left">Mode to Return To</th>
+<th align="left">Stack to use</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">0xFFFFFFF1</td>
+<td align="left">Handler Mode</td>
+<td align="left">MSP</td>
+</tr>
+<tr>
+<td align="left">0xFFFFFFF9</td>
+<td align="left">Thread Mode</td>
+<td align="left">MSP</td>
+</tr>
+<tr>
+<td align="left">0xFFFFFFFD</td>
+<td align="left">Thread Mode</td>
+<td align="left">PSP</td>
+</tr>
+<tr>
+<td align="left">0xFFFFFFE1</td>
+<td align="left">Handler Mode (FPU Extended Frame)</td>
+<td align="left">MSP</td>
+</tr>
+<tr>
+<td align="left">0xFFFFFFE9</td>
+<td align="left">Thread Mode (FPU Extended Frame)</td>
+<td align="left">MSP</td>
+</tr>
+<tr>
+<td align="left">0xFFFFFFED</td>
+<td align="left">Thread Mode (FPU Extended Frame)</td>
+<td align="left">PSP</td>
+</tr>
+</tbody></table>
+<p>bit4 : 0 表示 FPU 已激活</p>
+<p>bit3 : 0 表示返回到 Thread Mode</p>
+<p>bit2 : 0 表示使用msp</p>
+<p><strong>如何理解 LR 和 返回地址？</strong></p>
+<ul>
+<li>在普通函数调用返回时，<code>bl lr</code>就是跳转到lr寄存器里面的地址执行。</li>
+<li>但是在异常返回时，lr 里面保存的是一个叫做EXC_RETURN的值。它让处理器知道是要回到 Handler Mode 还是 Thread Mode；是否有FPU上下文，以及回去后要使用msp还是psp。具体跳转回到哪里执行，还是根据硬件出栈里面的返回地址（ReturnAddress）来确定的。</li>
+</ul>
+<h2 id="RTOS-Context-Switching"><a href="#RTOS-Context-Switching" class="headerlink" title="RTOS Context Switching"></a>RTOS Context Switching</h2><p>SysTickHandler：</p>
+<p>主要是增加tick，并触发PendSV异常。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">xPortSysTickHandler</span><span class="params">( <span class="keyword">void</span> )</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">/* The SysTick runs at the lowest interrupt priority, so when this interrupt</span></span><br><span class="line"><span class="comment">    executes all interrupts must be unmasked.  There is therefore no need to</span></span><br><span class="line"><span class="comment">    save and then restore the interrupt mask value as its value is already</span></span><br><span class="line"><span class="comment">    known. */</span></span><br><span class="line">    portDISABLE_INTERRUPTS();</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">/* Increment the RTOS tick. */</span></span><br><span class="line">        <span class="keyword">if</span>( xTaskIncrementTick() != pdFALSE )</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="comment">/* A context switch is required.  Context switching is performed in</span></span><br><span class="line"><span class="comment">            the PendSV interrupt.  Pend the PendSV interrupt. */</span></span><br><span class="line">            portNVIC_INT_CTRL_REG = portNVIC_PENDSVSET_BIT;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    portENABLE_INTERRUPTS();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>PendSV：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// FreeRTOSConfig.h</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> vPortSVCHandler    SVC_Handler</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> xPortPendSVHandler PendSV_Handler</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">define</span> xPortSysTickHandler SysTick_Handler</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// port.c</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">xPortPendSVHandler</span><span class="params">( <span class="keyword">void</span> )</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">/* This is a naked function. */</span></span><br><span class="line"></span><br><span class="line">    __asm <span class="keyword">volatile</span></span><br><span class="line">        (</span><br><span class="line">        <span class="string">"       mrs r0, psp                     \n"</span></span><br><span class="line">        <span class="string">"       isb                             \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       ldr     r3, pxCurrentTCBConst   \n"</span> <span class="comment">/* Get the location of the current TCB. */</span></span><br><span class="line">        <span class="string">"       ldr     r2, [r3]                \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       tst r14, #0x10                  \n"</span> <span class="comment">/* Is the task using the FPU context?  If so, push high vfp registers. */</span></span><br><span class="line">        <span class="string">"       it eq                           \n"</span></span><br><span class="line">        <span class="string">"       vstmdbeq r0!, &#123;s16-s31&#125;         \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       stmdb r0!, &#123;r4-r11, r14&#125;        \n"</span> <span class="comment">/* Save the core registers. */</span></span><br><span class="line">        <span class="string">"       str r0, [r2]                    \n"</span> <span class="comment">/* Save the new top of stack into the first member of the TCB. */</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       stmdb sp!, &#123;r0, r3&#125;             \n"</span></span><br><span class="line">        <span class="string">"       mov r0, %0                      \n"</span></span><br><span class="line">        <span class="string">"       msr basepri, r0                 \n"</span></span><br><span class="line">        <span class="string">"       dsb                             \n"</span></span><br><span class="line">        <span class="string">"       isb                             \n"</span></span><br><span class="line">        <span class="string">"       bl vTaskSwitchContext           \n"</span></span><br><span class="line">        <span class="string">"       mov r0, #0                      \n"</span></span><br><span class="line">        <span class="string">"       msr basepri, r0                 \n"</span></span><br><span class="line">        <span class="string">"       ldmia sp!, &#123;r0, r3&#125;             \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       ldr r1, [r3]                    \n"</span> <span class="comment">/* The first item in pxCurrentTCB is the task top of stack. */</span></span><br><span class="line">        <span class="string">"       ldr r0, [r1]                    \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       ldmia r0!, &#123;r4-r11, r14&#125;        \n"</span> <span class="comment">/* Pop the core registers. */</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       tst r14, #0x10                  \n"</span> <span class="comment">/* Is the task using the FPU context?  If so, pop the high vfp registers too. */</span></span><br><span class="line">        <span class="string">"       it eq                           \n"</span></span><br><span class="line">        <span class="string">"       vldmiaeq r0!, &#123;s16-s31&#125;         \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       msr psp, r0                     \n"</span></span><br><span class="line">        <span class="string">"       isb                             \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       bx r14                          \n"</span></span><br><span class="line">        <span class="string">"                                       \n"</span></span><br><span class="line">        <span class="string">"       .align 4                        \n"</span></span><br><span class="line">        <span class="string">"pxCurrentTCBConst: .word pxCurrentTCB  \n"</span></span><br><span class="line">        ::<span class="string">"i"</span>(configMAX_SYSCALL_INTERRUPT_PRIORITY)</span><br><span class="line">    );</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>判断是否使用了FPU上下文（LR的bit4）</li>
+<li>如果使用了FPU上下文，那么保存 {s16-s31}</li>
+<li>保存 {r4-r11, r14}</li>
+<li>psp保存在当前TCB的第一个字段中</li>
+<li>关中断，basepri设置为configMAX_SYSCALL_INTERRUPT_PRIORITY</li>
+<li>调用 vTaskSwitchContext，这时候pxCurrentTCB 被更新</li>
+<li>开中断</li>
+<li>从新的任务的栈中恢复{r4-r11, r14}</li>
+<li>如果FPU激活，则恢复{s16-s31}</li>
+<li>把新任务的栈恢复到psp中</li>
+<li>bx r14，跳到新的任务执行 -&gt; 再次说明，这里的r14，也就是lr，放的不是返回地址，而是EXC_RETURN。</li>
+</ol>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2023/05/03/Cortex-m-exception-handling/" rel="next" title="Cortex-m exception handling">
+                <i class="fa fa-chevron-left"></i> Cortex-m exception handling
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">29</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Cortex-M-ARM-MCU-Features"><span class="nav-number">1.</span> <span class="nav-text">Cortex-M ARM MCU Features</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Cortex-M-Operation-Modes"><span class="nav-number">1.1.</span> <span class="nav-text">Cortex-M Operation Modes</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Registers"><span class="nav-number">1.2.</span> <span class="nav-text">Registers</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Core-Registers"><span class="nav-number">1.2.1.</span> <span class="nav-text">Core Registers</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#r12-Intra-Procedure-call-Scratch-Register"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">r12 Intra-Procedure-call Scratch Register</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#r9-as-Platform-Register"><span class="nav-number">1.2.1.2.</span> <span class="nav-text">r9 as Platform Register</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Floating-Point-FP-registers"><span class="nav-number">1.2.2.</span> <span class="nav-text">Floating Point (FP) registers</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Special-Registers"><span class="nav-number">1.2.3.</span> <span class="nav-text">Special Registers</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Stack-Pointers"><span class="nav-number">1.3.</span> <span class="nav-text">Stack Pointers</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Context-State-Stacking"><span class="nav-number">1.4.</span> <span class="nav-text">Context State Stacking</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#FP-Extension-amp-Context-State-Stacking"><span class="nav-number">1.4.1.</span> <span class="nav-text">FP Extension &amp; Context State Stacking</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Exception-Return"><span class="nav-number">1.4.2.</span> <span class="nav-text">Exception Return</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#RTOS-Context-Switching"><span class="nav-number">2.</span> <span class="nav-text">RTOS Context Switching</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
