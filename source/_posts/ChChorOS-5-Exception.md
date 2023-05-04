@@ -82,7 +82,7 @@ u64 syscall(u64 sys_no, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4,
 #### 处理器自动保存
 
 1. PC保存在ELR_EL1
-2. 异常时间的原因保存在ESR_EL1
+2. 异常事件的原因保存在ESR_EL1
 3. 当前状态保存在SPSR_EL1
 4. 异常信息保存在FAR_EL1
 5. 栈寄存器开始使用SP_EL1，不在使用SP_EL0
