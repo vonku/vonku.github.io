@@ -1,7 +1,7 @@
 ---
 title: Cortex-m fault debug
 date: 2023-04-29 19:55:35
-categories: others
+categories: ARM
 tags:
 - ARM
 - debug

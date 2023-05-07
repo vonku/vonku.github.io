@@ -1,7 +1,7 @@
 ---
 title: Cortex-m context switching
 date: 2023-05-04 23:00:07
-categories: others
+categories: ARM
 tags:
 ---
 

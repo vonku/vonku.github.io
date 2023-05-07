@@ -1,7 +1,7 @@
 ---
 title: Cortex-m exception handling
 date: 2023-05-03 13:30:01
-categories: others
+categories: ARM
 tags:
 - ARM
 - debug
