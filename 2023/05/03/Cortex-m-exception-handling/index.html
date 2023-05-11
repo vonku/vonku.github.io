@@ -92,7 +92,7 @@
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/aircr.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/shcsr.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/ictr.png">
-<meta property="og:updated_time" content="2023-05-07T03:55:51.522Z">
+<meta property="og:updated_time" content="2023-05-11T12:13:02.814Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Cortex-m exception handling">
 <meta name="twitter:description" content="几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。 本文介绍ARM Cortex-m设备的异常模型。">
@@ -416,7 +416,7 @@
 <li><strong>Reset</strong> - 复位</li>
 <li><strong>NMI</strong> - 不可屏蔽中断，如果在异常处理函数中再发生错误，就会触发NMI异常</li>
 <li><strong>HardFault</strong> - 各种可能的系统故障的统括，包括内存非法访问、处理错误和非对齐访问等</li>
-<li>*<em>SVCall *</em> - 当执行svc指令时触发的异常</li>
+<li><strong>SVCall</strong> - 当执行svc指令时触发的异常</li>
 <li><strong>PendSV &amp; SysTick</strong> - 软件触发的系统层级的中断。RTOS系统常用它来管理系统调度和上下文切换</li>
 </ul>
 <h3 id="外部中断"><a href="#外部中断" class="headerlink" title="外部中断"></a>外部中断</h3><p>如DMA，GPIO等核外中断被称为外部中断。它们都是通过 <strong>Nested Vectored Interrupt Controller （NVIC）</strong> 来管理的。</p>
