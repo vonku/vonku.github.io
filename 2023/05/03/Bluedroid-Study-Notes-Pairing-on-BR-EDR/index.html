@@ -86,10 +86,28 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍Bluedroid 在BR/EDR上连接配对与在LE上连接配对的差异。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2023-05-03T02:34:11.875Z">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/5.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/2.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/4.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/6.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/7.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/1.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/8.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/10.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/9.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/11.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/12.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/15.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/16.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/13.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/14.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/17.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/3.png">
+<meta property="og:updated_time" content="2023-05-11T13:31:41.269Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Bluedroid Study Notes - Pairing on BR&#x2F;EDR">
 <meta name="twitter:description" content="本文介绍Bluedroid 在BR/EDR上连接配对与在LE上连接配对的差异。">
+<meta name="twitter:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/5.png">
 
 
 
@@ -366,6 +384,103 @@
 <p>本文介绍Bluedroid 在BR/EDR上连接配对与在LE上连接配对的差异。</p>
 </blockquote>
 <a id="more"></a>
+
+<h2 id="基本概念"><a href="#基本概念" class="headerlink" title="基本概念"></a>基本概念</h2><h3 id="Representation-of-Bluetooth-Parameters"><a href="#Representation-of-Bluetooth-Parameters" class="headerlink" title="Representation of Bluetooth Parameters"></a>Representation of Bluetooth Parameters</h3><h4 id="蓝牙设备地址"><a href="#蓝牙设备地址" class="headerlink" title="蓝牙设备地址"></a>蓝牙设备地址</h4><p>BD_ADDR，分为Public地址和Random地址，在设备发现的过程中，从对端设备接收到的设备地址。</p>
+<h4 id="设备名字"><a href="#设备名字" class="headerlink" title="设备名字"></a>设备名字</h4><p>用户友好的设备名称，在LMP_NAME_RES中返回。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/5.png" alt="5"></p>
+<h4 id="蓝牙PIN"><a href="#蓝牙PIN" class="headerlink" title="蓝牙PIN"></a>蓝牙PIN</h4><p>在配对过程中，用来认证两个设备的一串数字。</p>
+<h4 id="设备类型（Class-of-Device）"><a href="#设备类型（Class-of-Device）" class="headerlink" title="设备类型（Class of Device）"></a>设备类型（Class of Device）</h4><p>在设备发现过程中传输的参数。CoD的定义见Assigned Numbers。</p>
+<h4 id="Apprearance-Characteristic"><a href="#Apprearance-Characteristic" class="headerlink" title="Apprearance Characteristic"></a>Apprearance Characteristic</h4><p>一个16-bit的数字，可以映射成一个icon或string，描述设备的物理外观。Appearance的定义见Assigned NumbersMode</p>
+<h3 id="Modes"><a href="#Modes" class="headerlink" title="Modes"></a>Modes</h3><h4 id="发现模式"><a href="#发现模式" class="headerlink" title="发现模式"></a>发现模式</h4><ul>
+<li>Non-discoverable mode</li>
+<li>Discoverable mode</li>
+</ul>
+<p>可发现模式又分为Limited discoverable mode和General discoverable mode。</p>
+<p>Limited discoverable mode：只能在一段时间内被发现。</p>
+<p>General discoverable mode：可以一直被发现。</p>
+<p>如果对端使用了Limited inquiry的话，是发现不了General discoverable mode的设备的。</p>
+<h4 id="连接模式"><a href="#连接模式" class="headerlink" title="连接模式"></a>连接模式</h4><ul>
+<li>Non-connectable mode</li>
+</ul>
+<p>不会进PAGE_SCAN</p>
+<ul>
+<li>Connectable mode</li>
+</ul>
+<p>会周期地进入PAGE_SCAN</p>
+<h3 id="Inquiry-and-Page"><a href="#Inquiry-and-Page" class="headerlink" title="Inquiry and Page"></a>Inquiry and Page</h3><h4 id="Inquiry"><a href="#Inquiry" class="headerlink" title="Inquiry"></a>Inquiry</h4><p>让蓝牙芯片进入发现周围蓝牙设备地模式。</p>
+<p>它的返回值是周围蓝牙设备的信号。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/2.png" alt="2"></p>
+<p>Inquiry_Length表示inquiry的事件：</p>
+<ul>
+<li>Range: 0x01 ~ 0x30</li>
+<li>Time: N * 1.28s</li>
+<li>Range: 1.28s ~ 61.44s</li>
+</ul>
+<h4 id="Inquiry-scan"><a href="#Inquiry-scan" class="headerlink" title="Inquiry scan"></a>Inquiry scan</h4><p>蓝牙设备开启inquiry scan 模式，才能够被别的蓝牙设备搜索到。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/4.png" alt="4"></p>
+<p>Inquiry_Scan_Interval：</p>
+<ul>
+<li>T = N * 0.625 ms</li>
+<li>Range: 11.25ms ~ 2560ms</li>
+</ul>
+<p>Inquiry_Scan_Window：</p>
+<ul>
+<li>T = N * 0.625 ms</li>
+<li>Range: 10.625ms ~ 2560ms</li>
+</ul>
+<h4 id="Page"><a href="#Page" class="headerlink" title="Page"></a>Page</h4><p>发起连接的蓝牙设备向被连接的蓝牙设备发起连接请求或认证，请求即是一次page动作。</p>
+<p>超时时间：0.625ms ~ 40.9s</p>
+<h4 id="Page-scan"><a href="#Page-scan" class="headerlink" title="Page scan"></a>Page scan</h4><p>蓝牙设备开启page scan模式，才能够响应其他蓝牙设备的连接请求。例如蓝牙耳机只有处于page scan才允许其他设备来连接。</p>
+<p>Page Scan Interval (寻呼扫描间隔)</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/6.png" alt="6"></p>
+<p>Page Scan Window（寻呼扫描窗口）</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/7.png" alt="7"></p>
+<h2 id="配对流程"><a href="#配对流程" class="headerlink" title="配对流程"></a>配对流程</h2><h3 id="连接建立"><a href="#连接建立" class="headerlink" title="连接建立"></a>连接建立</h3><p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/1.png" alt="1"></p>
+<p>对应air log：</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/8.png" alt="8"></p>
+<ol>
+<li>主机Page设备，设备Page scan响应之后，两个设备开始LMP连接</li>
+<li>连接前交换版本号，支持的feature等信息</li>
+<li>最终LMP Setup Complete，数据可以在BR/EDR的ACL逻辑链路上传输</li>
+</ol>
+<h3 id="Secure-Simple-Pairing"><a href="#Secure-Simple-Pairing" class="headerlink" title="Secure Simple Pairing"></a>Secure Simple Pairing</h3><h4 id="IO能力交换"><a href="#IO能力交换" class="headerlink" title="IO能力交换"></a>IO能力交换</h4><p>第一步，交换IO能力，选择配对方式。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/10.png" alt="10"></p>
+<blockquote>
+<p>这里请求io能力交换的时候，涉及和host的交互，因为配对方式和io能力是由host控制的，对应slave侧的HCI：</p>
+</blockquote>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/9.png" alt="9"></p>
+<h4 id="交换public-key"><a href="#交换public-key" class="headerlink" title="交换public key"></a>交换public key</h4><p>第二步，交换公钥。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/11.png" alt="11"></p>
+<h4 id="认证阶段1"><a href="#认证阶段1" class="headerlink" title="认证阶段1"></a>认证阶段1</h4><p>第三步，根据IO能力决定要使用何种配对方式，并确认Pin Code。</p>
+<p>可以是：numeric comparation，passkey entry，OOB。</p>
+<p>这里选择数字比较方式：</p>
+<p><strong>典型流程：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/12.png" alt="12"></p>
+<p><strong>空口：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/15.png" alt="15"></p>
+<blockquote>
+<p>这一步涉及用户确认PIN Code，因此会把comfirm code传给host，并由上层显示 PIN Code，让用户确认。</p>
+</blockquote>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/16.png" alt="16"></p>
+<h4 id="认证阶段2"><a href="#认证阶段2" class="headerlink" title="认证阶段2"></a>认证阶段2</h4><p>DHKey check，完成身份认证，并启动对链路的加密。</p>
+<p><strong>典型流程：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/13.png" alt="13"></p>
+<p><strong>空口：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/14.png" alt="14"></p>
+<p>DHKey Check完成后，controller向host上报ssp完成事件，然后上报link key，再启动对链路的加密。</p>
+<p>对应slave侧的HCI：</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/17.png" alt="17"></p>
+<h2 id="Cross-Transport-Key-Derivation"><a href="#Cross-Transport-Key-Derivation" class="headerlink" title="Cross-Transport Key Derivation"></a>Cross-Transport Key Derivation</h2><p>蓝牙CTKD是蓝牙4.2版本后引入的一种交叉传输密钥派生的安全机制。主要用在蓝牙双模设备上，它可以跨越BLE和BT的边界，通过将BLE配对生成的LTK转化成BT配对的Link Key。当然，也可以通过BT配对生成的Link Key转化成BLE的LTK来实现。目前我们主要用的是前者，</p>
+<p>通过CTKD可以通过一次配对将BT和BLE两个链路都配对上，从而提升蓝牙双模设备的配对体验。</p>
+<p>LTK生成Link Key的方法：</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/3.png" alt="3"></p>
+<p>更多内容参考 CoreSpec v5.3, Vol 3, Part H, Section 2.4.2.4等章节。</p>
+<blockquote>
+<p>目前发现如果使能从BT到BLE的crosskey，也就是在第一次在BR/EDR上配对，通过Link Key生成BLE的LTK，会出现问题。</p>
+<p>具体问题是，手机在第一次连接时，把设备的public address (type 0)加到白名单；而断链重连后，则把设备的public address当做random address (type 1)加入白名单。-&gt; 即手机会把设备的地址类型搞错。这种情况将导致设备的BLE连接失败。</p>
+<p>一般建议：BT和BLE不使用同一个public address（如果同时存在的话）。如果同时存在，建议BLE使用static random地址。</p>
+</blockquote>
+
       
     </div>
     
@@ -453,8 +568,17 @@
       
 
       
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
 
-      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <section class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
           <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
             
@@ -538,6 +662,22 @@
         </div>
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#基本概念"><span class="nav-number">1.</span> <span class="nav-text">基本概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Representation-of-Bluetooth-Parameters"><span class="nav-number">1.1.</span> <span class="nav-text">Representation of Bluetooth Parameters</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#蓝牙设备地址"><span class="nav-number">1.1.1.</span> <span class="nav-text">蓝牙设备地址</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#设备名字"><span class="nav-number">1.1.2.</span> <span class="nav-text">设备名字</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#蓝牙PIN"><span class="nav-number">1.1.3.</span> <span class="nav-text">蓝牙PIN</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#设备类型（Class-of-Device）"><span class="nav-number">1.1.4.</span> <span class="nav-text">设备类型（Class of Device）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Apprearance-Characteristic"><span class="nav-number">1.1.5.</span> <span class="nav-text">Apprearance Characteristic</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Modes"><span class="nav-number">1.2.</span> <span class="nav-text">Modes</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#发现模式"><span class="nav-number">1.2.1.</span> <span class="nav-text">发现模式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#连接模式"><span class="nav-number">1.2.2.</span> <span class="nav-text">连接模式</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Inquiry-and-Page"><span class="nav-number">1.3.</span> <span class="nav-text">Inquiry and Page</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Inquiry"><span class="nav-number">1.3.1.</span> <span class="nav-text">Inquiry</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Inquiry-scan"><span class="nav-number">1.3.2.</span> <span class="nav-text">Inquiry scan</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Page"><span class="nav-number">1.3.3.</span> <span class="nav-text">Page</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Page-scan"><span class="nav-number">1.3.4.</span> <span class="nav-text">Page scan</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#配对流程"><span class="nav-number">2.</span> <span class="nav-text">配对流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#连接建立"><span class="nav-number">2.1.</span> <span class="nav-text">连接建立</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Secure-Simple-Pairing"><span class="nav-number">2.2.</span> <span class="nav-text">Secure Simple Pairing</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#IO能力交换"><span class="nav-number">2.2.1.</span> <span class="nav-text">IO能力交换</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#交换public-key"><span class="nav-number">2.2.2.</span> <span class="nav-text">交换public key</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#认证阶段1"><span class="nav-number">2.2.3.</span> <span class="nav-text">认证阶段1</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#认证阶段2"><span class="nav-number">2.2.4.</span> <span class="nav-text">认证阶段2</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Cross-Transport-Key-Derivation"><span class="nav-number">3.</span> <span class="nav-text">Cross-Transport Key Derivation</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       
