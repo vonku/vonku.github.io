@@ -60,7 +60,7 @@ General discoverable mode：可以一直被发现。
 
 会周期地进入PAGE_SCAN
 
-### Inquiry and Page
+### Inquiry and Page 
 
 #### Inquiry
 
