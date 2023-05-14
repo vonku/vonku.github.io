@@ -87,11 +87,11 @@
 <meta property="og:description" content="本文介绍Bluedroid HFP的相关流程和知识点。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-HFClient/1.png">
-<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-HFClient/Bluedroid-Study-Notes-HFClient%5C3.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-HFClient/3.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-HFClient/4.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-HFClient/5.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-HFClient/6.png">
-<meta property="og:updated_time" content="2023-05-14T02:54:11.659Z">
+<meta property="og:updated_time" content="2023-05-14T02:59:29.361Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Bluedroid Study Notes - HFClient">
 <meta name="twitter:description" content="本文介绍Bluedroid HFP的相关流程和知识点。">
@@ -476,8 +476,8 @@
 <p>最终走到<code>l2c_csm_execute</code>，交给l2cap的状态机处理。</p>
 <p>接着，发起方和响应方会检查security的要求，如果不满足则可能还需要发起配对。</p>
 <p>security满足要求之后，正式进行l2cap的通道连接，并对通道进行配置，最后才能开启数据传输。</p>
-<p><img src="/2023/05/03/Bluedroid-Study-Notes-HFClient/Bluedroid-Study-Notes-HFClient%5C3.png" alt="3"></p>
-<p>L2CAPd的状态机这里暂不分析，最后会在CST_CONFIG状态下收到L2CEVT_L2CAP_CONFIG_RSP事件，从而状态机转到CST_OPEN状态。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-HFClient/3.png" alt="3"></p>
+<p>L2CAP的状态机这里暂不分析，最后会在CST_CONFIG状态下收到L2CEVT_L2CAP_CONFIG_RSP事件，从而状态机转到CST_OPEN状态。</p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">l2c_csm_config</span><span class="params">(tL2C_CCB* p_ccb, <span class="keyword">uint16_t</span> event, <span class="keyword">void</span>* p_data)</span> </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  <span class="keyword">switch</span> (event) &#123;</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">case</span> L2CEVT_L2CAP_CONFIG_RSP:</span><br><span class="line">      l2cu_process_peer_cfg_rsp(p_ccb, p_cfg);</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (p_cfg-&gt;result != L2CAP_CFG_PENDING) &#123;</span><br><span class="line">        ...</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (p_ccb-&gt;config_done &amp; IB_CFG_DONE) &#123;</span><br><span class="line"></span><br><span class="line">	      ...</span><br><span class="line">          <span class="comment">// 变为CST_OPEN状态</span></span><br><span class="line">          p_ccb-&gt;chnl_state = CST_OPEN;</span><br><span class="line">          ...</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 回调pL2CA_ConfigCfm_Cb</span></span><br><span class="line">      (*p_ccb-&gt;p_rcb-&gt;api.pL2CA_ConfigCfm_Cb)(p_ccb-&gt;local_cid, p_cfg);</span><br><span class="line">      <span class="keyword">break</span>;</span><br><span class="line">    ...</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <p>这里的<code>pL2CA_ConfigCfm_Cb</code>是<code>sdp_init</code>时注册的reg_info，回调函数是<code>sdp_config_cfm()</code>。</p>
