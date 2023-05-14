@@ -103,7 +103,7 @@
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/logic_symbol.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/abc.png">
 <meta property="og:image" content="http://yoursite.com/2019/07/06/密码技术与物联网安全之单向散列函数/1280px-SHA-2.svg.png">
-<meta property="og:updated_time" content="2019-10-27T05:15:57.052Z">
+<meta property="og:updated_time" content="2023-05-14T08:12:33.725Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="密码技术与物联网安全之单向散列函数">
 <meta name="twitter:description" content="前言由于工作的原因，初次接触安全芯片并使用到安全相关的一些工具，并在后续的学习中陆陆续续看了一些安全的知识。在这里做一些security相关的笔记，希望之后可以温故知新，也希望能帮助到有需要的同学。我主要参考了以下三本书籍，感兴趣的同学可以看看：  《图解密码技术》 ：非常浅显易懂的入门书籍 《密码技术与物联网安全 – mbedtls开发实战》：19年出的mbedtls相关的书籍 Understa">
@@ -476,7 +476,9 @@
 <p><strong>消息分割:</strong></p>
 <p>完成消息填充后，将消息M其分解成N个512比特的分组chunk： <code>M(1)~M(N)</code>。</p>
 <h4 id="哈希计算"><a href="#哈希计算" class="headerlink" title="哈希计算"></a>哈希计算</h4><p>计算哈希的过程，就是对消息进行<code>N</code>轮的映射计算的过程，表示为：</p>
-<pre><code>H_i = Map(H_i-1, M(i))          //最外层循环，N轮</code></pre><p>H_0是前面提到的8个哈希初值，利用Map映射函数对H进行更新，更新N轮后的输出H_N，就是最后的哈希值。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">H_i = Map(H_i-1, M(i))          //最外层循环，N轮</span><br></pre></td></tr></table></figure>
+
+<p>H_0是前面提到的8个哈希初值，利用Map映射函数对H进行更新，更新N轮后的输出H_N，就是最后的哈希值。</p>
 <p><strong>Map映射函数</strong></p>
 <p>首先，Map映射函数需要构造64个字(<strong>WORD</strong>)</p>
 <p>每个512比特的分组消息M(i)，可以用16个32比特表示：</p>
@@ -498,7 +500,7 @@
 <li><p>Wt是本区块第t个word。</p>
 </li>
 </ul>
-<p>由此完成了SHA256的计算。</p>
+<p>至此完成了SHA256的计算。</p>
 
       
     </div>
