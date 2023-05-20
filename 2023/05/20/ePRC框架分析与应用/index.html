@@ -68,7 +68,7 @@
 
 
 
-  <meta name="keywords" content="Hexo, NexT">
+  <meta name="keywords" content="RPC,">
 
 
 
@@ -79,22 +79,23 @@
 
 
 
-<meta name="description" content="title: ePRC框架分析与应用date: 2023-05-20 14:37:13categories: Componentstags:  RPC   eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&amp;lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。  快速开始eRPC由NX">
+<meta name="description" content="eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&amp;lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。">
+<meta name="keywords" content="RPC">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Vonku&#39;s Blog">
+<meta property="og:title" content="ePRC框架分析与应用">
 <meta property="og:url" content="http://yoursite.com/2023/05/20/ePRC框架分析与应用/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="title: ePRC框架分析与应用date: 2023-05-20 14:37:13categories: Componentstags:  RPC   eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&amp;lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。  快速开始eRPC由NX">
+<meta property="og:description" content="eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&amp;lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/05/20/ePRC框架分析与应用/RPCblockDiagram.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/20/ePRC框架分析与应用/QuickStart.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/20/ePRC框架分析与应用/erpc_class.jpg">
 <meta property="og:image" content="http://yoursite.com/2023/05/20/ePRC框架分析与应用/uml.jpg">
 <meta property="og:image" content="http://yoursite.com/2023/05/20/ePRC框架分析与应用/serialized_Bytes.jpg">
-<meta property="og:updated_time" content="2023-05-20T08:19:41.203Z">
+<meta property="og:updated_time" content="2023-05-20T08:23:45.206Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Vonku&#39;s Blog">
-<meta name="twitter:description" content="title: ePRC框架分析与应用date: 2023-05-20 14:37:13categories: Componentstags:  RPC   eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&amp;lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。  快速开始eRPC由NX">
+<meta name="twitter:title" content="ePRC框架分析与应用">
+<meta name="twitter:description" content="eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&amp;lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。">
 <meta name="twitter:image" content="http://yoursite.com/2023/05/20/ePRC框架分析与应用/RPCblockDiagram.png">
 
 
@@ -131,7 +132,7 @@
 
 
 
-  <title> | Vonku's Blog</title>
+  <title>ePRC框架分析与应用 | Vonku's Blog</title>
   
 
 
@@ -285,7 +286,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline"></h1>
+          <h1 class="post-title" itemprop="name headline">ePRC框架分析与应用</h1>
         
 
         <div class="post-meta">
@@ -308,6 +309,28 @@
           </span>
 
           
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Components/" itemprop="url" rel="index">
+                    <span itemprop="name">Components</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
 
           
             
@@ -315,7 +338,7 @@
 
           
           
-             <span id="/2023/05/20/ePRC框架分析与应用/" class="leancloud_visitors" data-flag-title>
+             <span id="/2023/05/20/ePRC框架分析与应用/" class="leancloud_visitors" data-flag-title="ePRC框架分析与应用">
                <span class="post-meta-divider">|</span>
                <span class="post-meta-item-icon">
                  <i class="fa fa-eye"></i>
@@ -346,13 +369,11 @@
       
 
       
-        <p>title: ePRC框架分析与应用<br>date: 2023-05-20 14:37:13<br>categories: Components<br>tags:</p>
-<ul>
-<li>RPC</li>
-</ul>
-<blockquote>
+        <blockquote>
 <p>eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。</p>
 </blockquote>
+<a id="more"></a>
+
 <h3 id="快速开始"><a href="#快速开始" class="headerlink" title="快速开始"></a>快速开始</h3><p>eRPC由NXP创建，提供了一种简单的通过本地函数调用远程系统上的软件方法的机制。</p>
 <p>其特点是：</p>
 <ul>
@@ -613,6 +634,12 @@
 
     <footer class="post-footer">
       
+        <div class="post-tags">
+          
+            <a href="/tags/RPC/" rel="tag"># RPC</a>
+          
+        </div>
+      
 
       
       
@@ -731,7 +758,7 @@
               
               <div class="site-state-item site-state-tags">
                 <a href="/tags/index.html">
-                  <span class="site-state-item-count">13</span>
+                  <span class="site-state-item-count">14</span>
                   <span class="site-state-item-name">标签</span>
                 </a>
               </div>
