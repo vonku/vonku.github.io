@@ -259,6 +259,388 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/05/20/ePRC框架分析与应用/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2023/05/20/ePRC框架分析与应用/" itemprop="url">未命名</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2023-05-20T14:37:13+08:00">
+                2023-05-20
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2023/05/20/ePRC框架分析与应用/" class="leancloud_visitors" data-flag-title>
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <p>title: ePRC框架分析与应用<br>date: 2023-05-20 14:37:13<br>categories: Components<br>tags:</p>
+<ul>
+<li>RPC</li>
+</ul>
+<blockquote>
+<p>eRPC是一个开源的适用于多核嵌入式系统的远程过程调用框架，它专门为紧密耦合的系统设计，使用纯C语言实现远程功能，并且代码量小（&lt;5KB）。本文从ePRC的上手使用开始，然后对其框架原理、开销和性能进行简单分析。</p>
+</blockquote>
+<h3 id="快速开始"><a href="#快速开始" class="headerlink" title="快速开始"></a>快速开始</h3><p>eRPC由NXP创建，提供了一种简单的通过本地函数调用远程系统上的软件方法的机制。</p>
+<p>其特点是：</p>
+<ul>
+<li>一种创建client/server应用的简单方法</li>
+<li>跨平台的erpcgen工具生成填充代码</li>
+<li>简单的传输层设计，它甚至提供了同样是NXP开发的rpmsg-lite的IPC传输层</li>
+<li>Server可以是阻塞或非阻塞的</li>
+</ul>
+<p><img src="/2023/05/20/ePRC框架分析与应用/RPCblockDiagram.png" alt="Remote procedure call system (RPC)"></p>
+<p><strong>快速使用：</strong></p>
+<ol>
+<li><p>编写IDL文件</p>
+</li>
+<li><p>生成填充代码</p>
+</li>
+<li><p>导入eRPC公共文件和接口文件</p>
+</li>
+<li><p>添加传输层驱动</p>
+</li>
+<li><p>编写应用程序</p>
+</li>
+</ol>
+<p><img src="/2023/05/20/ePRC框架分析与应用/QuickStart.png" alt="QuickStart"></p>
+<h3 id="IDL文件编写"><a href="#IDL文件编写" class="headerlink" title="IDL文件编写"></a>IDL文件编写</h3><p><strong>创建的idl文件 idl_example.erpc</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">@output_dir(&quot;idl_example_source&quot;)</span><br><span class="line">@types_header(&quot;idl_example_common.h&quot;)</span><br><span class="line">program idl_example</span><br><span class="line"></span><br><span class="line">import &quot;idl_test.erpc&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><strong>program</strong></p>
+<p>可选的program语句用于指定整个输入的名称。该名称用于输出文件名，最终的文件名为program_group_xxx。</p>
+</li>
+<li><p><strong>import</strong></p>
+<p>通过import关键字，包含另一个IDL文件。</p>
+</li>
+<li><p><strong>注解</strong></p>
+<p>注解以”@”字符开头，参数以”()”写入。注解提供了一种方法，用以通知eRPC生成器有关代码部分的特定请求。</p>
+<ul>
+<li>@output(string)：表示生成文件将输出到string指定的目录</li>
+<li>@types_header(string)：表示所有的声明（如typedef和struct）将会被移至指定的头文件中。这样可以避免重复定义的错误</li>
+</ul>
+</li>
+</ul>
+<p><strong>创建具体的接口定义文件 idl_test.erpc</strong></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">const int32 matrix_size = 5</span><br><span class="line">type Matrix = int32[maxtrix_size][matrix_size];</span><br><span class="line">enum enumPrintType &#123;</span><br><span class="line">	BUILT_IN_TYPES,</span><br><span class="line">	STRUCT_TYPE,</span><br><span class="line">	ARRAY_TYPE,</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>内置类型</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>IDL</th>
+<th>C</th>
+<th>IDL</th>
+<th>C</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>bool</td>
+<td>bool</td>
+<td>uint8</td>
+<td>uint8_t</td>
+</tr>
+<tr>
+<td>int8</td>
+<td>int8_t</td>
+<td>uint16</td>
+<td>uint16_t</td>
+</tr>
+<tr>
+<td>int16</td>
+<td>int16_t</td>
+<td>uint32</td>
+<td>uint32_t</td>
+</tr>
+<tr>
+<td>int32</td>
+<td>int32_t</td>
+<td>uint64</td>
+<td>uint64_t</td>
+</tr>
+<tr>
+<td>int64</td>
+<td>int64_t</td>
+<td>float</td>
+<td>float</td>
+</tr>
+<tr>
+<td>string</td>
+<td>char*</td>
+<td>double</td>
+<td>double</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>数组</strong></li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>IDL</th>
+<th>C</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>int32[10] variable</td>
+<td>int32_t variable[10];</td>
+</tr>
+<tr>
+<td>int32[10] [6] variable</td>
+<td>int32_t variable[10] [6];</td>
+</tr>
+</tbody></table>
+<ul>
+<li><p><strong>别名</strong></p>
+<p>type _aliasName = _originalType</p>
+</li>
+<li><p><strong>常量</strong></p>
+<p>使用const关键字定义常量</p>
+</li>
+<li><p><strong>枚举</strong></p>
+<p>IDL的enum定义会生成对应的C枚举类型，区别在于输出的C枚举类型中会增加匹配名称的typedef</p>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">struct erpc_data_t &#123;</span><br><span class="line">	int32_t val;</span><br><span class="line">	byref float b;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">struct foo &#123;</span><br><span class="line">	int32 discriminator;</span><br><span class="line">	union(discriminator) &#123;</span><br><span class="line">		case BUILT_IN_TYPES:</span><br><span class="line">			int32 num</span><br><span class="line">		case STRUCT_TYPE:</span><br><span class="line">			erpc_data_t data</span><br><span class="line">		case ARRAY_TYPE:</span><br><span class="line">			Matrix m</span><br><span class="line">	&#125; value</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><strong>结构体</strong></p>
+<p>IDL文件定义的结构体，输出文件中会额外添加typedef别名。当结构体的成员声明前使用”byref”关键字时，结构的成员将通过引用序列化。</p>
+</li>
+<li><p><strong>联合体</strong></p>
+<p>封装型的联合体：联合体是结构体的一部分，需要结构体的其他成员作为联合体的鉴定符。</p>
+<p>非封装的联合体：如果把联合体定义在全局空间，则需要使用@discriminator(string)指定鉴别符。</p>
+<blockquote>
+<p>鉴定符，也就是说要指定union具体是那种类型</p>
+</blockquote>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">struct A &#123;</span><br><span class="line">	int32 discriminator;</span><br><span class="line">	unionType data @discriminator(discriminator);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">@group(&quot;test&quot;)</span><br><span class="line">@include(&quot;idl_example_common.h&quot;)</span><br><span class="line">@idl(2)</span><br><span class="line">interface PrintService &#123;</span><br><span class="line">	oneway erpc_print(in int32 index);</span><br><span class="line">	test_binary_allDirectionLength(binary a @length(p1), in binary b, inout binary d, in uint32 p1) -&gt; void;</span><br><span class="line">	test_list_allDirectionLength(list&lt;int32&gt; a @length(p1), inout list&lt;int32&gt; d @length(p2), uint32 p1, uint32 p2) -&gt; void;</span><br><span class="line">	send_my_foo(foo f @retain) -&gt; foo;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><strong>@group(string)</strong></p>
+<p>接口可以通过group注解来进行组织，该名字会体现在输出文件中</p>
+</li>
+<li><p><strong>@include(string)</strong></p>
+<p>string是将要包含的头文件名</p>
+</li>
+<li><p><strong>@id(number)</strong></p>
+<p>设置interface/方法的ID号，该ID号必须唯一</p>
+</li>
+<li><p><strong>Interface</strong></p>
+<p>接口包含一个或多个函数，这个函数在客户端使用，在服务端实现</p>
+</li>
+<li><p><strong>oneway</strong></p>
+<p>表明该函数是单向函数</p>
+</li>
+<li><p><strong>in/out/inout</strong></p>
+<p>指定参数的方向</p>
+</li>
+<li><p><strong>@length</strong></p>
+<p>指定变量的长度</p>
+</li>
+<li><p><strong>@retain</strong></p>
+<p>阻止server释放变量的空间</p>
+</li>
+</ul>
+<h3 id="eRPC框架"><a href="#eRPC框架" class="headerlink" title="eRPC框架"></a>eRPC框架</h3><h4 id="类图"><a href="#类图" class="headerlink" title="类图"></a>类图</h4><p><img src="/2023/05/20/ePRC框架分析与应用/erpc_class.jpg" alt="erpc_class"></p>
+<h4 id="程序流程图"><a href="#程序流程图" class="headerlink" title="程序流程图"></a>程序流程图</h4><p><img src="/2023/05/20/ePRC框架分析与应用/uml.jpg" alt="uml"></p>
+<h3 id="资源消耗"><a href="#资源消耗" class="headerlink" title="资源消耗"></a>资源消耗</h3><p>eRPC基础框架的代码空间约为3~4KB</p>
+<table>
+<thead>
+<tr>
+<th>FileName</th>
+<th>Code</th>
+<th>RO Data</th>
+<th>RW Data</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>erpc_basic_codec.o</td>
+<td>624</td>
+<td>192</td>
+<td>0</td>
+</tr>
+<tr>
+<td>erpc_client_manager.o</td>
+<td>414</td>
+<td>40</td>
+<td>0</td>
+</tr>
+<tr>
+<td>erpc_crc16.o</td>
+<td>8</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>erpc_message_buffer.o</td>
+<td>158</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>erpc_server.o</td>
+<td>122</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>erpc_simple_server.o</td>
+<td>514</td>
+<td>44</td>
+<td>0</td>
+</tr>
+<tr>
+<td>erpc_port_freertos.o</td>
+<td>30</td>
+<td>0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>erpc_client_setup.o</td>
+<td>242</td>
+<td>24</td>
+<td>24</td>
+</tr>
+<tr>
+<td>erpc_server_setup.o</td>
+<td>162</td>
+<td>0</td>
+<td>24</td>
+</tr>
+<tr>
+<td>erpc_setup_mbf_dynamic.o</td>
+<td>76</td>
+<td>32</td>
+<td>8</td>
+</tr>
+</tbody></table>
+<p>需要指出的是，eRPC的框架代码虽然体积不大，但是生成的shim code体积还是比较大的。</p>
+<h3 id="序列化字节流分析"><a href="#序列化字节流分析" class="headerlink" title="序列化字节流分析"></a>序列化字节流分析</h3><p><img src="/2023/05/20/ePRC框架分析与应用/serialized_Bytes.jpg" alt="serialized_Bytes"></p>
+<ul>
+<li>Client-&gt;Server<br><strong>d0 00 5e 79</strong> 00 01 01 01 <strong>01 00 00 00</strong> 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00 01 00 00 00<br>d0 00 5e 79：h.m_messageSize = 0x00d0, h.m_crc = 0x795e<br>00 01 01 01：header = 0x01010100，其中kBasicCodecVersion = 0x01, service = 0x01, request = 0x01, messageType = kInvocationMessage<br>01 00 00 00：sequence = 0x00000001<br>后续的200个字节是2个5<em>5</em>4（row*col*element_size）的matrix实参。</li>
+</ul>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/05/04/Cortex-m-context-switching/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -1679,165 +2061,6 @@
 
 
     
-      
-
-  
-
-  
-  
-  
-
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="Vonku">
-      <meta itemprop="description" content>
-      <meta itemprop="image" content="/images/vonku.jpg">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Vonku's Blog">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h1 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/" itemprop="url">ChChorOS-9-2-Filesystem Crash Consistensy</a></h1>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">发表于</span>
-              
-              <time title="创建于" itemprop="dateCreated datePublished" datetime="2023-04-29T19:23:01+08:00">
-                2023-04-29
-              </time>
-            
-
-            
-
-            
-          </span>
-
-          
-            <span class="post-category">
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">分类于</span>
-              
-              
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-                  <a href="/categories/OS/" itemprop="url" rel="index">
-                    <span itemprop="name">OS</span>
-                  </a>
-                </span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-          
-
-          
-          
-             <span id="/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/" class="leancloud_visitors" data-flag-title="ChChorOS-9-2-Filesystem Crash Consistensy">
-               <span class="post-meta-divider">|</span>
-               <span class="post-meta-item-icon">
-                 <i class="fa fa-eye"></i>
-               </span>
-               
-                 <span class="post-meta-item-text">阅读次数&#58;</span>
-               
-                 <span class="leancloud-visitors-count"></span>
-             </span>
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          <blockquote>
-<p>本文的主要内容是介绍文件系统的崩溃一致性。</p>
-</blockquote>
-          <!--noindex-->
-          <div class="post-button text-center">
-            <a class="btn" href="/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/#more" rel="contents">
-              阅读全文 &raquo;
-            </a>
-          </div>
-          <!--/noindex-->
-        
-      
-    </div>
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
   </section>
 
   
@@ -1890,7 +2113,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-count">27</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
