@@ -87,12 +87,13 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配、常见集合和错误处理相关内容。">
 <meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/Ownership.png">
 <meta property="og:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/trpl04-04.svg">
-<meta property="og:updated_time" content="2023-05-22T00:01:54.299Z">
+<meta property="og:updated_time" content="2023-05-23T15:27:22.782Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Rust Study Notes - 基础">
 <meta name="twitter:description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配、常见集合和错误处理相关内容。">
-<meta name="twitter:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/trpl04-04.svg">
+<meta name="twitter:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/Ownership.png">
 
 
 
@@ -434,7 +435,9 @@
 <p>也可以用for循环：</p>
 <figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> a = [<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>];</span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> ele <span class="keyword">in</span> a &#123;</span><br><span class="line">	<span class="built_in">println!</span>(<span class="string">"the value is &#123;&#125;"</span>, ele);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<h2 id="所有权"><a href="#所有权" class="headerlink" title="所有权"></a>所有权</h2><p>所有权让Rust无需垃圾回收期即可保证内存安全。理解了Rust的所有权，将能更自然地编写出安全和高效的代码。</p>
+<h2 id="所有权"><a href="#所有权" class="headerlink" title="所有权"></a>所有权</h2><p>本节内容：</p>
+<p><img src="/2023/05/21/Rust-Study-Notes-基础/Ownership.png" alt="image-20230523232457565"></p>
+<p>所有权让Rust无需垃圾回收期即可保证内存安全。理解了Rust的所有权，将能更自然地编写出安全和高效的代码。</p>
 <h3 id="什么是所有权"><a href="#什么是所有权" class="headerlink" title="什么是所有权"></a>什么是所有权</h3><p><strong>所有权规则</strong></p>
 <ul>
 <li>Rust中的每一个值都有一个被成为其<strong>所有者</strong>的变量</li>
@@ -500,10 +503,25 @@
 <p>这样确是可以的。因为s的所有权被移交出去了。</p>
 <p><strong>总结</strong></p>
 <ul>
-<li>在任意给定的时间，要么只能有一个可变引用，要么只能由多个不可变引用。</li>
-<li>引用必须总是有效的。</li>
+<li>在任意给定的时间，要么只能有一个可变引用，要么只能由多个不可变引用</li>
+<li>引用必须总是有效的</li>
+<li>引用不会传递所有权</li>
 </ul>
-<h3 id="切片"><a href="#切片" class="headerlink" title="切片"></a>切片</h3><h2 id="枚举与模式匹配"><a href="#枚举与模式匹配" class="headerlink" title="枚举与模式匹配"></a>枚举与模式匹配</h2><h2 id="常见集合"><a href="#常见集合" class="headerlink" title="常见集合"></a>常见集合</h2><h2 id="错误处理"><a href="#错误处理" class="headerlink" title="错误处理"></a>错误处理</h2>
+<h3 id="切片"><a href="#切片" class="headerlink" title="切片"></a>切片</h3><p>slice允许引用集合中一段连续的元素序列。<strong>slice 也没有所有权。</strong></p>
+<p><strong>字符串slice</strong></p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> s = <span class="built_in">String</span>::from(<span class="string">"hello world"</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">let</span> hello = &amp;s[<span class="number">0</span>..<span class="number">5</span>];  <span class="comment">// 不包含最后的索引5</span></span><br><span class="line"><span class="keyword">let</span> world = &amp;s[<span class="number">6</span>..<span class="number">11</span>]; <span class="comment">// 注意，这是一个不可变引用，因此，后面也不能对s进行修改</span></span><br><span class="line"><span class="keyword">let</span> slice = &amp;s[..<span class="number">2</span>];   <span class="comment">// 从0开始可以省略</span></span><br><span class="line"><span class="keyword">let</span> slice = &amp;s[<span class="number">3</span>..];   <span class="comment">// 也可以这样表示到最后</span></span><br><span class="line"></span><br><span class="line">s.push_str(<span class="string">" and more"</span>); <span class="comment">// 不允许，因为push_str是一个可变引用</span></span><br></pre></td></tr></table></figure>
+
+<p>返回一个slice：</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">fn</span> <span class="title">first_world</span></span>(s: &amp;<span class="built_in">String</span>) -&gt; &amp;<span class="built_in">str</span> &#123;</span><br><span class="line">	<span class="keyword">let</span> bytes = s.as_bytes();</span><br><span class="line">    <span class="keyword">for</span> (i, &amp;item) <span class="keyword">in</span> bytes.iter().enumerate() &#123;</span><br><span class="line">        <span class="keyword">if</span> item == <span class="string">b' '</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> &amp;s[..i];</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>字符串字面量就是slice</strong></p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> s = <span class="string">"Hello World!"</span>;</span><br></pre></td></tr></table></figure>
+
+<p>这里的<code>s</code>的类型就是<code>&amp;str</code>：指向二进制程序特定位置的slice。</p>
+<p><strong>其他类型的slice</strong></p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> a = [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>];</span><br><span class="line"><span class="keyword">let</span> slice = &amp;a[<span class="number">1</span>..<span class="number">3</span>];</span><br></pre></td></tr></table></figure>
+
+<h2 id="枚举与模式匹配"><a href="#枚举与模式匹配" class="headerlink" title="枚举与模式匹配"></a>枚举与模式匹配</h2><h2 id="常见集合"><a href="#常见集合" class="headerlink" title="常见集合"></a>常见集合</h2><h2 id="错误处理"><a href="#错误处理" class="headerlink" title="错误处理"></a>错误处理</h2>
       
     </div>
     
