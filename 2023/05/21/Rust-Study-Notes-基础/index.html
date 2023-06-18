@@ -79,20 +79,20 @@
 
 
 
-<meta name="description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配、常见集合和错误处理相关内容。">
+<meta name="description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配等相关内容。">
 <meta name="keywords" content="Rust">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Rust Study Notes - 基础">
 <meta property="og:url" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配、常见集合和错误处理相关内容。">
+<meta property="og:description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配等相关内容。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/Ownership.png">
-<meta property="og:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/trpl04-04.svg">
-<meta property="og:updated_time" content="2023-05-28T13:12:10.394Z">
+<meta property="og:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/move.png">
+<meta property="og:updated_time" content="2023-06-11T02:49:21.961Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Rust Study Notes - 基础">
-<meta name="twitter:description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配、常见集合和错误处理相关内容。">
+<meta name="twitter:description" content="本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配等相关内容。">
 <meta name="twitter:image" content="http://yoursite.com/2023/05/21/Rust-Study-Notes-基础/Ownership.png">
 
 
@@ -367,7 +367,7 @@
 
       
         <blockquote>
-<p>本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配、常见集合和错误处理相关内容。</p>
+<p>本文是Rust学习笔记基础篇，主要包括Rust基础概念、所有权、枚举与模式匹配等相关内容。</p>
 </blockquote>
 <a id="more"></a>
 
@@ -455,7 +455,7 @@
 <p><strong>变量与数据交互的方式一：移动</strong></p>
 <figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">fn</span> <span class="title">main</span></span>() &#123;</span><br><span class="line">    <span class="keyword">let</span> s1 = <span class="built_in">String</span>::from(<span class="string">"hello"</span>);</span><br><span class="line">    <span class="keyword">let</span> s2 = s1;</span><br><span class="line">    <span class="built_in">println!</span>(<span class="string">"&#123;&#125;, world!"</span>, s1);	<span class="comment">// 会报错，因为s1不再有效</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
-<p><img src="/2023/05/21/Rust-Study-Notes-基础/trpl04-04.svg" alt="s1 moved to s2"></p>
+<p><img src="/2023/05/21/Rust-Study-Notes-基础/move.png" alt="s1 moved to s2"></p>
 <p>结果是两个变量都绑定到同一块内存数据。且s1不再有效！</p>
 <p><strong>变量与数据交互的方式二：克隆</strong></p>
 <figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> s1 = <span class="built_in">String</span>::from(<span class="string">"hello"</span>);</span><br><span class="line"><span class="keyword">let</span> s2 = s1.clone();</span><br><span class="line"></span><br><span class="line"><span class="built_in">println!</span>(<span class="string">"s1 = &#123;&#125;, s2 = &#123;&#125;"</span>, s1, s2);	<span class="comment">// 不会报错</span></span><br></pre></td></tr></table></figure>
@@ -610,6 +610,10 @@
 
           <div class="post-nav-prev post-nav-item">
             
+              <a href="/2023/06/18/Coredump文件分析/" rel="prev" title="Coredump文件分析">
+                Coredump文件分析 <i class="fa fa-chevron-right"></i>
+              </a>
+            
           </div>
         </div>
       
@@ -687,7 +691,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">28</span>
+                  <span class="site-state-item-count">29</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
