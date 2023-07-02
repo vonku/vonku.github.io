@@ -86,17 +86,17 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文记录Linux驱动开发中环境记录相关的一些内容。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet1.png">
-<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet2.png">
-<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet3.png">
-<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet4.png">
-<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet5.png">
-<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet6.png">
-<meta property="og:updated_time" content="2023-07-02T15:56:26.943Z">
+<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/net1.png">
+<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/net2.png">
+<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/net3.png">
+<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/net4.png">
+<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/net5.png">
+<meta property="og:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/net6.png">
+<meta property="og:updated_time" content="2023-07-02T16:03:34.282Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="LDD-环境搭建记录">
 <meta name="twitter:description" content="本文记录Linux驱动开发中环境记录相关的一些内容。">
-<meta name="twitter:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet1.png">
+<meta name="twitter:image" content="http://yoursite.com/2023/07/02/LDD-环境搭建记录/net1.png">
 
 
 
@@ -376,18 +376,18 @@
 
 <h3 id="网络环境搭建"><a href="#网络环境搭建" class="headerlink" title="网络环境搭建"></a>网络环境搭建</h3><p>本节介绍如何搭建开发板、windows、virtualbox ubuntu虚拟机的网络环境，使得它们之间可以互相访问，且ubuntu可以上网。</p>
 <h4 id="设置virtualbox网卡"><a href="#设置virtualbox网卡" class="headerlink" title="设置virtualbox网卡"></a>设置virtualbox网卡</h4><p>（1）添加网卡1，用NAT方式让主机通过网络地址转换到虚拟机，用来实现虚拟机访问外网</p>
-<p><img src="/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet1.png" alt="net1"></p>
+<p><img src="/2023/07/02/LDD-环境搭建记录/net1.png" alt="net1"></p>
 <p>（2）添加网卡2（桥接）</p>
 <p>主要是用来让虚拟机通过有限网卡和主机、甚至与开发板互相ping通，传输文件。</p>
-<p><img src="/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet2.png" alt="net1"></p>
+<p><img src="/2023/07/02/LDD-环境搭建记录/net2.png" alt="net1"></p>
 <h4 id="配置windows和虚拟机"><a href="#配置windows和虚拟机" class="headerlink" title="配置windows和虚拟机"></a>配置windows和虚拟机</h4><p>（1）设置windows网卡</p>
 <p>我们设置windows 有线网卡的ip地址，这里有线网卡设置为192.168.56.103</p>
-<p><img src="/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet3.png" alt="net1"></p>
-<p><img src="/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet4.png" alt="net1"></p>
+<p><img src="/2023/07/02/LDD-环境搭建记录/net3.png" alt="net1"></p>
+<p><img src="/2023/07/02/LDD-环境搭建记录/net4.png" alt="net1"></p>
 <p>（2）设置ubuntu下的网卡地址：</p>
 <p>要是同一个网段，这里设置为192.168.56.101</p>
-<p><img src="/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet5.png" alt="net1"></p>
-<p><img src="/2023/07/02/LDD-环境搭建记录/.%5CLDD-%E7%8E%AF%E5%A2%83%E6%90%AD%E5%BB%BA%E8%AE%B0%E5%BD%95%5Cnet6.png" alt="net1"></p>
+<p><img src="/2023/07/02/LDD-环境搭建记录/net5.png" alt="net1"></p>
+<p><img src="/2023/07/02/LDD-环境搭建记录/net6.png" alt="net1"></p>
 <p>由于ubuntu的虚拟网卡2本身就是设置的桥接网卡，且ubuntu的ip地址和windows有线网卡是同一个网段，所以它们之间互相可以ping通。</p>
 <p>这样，windows和ubuntu虚拟机就可以互相ping通，且ubuntu也能上外网了。</p>
 <h4 id="设置开发板"><a href="#设置开发板" class="headerlink" title="设置开发板"></a>设置开发板</h4><p>前面我们已经把windows有线网卡和ubuntu设置好了，开发板只要和windows直连，然后设置成同一个网段，就可以了。这里设置为192.168.56.102</p>
