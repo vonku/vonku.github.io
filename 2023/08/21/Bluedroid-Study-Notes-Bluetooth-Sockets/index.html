@@ -79,12 +79,12 @@
 
 
 
-<meta name="description" content="Overview网络上的两个程序通过一个双向的通信连接实现数据的交互，这个连接的一端称为一个socket。蓝牙同样可以使用socket来实现客户端和服务器程序。 BluetoothSocket 蓝牙 sockets与TCP sockets类似。在服务端，使用BluetoothServerSocket创建一个监听的server socket。当accept一个新的连接时，会返回一个新的Bluetoo">
+<meta name="description" content="本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Bluedroid-Study-Notes-Bluetooth Sockets">
 <meta property="og:url" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="Overview网络上的两个程序通过一个双向的通信连接实现数据的交互，这个连接的一端称为一个socket。蓝牙同样可以使用socket来实现客户端和服务器程序。 BluetoothSocket 蓝牙 sockets与TCP sockets类似。在服务端，使用BluetoothServerSocket创建一个监听的server socket。当accept一个新的连接时，会返回一个新的Bluetoo">
+<meta property="og:description" content="本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。">
 <meta property="og:locale" content="zh-Hans">
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C1.png">
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C3.png">
@@ -94,10 +94,10 @@
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C5.png">
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C4.png">
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C7.png">
-<meta property="og:updated_time" content="2023-08-21T15:41:40.701Z">
+<meta property="og:updated_time" content="2023-08-21T15:51:16.914Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Bluedroid-Study-Notes-Bluetooth Sockets">
-<meta name="twitter:description" content="Overview网络上的两个程序通过一个双向的通信连接实现数据的交互，这个连接的一端称为一个socket。蓝牙同样可以使用socket来实现客户端和服务器程序。 BluetoothSocket 蓝牙 sockets与TCP sockets类似。在服务端，使用BluetoothServerSocket创建一个监听的server socket。当accept一个新的连接时，会返回一个新的Bluetoo">
+<meta name="twitter:description" content="本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。">
 <meta name="twitter:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C1.png">
 
 
@@ -371,7 +371,12 @@
       
 
       
-        <h2 id="Overview"><a href="#Overview" class="headerlink" title="Overview"></a>Overview</h2><p>网络上的两个程序通过一个双向的通信连接实现数据的交互，这个连接的一端称为一个socket。蓝牙同样可以使用socket来实现客户端和服务器程序。</p>
+        <blockquote>
+<p>本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="Overview"><a href="#Overview" class="headerlink" title="Overview"></a>Overview</h2><p>网络上的两个程序通过一个双向的通信连接实现数据的交互，这个连接的一端称为一个socket。蓝牙同样可以使用socket来实现客户端和服务器程序。</p>
 <p><strong>BluetoothSocket</strong></p>
 <p>蓝牙 sockets与TCP sockets类似。在服务端，使用<code>BluetoothServerSocket</code>创建一个监听的server socket。当accept一个新的连接时，会返回一个新的<code>BluetooothSocket</code>来管理连接。</p>
 <p>在客户端，使用一个单独的<code>BluetoothSocket</code>来发起连接和管理连接。</p>

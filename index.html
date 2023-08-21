@@ -362,88 +362,16 @@
 
       
         
-          
-            <h2 id="Overview"><a href="#Overview" class="headerlink" title="Overview"></a>Overview</h2><p>网络上的两个程序通过一个双向的通信连接实现数据的交互，这个连接的一端称为一个socket。蓝牙同样可以使用socket来实现客户端和服务器程序。</p>
-<p><strong>BluetoothSocket</strong></p>
-<p>蓝牙 sockets与TCP sockets类似。在服务端，使用<code>BluetoothServerSocket</code>创建一个监听的server socket。当accept一个新的连接时，会返回一个新的<code>BluetooothSocket</code>来管理连接。</p>
-<p>在客户端，使用一个单独的<code>BluetoothSocket</code>来发起连接和管理连接。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Notes：server有两个socket，一个用于监听连接，一个用于管理新建立的连接。而client只有一个单独的socket发起和管理连接。</span><br></pre></td></tr></table></figure>
-
-<p><strong>btif_sock</strong></p>
-<p>java层的 socket 和 native 层的交互关系是：安卓应用在java层通过系统 API 进行socket 控制和通信，java 层通过 jni 访问蓝牙 native 层的接口。java 和 native 之间通过一组 socketpair 的 fd 来完成通道的控制和数据的通信。</p>
-<p>蓝牙有三种类型：rfcomm socket，L2CAP socket，以及sco socket。这三种类型在java 层和 native 层是一一对应的。</p>
-<p><strong>RFCOMM</strong></p>
-<p>最常用的Bluetoth socket是RFCOMM，RFCOMM是蓝牙面向连接的流式传输，也就是我们常说的Serial Port Profile (SPP)。RFCOMM的底层是L2CAP。</p>
-<p><strong>L2CAP</strong></p>
-<p>L2CAP是蓝牙的逻辑链路控制和适配协议，它提供协议信道复用、分段与重组、信道流控和差错控制。</p>
-<p>l2cap socket是不经过rfcomm的socket，直接借助l2cap完成数据通信。l2cap socket 通常也称为 Connection-Oriented Channel (CoC)。</p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C1.png" alt="1"></p>
-<h2 id="BluetoothSocket"><a href="#BluetoothSocket" class="headerlink" title="BluetoothSocket"></a>BluetoothSocket</h2><!--本节是安卓的api介绍，可以直接跳过-->
-
-<h3 id="2-1-作为服务器连接"><a href="#2-1-作为服务器连接" class="headerlink" title="2.1 作为服务器连接"></a>2.1 作为服务器连接</h3><p><strong>创建BluetoothServerSocket</strong>，用于监听RFComm连接请求：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">BluetoothServerSocket mmServerSocket = </span><br><span class="line"> bluetoothAdapter.listenUsingRfcommWithServiceRecord(NAME, MY_UUID)</span><br></pre></td></tr></table></figure>
-
-<p><strong>监听连接请求</strong>，返回<code>BluetoothSocket</code>：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">BluetoothSocket socket = mmServerSocket.accept();  <span class="comment">// 监听连接是阻塞执行的。可以监听多个连接，也可以只监听一个连接</span></span><br><span class="line"></span><br><span class="line">mmServerSocket.close();  <span class="comment">// 最后，这个mmServerSocket，需要java层主动close，否则会造成fd泄露。</span></span><br></pre></td></tr></table></figure>
-
-<p><strong>管理连接</strong>：</p>
-<p>通常，会创建一个ConnectedThread来管理新的连接。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 获取输入输出stream</span></span><br><span class="line">InputStream mmInStream = mmSocket.getInputStream();</span><br><span class="line">OutputStream mmOutStream = mmSocket.getOutputStream();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 读取数据</span></span><br><span class="line"><span class="keyword">byte</span>[] mmBuffer = <span class="keyword">new</span> <span class="keyword">byte</span>[<span class="number">1024</span>];</span><br><span class="line"><span class="keyword">int</span> numBytes = mmInStream.read(mmBuffer);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 发送数据</span></span><br><span class="line">mmOutStream.write(bytes);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 关闭socket</span></span><br><span class="line">mmSocket.close();</span><br></pre></td></tr></table></figure>
-
-<h3 id="2-2-作为客户端连接"><a href="#2-2-作为客户端连接" class="headerlink" title="2.2 作为客户端连接"></a>2.2 作为客户端连接</h3><p>如果远程设备在开放服务器套接字上接受连接，则为了发起与此设备的连接，必须首先获取表示该远程设备的<code>BluetoothDevice</code>对象。然后使用<code>BluetoothDevice</code>来获取<code>BluetoothSocket</code>并发起连接。</p>
-<p><strong>查询已配对设备</strong>：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Set&lt;BluetoothDevice&gt; pairedDevices = bluetoothAdapter.getBondedDevices()；</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (pairedDevices.size() &gt; <span class="number">0</span>) &#123;</span><br><span class="line"> <span class="keyword">for</span> (BluetoothDevice device : pairedDevices) &#123;</span><br><span class="line">     String deviceName = device.getName();</span><br><span class="line">     String deviceHardwareAddress = device.getAddress();</span><br><span class="line"> &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>发现设备</strong>：</p>
-<p>调用<code>startDiscovery()</code> 这个异步操作可以发起扫描，约12s。</p>
-<p>应用需要针对<code>ACTION_FOUND</code> Intent 注册一个 BroadcastReceiver，以便接受每台设备发现的设备的相关信息。系统会为每台设备广播此 Intent。</p>
-<p>Intent 包含额外字段<code>EXTRA_DEVICE</code>和<code>EXTRA_CLASS</code>，两者分别包含<code>BluetoothDevice</code>和<code>BluetoothClass</code>。</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">onCreate</span><span class="params">(Bundle savedInstanceState)</span> </span>&#123;</span><br><span class="line"> ...</span><br><span class="line"></span><br><span class="line"> <span class="comment">// 注册广播</span></span><br><span class="line"> IntentFilter filter = <span class="keyword">new</span> IntentFilter(BluetoothDevice.ACTION_FOUND);</span><br><span class="line"> registerReceiver(receiver, filter);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 创建广播接收器</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> BroadcastReceiver receiver = <span class="keyword">new</span> BroadcastReceiver() &#123;</span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onReceive</span><span class="params">(Context context, Intent intent)</span> </span>&#123;</span><br><span class="line">     String action = intent.getAction();</span><br><span class="line">     <span class="keyword">if</span> (BluetoothDevice.ACTION_FOUND.equals(action)) &#123;</span><br><span class="line">         <span class="comment">// 获取发现的设备</span></span><br><span class="line">         BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);</span><br><span class="line">         String deviceName = device.getName();</span><br><span class="line">         String deviceHardwareAddress = device.getAddress(); <span class="comment">// MAC address</span></span><br><span class="line">     &#125;</span><br><span class="line"> &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
-
-<p><strong>发起蓝牙连接</strong>：</p>
-<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">BluetoothSocket device;  <span class="comment">// 远端设备</span></span><br><span class="line">BluetoothSocket mmSocket = device.createRfcommSocketToServiceRecord(MY_UUID); <span class="comment">// 获取BluetoothSocket</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 取消扫描</span></span><br><span class="line">bluetoothAdapter.cancelDiscovery();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 发起连接</span></span><br><span class="line">mmSocket.connect();</span><br><span class="line"></span><br><span class="line"><span class="comment">// 关闭连接</span></span><br><span class="line">mmSocket.close();</span><br></pre></td></tr></table></figure>
-
-<h2 id="btif-sock"><a href="#btif-sock" class="headerlink" title="btif_sock"></a>btif_sock</h2><p>本节介绍btif socket的工作机制，主要目的是弄清楚java层是怎么和native层进行交互的。</p>
-<h3 id="3-1-btif-sock-thread"><a href="#3-1-btif-sock-thread" class="headerlink" title="3.1 btif_sock_thread"></a>3.1 btif_sock_thread</h3><p>btif_sock_thread 的实现主要是创建一个线程，监听和管理 fd 事件，并回调分发给对应的 rfcomm socket 或 l2cap socket 处理。它的实现比较琐碎，这里提炼一些要点如下：</p>
-<ul>
-<li><code>btif_sock_init(</code> 初始化时，会创建一个pthread 线程，轮询监听 fd 的事件，完成对 socket 的数据读写和生命周期控制。</li>
-<li>线程的routine为<code>sock_poll_thread()</code>。它是一个无限循环，每一次都重新准备 pfds[] 数组，监听要 poll 的 fd。当 <code>poll()</code>被唤醒时，根据 pfds 返回的 revents，处理对应的 cmd 或者 data 事件。</li>
-<li>cmd fd 总是第一个fd，也就是 pfds[0]。在 cmd sock 的处理函数中，会处理 CMD_ADD_FD, CMD_REMOVE_FD, CMD_WAKEUP, CMD_USER_PRIVATE, CMD_EXIT 这些事件。</li>
-<li>data fd 则回调给 <code>btsock_signaled()</code>函数，由 rfcomm 或 l2cap 的 signaled 函数处理。</li>
-<li>由于 poll 的 struct pollfd 没法带更多的与 fd 关联的数据，因此 btif_sock_thread的实现中，定义了一个thread_slot_t的静态数组，通过 fd 和 poll struct 关联，绑定了 user_id，flags，types等用户数据。</li>
-</ul>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C3.png" alt></p>
-<h3 id="3-2-btif-sock-rfc"><a href="#3-2-btif-sock-rfc" class="headerlink" title="3.2 btif_sock_rfc"></a>3.2 btif_sock_rfc</h3><p>Bluetooth sockets 作为server的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C6.png" alt="6"><br>Bluetooth sockets 作为client的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C8.png" alt="8"></p>
-<h3 id="3-3-fd-的流转"><a href="#3-3-fd-的流转" class="headerlink" title="3.3 fd 的流转"></a>3.3 fd 的流转</h3><p>client的流程比较简单，一个连接只有一组fd。但是server是支持多个连接的，所以它有多组fd。那么 java 层和 btif 层以及协议栈更底层的实现，这些连接又是怎么进行关联管理以及数据收发的呢？</p>
-<p><strong>server listen</strong></p>
-<p>第一步，app 监听连接，native 层通过socketpair创建一组 fd，其中 app_fd 会返回给 java 层。这个 app_fd 会跟 java 层的 BluetoothServerSocket 关联。</p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C2.png" alt="2"><br><strong>server open</strong></p>
-<p>第二步，client 来连接 server，server accept 一个连接。</p>
-<p>新建立一个连接，btif_sock_rfc 会创建一个 accept slot。新的 accept slot 创建一组新的 socket pair，然后把新的app_fd，通过 sock_connect_signal_t 消息由 srv_slot 的 fd 返回给 java app。</p>
-<p>接着，accept_slot 绑定 bta 返回的 open_handle 和 open_handle 对应的 port handle。</p>
-<p>而 srv_slot  则绑定 bta 返回的 new_listen_handle 以及对应的 port handle。</p>
-<p>最后这两个 slot 交换 id。 </p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C5.png" alt="5"></p>
-<p>看到这里，我们不禁疑惑，为何要这样设置？搞这么复杂的目的是什么？– 答案是为了支持多个 client 连接。</p>
-<p>我们先看下，只有一个连接时，上面的 slot 是怎么发数据的：</p>
-<ol>
-<li><p>java 通过 accept_slot 的 app_fd 写数据</p>
-</li>
-<li><p>native 的 poll thread 监听到读事件</p>
-</li>
-<li><p>fd 和 id 关联，找到 accept_slot</p>
-</li>
-<li><p>通过 accept_slot -&gt; rfc_handle 写 rfcomm 数据</p>
-</li>
-</ol>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C4.png" alt="4"></p>
-<p>可以看到，最终效果是，java的第一个BluetoothSocket的fd 和 accept_slot 关联，最终通过第一个连接时 bta 返回的 open_handle 来读写数据。</p>
-<p>第三步，后续连接建立。</p>
-<p>后续连接，继续交换 slot id，app 通过 app_fd，找到accept_slot，再找到连接时 bta 返回的open_handle 发数据，handle 和 slot 每建立一个连接，就进行一次偏移。</p>
-<p>依赖这种机制，slot id 依次增加，srv_slot 的 fd 总是和 java 的 BluetoothServerSocket 关联，而 accept_slot 的 fd 总是和新连接返回的 BluetoothSocket 关联，发数据的 rfc_handle 以及用于流控的 port_handle，也是 bta 建立连接时返回的正确的 handle。 </p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C7.png" alt="7"></p>
-
-          
+          <blockquote>
+<p>本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。</p>
+</blockquote>
+          <!--noindex-->
+          <div class="post-button text-center">
+            <a class="btn" href="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/#more" rel="contents">
+              阅读全文 &raquo;
+            </a>
+          </div>
+          <!--/noindex-->
         
       
     </div>
