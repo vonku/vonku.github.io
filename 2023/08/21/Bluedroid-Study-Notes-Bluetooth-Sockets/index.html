@@ -86,19 +86,19 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C1.png">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C3.png">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C6.png">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C8.png">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C2.png">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C5.png">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C4.png">
-<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C7.png">
-<meta property="og:updated_time" content="2023-08-21T15:51:16.914Z">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/1.png">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/3.png">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/6.png">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/8.png">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/2.png">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/5.png">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/4.png">
+<meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/7.png">
+<meta property="og:updated_time" content="2023-08-21T15:55:41.858Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Bluedroid-Study-Notes-Bluetooth Sockets">
 <meta name="twitter:description" content="本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。">
-<meta name="twitter:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C1.png">
+<meta name="twitter:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/1.png">
 
 
 
@@ -390,7 +390,7 @@
 <p><strong>L2CAP</strong></p>
 <p>L2CAP是蓝牙的逻辑链路控制和适配协议，它提供协议信道复用、分段与重组、信道流控和差错控制。</p>
 <p>l2cap socket是不经过rfcomm的socket，直接借助l2cap完成数据通信。l2cap socket 通常也称为 Connection-Oriented Channel (CoC)。</p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C1.png" alt="1"></p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/1.png" alt="1"></p>
 <h2 id="BluetoothSocket"><a href="#BluetoothSocket" class="headerlink" title="BluetoothSocket"></a>BluetoothSocket</h2><!--本节是安卓的api介绍，可以直接跳过-->
 
 <h3 id="2-1-作为服务器连接"><a href="#2-1-作为服务器连接" class="headerlink" title="2.1 作为服务器连接"></a>2.1 作为服务器连接</h3><p><strong>创建BluetoothServerSocket</strong>，用于监听RFComm连接请求：</p>
@@ -425,18 +425,18 @@
 <li>data fd 则回调给 <code>btsock_signaled()</code>函数，由 rfcomm 或 l2cap 的 signaled 函数处理。</li>
 <li>由于 poll 的 struct pollfd 没法带更多的与 fd 关联的数据，因此 btif_sock_thread的实现中，定义了一个thread_slot_t的静态数组，通过 fd 和 poll struct 关联，绑定了 user_id，flags，types等用户数据。</li>
 </ul>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C3.png" alt></p>
-<h3 id="3-2-btif-sock-rfc"><a href="#3-2-btif-sock-rfc" class="headerlink" title="3.2 btif_sock_rfc"></a>3.2 btif_sock_rfc</h3><p>Bluetooth sockets 作为server的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C6.png" alt="6"><br>Bluetooth sockets 作为client的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C8.png" alt="8"></p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/3.png" alt></p>
+<h3 id="3-2-btif-sock-rfc"><a href="#3-2-btif-sock-rfc" class="headerlink" title="3.2 btif_sock_rfc"></a>3.2 btif_sock_rfc</h3><p>Bluetooth sockets 作为server的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/6.png" alt="6"><br>Bluetooth sockets 作为client的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/8.png" alt="8"></p>
 <h3 id="3-3-fd-的流转"><a href="#3-3-fd-的流转" class="headerlink" title="3.3 fd 的流转"></a>3.3 fd 的流转</h3><p>client的流程比较简单，一个连接只有一组fd。但是server是支持多个连接的，所以它有多组fd。那么 java 层和 btif 层以及协议栈更底层的实现，这些连接又是怎么进行关联管理以及数据收发的呢？</p>
 <p><strong>server listen</strong></p>
 <p>第一步，app 监听连接，native 层通过socketpair创建一组 fd，其中 app_fd 会返回给 java 层。这个 app_fd 会跟 java 层的 BluetoothServerSocket 关联。</p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C2.png" alt="2"><br><strong>server open</strong></p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/2.png" alt="2"><br><strong>server open</strong></p>
 <p>第二步，client 来连接 server，server accept 一个连接。</p>
 <p>新建立一个连接，btif_sock_rfc 会创建一个 accept slot。新的 accept slot 创建一组新的 socket pair，然后把新的app_fd，通过 sock_connect_signal_t 消息由 srv_slot 的 fd 返回给 java app。</p>
 <p>接着，accept_slot 绑定 bta 返回的 open_handle 和 open_handle 对应的 port handle。</p>
 <p>而 srv_slot  则绑定 bta 返回的 new_listen_handle 以及对应的 port handle。</p>
 <p>最后这两个 slot 交换 id。 </p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C5.png" alt="5"></p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/5.png" alt="5"></p>
 <p>看到这里，我们不禁疑惑，为何要这样设置？搞这么复杂的目的是什么？– 答案是为了支持多个 client 连接。</p>
 <p>我们先看下，只有一个连接时，上面的 slot 是怎么发数据的：</p>
 <ol>
@@ -449,12 +449,12 @@
 <li><p>通过 accept_slot -&gt; rfc_handle 写 rfcomm 数据</p>
 </li>
 </ol>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C4.png" alt="4"></p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/4.png" alt="4"></p>
 <p>可以看到，最终效果是，java的第一个BluetoothSocket的fd 和 accept_slot 关联，最终通过第一个连接时 bta 返回的 open_handle 来读写数据。</p>
 <p>第三步，后续连接建立。</p>
 <p>后续连接，继续交换 slot id，app 通过 app_fd，找到accept_slot，再找到连接时 bta 返回的open_handle 发数据，handle 和 slot 每建立一个连接，就进行一次偏移。</p>
 <p>依赖这种机制，slot id 依次增加，srv_slot 的 fd 总是和 java 的 BluetoothServerSocket 关联，而 accept_slot 的 fd 总是和新连接返回的 BluetoothSocket 关联，发数据的 rfc_handle 以及用于流控的 port_handle，也是 bta 建立连接时返回的正确的 handle。 </p>
-<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/.%5CBluedroid-Study-Notes-Bluetooth-Sockets%5C7.png" alt="7"></p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/7.png" alt="7"></p>
 
       
     </div>
