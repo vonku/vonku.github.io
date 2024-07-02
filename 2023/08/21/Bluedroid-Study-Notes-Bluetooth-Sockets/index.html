@@ -94,7 +94,7 @@
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/5.png">
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/4.png">
 <meta property="og:image" content="http://yoursite.com/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/7.png">
-<meta property="og:updated_time" content="2023-08-21T15:55:41.858Z">
+<meta property="og:updated_time" content="2023-08-21T15:57:33.534Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Bluedroid-Study-Notes-Bluetooth Sockets">
 <meta name="twitter:description" content="本文介绍蓝牙socket的实现，主要是btif上层的部分，屏蔽了对stack和l2cap的细节。">
@@ -426,7 +426,9 @@
 <li>由于 poll 的 struct pollfd 没法带更多的与 fd 关联的数据，因此 btif_sock_thread的实现中，定义了一个thread_slot_t的静态数组，通过 fd 和 poll struct 关联，绑定了 user_id，flags，types等用户数据。</li>
 </ul>
 <p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/3.png" alt></p>
-<h3 id="3-2-btif-sock-rfc"><a href="#3-2-btif-sock-rfc" class="headerlink" title="3.2 btif_sock_rfc"></a>3.2 btif_sock_rfc</h3><p>Bluetooth sockets 作为server的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/6.png" alt="6"><br>Bluetooth sockets 作为client的启动和连接流程图如下：<br><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/8.png" alt="8"></p>
+<h3 id="3-2-btif-sock-rfc"><a href="#3-2-btif-sock-rfc" class="headerlink" title="3.2 btif_sock_rfc"></a>3.2 btif_sock_rfc</h3><p>Bluetooth sockets 作为server的启动和连接流程图如下：</p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/6.png" alt="6"><br>Bluetooth sockets 作为client的启动和连接流程图如下：</p>
+<p><img src="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/8.png" alt="8"></p>
 <h3 id="3-3-fd-的流转"><a href="#3-3-fd-的流转" class="headerlink" title="3.3 fd 的流转"></a>3.3 fd 的流转</h3><p>client的流程比较简单，一个连接只有一组fd。但是server是支持多个连接的，所以它有多组fd。那么 java 层和 btif 层以及协议栈更底层的实现，这些连接又是怎么进行关联管理以及数据收发的呢？</p>
 <p><strong>server listen</strong></p>
 <p>第一步，app 监听连接，native 层通过socketpair创建一组 fd，其中 app_fd 会返回给 java 层。这个 app_fd 会跟 java 层的 BluetoothServerSocket 关联。</p>
@@ -663,7 +665,7 @@
 
     <footer id="footer" class="footer">
       <div class="footer-inner">
-        <div class="copyright">&copy; <span itemprop="copyrightYear">2023</span>
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2024</span>
   <span class="with-love">
     <i class="fa fa-user"></i>
   </span>
