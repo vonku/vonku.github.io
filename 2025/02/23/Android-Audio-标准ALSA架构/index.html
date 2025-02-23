@@ -98,7 +98,7 @@
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/pcm-new.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/q6asm-dai.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/dai-prepare.jpg">
-<meta property="og:updated_time" content="2025-02-23T03:10:29.926Z">
+<meta property="og:updated_time" content="2025-02-23T03:27:42.058Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Android Audio-标准ALSA架构">
 <meta name="twitter:description" content="本文是对ALSA标准架构的总结。">
@@ -426,10 +426,10 @@
 <p>（5）kernel/include/sound</p>
 <p>ALSA所有包含的头文件。</p>
 <h2 id="2-ALSA声卡的创建"><a href="#2-ALSA声卡的创建" class="headerlink" title="2. ALSA声卡的创建"></a>2. ALSA声卡的创建</h2><h3 id="2-1-数据结构"><a href="#2-1-数据结构" class="headerlink" title="2.1 数据结构"></a>2.1 数据结构</h3><p><img src="/2025/02/23/Android-Audio-标准ALSA架构/snd-struct.jpg" alt="snd-struct"></p>
-<h3 id="2-2-声卡的建立流程"><a href="#2-2-声卡的建立流程" class="headerlink" title="2.2 声卡的建立流程"></a>2.2 声卡的建立流程</h3><p>（1）实例化声卡</p>
+<h3 id="2-2-声卡的建立流程"><a href="#2-2-声卡的建立流程" class="headerlink" title="2.2 声卡的建立流程"></a>2.2 声卡的建立流程</h3><p><strong>（1）实例化声卡</strong></p>
 <p><img src="/2025/02/23/Android-Audio-标准ALSA架构/init.jpg" alt="init"></p>
 <p>在创建声卡的时候，也创建了一个control设备组件，一般嵌入式系统中仅需要一个control设备即可。</p>
-<p>（2）创建声卡的设备组件</p>
+<p><strong>（2）创建声卡的设备组件</strong></p>
 <p>声卡实例化的时候会创建control设备，其他的还有pcm设备用于实现音频流的playback和capture。</p>
 <p><strong>pcm设备组件：snd_pcm_new()</strong></p>
 <p><strong>control设备组件：snd_ctl_create()</strong></p>
@@ -444,7 +444,7 @@
 <li><p>将snd_device挂载到声卡设备组件链表上</p>
 </li>
 </ul>
-<p>（3）注册声卡</p>
+<p><strong>（3）注册声卡</strong></p>
 <p><img src="/2025/02/23/Android-Audio-标准ALSA架构/card-register.jpg" alt="card-register"></p>
 <p><strong>小结：</strong></p>
 <ul>
@@ -503,11 +503,11 @@
 <p>要对声卡某一个功能进行控制，我们首先需要创建一个controls，然后注册进系统。现在来看下具体的controls是如何创建并注册的。</p>
 <p>先定义一个snd_kcontrol_new，然后通过函数 snd_ctl_new1() 获取一个snd_kcontrol，然后通过接口 snd_ctl_add() 就可以创建一个controls。</p>
 <ul>
-<li>snd_ctl_new1()</li>
+<li><strong>snd_ctl_new1()</strong></li>
 </ul>
 <p>动态申请一个snd_kcontrol，然后对成员赋值（把snd_kcontrol_new的数据拷贝到 snd_kcontrol中）。</p>
 <ul>
-<li>snd_ctl_add()</li>
+<li><strong>snd_ctl_add()</strong></li>
 </ul>
 <p>最核心就是把controls加到card-&gt;controls链表中。</p>
 <p>每个controls都通过 snd_ctl_elem_id进行唯一指定。</p>
@@ -537,7 +537,7 @@
 <h2 id="4-PCM设备组件"><a href="#4-PCM设备组件" class="headerlink" title="4. PCM设备组件"></a>4. PCM设备组件</h2><p>PCM设备组件主要用于实现声音的playback以及capture功能。</p>
 <h3 id="4-1-数据结构"><a href="#4-1-数据结构" class="headerlink" title="4.1 数据结构"></a>4.1 数据结构</h3><p><img src="/2025/02/23/Android-Audio-标准ALSA架构/class-pcm.jpg" alt="class-pcm"></p>
 <ul>
-<li>struct snd_pcm<ul>
+<li><strong>struct snd_pcm</strong><ul>
 <li>card 表示所属声卡</li>
 <li>device PCM设备组件号</li>
 <li>streams[2] 表示两个流：一个playback流和一个capture流</li>
@@ -546,14 +546,14 @@
 </ul>
 <p>声卡中pcm设备组件在ALSA中用此数据结构进行抽象。</p>
 <ul>
-<li><p>struct snd_pcm_str</p>
+<li><p><strong>struct snd_pcm_str</strong></p>
 <ul>
 <li>stream 表示流的方向</li>
 <li>pcm 表示流属于哪一个PCM组件</li>
 <li>subtsream 表示某一个流下面的子流</li>
 </ul>
 </li>
-<li><p>struct snd_pcm_substream</p>
+<li><p><strong>struct snd_pcm_substream</strong></p>
 <ul>
 <li><p>pcm 所属PCM设备组件</p>
 </li>
@@ -572,28 +572,28 @@
 </ul>
 <p>这个是非常重要的数据结构，表示的是一个PCM设备组件下面的某一个流的子流，它是ALSA执行PCM功能要操作的对象。</p>
 <ul>
-<li>struct snd_pcm_ops</li>
+<li><strong>struct snd_pcm_ops</strong></li>
 </ul>
 <p>这个数据结构非常重要，由自己的声卡驱动程序实现。在ALSA中，当应用空间操作PCM设备节点的时候，最终都会转换到底层这里的函数中进行。</p>
 <ul>
-<li>struct snd_pcm_runtime</li>
+<li><strong>struct snd_pcm_runtime</strong></li>
 </ul>
 <p>表示的是PCM相关的环境信息，如DMA buffer等等。它拥有 hw_params和sw_params配置拷贝，缓冲区指针，mmap记录，自旋锁等。对驱动程序操作集函数是只读的，进pcm中间层可以改变这些信息。</p>
 <ul>
-<li>const struct file_operations snd_pcm_f_ops[2]</li>
+<li><strong>const struct file_operations snd_pcm_f_ops[2]</strong></li>
 </ul>
 <p>后面会知道，每一个PCM设备组件在注册的时候会创建两个设备节点，一个是playback设备节点，一个是capture设备节点。</p>
 <p><strong>小结：</strong></p>
 <p>一个声卡下面可以有多个PCM设备组件，每一个PCM设备组件都据由唯一的设备号，每个PCM设备组件下面有两个流：playback和capture。每个流可以由多个子流组成，它是ALSA进行PCM操作最后要作用的对象。每个子流拥有一个PCM操作函数集 snd_pcm_ops，它是自己的声卡驱动要实现的函数。</p>
 <h3 id="4-2-创建PCM"><a href="#4-2-创建PCM" class="headerlink" title="4.2 创建PCM"></a>4.2 创建PCM</h3><p><img src="/2025/02/23/Android-Audio-标准ALSA架构/pcm-new.jpg" alt="pcm-new"></p>
 <ul>
-<li>snd_pcm_new()</li>
+<li><strong>snd_pcm_new()</strong></li>
 </ul>
 <p>通过snd_pcm_new()创建PCM设备组件。</p>
 <p>与control设备组件类似的，会创建一个 struct snd_device，并添加到ard-&gt;devices链表中。</p>
 <p>此外，PCM设备组件会创建两个stream。</p>
 <ul>
-<li><p>snd_pcm_new_stream()</p>
+<li><p><strong>snd_pcm_new_stream()</strong></p>
 <ul>
 <li>根据stream方向取出是playback还是capture；</li>
 <li>确定流的方向</li>
@@ -601,7 +601,7 @@
 <li>根据子流的数量，实例化子流，给子流相关的成员赋值</li>
 </ul>
 </li>
-<li><p>snd_pcm_dev_register()</p>
+<li><p><strong>snd_pcm_dev_register()</strong></p>
 </li>
 </ul>
 <p>与control设备组件类似，在new的时候传入了dev-&gt;ops，在register设备的时候会调到其注册函数 snd_pcm_dev_register()。</p>
@@ -626,24 +626,24 @@
 <p>hw_param是上层调用iotcl，参数为SNDRV_PCM_IOCTL_HW_PARAMS时调用的。</p>
 <p>prepare是上层通过ioctl，参数为SNDRV_PCM_IOCTL_PREPARE时调用的。</p>
 <ul>
-<li>open()</li>
+<li><strong>open()</strong></li>
 </ul>
 <p><img src="/2025/02/23/Android-Audio-标准ALSA架构/q6asm-dai.jpg" alt="q6asm-dai"></p>
 <p>高通sw5100平台有一个专门的ADSP，音频经过用户空间解码成PCM格式的音频流以后，通过PCM接口将其copy到内核空间的DMA区域中，接着通过DMA控制器将其传送到ADSP中。</p>
 <p>open只是做一些初始准备工作。</p>
 <ul>
-<li>hw_params()</li>
+<li><strong>hw_params()</strong></li>
 </ul>
 <p>hw_params函数为substream设定q6asm_dai_rtd中的pcm数据格式。</p>
 <ul>
-<li>prepare()</li>
+<li><strong>prepare()</strong></li>
 </ul>
 <p><img src="/2025/02/23/Android-Audio-标准ALSA架构/dai-prepare.jpg" alt="dai-prepare"></p>
 <p>可见，真正打开ADSP的session是在prepare的时候完成的。</p>
 <p>内核驱动dsp之间是通过Audio-Pkt命令来完成的。apr驱动的代码路径：</p>
 <p><code>android/kernel/msm-5.4/drivers/soc/qcom/apr.c</code></p>
 <ul>
-<li>trigger()</li>
+<li><strong>trigger()</strong></li>
 </ul>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">q6asm_dai_trigger</span><span class="params">(struct snd_pcm_substream *substream, <span class="keyword">int</span> cmd)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> ret = <span class="number">0</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_pcm_runtime</span> *<span class="title">runtime</span> = <span class="title">substream</span>-&gt;<span class="title">runtime</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">q6asm_dai_rtd</span> *<span class="title">prtd</span> = <span class="title">runtime</span>-&gt;<span class="title">private_data</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">switch</span> (cmd) &#123;</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_START:</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_RESUME:</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_PAUSE_RELEASE:</span><br><span class="line">			ret = q6asm_run_nowait(prtd-&gt;audio_client, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_STOP:</span><br><span class="line">			prtd-&gt;state = Q6ASM_STREAM_STOPPED;</span><br><span class="line">			ret = q6asm_cmd_nowait(prtd-&gt;audio_client, CMD_EOS);</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_SUSPEND:</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_PAUSE_PUSH:</span><br><span class="line">			ret = q6asm_cmd_nowait(prtd-&gt;audio_client, CMD_PAUSE);</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line"> 			ret = -EINVAL;</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
