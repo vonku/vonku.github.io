@@ -185,9 +185,9 @@ th {
 }
 body {
   position: relative;
-  font-family: 'Lato', "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: "PingFang SC", "Source Han Sans", "Roboto", sans-serif;
   font-size: 16px;
-  line-height: 1;
+  line-height: 1.5;
   color: #555;
   background: #eee;
 }
@@ -493,7 +493,7 @@ pre,
 }
 pre,
 code {
-  font-family: consolas, Menlo, "PingFang SC", "Microsoft YaHei", monospace;
+  font-family: "Fira Code", "Source Code Pro", "Consolas", monospace;
 }
 code {
   padding: 2px 4px;
@@ -1823,7 +1823,7 @@ pre .javascript .function {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #ad2b4f;
+  background: #11ff42;
 }
 .links-of-blogroll {
   font-size: 13px;
