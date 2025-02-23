@@ -1,0 +1,1298 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="本文是对ALSA ASoC架构的总结。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android Audio-标准ASoc架构">
+<meta property="og:url" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文是对ALSA ASoC架构的总结。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/platform-codec.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/asoc-data-struct.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/register-component.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/register-dai.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/machine-probe.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/widget-path.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/qcom-dai.jpg">
+<meta property="og:updated_time" content="2025-02-23T13:19:17.103Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Android Audio-标准ASoc架构">
+<meta name="twitter:description" content="本文是对ALSA ASoC架构的总结。">
+<meta name="twitter:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/platform-codec.jpg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/">
+
+
+
+
+
+  <title>Android Audio-标准ASoc架构 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Android Audio-标准ASoc架构</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2025-02-23T20:29:37+08:00">
+                2025-02-23
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Audio/" itemprop="url" rel="index">
+                    <span itemprop="name">Audio</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2025/02/23/Android-Audio-标准ASoc架构/" class="leancloud_visitors" data-flag-title="Android Audio-标准ASoc架构">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>本文是对ALSA ASoC架构的总结。</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="1-ASoC简介"><a href="#1-ASoC简介" class="headerlink" title="1. ASoC简介"></a>1. ASoC简介</h2><p>ASoC的出现是为了解决以下问题：</p>
+<ul>
+<li><p>Codec与SoC CPU的底层耦合过于紧密</p>
+</li>
+<li><p>音频事件没有标准的方法通知用户</p>
+</li>
+<li><p>当进行播放和录音时，驱动会让整个Codec上电，造成电量损耗</p>
+</li>
+</ul>
+<p>ASoC的代码：<code>kernel/sound/soc</code>。它不能单独存在，它是建立在标准ALSA驱动之上的，必须和标准的ALSA驱动模型相结合才能工作。</p>
+<h3 id="1-1-硬件架构"><a href="#1-1-硬件架构" class="headerlink" title="1.1 硬件架构"></a>1.1 硬件架构</h3><p>嵌入式系统中的音频分为三个部分组成：</p>
+<p>﻿<img src="/2025/02/23/Android-Audio-标准ASoc架构/platform-codec.jpg" alt="platform-codec"></p>
+<p>￼￼﻿</p>
+<ul>
+<li><p>Machine 主板中和音频有关的外围电路</p>
+</li>
+<li><p>SoC 嵌入式系统中的platform</p>
+</li>
+</ul>
+<p>platform 指的是嵌入式系统所使用的平台，比如高通平台、Intel平台等。与音频相关的通常包括该SoC中的时钟、DMA、I2S、PCM、Slimbus等。</p>
+<ul>
+<li>Codec</li>
+</ul>
+<p>codec 具有音频数字接口DAI，主要用于音频路径选择、增益控制以及DA/AD转换等等。</p>
+<h3 id="1-2-软件架构"><a href="#1-2-软件架构" class="headerlink" title="1.2 软件架构"></a>1.2 软件架构</h3><p>ASoC软件分为：Machine驱动、Platform驱动、codec驱动、CPU DAI驱动、codec DAI驱动。</p>
+<ul>
+<li>Machine驱动</li>
+</ul>
+<p>所有SoC和codec所需要的不是自身特性的、可以有多种实现形式的功能都应该放在machine驱动中完成。比如SoC需要的时钟、codec的GPIO等。</p>
+<ul>
+<li>platform驱动</li>
+</ul>
+<p>它包含了SoC平台的音频DMA和音频接口的配置和控制（I2S，PCM，Slimbus等）。不能包含任何与板子与机器相关的代码。</p>
+<p>如果platform中包含有ADSP，那么这一部分所需要实现的功能是将音频送到ADSP为止。因此platform驱动是实现ALSA的核心，其一般需要是实现 snd_pcm_ops。</p>
+<ul>
+<li>codec驱动</li>
+</ul>
+<p>要求codec驱动是平台无关的。它包含该codec所拥有的音频接口的配置和控制。</p>
+<ul>
+<li>CPU DAI驱动</li>
+</ul>
+<p>CPU DAI驱动主要负责 platform 端音频接口的搭建。</p>
+<ul>
+<li>codec DAI驱动</li>
+</ul>
+<p>codec DAI驱动主要负责codec端音频接口的搭建。</p>
+<h2 id="2-ASoC数据结构"><a href="#2-ASoC数据结构" class="headerlink" title="2. ASoC数据结构"></a>2. ASoC数据结构</h2><p>﻿<img src="/2025/02/23/Android-Audio-标准ASoc架构/asoc-data-struct.jpg" alt="asoc-data-struct"></p>
+<p><strong>￼￼﻿数据结构一： struct snd_soc_card</strong></p>
+<p>这个数据结构是ASoC声卡的抽象，封装了snd_card声卡。其一般定义在machine驱动中。</p>
+<ul>
+<li><p>snd_card是ALSA声卡的抽象</p>
+</li>
+<li><p>dai_link用于记录ASoC系统中所有可能的音频连接形式</p>
+</li>
+<li><p>rtd记录ASoC系统中所有可能的音频连接形式的“运行”信息。</p>
+</li>
+</ul>
+<p><strong>数据结构二：struct snd_soc_platform</strong></p>
+<p>这个数据结构用于抽象 platform。</p>
+<ul>
+<li><p>name 用于唯一标识platform</p>
+</li>
+<li><p>driver 是platform的驱动</p>
+</li>
+</ul>
+<p><strong>数据结构三：struct snd_soc_platform_driver</strong></p>
+<ul>
+<li>struct snd_pcm_ops *ops 平台的pcm操作函数</li>
+</ul>
+<p><strong>数据结构四：struct snd_soc_codec</strong></p>
+<p>这个数据结构用于抽象 codec</p>
+<ul>
+<li><p>name 用于唯一标识codec</p>
+</li>
+<li><p>driver 是该codec的驱动</p>
+</li>
+</ul>
+<p><strong>数据结构五：struct snd_soc_codec_driver</strong></p>
+<p>该数据结构用于时候codec的驱动。</p>
+<blockquote>
+<p><em>新版本中用 platform和codec都用 struct snd_soc_component代替。</em></p>
+</blockquote>
+<p><strong>数据结构六：struct snd_soc_dai</strong></p>
+<p>该数据结构是ASoC中所有dai的抽象。包含了一个DAI的运行信息。</p>
+<p><strong>数据结构七：struct snd_soc_dai_driver</strong></p>
+<p>该数据结构用于描述和DAI的驱动，实现DAI的能力</p>
+<p><strong>数据结构八：struct snd_soc_dai_link</strong></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link</span> &#123;</span></span><br><span class="line">    <span class="comment">/* config - must be set by machine driver */</span></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">char</span> *name;			<span class="comment">/* Codec name */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">const</span> <span class="keyword">char</span> *stream_name;		<span class="comment">/* Stream name */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link_component</span> *<span class="title">cpus</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> num_cpus;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link_component</span> *<span class="title">codecs</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> num_codecs;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link_component</span> *<span class="title">platforms</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> num_platforms;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">int</span> id;	<span class="comment">/* optional ID for machine driver link identification */</span></span><br><span class="line">    <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_pcm_stream</span> *<span class="title">params</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> num_params;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dai_fmt;           <span class="comment">/* format to set on init */</span></span><br><span class="line">    </span><br><span class="line">    <span class="keyword">enum</span> snd_soc_dpcm_trigger trigger[<span class="number">2</span>]; <span class="comment">/* trigger type for DPCM */</span></span><br><span class="line">    <span class="comment">/* codec/machine specific init - e.g. add machine controls */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">int</span> (*init)(struct snd_soc_pcm_runtime *rtd);</span><br><span class="line">    <span class="comment">/* optional hw_params re-writing for BE and FE sync */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">int</span> (*be_hw_params_fixup)(struct snd_soc_pcm_runtime *rtd,</span><br><span class="line">            struct snd_pcm_hw_params *params);</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* machine stream operations */</span></span><br><span class="line">    <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_ops</span> *<span class="title">ops</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_compr_ops</span> *<span class="title">compr_ops</span>;</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* Mark this pcm with non atomic ops */</span></span><br><span class="line">    <span class="keyword">bool</span> nonatomic;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* For unidirectional dai links */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> playback_only:<span class="number">1</span>;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> capture_only:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* Keep DAI active over suspend */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> ignore_suspend:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* Symmetry requirements */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> symmetric_rates:<span class="number">1</span>;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> symmetric_channels:<span class="number">1</span>;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> symmetric_samplebits:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* Do not create a PCM for this DAI link (Backend link) */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> no_pcm:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* This DAI link can route to other DAI links at runtime (Frontend)*/</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dynamic:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_AUDIO_QGKI</span></span><br><span class="line">    <span class="comment">/* This DAI link can be reconfigured at runtime (Backend) */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dynamic_be:<span class="number">1</span>;</span><br><span class="line">    <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">/*</span></span><br><span class="line"><span class="comment">     * This DAI can support no host IO (no pcm data is</span></span><br><span class="line"><span class="comment">     * copied to from host)</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> no_host_mode:<span class="number">2</span>;</span><br><span class="line">    <span class="comment">/* DPCM capture and Playback support */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dpcm_capture:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dpcm_playback:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* DPCM used FE &amp; BE merged format */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dpcm_merged_format:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* DPCM used FE &amp; BE merged channel */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dpcm_merged_chan:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* DPCM used FE &amp; BE merged rate */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> dpcm_merged_rate:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* pmdown_time is ignored at stop */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> ignore_pmdown_time:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">/* Do not create a PCM for this DAI link (Backend link) */</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> ignore:<span class="number">1</span>;</span><br><span class="line">    </span><br><span class="line">    </span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span> <span class="comment">/* DAI link list of the soc card */</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dobj</span> <span class="title">dobj</span>;</span> <span class="comment">/* For topology */</span></span><br><span class="line">    <span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_AUDIO_QGKI</span></span><br><span class="line">    <span class="comment">/* this value determines what all ops can be started asynchronously */</span></span><br><span class="line">    <span class="keyword">enum</span> snd_soc_async_ops async_ops;</span><br><span class="line">    <span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这个数据结构非常重要，一般在machine驱动中定义。表示DAI所连接的内容，也就是描述了所采用的音频硬件系统中的某一种音频硬件连接形式的软件表示。</p>
+<p><strong>codec_name</strong> 用于表示系统中所采用的codec；</p>
+<p><strong>platform_name</strong> 表示系统中所采用的platform；</p>
+<p><strong>cpu_dai_name</strong> 表示系统中所采用的 CPU DAI；</p>
+<p><strong>codec_dai_name</strong> 表示系统各种所采用的 codec DAI。</p>
+<p><strong>数据结构九：struct snd_soc_pcm_runtime</strong></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_pcm_runtime</span> &#123;</span></span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">device</span> *<span class="title">dev</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_card</span> *<span class="title">card</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link</span> *<span class="title">dai_link</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_pcm_ops</span> <span class="title">ops</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">unsigned</span> <span class="keyword">int</span> params_select; <span class="comment">/* currently selected param for dai link */</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* Dynamic PCM BE runtime data */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dpcm_runtime</span> <span class="title">dpcm</span>[2];</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">long</span> pmdown_time;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_AUDIO_QGKI</span></span><br><span class="line">	<span class="comment">/* err in case of ops failed */</span></span><br><span class="line">	<span class="keyword">int</span> err_ops;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* runtime devices */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_pcm</span> *<span class="title">pcm</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_compr</span> *<span class="title">compr</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai</span> *<span class="title">codec_dai</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai</span> *<span class="title">cpu_dai</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai</span> **<span class="title">codec_dais</span>;</span></span><br><span class="line">	<span class="keyword">unsigned</span> <span class="keyword">int</span> num_codecs;</span><br><span class="line"></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">delayed_work</span> <span class="title">delayed_work</span>;</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_DEBUG_FS</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">dentry</span> *<span class="title">debugfs_dpcm_root</span>;</span></span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">unsigned</span> <span class="keyword">int</span> num; <span class="comment">/* 0-based and monotonic increasing */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span> <span class="comment">/* rtd list of the soc card */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">component_list</span>;</span> <span class="comment">/* list of connected components */</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* bit field */</span></span><br><span class="line">	<span class="keyword">unsigned</span> <span class="keyword">int</span> dev_registered:<span class="number">1</span>;</span><br><span class="line">	<span class="keyword">unsigned</span> <span class="keyword">int</span> pop_wait:<span class="number">1</span>;</span><br><span class="line">	<span class="keyword">unsigned</span> <span class="keyword">int</span> fe_compr:<span class="number">1</span>; <span class="comment">/* for Dynamic PCM */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这个也是一个非常重要的数据结构。它表示和SoC machine DAI的配置，把一个codec和cpu DAI粘连到一起。它记录了由<strong>snd_soc_dai_link</strong>指定的<strong>某一种</strong>音频系统硬件连接形式的信息。</p>
+<h2 id="3-ASoC的软件架构"><a href="#3-ASoC的软件架构" class="headerlink" title="3. ASoC的软件架构"></a>3. ASoC的软件架构</h2><h3 id="3-1-component的注册"><a href="#3-1-component的注册" class="headerlink" title="3.1 component的注册"></a>3.1 component的注册</h3><p>﻿<img src="/2025/02/23/Android-Audio-标准ASoc架构/register-component.jpg" alt="register-component"></p>
+<p>根据分析这个函数主要完成了如下工作：</p>
+<ul>
+<li><p>实例化一个component</p>
+</li>
+<li><p>对component进行初始化：初始化它的链表、格式化名字、参数赋值等</p>
+</li>
+<li><p>注册component的dais到系统中（稍后分析）</p>
+</li>
+<li><p>添加component到全局的component_list中</p>
+</li>
+<li><p>尝试重新bind之前unbind的card</p>
+</li>
+</ul>
+<h3 id="3-2-dai的注册"><a href="#3-2-dai的注册" class="headerlink" title="3.2 dai的注册"></a>3.2 dai的注册</h3><p>ASoC的dai并不区分cpu dai还是 codec dai，主要是根据dai_link中的cpu_dai_name和codec_dai_name来确定一个DAI是cpu_dai还是codec_dai。</p>
+<p>﻿<img src="/2025/02/23/Android-Audio-标准ASoc架构/register-dai.jpg" alt="register-dai"></p>
+<p>￼￼﻿</p>
+<p><strong>小结：</strong></p>
+<ul>
+<li><p>component和dai的注册都会实例化一个相应的实体</p>
+</li>
+<li><p>name标识它们的唯一实体</p>
+</li>
+<li><p>component和dai都会指定相应的driver，这个driver是相应驱动的实现</p>
+</li>
+<li><p>component和dai的注册都会挂载到相应的全局数据链表上</p>
+</li>
+<li><p>component和dai的注册都会调用 snd_soc_instantiate_cards重新构建ASoC声卡</p>
+</li>
+<li><p>cpu dai和codec dai注册用的是相同的接口，根据dai的name，结合dai_link中给定的 cpu_dai_name和codec_dai_name来确定该dai的类型。</p>
+</li>
+</ul>
+<h3 id="3-3-ASoC声卡的创建"><a href="#3-3-ASoC声卡的创建" class="headerlink" title="3.3 ASoC声卡的创建"></a>3.3 ASoC声卡的创建</h3><p>一般在machin驱动中定义snd_soc_card并指定音频系统中所有可能的dai_link。</p>
+<p>高通的dai link是在machine driver的probe中创建card，然后把dai link赋给card的。</p>
+<p>我们一般在代码的dai link中看不到dai name的定义，因为这被放到设备树中定义了，通过解析设备树来实现audio routing。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link</span> <span class="title">msm_mi2s_be_dai_links</span>[] = &#123;</span></span><br><span class="line">	<span class="comment">// bt</span></span><br><span class="line">    &#123;</span><br><span class="line">        .name = LPASS_BE_SEC_MI2S_RX,</span><br><span class="line">        .stream_name = LPASS_BE_SEC_MI2S_RX,</span><br><span class="line">        .playback_only = <span class="number">1</span>,</span><br><span class="line">        .trigger = &#123;SND_SOC_DPCM_TRIGGER_POST,</span><br><span class="line">            		SND_SOC_DPCM_TRIGGER_POST&#125;,</span><br><span class="line">        .ops = &amp;msm_common_be_ops,</span><br><span class="line">        .ignore_suspend = <span class="number">1</span>,</span><br><span class="line">        .ignore_pmdown_time = <span class="number">1</span>,</span><br><span class="line">        SND_SOC_DAILINK_REG(sec_mi2s_rx),</span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        .name = LPASS_BE_SEC_MI2S_TX,</span><br><span class="line">        .stream_name = LPASS_BE_SEC_MI2S_TX,</span><br><span class="line">        .capture_only = <span class="number">1</span>,</span><br><span class="line">        .trigger = &#123;SND_SOC_DPCM_TRIGGER_POST,</span><br><span class="line">            		SND_SOC_DPCM_TRIGGER_POST&#125;,</span><br><span class="line">        .ops = &amp;msm_common_be_ops,</span><br><span class="line">        .ignore_suspend = <span class="number">1</span>,</span><br><span class="line">        SND_SOC_DAILINK_REG(sec_mi2s_tx),</span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="comment">// smartPA</span></span><br><span class="line">    &#123;</span><br><span class="line">        .name = LPASS_BE_TERT_MI2S_RX,</span><br><span class="line">        .stream_name = LPASS_BE_TERT_MI2S_RX,</span><br><span class="line">        .playback_only = <span class="number">1</span>,</span><br><span class="line">        .trigger = &#123;SND_SOC_DPCM_TRIGGER_POST,</span><br><span class="line">            		SND_SOC_DPCM_TRIGGER_POST&#125;,</span><br><span class="line">        .ops = &amp;msm_common_be_ops,</span><br><span class="line">        .ignore_suspend = <span class="number">1</span>,</span><br><span class="line">        .ignore_pmdown_time = <span class="number">1</span>,</span><br><span class="line">        SND_SOC_DAILINK_REG(tert_mi2s_rx),</span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">        .name = LPASS_BE_TERT_MI2S_TX,</span><br><span class="line">        .stream_name = LPASS_BE_TERT_MI2S_TX,</span><br><span class="line">        .capture_only = <span class="number">1</span>,</span><br><span class="line">        .trigger = &#123;SND_SOC_DPCM_TRIGGER_POST,</span><br><span class="line">            		SND_SOC_DPCM_TRIGGER_POST&#125;,</span><br><span class="line">        .ops = &amp;msm_common_be_ops,</span><br><span class="line">        .ignore_suspend = <span class="number">1</span>,</span><br><span class="line">        SND_SOC_DAILINK_REG(tert_mi2s_tx),</span><br><span class="line">    &#125;,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>比如上面是我们定义的be dai link，我们也看不到codec dai的name。原因是在extend_codec_i2s_be_dailinks() 中从设备树中解析获取的codec dai的名字。这实现了解耦。</p>
+<p><img src="/2025/02/23/Android-Audio-标准ASoc架构/machine-probe.jpg" alt="machine-probe"></p>
+<h4 id="3-3-1-card和dai-link的准备"><a href="#3-3-1-card和dai-link的准备" class="headerlink" title="3.3.1 card和dai link的准备"></a>3.3.1 card和dai link的准备</h4><p>首先，在machine driver <strong>monaco.c</strong>中，注册了一个platform驱动。</p>
+<p>在它的probe函数 <strong>msm_asoc_machine_probe()</strong> 中完成声卡的初始化。</p>
+<p><strong>populate_snd_card_dailinks()</strong> 函数主要功能：</p>
+<ul>
+<li><p>card = snd_soc_card_monaco_msm</p>
+</li>
+<li><p>依次解析设备树中是否支持CC-VA、Bolero、MI2S、TDM、WCN-BT？如果支持，则把对应的dai link添加进来</p>
+</li>
+<li><p>card-&gt;dai_link = dailink</p>
+</li>
+</ul>
+<p><strong>snd_soc_of_parse_audio_routing()</strong> 函数主要功能：</p>
+<ul>
+<li>解析设备树中的”qcom,audio-routing”的strings，组成routings，保存到card中：</li>
+</ul>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">card-&gt;num_of_dapm_routes = num_routes;</span><br><span class="line"></span><br><span class="line">card-&gt;of_dapm_routes = routes;</span><br></pre></td></tr></table></figure>
+
+<p><strong>msm_populate_dai_link_component_of_node() :</strong></p>
+<ul>
+<li>从设备树中获取dai_link codec的name和of_node</li>
+</ul>
+<p>这里我们还会添加自己的dai_link，并通过解析设备树获取codec name。</p>
+<h4 id="3-3-2-ASoC声卡的注册"><a href="#3-3-2-ASoC声卡的注册" class="headerlink" title="3.3.2 ASoC声卡的注册"></a>3.3.2 ASoC声卡的注册</h4><p>其中最核心的是 snd_soc_instantiate_card() 函数。这是对声卡进行实例化，并注册到系统中。下面详细分析这个函数。</p>
+<ol>
+<li><p><strong>soc_init_dai_link()</strong></p>
+ <figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">mutex_lock(&amp;client_mutex);</span><br><span class="line">for_each_card_prelinks(card, i, dai_link) &#123;</span><br><span class="line">	ret = soc_init_dai_link(card, dai_link);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (ret) &#123;</span><br><span class="line">		dev_err(card-&gt;dev, <span class="string">"ASoC: failed to init link %s: %d\n"</span>,</span><br><span class="line">				dai_link-&gt;name, ret);</span><br><span class="line">		mutex_unlock(&amp;client_mutex);</span><br><span class="line">		<span class="keyword">return</span> ret;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+
+
+</li>
+</ol>
+<p>soc_init_dai_link() 的主要工作是：</p>
+<ul>
+<li><p>card-&gt;dai_link[] 中保存了之前传入的link信息，现在需要对其做初始化</p>
+</li>
+<li><p>遍历dai_link上的codec，做合法性判断：</p>
+<ul>
+<li>codec-&gt;name和codec-&gt;of_node只能设置其中一个；</li>
+<li>codec-&gt;dai_name 必须被指定</li>
+<li>如果这时候codec还没有被注册，则延后card注册</li>
+</ul>
+</li>
+<li><p>遍历dai_link上的platform，做合法性判断：</p>
+<ul>
+<li>platform-&gt;name 和 platform-&gt;of_node 只能设置一个</li>
+<li>如果这时候platform还没有被注册，则延后card注。</li>
+</ul>
+</li>
+<li><p>对link的cpus参数做合法性判断：</p>
+<ul>
+<li>cpus-&gt;name和cpus-&gt;of_node只能设置一个</li>
+<li>如果cpus还没有注册，则延后card注册</li>
+<li>至少cpus-&gt;dai_name或者cpus-&gt;name/of_node中的其中一个需要被设置</li>
+</ul>
+</li>
+</ul>
+<ol start="2">
+<li><p><strong>soc_bind_dai_link()</strong></p>
+<p> /* bind DAIs */<br> for_each_card_prelinks(card, i, dai_link) {</p>
+<pre><code>ret = soc_bind_dai_link(card, dai_link);
+if (ret != 0)
+    goto probe_end;</code></pre><p> }</p>
+</li>
+</ol>
+<p>soc_bind_dai_link() 的主要工作如下：</p>
+<ul>
+<li><p>如果这个link已经bind过，则返回</p>
+</li>
+<li><p>创建一个新的rtd，跟card绑定</p>
+</li>
+</ul>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">rtd = soc_new_pcm_runtime(card, dai_link);</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>rtd和cpu_dai绑定</li>
+</ul>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">rtd-&gt;cpu_dai = snd_soc_find_dai(dai_link-&gt;cpus);</span><br><span class="line"></span><br><span class="line">snd_soc_rtdcom_add(rtd, rtd-&gt;cpu_dai-&gt;component);</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>rtd和codec_dais绑定</li>
+</ul>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">rtd-&gt;codec_dais[i] = snd_soc_find_dai(codec);</span><br><span class="line"></span><br><span class="line">snd_soc_rtdcom_add(rtd, rtd-&gt;codec_dais[i]-&gt;component);</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>rtd和codec_dais绑定</p>
+</li>
+<li><p>platform和rtd绑定</p>
+</li>
+<li><p>soc_add_pcm_runtime(card, rtd)</p>
+</li>
+</ul>
+<p><strong>这样一来，每个link就对应一个rtd信息，保存了dai_link中指定的codec、platform、cpu_dai以及codec_dai信息。</strong></p>
+<ol start="3">
+<li><strong>snd_soc_add_dai_link()</strong></li>
+</ol>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">for_each_card_prelinks(card, i, dai_link) &#123;</span><br><span class="line">	ret = snd_soc_add_dai_link(card, dai_link);</span><br><span class="line">	<span class="keyword">if</span> (ret &lt; <span class="number">0</span>)</span><br><span class="line">		<span class="keyword">goto</span> probe_end;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>把定义好的dai_link添加到card-&gt;dai_link_list中</p>
+<ol start="4">
+<li><strong>snd_card_new()</strong></li>
+</ol>
+<p>dai_link bind完成了，现在开始注册声卡（alsa core的）。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">ret = snd_card_new(card-&gt;dev, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1,</span><br><span class="line">        card-&gt;owner, <span class="number">0</span>, &amp;card-&gt;snd_card);</span><br><span class="line">...</span><br><span class="line">soc_init_card_debugfs(card);</span><br><span class="line"></span><br><span class="line">soc_resume_init(card);</span><br><span class="line"></span><br><span class="line">ret = snd_soc_dapm_new_controls(&amp;card-&gt;dapm, card-&gt;dapm_widgets,</span><br><span class="line">                card-&gt;num_dapm_widgets);</span><br><span class="line">...</span><br><span class="line">ret = snd_soc_dapm_new_controls(&amp;card-&gt;dapm, card-&gt;of_dapm_widgets,</span><br><span class="line">                card-&gt;num_of_dapm_widgets);</span><br></pre></td></tr></table></figure>
+
+<p>并调用一次声卡的probe：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (card-&gt;probe) &#123;</span><br><span class="line">	ret = card-&gt;probe(card);</span><br><span class="line">	<span class="keyword">if</span> (ret &lt; <span class="number">0</span>)</span><br><span class="line">		<span class="keyword">goto</span> probe_end;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="5">
+<li><strong>soc_probe_link_components(card)</strong></li>
+</ol>
+<p>主要通过 soc_probe_component() 完成对 component 的probe动作：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">ret = snd_soc_component_module_get_when_probe(component);</span><br><span class="line"></span><br><span class="line">component-&gt;card = card;</span><br><span class="line">soc_set_name_prefix(card, component);</span><br><span class="line"></span><br><span class="line">soc_init_component_debugfs(component);</span><br><span class="line"></span><br><span class="line">snd_soc_dapm_init(dapm, card, component);</span><br><span class="line">ret = snd_soc_dapm_new_controls(dapm,</span><br><span class="line">                component-&gt;driver-&gt;dapm_widgets,</span><br><span class="line">                component-&gt;driver-&gt;num_dapm_widgets);</span><br><span class="line"></span><br><span class="line">for_each_component_dais(component, dai) &#123;</span><br><span class="line">    ret = snd_soc_dapm_new_dai_widgets(dapm, dai);</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">ret = snd_soc_component_probe(component);</span><br><span class="line"><span class="comment">/* machine specific init */</span></span><br><span class="line"><span class="keyword">if</span> (component-&gt;init) &#123;</span><br><span class="line">    ret = component-&gt;init(component);</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* see for_each_card_components */</span></span><br><span class="line">list_add(&amp;component-&gt;card_list, &amp;card-&gt;component_dev_list);</span><br><span class="line">ret = snd_soc_add_component_controls(component,</span><br><span class="line">                     component-&gt;driver-&gt;controls,</span><br><span class="line">                     component-&gt;driver-&gt;num_controls);</span><br><span class="line">ret = snd_soc_dapm_add_routes(dapm,</span><br><span class="line">                  component-&gt;driver-&gt;dapm_routes,</span><br><span class="line">                  component-&gt;driver-&gt;num_dapm_routes);</span><br></pre></td></tr></table></figure>
+
+<p>component的probe函数中，最主要是调用snd_soc_component_probe() .</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">snd_soc_component_probe</span><span class="params">(struct snd_soc_component *component)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (component-&gt;driver-&gt;probe)</span><br><span class="line">		<span class="keyword">return</span> component-&gt;driver-&gt;probe(component);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>另外还对component的dapm进行了初始化，并向系统各种添加了component的controls和routes。</p>
+<ol start="6">
+<li><strong>soc_probe_link_dais(card)</strong></li>
+</ol>
+<p>card的rtd中保存了cpu_dai和codec_dai信息，先probe cpu_dai，再probe codec_dai。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">soc_probe_link_dais</span><span class="params">(struct snd_soc_card *card)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai</span> *<span class="title">codec_dai</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_pcm_runtime</span> *<span class="title">rtd</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">int</span> i, order, ret;</span><br><span class="line">    for_each_comp_order(order) &#123;</span><br><span class="line">        for_each_card_rtds(card, rtd) &#123;</span><br><span class="line">                ret = soc_probe_dai(rtd-&gt;cpu_dai, order);</span><br><span class="line">            <span class="keyword">if</span> (ret)</span><br><span class="line">                <span class="keyword">return</span> ret;</span><br><span class="line">            </span><br><span class="line">            <span class="comment">/* probe the CODEC DAI */</span></span><br><span class="line">            for_each_rtd_codec_dai(rtd, i, codec_dai) &#123;</span><br><span class="line">                ret = soc_probe_dai(codec_dai, order);</span><br><span class="line">                <span class="keyword">if</span> (ret)</span><br><span class="line">                    <span class="keyword">return</span> ret;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">snd_soc_dai_probe</span><span class="params">(struct snd_soc_dai *dai)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">if</span> (dai-&gt;driver-&gt;probe)</span><br><span class="line">        <span class="keyword">return</span> dai-&gt;driver-&gt;probe(dai);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>就是调用dai-&gt;driver的probe函数。</p>
+<ol start="7">
+<li><strong>soc_link_init(card, rtd)</strong></li>
+</ol>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">soc_link_init</span><span class="params">(struct snd_soc_card *card,</span></span></span><br><span class="line"><span class="function"><span class="params">						struct snd_soc_pcm_runtime *rtd)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">// 执行machine相关的初始化</span></span><br><span class="line">    <span class="keyword">if</span> (dai_link-&gt;init) &#123;</span><br><span class="line">        ret = dai_link-&gt;init(rtd);</span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">if</span> (dai_link-&gt;dai_fmt) &#123;</span><br><span class="line">        ret = snd_soc_runtime_set_dai_fmt(rtd, dai_link-&gt;dai_fmt);</span><br><span class="line"></span><br><span class="line">    &#125;</span><br><span class="line">    ...</span><br><span class="line">    soc_rtd_init(rtd, dai_link-&gt;name); <span class="comment">// 调用 device_register 注册rtd device</span></span><br><span class="line">    ....</span><br><span class="line">    snd_soc_dai_compress_new(cpu_dai, rtd, num);</span><br><span class="line">    ...</span><br><span class="line">    <span class="comment">// 创建pcm设备组件，PCM号为num。</span></span><br><span class="line">    soc_new_pcm(rtd, num);</span><br><span class="line">    ret = soc_link_dai_pcm_new(&amp;cpu_dai, <span class="number">1</span>, rtd);</span><br><span class="line">    <span class="keyword">if</span> (ret &lt; <span class="number">0</span>)</span><br><span class="line">        <span class="keyword">return</span> ret;</span><br><span class="line">    ret = soc_link_dai_pcm_new(rtd-&gt;codec_dais,</span><br><span class="line">                   				rtd-&gt;num_codecs, rtd); </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于每一个dai_link，都会调用 snd_pcm_new 创建一个 ALSA PCM设备组建，PCM设备号为num，num为dai_link中的顺序号。</p>
+<p>除此之外，定义了一系列的ops接口函数，用于rtd的ops，并通过snd_pcm_set_ops接口将其设置为PCM设备组件的操作函数集。</p>
+<ol start="8">
+<li><strong>snd_card_register()</strong></li>
+</ol>
+<p>调用alsa core的接口注册声卡。</p>
+<p><strong>回顾一下主要的内容：</strong></p>
+<p>1、ASoC声卡一般在machine驱动中定义，在定义时一般初始化dai_link，dai_link指定了ASoC系统所有可能的音频连接形式。 dai_link的dai通常会在设备树中指定。</p>
+<p>2、初始化ASoC声卡时，调用ALSA声卡创建接口创建了一个ALSA声卡。</p>
+<p>3、在每一个dai_link中指定了codec_name、platform_name、cpu_dai_name以及codec_dai_name，根据它们找到注册到ASoC系统中对应的codec、platform、cpu_dai以及codec_dai，并保存到rtd[num]中。一个dai_link对应一个rtd。</p>
+<p>4、初始化时调用driver-&gt;probe() 对ASoC的每一个组件进行初始化。</p>
+<p>5、每一个num都会创建一个PCM设备节点。ASoC还为每一个PCM设备关联了一个snd_pcm_ops，这个ops时ASoC各个组件要重要实现的内容。</p>
+<p>6、最后，对于每一个num，rtd[num]中保存了上面提到的所有ASoC信息，这样一来，每个PCM设备文件都对应一个rtd[num]，进而唯一对应ASoC组件信息。</p>
+<h3 id="3-4-DAPM"><a href="#3-4-DAPM" class="headerlink" title="3.4 DAPM"></a>3.4 DAPM</h3><p>DAPM（Dynamic Audio Power Management），是为了使基于Linux的移动设备子音频系统，在任何状态下都工作在最小功耗下引入的。</p>
+<h4 id="3-4-1-kcontrol-和widget"><a href="#3-4-1-kcontrol-和widget" class="headerlink" title="3.4.1 kcontrol 和widget"></a>3.4.1 kcontrol 和widget</h4><p>一个kcontrol代表着一个mixer，或者muxer，又或是一个音量控制器。</p>
+<p><strong>kcontrol 和widget的区分：</strong></p>
+<p>kcontrol 是起到实实在在的控制作用，比如它会通过控制寄存器来实现对电源的控制或者路径的选择（但是也有不控制寄存器的）</p>
+<p>widget 是硬件部件，比如mixer， muxer，pga gain等等</p>
+<p>mix：一个输出可以对应有个输入</p>
+<p>mux: 一个输出有多个输入来源，但是只能选择其中一个</p>
+<p><strong>一个定义widget和route的例子：</strong></p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 定义kcontrol</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_kcontrol_new</span> <span class="title">wm8900_loutmix_controls</span>[] = &#123;</span></span><br><span class="line">    SOC_DAPM_SINGLE(<span class="string">"LINPUT3 Bypass Switch"</span>, WM8900_REG_LOUTMIXCTL1, <span class="number">7</span>, <span class="number">1</span>, <span class="number">0</span>),</span><br><span class="line">    SOC_DAPM_SINGLE(<span class="string">"AUX Bypass Switch"</span>, WM8900_REG_AUXOUT_CTL, <span class="number">7</span>, <span class="number">1</span>, <span class="number">0</span>),</span><br><span class="line">    SOC_DAPM_SINGLE(<span class="string">"Left Input Mixer Switch"</span>, WM8900_REG_BYPASS1, <span class="number">7</span>, <span class="number">1</span>, <span class="number">0</span>),</span><br><span class="line">    SOC_DAPM_SINGLE(<span class="string">"Right Input Mixer Switch"</span>, WM8900_REG_BYPASS2, <span class="number">3</span>, <span class="number">1</span>, <span class="number">0</span>),</span><br><span class="line">    SOC_DAPM_SINGLE(<span class="string">"DACL Switch"</span>, WM8900_REG_LOUTMIXCTL1, <span class="number">8</span>, <span class="number">1</span>, <span class="number">0</span>),</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 2. 定义widget，这里是mix类型的widget</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dapm_widget</span> <span class="title">wm8900_dapm_widgets</span>[] = &#123;</span></span><br><span class="line">	...</span><br><span class="line">	SND_SOC_DAPM_MIXER(<span class="string">"Left Output Mixer"</span>, WM8900_REG_POWER3, <span class="number">3</span>, <span class="number">0</span>,</span><br><span class="line">						wm8900_loutmix_controls,</span><br><span class="line">	   					ARRAY_SIZE(wm8900_loutmix_controls)),</span><br><span class="line">	...</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 3. 定义route搭建路径</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dapm_route</span> <span class="title">audio_map</span>[] = &#123;</span></span><br><span class="line">    ...</span><br><span class="line">    &#123;<span class="string">"Left Output Mixer"</span>, <span class="string">"Left Input Mixer Switch"</span>, <span class="string">"Left Input Mixer"</span>&#125;,</span><br><span class="line">    ...</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>上面的route的意思是：”Left Input Mixer”是source widget，”Left Output Mixer”是sink widget，source要连接到sink，需要经过执行 “Left Input Mixer Switch” 这个control。control直接操作寄存器，实现了对mix的选择控制。</p>
+<p><strong>widget和path的示意图：</strong></p>
+<p>﻿<img src="/2025/02/23/Android-Audio-标准ASoc架构/widget-path.jpg" alt="widget-path"></p>
+<p>￼￼﻿</p>
+<p>widget是带有路径和电源管理信息的kcontrol，它是dapm的基本单元。</p>
+<p>widget和widget之间通过 route 来连接，底层是snd_soc_dapm_path。</p>
+<h4 id="3-4-2-定义widget"><a href="#3-4-2-定义widget" class="headerlink" title="3.4.2 定义widget"></a>3.4.2 定义widget</h4><p>按照widget所在的电源域，分为几类：</p>
+<ul>
+<li><p>codec 域</p>
+</li>
+<li><p>platform 域</p>
+</li>
+<li><p>音频路径域</p>
+</li>
+<li><p>音频数据流域</p>
+</li>
+</ul>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">snd_soc_dapm_input      该widget对应一个输入引脚。</span><br><span class="line">snd_soc_dapm_output    该widget对应一个输出引脚。</span><br><span class="line">snd_soc_dapm_mux    该widget对应一个mux控件。</span><br><span class="line">snd_soc_dapm_virt_mux    该widget对应一个虚拟的mux控件。</span><br><span class="line">snd_soc_dapm_value_mux   该widget对应一个value类型的mux控件。</span><br><span class="line">snd_soc_dapm_mixer    该widget对应一个mixer控件。</span><br><span class="line">snd_soc_dapm_mixer_named_ctl    该widget对应一个mixer控件，但是对应的kcontrol的名字不会加入widget的名字作为前缀。</span><br><span class="line">snd_soc_dapm_pga    该widget对应一个pga控件（可编程增益控件）。</span><br><span class="line">snd_soc_dapm_out_drv    该widget对应一个输出驱动控件</span><br><span class="line">snd_soc_dapm_adc    该widget对应一个ADC </span><br><span class="line">snd_soc_dapm_dac    该widget对应一个DAC </span><br><span class="line">snd_soc_dapm_micbias    该widget对应一个麦克风偏置电压控件</span><br><span class="line">snd_soc_dapm_mic    该widget对应一个麦克风。</span><br><span class="line">snd_soc_dapm_hp    该widget对应一个耳机。</span><br><span class="line">snd_soc_dapm_spk    该widget对应一个扬声器。</span><br><span class="line">snd_soc_dapm_line      该widget对应一个线路输入。</span><br><span class="line">snd_soc_dapm_switch       该widget对应一个模拟开关。</span><br><span class="line">snd_soc_dapm_vmid      该widget对应一个codec的vmid偏置电压。</span><br><span class="line">snd_soc_dapm_pre      machine级别的专用widget，会先于其它widget执行检查操作。</span><br><span class="line">snd_soc_dapm_post    machine级别的专用widget，会后于其它widget执行检查操作。</span><br><span class="line">snd_soc_dapm_supply           对应一个电源或是时钟源。</span><br><span class="line">snd_soc_dapm_regulator_supply  对应一个外部regulator稳压器。</span><br><span class="line">snd_soc_dapm_clock_supply      对应一个外部时钟源。</span><br><span class="line">snd_soc_dapm_aif_in            对应一个数字音频输入接口，比如I2S接口的输入端。</span><br><span class="line">snd_soc_dapm_aif_out          对应一个数字音频输出接口，比如I2S接口的输出端。</span><br><span class="line">snd_soc_dapm_siggen            对应一个信号发生器。</span><br><span class="line">snd_soc_dapm_dai_in           对应一个platform或codec域的输入DAI结构。</span><br><span class="line">snd_soc_dapm_dai_out        对应一个platform或codec域的输出DAI结构。</span><br><span class="line">snd_soc_dapm_dai_link         用于链接一对输入/输出DAI结构。</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-4-3-dapm-context"><a href="#3-4-3-dapm-context" class="headerlink" title="3.4.3 dapm context"></a>3.4.3 dapm context</h4><p>按照功能和偏置电压级别，划分为多个电源域，每个域包含各自的widget，每个域中所有的widget处于同一个偏置电压级别上，而一个电源域就是一个dapm coontext。</p>
+<p>通常有几个dapm context：</p>
+<ul>
+<li><p>codec 的 dapm context</p>
+</li>
+<li><p>platform 的 dapm context</p>
+</li>
+<li><p>声卡的dapm context</p>
+</li>
+</ul>
+<h4 id="3-4-4-注册和创建widget"><a href="#3-4-4-注册和创建widget" class="headerlink" title="3.4.4 注册和创建widget"></a>3.4.4 注册和创建widget</h4><p>1、在codec中注册widget</p>
+<p>可以在注册codec驱动时，在 snd_soc_codec_driver中静态指定 snd_soc_dapm_widget结构数组；</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_codec_driver</span> &#123;</span></span><br><span class="line">	......        </span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Default control and setup, added after probe() is run */</span></span><br><span class="line">    <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_kcontrol_new</span> *<span class="title">controls</span>;</span></span><br><span class="line">    <span class="keyword">int</span> num_controls;</span><br><span class="line">    <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dapm_widget</span> *<span class="title">dapm_widgets</span>;</span></span><br><span class="line">    <span class="keyword">int</span> num_dapm_widgets;</span><br><span class="line">    <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dapm_route</span> *<span class="title">dapm_routes</span>;</span></span><br><span class="line">    <span class="keyword">int</span> num_dapm_routes;</span><br><span class="line">    ......</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也可以动态注册：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">snd_soc_dapm_new_controls(dapm, wm8993_dapm_widgets,</span><br><span class="line">		ARRAY_SIZE(wm8993_dapm_widgets));</span><br></pre></td></tr></table></figure>
+
+<p>2、在platform中注册widget</p>
+<p>与codec类似，静态和动态注册两种方法</p>
+<p>3、machine中注册widget</p>
+<p>定义声卡中静态注册。</p>
+<h4 id="3-4-5-注册音频路径"><a href="#3-4-5-注册音频路径" class="headerlink" title="3.4.5 注册音频路径"></a>3.4.5 注册音频路径</h4><p>widget 是一个个独立的部件，只有通过route，才能让widget连起来，构成整个音频路径。</p>
+<p>1、静态注册：</p>
+<p>通过snd_soc_codec_driver/snd_soc_platform_driver/snd_soc_card结构中的dapm_routes和num_dapm_routes字段；</p>
+<p>2、动态注册：</p>
+<p>codec、platform驱动的probe中，或者machine中通过在snd_soc_dai_linnk结构的init回调函数中通过 snd_soc_dapm_add_routes() 手动注册。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// example：</span></span><br><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">omap3pandora_in_init</span><span class="params">(struct snd_soc_pcm_runtime *rtd)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_codec</span> *<span class="title">codec</span> = <span class="title">rtd</span>-&gt;<span class="title">codec</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dapm_context</span> *<span class="title">dapm</span> = &amp;<span class="title">codec</span>-&gt;<span class="title">dapm</span>;</span></span><br><span class="line">    <span class="keyword">int</span> ret;</span><br><span class="line">    ...</span><br><span class="line">	<span class="comment">//注册kcontrol控件</span></span><br><span class="line">	ret = snd_soc_dapm_new_controls(dapm, omap3pandora_in_dapm_widgets,</span><br><span class="line">                                        ARRAY_SIZE(omap3pandora_in_dapm_widgets));</span><br><span class="line">    <span class="comment">//注册machine音频路径</span></span><br><span class="line">    <span class="keyword">return</span> snd_soc_dapm_add_routes(dapm, omap3pandora_in_map,</span><br><span class="line">                                   ARRAY_SIZE(omap3pandora_in_map));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-4-5-dai-widget"><a href="#3-4-5-dai-widget" class="headerlink" title="3.4.5 dai widget"></a>3.4.5 dai widget</h4><p>dai widget 是一种特殊的widget，它是通过 dailink 被系统定义和添加进来的。dai 分为cpu dai和codec dai，所以dai widget 又分为 cpu dai widget 和 codec dai widget。</p>
+<p>不管是cpu dai还是 codec dai，通常会同时传输播放和录音的能力，所以可以看到 snd_soc_dai中有两个widget指针：</p>
+<pre><code>struct snd_soc_dai {
+    ......
+    struct snd_soc_dapm_widget *playback_widget;
+    struct snd_soc_dapm_widget *capture_widget;
+    struct snd_soc_dapm_context dapm;
+    ......
+}</code></pre><p><strong>codec dai widget</strong></p>
+<p>在添加codec的时候，我们一般会指定dai driver：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_driver</span> <span class="title">wm8993_dai</span> = &#123;</span></span><br><span class="line">	.name = <span class="string">"wm8993-hifi"</span>,</span><br><span class="line">    .playback = &#123;</span><br><span class="line">            .stream_name = <span class="string">"Playback"</span>,</span><br><span class="line">            .channels_min = <span class="number">1</span>,</span><br><span class="line">            .channels_max = <span class="number">2</span>,</span><br><span class="line">            .rates = WM8993_RATES,</span><br><span class="line">            .formats = WM8993_FORMATS,</span><br><span class="line">            .sig_bits = <span class="number">24</span>,</span><br><span class="line">    &#125;,</span><br><span class="line">    .capture = &#123;</span><br><span class="line">             .stream_name = <span class="string">"Capture"</span>,</span><br><span class="line">             .channels_min = <span class="number">1</span>,</span><br><span class="line">             .channels_max = <span class="number">2</span>,</span><br><span class="line">             .rates = WM8993_RATES,</span><br><span class="line">             .formats = WM8993_FORMATS,</span><br><span class="line">             .sig_bits = <span class="number">24</span>,</span><br><span class="line">     &#125;,</span><br><span class="line">    .ops = &amp;wm8993_ops,</span><br><span class="line">    .symmetric_rates = <span class="number">1</span>,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>在probe的时候会被系统创建和添加dai widget，soc_probe_codec() 调用snd_soc_dapm_new_dai_widgets()。</p>
+<p>snd_soc_dapm_new_dai_widgets() 中会调用snd_soc_dapm_new_control()创建playback和capture的widget。</p>
+<p><strong>cpu dai widget</strong></p>
+<p>soc_probe_platform()中也会通过 snd_soc_dapm_new_controls() 创建widget，snd_soc_dapm_new_dai_widgets()创建dai widgets，snd_soc_dapm_add_routes()从创建path。</p>
+<h4 id="3-4-6-端点widget"><a href="#3-4-6-端点widget" class="headerlink" title="3.4.6 端点widget"></a>3.4.6 端点widget</h4><p>一条完整的dapm路径必然有始有终，只有特定的widget才能作为起点和终点，它们叫做端点widget。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">codec的输入输出引脚：</span><br><span class="line">snd_soc_dapm_output</span><br><span class="line">snd_soc_dapm_input</span><br><span class="line"></span><br><span class="line">外接的音频设备：</span><br><span class="line">snd_soc_dapm_hp</span><br><span class="line">snd_soc_dapm_spk</span><br><span class="line">snd_soc_dapm_line</span><br><span class="line">    </span><br><span class="line">音频流（stream domain）：</span><br><span class="line">snd_soc_dapm_adc</span><br><span class="line">snd_soc_dapm_dac</span><br><span class="line">snd_soc_dapm_aif_out</span><br><span class="line">snd_soc_dapm_aif_in</span><br><span class="line">snd_soc_dapm_dai_out</span><br><span class="line">snd_soc_dapm_dai_in</span><br><span class="line"></span><br><span class="line">电源、时钟和其它：</span><br><span class="line">snd_soc_dapm_supply</span><br><span class="line">snd_soc_dapm_regulator_supply</span><br><span class="line">snd_soc_dapm_clock_supply</span><br><span class="line">snd_soc_dapm_kcontrol</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-5-DPCM"><a href="#3-5-DPCM" class="headerlink" title="3.5 DPCM"></a>3.5 DPCM</h3><p><a href="https://docs.kernel.org/sound/soc/dpcm.html" target="_blank" rel="noopener">https://docs.kernel.org/sound/soc/dpcm.html</a></p>
+<h4 id="3-5-1-DPCM的引入"><a href="#3-5-1-DPCM的引入" class="headerlink" title="3.5.1 DPCM的引入"></a>3.5.1 DPCM的引入</h4><p>一般的音频链接方式是：</p>
+<pre><code> ---------          ---------
+|         |  dai   |         |
+    CPU    -------&gt;    codec
+|         |        |         |
+ ---------          ---------</code></pre><p>CPU的codec之间的连接是通过machine sriver中的dai link设置的，在做硬件的时候就以及确定了。一个dai link 就对应一个逻辑设备。</p>
+<p>但是现在音频系统很多是带dsp的，因此变成了：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">| Front End PCMs | SoC DSP | Back End DAIs | Audio devices |</span><br><span class="line"></span><br><span class="line">                    *************</span><br><span class="line"></span><br><span class="line">PCM0 &lt;------------&gt; *           * &lt;----DAI0-----&gt; Codec Headset</span><br><span class="line"></span><br><span class="line">                    *           *</span><br><span class="line"></span><br><span class="line">PCM1 &lt;------------&gt; *           * &lt;----DAI1-----&gt; Codec Speakers</span><br><span class="line"></span><br><span class="line">                    *     DSP   *</span><br><span class="line"></span><br><span class="line">PCM2 &lt;------------&gt; *           * &lt;----DAI2-----&gt; MODEM</span><br><span class="line"></span><br><span class="line">                    *           *</span><br><span class="line"></span><br><span class="line">PCM3 &lt;------------&gt; *           * &lt;----DAI3-----&gt; BT</span><br><span class="line">                  </span><br><span class="line">                    *           *</span><br><span class="line"></span><br><span class="line">                    *           * &lt;----DAI4-----&gt; DMIC</span><br><span class="line"></span><br><span class="line">                    *           *</span><br><span class="line"></span><br><span class="line">                    *           * &lt;----DAI5-----&gt; FM</span><br><span class="line"></span><br><span class="line">                    *************</span><br></pre></td></tr></table></figure>
+
+<p>PCM设备没有直接接到外设上，而是接在DSP上。DSP内部的数据是通过软件的routing来控制的，FE的PCM0要接到哪里，从哪个BE输出，是动态决定的，于是引入了DPCM。</p>
+<h4 id="3-5-2-no-pcm和dynamic"><a href="#3-5-2-no-pcm和dynamic" class="headerlink" title="3.5.2 no_pcm和dynamic"></a>3.5.2 no_pcm和dynamic</h4><ul>
+<li>引入no_pcm标记的原因：</li>
+</ul>
+<p>原先 cpu-&gt;codec，一条dai就对应一个pcm设备。</p>
+<p>现在引入dsp之后，变成了fe dai和be dai两条dai，实际的音频流没有变化，所以按照原来方式创建两个pcm设备就不合理了，因此fe dai继续创建pcm设备，be dai就通过设置 .no_pcm = 1 来告诉系统不需要创建pcm设备。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 定义BE DAI</span></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link</span> <span class="title">machine_dais</span>[] = &#123;</span></span><br><span class="line">    .....</span><br><span class="line">    &#123;</span><br><span class="line">    .name = <span class="string">"Codec Headset"</span>,</span><br><span class="line">    .cpu_dai_name = <span class="string">"ssp-dai.0"</span>,</span><br><span class="line">    .platform_name = <span class="string">"snd-soc-dummy"</span>,</span><br><span class="line">    .no_pcm = <span class="number">1</span>, <span class="comment">// 标识be dai</span></span><br><span class="line">    .codec_name = <span class="string">"rt5640.0-001c"</span>,</span><br><span class="line">    .codec_dai_name = <span class="string">"rt5640-aif1"</span>,</span><br><span class="line">    .ignore_suspend = <span class="number">1</span>,</span><br><span class="line">    .ignore_pmdown_time = <span class="number">1</span>,</span><br><span class="line">    .be_hw_params_fixup = hswult_ssp0_fixup,</span><br><span class="line">    .ops = &amp;haswell_ops,</span><br><span class="line">    &#125;,</span><br><span class="line">    .....</span><br><span class="line">    &lt; other BE DAI links here &gt;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>dynamic</li>
+</ul>
+<p>FE DAI的定义时指定 .dynamic = 1，告诉系统这个dai在通过 soc_new_pcm()创建pcm设备的时候，绑定dynamic的ops。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 定义FE DAIs</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_dai_link</span> <span class="title">machine_dais</span>[] = &#123;</span></span><br><span class="line">&#123;</span><br><span class="line">    .name = <span class="string">"PCM0 System"</span>,</span><br><span class="line">    .stream_name = <span class="string">"System Playback"</span>,</span><br><span class="line">    .cpu_dai_name = <span class="string">"System Pin"</span>,</span><br><span class="line">    .platform_name = <span class="string">"dsp-audio"</span>,</span><br><span class="line">    .codec_name = <span class="string">"snd-soc-dummy"</span>,</span><br><span class="line">    .codec_dai_name = <span class="string">"snd-soc-dummy-dai"</span>,</span><br><span class="line">    .dynamic = <span class="number">1</span>, <span class="comment">// FE DAI</span></span><br><span class="line">    .trigger = &#123;SND_SOC_DPCM_TRIGGER_POST, SND_SOC_DPCM_TRIGGER_POST&#125;,</span><br><span class="line">    &#125;,</span><br><span class="line">    .....</span><br><span class="line">    &lt; other FE <span class="keyword">and</span> BE DAI links here &gt;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>绑定ops：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* ASoC PCM operations */</span></span><br><span class="line"><span class="keyword">if</span> (rtd-&gt;dai_link-&gt;dynamic) &#123;</span><br><span class="line">	rtd-&gt;ops.open		= dpcm_fe_dai_open;</span><br><span class="line">	rtd-&gt;ops.hw_params	= dpcm_fe_dai_hw_params;</span><br><span class="line">	rtd-&gt;ops.prepare	= dpcm_fe_dai_prepare;</span><br><span class="line">	rtd-&gt;ops.trigger	= dpcm_fe_dai_trigger;</span><br><span class="line">	rtd-&gt;ops.hw_free	= dpcm_fe_dai_hw_free;</span><br><span class="line">	rtd-&gt;ops.close		= dpcm_fe_dai_close;</span><br><span class="line">	rtd-&gt;ops.pointer	= soc_pcm_pointer;</span><br><span class="line">	rtd-&gt;ops.ioctl		= snd_soc_pcm_component_ioctl;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_AUDIO_QGKI	</span></span><br><span class="line">	rtd-&gt;ops.compat_ioctl   = soc_pcm_compat_ioctl;</span><br><span class="line">	rtd-&gt;ops.delay_blk	= soc_pcm_delay_blk;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">	rtd-&gt;ops.open		= soc_pcm_open;</span><br><span class="line">	rtd-&gt;ops.hw_params	= soc_pcm_hw_params;</span><br><span class="line">	rtd-&gt;ops.prepare	= soc_pcm_prepare;</span><br><span class="line">	rtd-&gt;ops.trigger	= soc_pcm_trigger;</span><br><span class="line">	rtd-&gt;ops.hw_free	= soc_pcm_hw_free;</span><br><span class="line">	rtd-&gt;ops.close		= soc_pcm_close;</span><br><span class="line">	rtd-&gt;ops.pointer	= soc_pcm_pointer;</span><br><span class="line">	rtd-&gt;ops.ioctl		= snd_soc_pcm_component_ioctl;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">ifdef</span> CONFIG_AUDIO_QGKI	</span></span><br><span class="line">	rtd-&gt;ops.compat_ioctl   = soc_pcm_compat_ioctl;</span><br><span class="line">	rtd-&gt;ops.delay_blk	= soc_pcm_delay_blk;</span><br><span class="line"><span class="meta">#<span class="meta-keyword">endif</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="3-5-3-hostless"><a href="#3-5-3-hostless" class="headerlink" title="3.5.3 hostless"></a>3.5.3 hostless</h4><p><strong>Hostless PCM streams</strong></p>
+<p>这种不需要经过CPU的stream，叫做hostless PCM stream。比如手机中的modem通话：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">                    *************</span><br><span class="line">PCM0 &lt;------------&gt; *           * &lt;----DAI0-----&gt; Codec Headset</span><br><span class="line">                    *           *</span><br><span class="line">PCM1 &lt;------------&gt; *           * &lt;====DAI1=====&gt; Codec Speakers/Mic</span><br><span class="line">                    *    DSP    *</span><br><span class="line">PCM2 &lt;------------&gt; *           * &lt;====DAI2=====&gt; MODEM</span><br><span class="line">                    *           *</span><br><span class="line">PCM3 &lt;------------&gt; *           * &lt;----DAI3-----&gt; BT</span><br><span class="line">                    *           *</span><br><span class="line">                    *           * &lt;----DAI4-----&gt; DMIC</span><br><span class="line">                    *           *</span><br><span class="line">                    *           * &lt;----DAI5-----&gt; FM</span><br><span class="line">                    *************</span><br></pre></td></tr></table></figure>
+
+<p>这种情况下，PCM数据是通过DSP来route的。</p>
+<p>Host可以通过两种方式控制 hostles link：</p>
+<ul>
+<li><p>配置成Codec&lt;–&gt;Codec的link。这种情况通过DAPM的enable和disable来控制，通常有一个mixer control用来连接和断开两个DAIs之间的path。</p>
+</li>
+<li><p>Hostless FE。FE和BE DAI links之间，有一个虚拟的连接。这种方式跟通常的FE操作PCM类似，但是需要更多的用户层的code来控制这个link。推荐用 CODEC &lt;–&gt;CODEC的方式。</p>
+</li>
+</ul>
+<p><strong>CODEC&lt;–&gt;CODEC link</strong></p>
+<p>Creating codec to codec dai link for ALSA dapm</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment">* this pcm stream only supports 24 bit, 2 channel and</span></span><br><span class="line"><span class="comment">* 48k sampling rate.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_soc_pcm_stream</span> <span class="title">dsp_codec_params</span> = &#123;</span></span><br><span class="line">    .formats = SNDRV_PCM_FMTBIT_S24_LE,</span><br><span class="line">    .rate_min = <span class="number">48000</span>,</span><br><span class="line">    .rate_max = <span class="number">48000</span>,</span><br><span class="line">    .channels_min = <span class="number">2</span>,</span><br><span class="line">    .channels_max = <span class="number">2</span>,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line">&#123;</span><br><span class="line">    .name = <span class="string">"CPU-DSP"</span>,</span><br><span class="line">    .stream_name = <span class="string">"CPU-DSP"</span>,</span><br><span class="line">    .cpu_dai_name = <span class="string">"samsung-i2s.0"</span>,</span><br><span class="line">    .codec_name = <span class="string">"codec-2,</span></span><br><span class="line"><span class="string">    .codec_dai_name = "</span>codec<span class="number">-2</span>-dai_name<span class="string">",</span></span><br><span class="line"><span class="string">    .platform_name = "</span>samsung-i2s<span class="number">.0</span><span class="string">",</span></span><br><span class="line"><span class="string">    .dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF</span></span><br><span class="line"><span class="string">    | SND_SOC_DAIFMT_CBM_CFM,</span></span><br><span class="line"><span class="string">    .ignore_suspend = 1,</span></span><br><span class="line"><span class="string">    .c2c_params = &amp;dsp_codec_params,</span></span><br><span class="line"><span class="string">    .num_c2c_params = 1,</span></span><br><span class="line"><span class="string">&#125;,</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    .name = "</span>DSP-CODEC<span class="string">",</span></span><br><span class="line"><span class="string">    .stream_name = "</span>DSP-CODEC<span class="string">",</span></span><br><span class="line"><span class="string">    .cpu_dai_name = "</span>wm0010-sdi2<span class="string">",</span></span><br><span class="line"><span class="string">    .codec_name = "</span>codec<span class="number">-3</span>,</span><br><span class="line">    .codec_dai_name = <span class="string">"codec-3-dai_name"</span>,</span><br><span class="line">    .dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_NB_NF</span><br><span class="line">    | SND_SOC_DAIFMT_CBM_CFM,</span><br><span class="line">    .ignore_suspend = <span class="number">1</span>,</span><br><span class="line">    .c2c_params = &amp;dsp_codec_params,</span><br><span class="line">    .num_c2c_params = <span class="number">1</span>,</span><br><span class="line">&#125;,</span><br></pre></td></tr></table></figure>
+
+<p>注意：上面的 c2c_params 就是用来告诉dapm，这个dai_link是一个codec to codec 的链接。</p>
+<p>在dapm core中，会创建一个route，链接cpu_dai的playback widget和codec_dai widget，用于playback。对capture则相反。</p>
+<p>为了trigger这个route，DAPM还需要会找到一个有效的端点，它可以是上面playback和capture路径上有效的source/sink端点。比如”AIF Playback”</p>
+<h2 id="4-高通asoc音频通路"><a href="#4-高通asoc音频通路" class="headerlink" title="4. 高通asoc音频通路"></a>4. 高通asoc音频通路</h2><h3 id="4-1-非audioreach架构"><a href="#4-1-非audioreach架构" class="headerlink" title="4.1 非audioreach架构﻿"></a>4.1 非audioreach架构﻿</h3><p>￼￼﻿<img src="/2025/02/23/Android-Audio-标准ASoc架构/qcom-dai.jpg" alt="qcom-dai"></p>
+<h3 id="4-2-audioreach架构"><a href="#4-2-audioreach架构" class="headerlink" title="4.2 audioreach架构"></a>4.2 audioreach架构</h3><p>在audioreach上，这些东西都简化了，TinyALSA插件通过agm-&gt;gsl, 再到kernel的Audio-Pkt和GPR，把数据和命令发送到ADSP，这里不再使用ASoC，所以高通的platform driver都是一些stub和dummy的实现。</p>
+<p><strong>问题汇总</strong></p>
+<p>1、 dapm是如何解决上下电杂音问题的？</p>
+<p>上下电顺序：通过定义各个widget的subseq，控制上下电的顺序，来防止出现pop音。</p>
+<p>静音控制：电源切换时，先静音音频路径。</p>
+<p>2、 control设备和pcm设备是何时创建的？</p>
+<p>control设备是创建声卡时创建的，一个声卡一般只有一个control设备；</p>
+<p>pcm设备是创建dai link的时候创建的，playback和capture一条substream对应一个pcm设备。</p>
+<h2 id="参考链接"><a href="#参考链接" class="headerlink" title="参考链接"></a>参考链接</h2><p><a href="https://blog.csdn.net/whshiyun/article/details/80889838" target="_blank" rel="noopener">https://blog.csdn.net/whshiyun/article/details/80889838</a></p>
+<p><a href="https://blog.csdn.net/droidphone/category_1118446.html" target="_blank" rel="noopener">https://blog.csdn.net/droidphone/category_1118446.html</a></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2025/02/23/Android-Audio-标准ALSA架构/" rel="next" title="Android Audio-标准ALSA架构">
+                <i class="fa fa-chevron-left"></i> Android Audio-标准ALSA架构
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">32</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">10</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-ASoC简介"><span class="nav-number">1.</span> <span class="nav-text">1. ASoC简介</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-硬件架构"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 硬件架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-软件架构"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 软件架构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-ASoC数据结构"><span class="nav-number">2.</span> <span class="nav-text">2. ASoC数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-ASoC的软件架构"><span class="nav-number">3.</span> <span class="nav-text">3. ASoC的软件架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-component的注册"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 component的注册</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-dai的注册"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 dai的注册</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-ASoC声卡的创建"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 ASoC声卡的创建</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-1-card和dai-link的准备"><span class="nav-number">3.3.1.</span> <span class="nav-text">3.3.1 card和dai link的准备</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-2-ASoC声卡的注册"><span class="nav-number">3.3.2.</span> <span class="nav-text">3.3.2 ASoC声卡的注册</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-DAPM"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 DAPM</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-1-kcontrol-和widget"><span class="nav-number">3.4.1.</span> <span class="nav-text">3.4.1 kcontrol 和widget</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-2-定义widget"><span class="nav-number">3.4.2.</span> <span class="nav-text">3.4.2 定义widget</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-3-dapm-context"><span class="nav-number">3.4.3.</span> <span class="nav-text">3.4.3 dapm context</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-4-注册和创建widget"><span class="nav-number">3.4.4.</span> <span class="nav-text">3.4.4 注册和创建widget</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-5-注册音频路径"><span class="nav-number">3.4.5.</span> <span class="nav-text">3.4.5 注册音频路径</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-5-dai-widget"><span class="nav-number">3.4.6.</span> <span class="nav-text">3.4.5 dai widget</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-6-端点widget"><span class="nav-number">3.4.7.</span> <span class="nav-text">3.4.6 端点widget</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-DPCM"><span class="nav-number">3.5.</span> <span class="nav-text">3.5 DPCM</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-5-1-DPCM的引入"><span class="nav-number">3.5.1.</span> <span class="nav-text">3.5.1 DPCM的引入</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-5-2-no-pcm和dynamic"><span class="nav-number">3.5.2.</span> <span class="nav-text">3.5.2 no_pcm和dynamic</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-5-3-hostless"><span class="nav-number">3.5.3.</span> <span class="nav-text">3.5.3 hostless</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-高通asoc音频通路"><span class="nav-number">4.</span> <span class="nav-text">4. 高通asoc音频通路</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-非audioreach架构"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 非audioreach架构﻿</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-audioreach架构"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 audioreach架构</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考链接"><span class="nav-number">5.</span> <span class="nav-text">参考链接</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
