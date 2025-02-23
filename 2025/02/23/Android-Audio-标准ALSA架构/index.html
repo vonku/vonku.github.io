@@ -90,7 +90,7 @@
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/init.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/device.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/card-register.jpg">
-<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/D:%5Cvonku%5Chexo%5Cvonku%5Csource_posts%5CAndroid-Audio-%E6%A0%87%E5%87%86ALSA%E6%9E%B6%E6%9E%84%5Cctl.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/ctl.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/ctl-open.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/ctl-struct.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/ctl-elem.jpg">
@@ -98,7 +98,7 @@
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/pcm-new.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/q6asm-dai.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/dai-prepare.jpg">
-<meta property="og:updated_time" content="2025-02-23T03:27:42.058Z">
+<meta property="og:updated_time" content="2025-02-23T04:45:14.195Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Android Audio-标准ALSA架构">
 <meta name="twitter:description" content="本文是对ALSA标准架构的总结。">
@@ -469,7 +469,7 @@
 <p>其操作函数集为<strong>snd_ctl_f_ops</strong>。</p>
 <figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">snd_ctl_f_ops</span> =</span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    .owner =  THIS_MODULE,</span><br><span class="line">    .read = snd_ctl_read,</span><br><span class="line">    .open = snd_ctl_open,</span><br><span class="line">    .release = snd_ctl_release,</span><br><span class="line">    .llseek =  no_llseek,</span><br><span class="line">    .poll = snd_ctl_poll,</span><br><span class="line">    .unlocked_ioctl =    snd_ctl_ioctl,</span><br><span class="line">    .compat_ioctl = snd_ctl_ioctl_compat,</span><br><span class="line">    .fasync =  snd_ctl_fasync,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
 
-<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/D:%5Cvonku%5Chexo%5Cvonku%5Csource_posts%5CAndroid-Audio-%E6%A0%87%E5%87%86ALSA%E6%9E%B6%E6%9E%84%5Cctl.jpg" alt="ctl"></p>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/ctl.jpg" alt="ctl"></p>
 <p><strong>小结：</strong></p>
 <ul>
 <li>声卡设备是通过snd_minor[]的全局数组进行统一管理的，通过minor做为索引可以找到对应的设备。</li>
@@ -501,7 +501,7 @@
 <h3 id="3-2-controls的创建"><a href="#3-2-controls的创建" class="headerlink" title="3.2 controls的创建"></a>3.2 controls的创建</h3><p>前面说了control组件的创建，它用于对声卡进行控制，比如控制声卡的声音和音频流等。</p>
 <p>所有的这些控制的实现，是通过一个个独立的controls来进行的。</p>
 <p>要对声卡某一个功能进行控制，我们首先需要创建一个controls，然后注册进系统。现在来看下具体的controls是如何创建并注册的。</p>
-<p>先定义一个snd_kcontrol_new，然后通过函数 snd_ctl_new1() 获取一个snd_kcontrol，然后通过接口 snd_ctl_add() 就可以创建一个controls。</p>
+<p>先定义一个snd_kcontrol_new，然后通过函数 snd_ctl_new1() 获取一个snd_kcontrol，然后通过接口  snd_ctl_add() 就可以创建一个controls。</p>
 <ul>
 <li><strong>snd_ctl_new1()</strong></li>
 </ul>
