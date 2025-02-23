@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="本文是对ALSA标准架构的总结。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Android Audio-标准ALSA架构">
+<meta property="og:url" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文是对ALSA标准架构的总结。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/snd-struct.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/init.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/device.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/card-register.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/D:%5Cvonku%5Chexo%5Cvonku%5Csource_posts%5CAndroid-Audio-%E6%A0%87%E5%87%86ALSA%E6%9E%B6%E6%9E%84%5Cctl.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/ctl-open.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/ctl-struct.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/ctl-elem.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/class-pcm.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/pcm-new.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/q6asm-dai.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/dai-prepare.jpg">
+<meta property="og:updated_time" content="2025-02-23T03:10:29.926Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Android Audio-标准ALSA架构">
+<meta name="twitter:description" content="本文是对ALSA标准架构的总结。">
+<meta name="twitter:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/snd-struct.jpg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/">
+
+
+
+
+
+  <title>Android Audio-标准ALSA架构 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2025/02/23/Android-Audio-标准ALSA架构/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Android Audio-标准ALSA架构</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2025-02-23T10:09:22+08:00">
+                2025-02-23
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Audio/" itemprop="url" rel="index">
+                    <span itemprop="name">Audio</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2025/02/23/Android-Audio-标准ALSA架构/" class="leancloud_visitors" data-flag-title="Android Audio-标准ALSA架构">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>本文是对ALSA标准架构的总结。</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="1-ALSA-Concepts"><a href="#1-ALSA-Concepts" class="headerlink" title="1. ALSA Concepts"></a>1. ALSA Concepts</h2><ul>
+<li><strong>声卡</strong></li>
+</ul>
+<p>接口卡，可以是集成在主板上的声音芯片，也可以是外部插槽卡。</p>
+<ul>
+<li><strong>PCM参数和配置空间</strong></li>
+</ul>
+<p>ALSA访问硬件设备时，参数不是彼此独立的。</p>
+<ul>
+<li><strong>Alsa devices and plugins</strong></li>
+</ul>
+<p>alsa devices 用 string 表示，一般在配置文件中定义。</p>
+<ul>
+<li><strong>插件</strong><ul>
+<li>hw插件：不自己处理，只访问硬件。hw:0,0</li>
+<li>plug插件：做通道复制、采样值转换和重采样。plughw:0,0</li>
+<li>file 插件：把采样数据写入到文件</li>
+<li>tee：把音频数据同时输出到文件和设备。用这种方式我们可以在播放电影的时候提取音轨。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">\# 将 xy.wav 文件的音频数据通过 plughw:0,0 设备播放，并将音频数据同时输出到 /tmp/alsatee.out 文件中</span><br><span class="line"></span><br><span class="line">aplay -Dtee:\&apos;plughw:0,0\&apos;,/tmp/alsatee.out,raw xy.wav</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>ALSA层次结构</strong></li>
+</ul>
+<p>tinyalsa, tinycap, tinymix -&gt;</p>
+<p>ALSA Library API (user space) -&gt;</p>
+<p>ALSA Core / ALSA driver (kernel space)</p>
+<p>ASoC (kernel space)</p>
+<p>Audio Hardware</p>
+<ul>
+<li><strong>ALSA 代码结构</strong></li>
+</ul>
+<p>ALSA 代码主要在 kernel/sound 下：</p>
+<p>（1）sound/core </p>
+<p>这个目录是alsa架构的核心，也就是alsa-driver</p>
+<p>（2）sound/soc</p>
+<p>ASoC核心，主要是针对嵌入式系统设计的alsa-driver的封装。</p>
+<p>（3）sound/soc/codecs</p>
+<p>包含了该音频系统所使用的codec的驱动，与体系结构无关。</p>
+<p>（4）sound/soc/(machine)</p>
+<p>音频系统的platform驱动和machine驱动，或者说这里包含了与音频系统所使用的主芯片方案相关的代码。</p>
+<p>（5）kernel/include/sound</p>
+<p>ALSA所有包含的头文件。</p>
+<h2 id="2-ALSA声卡的创建"><a href="#2-ALSA声卡的创建" class="headerlink" title="2. ALSA声卡的创建"></a>2. ALSA声卡的创建</h2><h3 id="2-1-数据结构"><a href="#2-1-数据结构" class="headerlink" title="2.1 数据结构"></a>2.1 数据结构</h3><p><img src="/2025/02/23/Android-Audio-标准ALSA架构/snd-struct.jpg" alt="snd-struct"></p>
+<h3 id="2-2-声卡的建立流程"><a href="#2-2-声卡的建立流程" class="headerlink" title="2.2 声卡的建立流程"></a>2.2 声卡的建立流程</h3><p>（1）实例化声卡</p>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/init.jpg" alt="init"></p>
+<p>在创建声卡的时候，也创建了一个control设备组件，一般嵌入式系统中仅需要一个control设备即可。</p>
+<p>（2）创建声卡的设备组件</p>
+<p>声卡实例化的时候会创建control设备，其他的还有pcm设备用于实现音频流的playback和capture。</p>
+<p><strong>pcm设备组件：snd_pcm_new()</strong></p>
+<p><strong>control设备组件：snd_ctl_create()</strong></p>
+<p>每个部件的创建都会最终调用到snd_device_new() 来生成一个snd_device实例，并把该实例链接到snd_card的devices链表中。</p>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/device.jpg" alt="device"></p>
+<p><strong>小结：</strong></p>
+<ul>
+<li><p>实例化一个snd_device</p>
+</li>
+<li><p>给snd_device关联一个声卡设备组件操作函数集</p>
+</li>
+<li><p>将snd_device挂载到声卡设备组件链表上</p>
+</li>
+</ul>
+<p>（3）注册声卡</p>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/card-register.jpg" alt="card-register"></p>
+<p><strong>小结：</strong></p>
+<ul>
+<li><p>创建sys属性文件</p>
+</li>
+<li><p>注册声卡下所有挂载的设备组件</p>
+</li>
+<li><p>注册proc文件</p>
+</li>
+</ul>
+<h2 id="3-control设备组件"><a href="#3-control设备组件" class="headerlink" title="3. control设备组件"></a>3. control设备组件</h2><p>一个系统中一般会实例化一个声卡，一个声卡下挂载多个设备组件。<strong>control设备组件主要处理声卡中控制设备和控制音频流相关的动作，比如codec路径的搭建、DSP中音频路径的搭建等等</strong>。</p>
+<p>本节介绍control设备的创建以及应用层如何通过controls控制声卡。</p>
+<h3 id="3-1-control设备组件的创建"><a href="#3-1-control设备组件的创建" class="headerlink" title="3.1 control设备组件的创建"></a>3.1 control设备组件的创建</h3><p>前面提到，创建声卡的时候就会创建control设备。</p>
+<ul>
+<li><strong>snd_ctl_create()</strong></li>
+</ul>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">snd_ctl_create</span><span class="params">(struct snd_card *card)</span></span></span><br><span class="line"><span class="function"></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_device_ops</span> <span class="title">ops</span> = &#123;</span></span><br><span class="line"> 		.dev_free = snd_ctl_dev_free,</span><br><span class="line"> 		.dev_register = snd_ctl_dev_register,</span><br><span class="line"> 		.dev_disconnect = snd_ctl_dev_disconnect,</span><br><span class="line"></span><br><span class="line">	&#125;;</span><br><span class="line">    ... </span><br><span class="line">	snd_device_initialize(&amp;card-&gt;ctl_dev, card);</span><br><span class="line">    dev_set_name(&amp;card-&gt;ctl_dev, <span class="string">"controlC%d"</span>, card-&gt;number);</span><br><span class="line"></span><br><span class="line">    err = snd_device_new(card, SNDRV_DEV_CONTROL, card, &amp;ops);</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注册声卡的时候会注册所有挂载声卡下的设备组件。对于control设备，调用其注册函数snd_ctl_dev_register()。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">snd_ctl_dev_register</span><span class="params">(struct snd_device *device)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">     <span class="class"><span class="keyword">struct</span> <span class="title">snd_card</span> *<span class="title">card</span> = <span class="title">device</span>-&gt;<span class="title">device_data</span>;</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line">     <span class="keyword">return</span> snd_register_device(SNDRV_DEVICE_TYPE_CONTROL, card, <span class="number">-1</span>,</span><br><span class="line">    		&amp;snd_ctl_f_ops, card, &amp;card-&gt;ctl_dev);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其操作函数集为<strong>snd_ctl_f_ops</strong>。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">snd_ctl_f_ops</span> =</span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    .owner =  THIS_MODULE,</span><br><span class="line">    .read = snd_ctl_read,</span><br><span class="line">    .open = snd_ctl_open,</span><br><span class="line">    .release = snd_ctl_release,</span><br><span class="line">    .llseek =  no_llseek,</span><br><span class="line">    .poll = snd_ctl_poll,</span><br><span class="line">    .unlocked_ioctl =    snd_ctl_ioctl,</span><br><span class="line">    .compat_ioctl = snd_ctl_ioctl_compat,</span><br><span class="line">    .fasync =  snd_ctl_fasync,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/D:%5Cvonku%5Chexo%5Cvonku%5Csource_posts%5CAndroid-Audio-%E6%A0%87%E5%87%86ALSA%E6%9E%B6%E6%9E%84%5Cctl.jpg" alt="ctl"></p>
+<p><strong>小结：</strong></p>
+<ul>
+<li>声卡设备是通过snd_minor[]的全局数组进行统一管理的，通过minor做为索引可以找到对应的设备。</li>
+</ul>
+<p><code>static struct snd_minor *snd_minors[SNDRV_OS_MINORS];</code></p>
+<ul>
+<li>它的主设备号是 116，次设备号是随机分配的。</li>
+</ul>
+<p><code>#define CONFIG_SND_MAJOR 116</code></p>
+<ul>
+<li>这里创建的设备节点，路径为 /dev/snd/name</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"> # ls -ll /dev/snd/controlC0</span><br><span class="line"></span><br><span class="line">crw-rw---- 1 system audio 116, 16 2025-02-06 05:10:35.717999996 +0800 /dev/snd/controlC0</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>所有声卡设备组件共用主设备号 116，随后可以根据次设备号minor找到对应的设备组件信息。</li>
+</ul>
+<p>这里补充一下设备节点注册和调用的流程：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">int</span> __<span class="function">init <span class="title">alsa_sound_init</span><span class="params">(<span class="keyword">void</span>)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    snd_major = major; <span class="comment">// 116</span></span><br><span class="line">    snd_ecards_limit = cards_limit;</span><br><span class="line">    <span class="keyword">if</span> (register_chrdev(major, <span class="string">"alsa"</span>, &amp;snd_fops)) &#123;</span><br><span class="line"> 		pr_err(<span class="string">"ALSA core: unable to register native major device number %d\n"</span>, major);</span><br><span class="line"> 		<span class="keyword">return</span> -EIO;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (snd_info_init() &lt; <span class="number">0</span>) &#123;</span><br><span class="line"> 		unregister_chrdev(major, <span class="string">"alsa"</span>);</span><br><span class="line"> 		<span class="keyword">return</span> -ENOMEM;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">snd_fops</span> =</span></span><br><span class="line"><span class="class"></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">    .owner =  THIS_MODULE,</span><br><span class="line">    .open = snd_open,</span><br><span class="line">    .llseek =  noop_llseek,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>当应用空间open设备节点 /dev/snd/name 的时候，调用到统一的主设备open函数 snd_open()。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">snd_open</span><span class="params">(struct inode *inode, struct file *file)</span></span></span><br><span class="line"><span class="function"></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    ...</span><br><span class="line">	mptr = snd_minors[minor]; <span class="comment">// 获取次设备号</span></span><br><span class="line">	...</span><br><span class="line">    new_fops = fops_get(mptr-&gt;f_ops); <span class="comment">// 获取设备组对应的操作函数集</span></span><br><span class="line"></span><br><span class="line">	...</span><br><span class="line">    <span class="keyword">if</span> (file-&gt;f_op-&gt;open)</span><br><span class="line">		err = file-&gt;f_op-&gt;open(inode, file); <span class="comment">// 执行其open函数。</span></span><br><span class="line">    <span class="keyword">return</span> err;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>因此应用层open /dev/snd/controlC0设备时，最终会调用其snd_ctl_f_ops的open函数。</p>
+<p>继续看control文件的open流程：</p>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/ctl-open.jpg" alt="ctl-open"></p>
+<p>可以看到：当打开/dev/snd/controC0时，control设备组件的open函数主要是实例化一个snd_ctl_file，然后找到声卡 snd_card，将文件关联到声卡中。最后将snd_ctl_file保存到 file-&gt;frivate_data，方便其他函数操作使用。</p>
+<p>实际上，control设备节点最重要的操作函数是 snd_ctl_ioctl，后面再详细分析。</p>
+<h3 id="3-2-controls的创建"><a href="#3-2-controls的创建" class="headerlink" title="3.2 controls的创建"></a>3.2 controls的创建</h3><p>前面说了control组件的创建，它用于对声卡进行控制，比如控制声卡的声音和音频流等。</p>
+<p>所有的这些控制的实现，是通过一个个独立的controls来进行的。</p>
+<p>要对声卡某一个功能进行控制，我们首先需要创建一个controls，然后注册进系统。现在来看下具体的controls是如何创建并注册的。</p>
+<p>先定义一个snd_kcontrol_new，然后通过函数 snd_ctl_new1() 获取一个snd_kcontrol，然后通过接口 snd_ctl_add() 就可以创建一个controls。</p>
+<ul>
+<li>snd_ctl_new1()</li>
+</ul>
+<p>动态申请一个snd_kcontrol，然后对成员赋值（把snd_kcontrol_new的数据拷贝到 snd_kcontrol中）。</p>
+<ul>
+<li>snd_ctl_add()</li>
+</ul>
+<p>最核心就是把controls加到card-&gt;controls链表中。</p>
+<p>每个controls都通过 snd_ctl_elem_id进行唯一指定。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="keyword">int</span> __snd_ctl_add_replace(struct snd_card *card,</span><br><span class="line">   					struct snd_kcontrol *kcontrol,</span><br><span class="line">   					<span class="keyword">enum</span> snd_ctl_add_mode mode)</span><br><span class="line">    ...</span><br><span class="line">	list_add_tail(&amp;kcontrol-&gt;<span class="built_in">list</span>, &amp;card-&gt;controls);</span><br><span class="line">    card-&gt;controls_count += kcontrol-&gt;count;</span><br><span class="line">    kcontrol-&gt;id.numid = card-&gt;last_numid + <span class="number">1</span>;</span><br><span class="line">    card-&gt;last_numid += kcontrol-&gt;count;</span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-应用程序操作controls"><a href="#3-3-应用程序操作controls" class="headerlink" title="3.3 应用程序操作controls"></a>3.3 应用程序操作controls</h3><p>ALSA将底层提供给应用空间的统一接口保存在一个头文件 kernel/include/sound/asound.h中，应用要操作controls，需要先包含头文件：#include &lt;sound/asound.h&gt;</p>
+<p>前面提到，controls在内核空间是通过数据结构 snd_kcontrol 来表示的，每一个control由 struct snd_ctl_elem_id 数据结构唯一区分和指定：</p>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/ctl-struct.jpg" alt="ctl-struct"></p>
+<p>因此，用户空间操作某一个controls，必须指定上面的数据结构，以唯一确定某一个controls。</p>
+<p>实际上，用户空间是通过如下结构来操作controls的：</p>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/ctl-elem.jpg" alt="ctl-elem"></p>
+<p>前面说过，应用层操作controls是通过control设备组件进行的，即操作 /dev/snd/controlC0。</p>
+<p>上层命令是通过ioctl进行，也就是 snd_ctl_ioctl。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">long</span> <span class="title">snd_ctl_ioctl</span><span class="params">(struct file *file, <span class="keyword">unsigned</span> <span class="keyword">int</span> cmd, <span class="keyword">unsigned</span> <span class="keyword">long</span> arg)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">     ...</span><br><span class="line">     ctl = file-&gt;private_data;</span><br><span class="line">     card = ctl-&gt;card;</span><br><span class="line"></span><br><span class="line">     <span class="keyword">switch</span> (cmd) &#123;</span><br><span class="line">     	...</span><br><span class="line">     	<span class="keyword">case</span> SNDRV_CTL_IOCTL_ELEM_INFO:</span><br><span class="line">			<span class="keyword">return</span> snd_ctl_elem_info_user(ctl, argp);</span><br><span class="line">    	<span class="keyword">case</span> SNDRV_CTL_IOCTL_ELEM_READ:</span><br><span class="line">			<span class="keyword">return</span> snd_ctl_elem_read_user(card, argp);</span><br><span class="line">    	<span class="keyword">case</span> SNDRV_CTL_IOCTL_ELEM_WRITE:</span><br><span class="line">			<span class="keyword">return</span> snd_ctl_elem_write_user(ctl, argp);</span><br><span class="line"> 		... </span><br><span class="line">     &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>分析最常用的write命令：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">snd_ctl_elem_write_user</span><span class="params">(struct snd_ctl_file *file,</span></span></span><br><span class="line"><span class="function"><span class="params">	    					struct snd_ctl_elem_value __user *_control)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_ctl_elem_value</span> *<span class="title">control</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_card</span> *<span class="title">card</span>;</span></span><br><span class="line">    <span class="keyword">int</span> result;</span><br><span class="line">  <span class="comment">// _control是分配在用户空间的内存，必须将其拷贝到内核空间</span></span><br><span class="line">  <span class="comment">// 类型就是 struct snd_ctl_elem_value</span></span><br><span class="line">	control = memdup_user(_control, <span class="keyword">sizeof</span>(*control));</span><br><span class="line">    <span class="keyword">if</span> (IS_ERR(control))</span><br><span class="line"> 		<span class="keyword">return</span> PTR_ERR(control);</span><br><span class="line"></span><br><span class="line">    card = file-&gt;card;</span><br><span class="line">    ...</span><br><span class="line">     </span><br><span class="line">    down_write(&amp;card-&gt;controls_rwsem);</span><br><span class="line">    result = snd_ctl_elem_write(card, file, control);</span><br><span class="line">    up_write(&amp;card-&gt;controls_rwsem);</span><br><span class="line"></span><br><span class="line">  	...</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (copy_to_user(_control, control, <span class="keyword">sizeof</span>(*control)))</span><br><span class="line"> 		result = -EFAULT;</span><br><span class="line"> </span><br><span class="line">error:</span><br><span class="line">    kfree(control);</span><br><span class="line">    <span class="keyword">return</span> result;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>再来到snd_ctl_elem_write：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">snd_ctl_elem_write</span><span class="params">(struct snd_card *card, struct snd_ctl_file *file,</span></span></span><br><span class="line"><span class="function"><span class="params">     struct snd_ctl_elem_value *control)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">	...</span><br><span class="line">  	<span class="comment">// 由id找到内核空间的 snd_control，遍历 card-&gt;controls</span></span><br><span class="line">    kctl = snd_ctl_find_id(card, &amp;control-&gt;id);</span><br><span class="line">    ...</span><br><span class="line">    result = kctl-&gt;put(kctl, control);</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>最终调用到kctl-&gt;put()，也就是控件的put函数。</p>
+<p><strong>总结：</strong></p>
+<p>在内核中，control设备组件是用于声卡控制的，其接口一般为：/dev/snd/controlC0，用户控件通过这个文件接口与内核ALSA交互，用于控制声卡；</p>
+<p>controls在内核中用 snd_kcontrol 抽象，每一个controls哟用于控制声卡的某一个特定的功能，每一个controls在建立时都会据由一个唯一的id用于标识；</p>
+<p>用户空间的程序携带有controls的信息通过control设备文件接口陷入内核中执行该controls拥有的能力。</p>
+<h2 id="4-PCM设备组件"><a href="#4-PCM设备组件" class="headerlink" title="4. PCM设备组件"></a>4. PCM设备组件</h2><p>PCM设备组件主要用于实现声音的playback以及capture功能。</p>
+<h3 id="4-1-数据结构"><a href="#4-1-数据结构" class="headerlink" title="4.1 数据结构"></a>4.1 数据结构</h3><p><img src="/2025/02/23/Android-Audio-标准ALSA架构/class-pcm.jpg" alt="class-pcm"></p>
+<ul>
+<li>struct snd_pcm<ul>
+<li>card 表示所属声卡</li>
+<li>device PCM设备组件号</li>
+<li>streams[2] 表示两个流：一个playback流和一个capture流</li>
+</ul>
+</li>
+</ul>
+<p>声卡中pcm设备组件在ALSA中用此数据结构进行抽象。</p>
+<ul>
+<li><p>struct snd_pcm_str</p>
+<ul>
+<li>stream 表示流的方向</li>
+<li>pcm 表示流属于哪一个PCM组件</li>
+<li>subtsream 表示某一个流下面的子流</li>
+</ul>
+</li>
+<li><p>struct snd_pcm_substream</p>
+<ul>
+<li><p>pcm 所属PCM设备组件</p>
+</li>
+<li><p>snd_pcm_str 子流所属的流</p>
+</li>
+<li><p>private_data</p>
+</li>
+<li><p>dma_buffer 表示该子流与DMA操作相关的信息</p>
+</li>
+<li><p>ops，表示该子流拥有的PCM操作函数集。对于PCM设备组件而言，PCM操作函数集所操作的载体是子流！</p>
+</li>
+<li><p>snd_pcm_runtume 记录了这个substream的一些重要的软件和硬件运行环境和参数</p>
+</li>
+</ul>
+</li>
+</ul>
+<p>这个是非常重要的数据结构，表示的是一个PCM设备组件下面的某一个流的子流，它是ALSA执行PCM功能要操作的对象。</p>
+<ul>
+<li>struct snd_pcm_ops</li>
+</ul>
+<p>这个数据结构非常重要，由自己的声卡驱动程序实现。在ALSA中，当应用空间操作PCM设备节点的时候，最终都会转换到底层这里的函数中进行。</p>
+<ul>
+<li>struct snd_pcm_runtime</li>
+</ul>
+<p>表示的是PCM相关的环境信息，如DMA buffer等等。它拥有 hw_params和sw_params配置拷贝，缓冲区指针，mmap记录，自旋锁等。对驱动程序操作集函数是只读的，进pcm中间层可以改变这些信息。</p>
+<ul>
+<li>const struct file_operations snd_pcm_f_ops[2]</li>
+</ul>
+<p>后面会知道，每一个PCM设备组件在注册的时候会创建两个设备节点，一个是playback设备节点，一个是capture设备节点。</p>
+<p><strong>小结：</strong></p>
+<p>一个声卡下面可以有多个PCM设备组件，每一个PCM设备组件都据由唯一的设备号，每个PCM设备组件下面有两个流：playback和capture。每个流可以由多个子流组成，它是ALSA进行PCM操作最后要作用的对象。每个子流拥有一个PCM操作函数集 snd_pcm_ops，它是自己的声卡驱动要实现的函数。</p>
+<h3 id="4-2-创建PCM"><a href="#4-2-创建PCM" class="headerlink" title="4.2 创建PCM"></a>4.2 创建PCM</h3><p><img src="/2025/02/23/Android-Audio-标准ALSA架构/pcm-new.jpg" alt="pcm-new"></p>
+<ul>
+<li>snd_pcm_new()</li>
+</ul>
+<p>通过snd_pcm_new()创建PCM设备组件。</p>
+<p>与control设备组件类似的，会创建一个 struct snd_device，并添加到ard-&gt;devices链表中。</p>
+<p>此外，PCM设备组件会创建两个stream。</p>
+<ul>
+<li><p>snd_pcm_new_stream()</p>
+<ul>
+<li>根据stream方向取出是playback还是capture；</li>
+<li>确定流的方向</li>
+<li>确定该流所属的PCM设备组件</li>
+<li>根据子流的数量，实例化子流，给子流相关的成员赋值</li>
+</ul>
+</li>
+<li><p>snd_pcm_dev_register()</p>
+</li>
+</ul>
+<p>与control设备组件类似，在new的时候传入了dev-&gt;ops，在register设备的时候会调到其注册函数 snd_pcm_dev_register()。</p>
+<p>区别在于：</p>
+<ol>
+<li><p>会根据是playback还是capture修改名字（p/c）</p>
+</li>
+<li><p>snd_register_device_for_dev() 时传入 snd_pcm_f_ops[idx]，playback和capture是两组函数</p>
+</li>
+</ol>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">snd_pcm_f_ops</span>[2] = &#123;</span></span><br><span class="line">&#123;</span><br><span class="line">	&#123;</span><br><span class="line">		.owner = THIS_MODULE,</span><br><span class="line">		.write = snd_pcm_write,</span><br><span class="line">		.write_iter = snd_pcm_writev,</span><br><span class="line">		.open =  snd_pcm_playback_open,</span><br><span class="line">		.release = snd_pcm_release,</span><br><span class="line">		.llseek = no_llseek,</span><br><span class="line">		.poll =  snd_pcm_poll,</span><br><span class="line">		.unlocked_ioctl = snd_pcm_ioctl,</span><br><span class="line">		.compat_ioctl = snd_pcm_ioctl_compat,</span><br><span class="line">		.mmap =  snd_pcm_mmap,</span><br><span class="line">		.fasync = snd_pcm_fasync,</span><br><span class="line">		.get_unmapped_area = snd_pcm_get_unmapped_area,</span><br><span class="line">	&#125;,</span><br><span class="line">	&#123;</span><br><span class="line">		.owner = THIS_MODULE,</span><br><span class="line">		.read =  snd_pcm_read,</span><br><span class="line">		.read_iter = snd_pcm_readv,</span><br><span class="line">		.open =  snd_pcm_capture_open,</span><br><span class="line">		.release = snd_pcm_release,</span><br><span class="line">		.llseek = no_llseek,</span><br><span class="line">		.poll =  snd_pcm_poll,</span><br><span class="line">		.unlocked_ioctl = snd_pcm_ioctl,</span><br><span class="line">		.compat_ioctl = snd_pcm_ioctl_compat,</span><br><span class="line">		.mmap =  snd_pcm_mmap,</span><br><span class="line">		.fasync = snd_pcm_fasync,</span><br><span class="line">		.get_unmapped_area = snd_pcm_get_unmapped_area,</span><br><span class="line">    &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>最后，应用层操作这两个设备节点的时候，实际通过系统调用陷入内核中执行这两个设备文件操作函数集中的函数。</p>
+<h3 id="4-3-PCM的实现"><a href="#4-3-PCM的实现" class="headerlink" title="4.3 PCM的实现"></a>4.3 PCM的实现</h3><p>前面说到PCM的实现主要是实现数据结构 snd_pcm_ops，里面的函数指针都是作为接口供自己的声卡驱动程序实现的。ALSA给我们提供了一个重要的接口 snd_pcm_set_ops()，用于将我们实现好的驱动体现到ALSA架构中。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">snd_pcm_set_ops</span><span class="params">(struct snd_pcm *pcm, <span class="keyword">int</span> direction,</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">const</span> struct snd_pcm_ops *ops)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_pcm_str</span> *<span class="title">stream</span> = &amp;<span class="title">pcm</span>-&gt;<span class="title">streams</span>[<span class="title">direction</span>];</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_pcm_substream</span> *<span class="title">substream</span>;</span></span><br><span class="line">    <span class="keyword">for</span> (substream = stream-&gt;substream; substream != <span class="literal">NULL</span>; substream = substream-&gt;next)</span><br><span class="line">		substream-&gt;ops = ops;  <span class="comment">// 当操作子流的时候就执行外部的ops。</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">EXPORT_SYMBOL(snd_pcm_set_ops);</span><br></pre></td></tr></table></figure>
+
+<p>高通平台对该结构的实现：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">snd_pcm_ops</span> <span class="title">q6asm_dai_ops</span> = &#123;</span></span><br><span class="line">    .open      = q6asm_dai_open,</span><br><span class="line">    .hw_params   = q6asm_dai_hw_params,</span><br><span class="line">    .close     = q6asm_dai_close,</span><br><span class="line">    .ioctl     = snd_pcm_lib_ioctl,</span><br><span class="line">    .prepare    = q6asm_dai_prepare,</span><br><span class="line">    .trigger    = q6asm_dai_trigger,</span><br><span class="line">    .pointer    = q6asm_dai_pointer,</span><br><span class="line">    .mmap   = q6asm_dai_mmap,</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>open函数是在上层执行open打开PCM设备节点时调用的。</p>
+<p>copy和trigger是在上层调用write向PCM设备节点写数据时调用的。</p>
+<p>hw_param是上层调用iotcl，参数为SNDRV_PCM_IOCTL_HW_PARAMS时调用的。</p>
+<p>prepare是上层通过ioctl，参数为SNDRV_PCM_IOCTL_PREPARE时调用的。</p>
+<ul>
+<li>open()</li>
+</ul>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/q6asm-dai.jpg" alt="q6asm-dai"></p>
+<p>高通sw5100平台有一个专门的ADSP，音频经过用户空间解码成PCM格式的音频流以后，通过PCM接口将其copy到内核空间的DMA区域中，接着通过DMA控制器将其传送到ADSP中。</p>
+<p>open只是做一些初始准备工作。</p>
+<ul>
+<li>hw_params()</li>
+</ul>
+<p>hw_params函数为substream设定q6asm_dai_rtd中的pcm数据格式。</p>
+<ul>
+<li>prepare()</li>
+</ul>
+<p><img src="/2025/02/23/Android-Audio-标准ALSA架构/dai-prepare.jpg" alt="dai-prepare"></p>
+<p>可见，真正打开ADSP的session是在prepare的时候完成的。</p>
+<p>内核驱动dsp之间是通过Audio-Pkt命令来完成的。apr驱动的代码路径：</p>
+<p><code>android/kernel/msm-5.4/drivers/soc/qcom/apr.c</code></p>
+<ul>
+<li>trigger()</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">static</span> <span class="keyword">int</span> <span class="title">q6asm_dai_trigger</span><span class="params">(struct snd_pcm_substream *substream, <span class="keyword">int</span> cmd)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> ret = <span class="number">0</span>;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">snd_pcm_runtime</span> *<span class="title">runtime</span> = <span class="title">substream</span>-&gt;<span class="title">runtime</span>;</span></span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">q6asm_dai_rtd</span> *<span class="title">prtd</span> = <span class="title">runtime</span>-&gt;<span class="title">private_data</span>;</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">switch</span> (cmd) &#123;</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_START:</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_RESUME:</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_PAUSE_RELEASE:</span><br><span class="line">			ret = q6asm_run_nowait(prtd-&gt;audio_client, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_STOP:</span><br><span class="line">			prtd-&gt;state = Q6ASM_STREAM_STOPPED;</span><br><span class="line">			ret = q6asm_cmd_nowait(prtd-&gt;audio_client, CMD_EOS);</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_SUSPEND:</span><br><span class="line">		<span class="keyword">case</span> SNDRV_PCM_TRIGGER_PAUSE_PUSH:</span><br><span class="line">			ret = q6asm_cmd_nowait(prtd-&gt;audio_client, CMD_PAUSE);</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line"> 			ret = -EINVAL;</span><br><span class="line">			<span class="keyword">break</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>q6asm_run_nowait() 是通过apr_send_pkt()发送命令来控制adsp的启动停止。</p>
+<p><strong>小结：</strong></p>
+<p>上面分析的是音频从用户空间传递到ADSP中的情况，这一部分是ALSA的核心。不过对于音频的流向而言。实际一条完整的路线是：</p>
+<p>用户空间 – 系统调用 –&gt; 内核空间DMA区  – gpr –&gt; ADSP – DAI –&gt; CODEC –&gt; SPK</p>
+<p>这条路从软件结构上可以分为前端FE和后端BE，前端负责将音频流高效地送到ADSP，这里还没有音频设备的概念；后端负责将音频流通过平台的DAI送到CODEC，通过搭建不同的路径，最终送到不同的音频设备中。</p>
+<h2 id="5-alsa-lib和alsa-utils"><a href="#5-alsa-lib和alsa-utils" class="headerlink" title="5. alsa-lib和alsa-utils"></a>5. alsa-lib和alsa-utils</h2><p>alsa-lib：运行在应用层，APP通过调用alsa-lib来实现alsa driver的能力。</p>
+<p>alsa-utils：一些alsa调试开发工具。常用的有 amixer，aplay，arecord。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2023/08/21/Bluedroid-Study-Notes-Bluetooth-Sockets/" rel="next" title="Bluedroid-Study-Notes-Bluetooth Sockets">
+                <i class="fa fa-chevron-left"></i> Bluedroid-Study-Notes-Bluetooth Sockets
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">31</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">10</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-ALSA-Concepts"><span class="nav-number">1.</span> <span class="nav-text">1. ALSA Concepts</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-ALSA声卡的创建"><span class="nav-number">2.</span> <span class="nav-text">2. ALSA声卡的创建</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-数据结构"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-声卡的建立流程"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 声卡的建立流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-control设备组件"><span class="nav-number">3.</span> <span class="nav-text">3. control设备组件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-control设备组件的创建"><span class="nav-number">3.1.</span> <span class="nav-text">3.1 control设备组件的创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-controls的创建"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 controls的创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-应用程序操作controls"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 应用程序操作controls</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-PCM设备组件"><span class="nav-number">4.</span> <span class="nav-text">4. PCM设备组件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-数据结构"><span class="nav-number">4.1.</span> <span class="nav-text">4.1 数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-创建PCM"><span class="nav-number">4.2.</span> <span class="nav-text">4.2 创建PCM</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-PCM的实现"><span class="nav-number">4.3.</span> <span class="nav-text">4.3 PCM的实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-alsa-lib和alsa-utils"><span class="nav-number">5.</span> <span class="nav-text">5. alsa-lib和alsa-utils</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
