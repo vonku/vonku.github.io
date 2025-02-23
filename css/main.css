@@ -187,7 +187,7 @@ body {
   position: relative;
   font-family: 'Lato', "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 14px;
-  line-height: 2;
+  line-height: 1.5;
   color: #555;
   background: #eee;
 }
@@ -1823,7 +1823,7 @@ pre .javascript .function {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #5409bd;
+  background: #088ae0;
 }
 .links-of-blogroll {
   font-size: 13px;
