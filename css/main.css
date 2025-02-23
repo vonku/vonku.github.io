@@ -7,7 +7,7 @@ h3,
 h4,
 h5,
 h6 {
-  line-height: 1.4;
+  line-height: 1.6;
 }
 /* normalize.css v3.0.2 | MIT License | git.io/normalize */
 html {
@@ -198,7 +198,7 @@ body {
   position: relative;
   font-family: "PingFang SC", "Source Han Sans", "Roboto", sans-serif;
   font-size: 16px;
-  line-height: 1.2;
+  line-height: 1.5;
   color: #555;
   background: #eee;
 }
@@ -1834,7 +1834,7 @@ pre .javascript .function {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #a87047;
+  background: #255238;
 }
 .links-of-blogroll {
   font-size: 13px;
