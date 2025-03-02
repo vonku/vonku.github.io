@@ -93,7 +93,7 @@
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/machine-probe.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/widget-path.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/qcom-dai.jpg">
-<meta property="og:updated_time" content="2025-03-02T13:00:09.317Z">
+<meta property="og:updated_time" content="2025-03-02T13:03:25.983Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Android Audio-标准ASoc架构">
 <meta name="twitter:description" content="本文是对ALSA ASoC架构的总结。">
@@ -388,9 +388,7 @@
 <h3 id="1-1-硬件架构"><a href="#1-1-硬件架构" class="headerlink" title="1.1 硬件架构"></a>1.1 硬件架构</h3><p>嵌入式系统中的音频分为三个部分组成：</p>
 <p><img src="/2025/02/23/Android-Audio-标准ASoc架构/platform-codec.jpg" alt="platform-codec"></p>
 <ul>
-<li><ul>
-<li>Machine 主板中和音频有关的外围电路</li>
-</ul>
+<li><p>Machine 主板中和音频有关的外围电路</p>
 </li>
 <li><p>SoC 嵌入式系统中的platform</p>
 </li>
@@ -676,9 +674,7 @@ if (ret != 0)
 
 <p>上面的route的意思是：”Left Input Mixer”是source widget，”Left Output Mixer”是sink widget，source要连接到sink，需要经过执行 “Left Input Mixer Switch” 这个control。control直接操作寄存器，实现了对mix的选择控制。</p>
 <p><strong>widget和path的示意图：</strong></p>
-<img src="/2025/02/23/Android-Audio-标准ASoc架构/widget-path.jpg" alt="widget-path" style="zoom:80%;">
-
-<p>￼￼</p>
+<p><img src="/2025/02/23/Android-Audio-标准ASoc架构/widget-path.jpg" alt="widget-path"></p>
 <p>widget是带有路径和电源管理信息的kcontrol，它是dapm的基本单元。</p>
 <p>widget和widget之间通过 route 来连接，底层是snd_soc_dapm_path。</p>
 <h4 id="3-4-2-定义widget"><a href="#3-4-2-定义widget" class="headerlink" title="3.4.2 定义widget"></a>3.4.2 定义widget</h4><p>按照widget所在的电源域，分为几类：</p>
