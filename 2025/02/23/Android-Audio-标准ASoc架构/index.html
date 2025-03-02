@@ -93,7 +93,7 @@
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/machine-probe.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/widget-path.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/qcom-dai.jpg">
-<meta property="og:updated_time" content="2025-03-02T13:06:20.399Z">
+<meta property="og:updated_time" content="2025-03-02T13:15:14.442Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Android Audio-标准ASoc架构">
 <meta name="twitter:description" content="本文是对ALSA ASoC架构的总结。">
@@ -422,8 +422,8 @@
 <p>codec DAI驱动主要负责codec端音频接口的搭建。</p>
 <h2 id="2-ASoC数据结构"><a href="#2-ASoC数据结构" class="headerlink" title="2. ASoC数据结构"></a>2. ASoC数据结构</h2><img src="/2025/02/23/Android-Audio-标准ASoc架构/asoc-data-struct.jpg" alt="asoc-data-struct" style="zoom:80%;">
 
-<p>分析之前流程先看一下ASoC的核心数据结构。</p>
-<p><strong>￼￼数据结构一： struct snd_soc_card</strong></p>
+<p>分析之前流程先看一下ASoC的核心数据结构：</p>
+<p><strong>数据结构一： struct snd_soc_card</strong></p>
 <p>这个数据结构是ASoC声卡的抽象，封装了snd_card声卡。其一般定义在machine驱动中。</p>
 <ul>
 <li><p>snd_card是ALSA声卡的抽象</p>
@@ -490,7 +490,7 @@
 </ul>
 <h3 id="3-2-dai的注册"><a href="#3-2-dai的注册" class="headerlink" title="3.2 dai的注册"></a>3.2 dai的注册</h3><p>ASoC的dai并不区分cpu dai还是 codec dai，主要是根据dai_link中的cpu_dai_name和codec_dai_name来确定一个DAI是cpu_dai还是codec_dai。</p>
 <p><img src="/2025/02/23/Android-Audio-标准ASoc架构/register-dai.jpg" alt="register-dai"></p>
-<p>￼<strong>小结：</strong></p>
+<p><strong>小结：</strong></p>
 <ul>
 <li><p>component和dai的注册都会实例化一个相应的实体</p>
 </li>
