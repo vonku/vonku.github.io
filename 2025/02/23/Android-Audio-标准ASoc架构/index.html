@@ -86,18 +86,18 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文是对ALSA ASoC架构的总结。">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/D:%5Cvonku%5Chexo%5Cvonku%5Csource_posts%5CAndroid-Audio-%E6%A0%87%E5%87%86ASoc%E6%9E%B6%E6%9E%84%5Cplatform-codec.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/platform-codec.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/asoc-data-struct.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/register-component.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/register-dai.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/machine-probe.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/widget-path.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/qcom-dai.jpg">
-<meta property="og:updated_time" content="2025-03-02T12:57:30.255Z">
+<meta property="og:updated_time" content="2025-03-02T13:00:09.317Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Android Audio-标准ASoc架构">
 <meta name="twitter:description" content="本文是对ALSA ASoC架构的总结。">
-<meta name="twitter:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/D:%5Cvonku%5Chexo%5Cvonku%5Csource_posts%5CAndroid-Audio-%E6%A0%87%E5%87%86ASoc%E6%9E%B6%E6%9E%84%5Cplatform-codec.jpg">
+<meta name="twitter:image" content="http://yoursite.com/2025/02/23/Android-Audio-标准ASoc架构/platform-codec.jpg">
 
 
 
@@ -386,9 +386,11 @@
 </ul>
 <p>ASoC的代码：<code>kernel/sound/soc</code>。它不能单独存在，它是建立在标准ALSA驱动之上的，必须和标准的ALSA驱动模型相结合才能工作。</p>
 <h3 id="1-1-硬件架构"><a href="#1-1-硬件架构" class="headerlink" title="1.1 硬件架构"></a>1.1 硬件架构</h3><p>嵌入式系统中的音频分为三个部分组成：</p>
-<p><img src="/2025/02/23/Android-Audio-标准ASoc架构/D:%5Cvonku%5Chexo%5Cvonku%5Csource_posts%5CAndroid-Audio-%E6%A0%87%E5%87%86ASoc%E6%9E%B6%E6%9E%84%5Cplatform-codec.jpg" alt="platform-codec"></p>
+<p><img src="/2025/02/23/Android-Audio-标准ASoc架构/platform-codec.jpg" alt="platform-codec"></p>
 <ul>
-<li><p>Machine 主板中和音频有关的外围电路</p>
+<li><ul>
+<li>Machine 主板中和音频有关的外围电路</li>
+</ul>
 </li>
 <li><p>SoC 嵌入式系统中的platform</p>
 </li>
@@ -785,8 +787,7 @@ if (ret != 0)
 <p>在dapm core中，会创建一个route，链接cpu_dai的playback widget和codec_dai widget，用于playback。对capture则相反。</p>
 <p>为了trigger这个route，DAPM还需要会找到一个有效的端点，它可以是上面playback和capture路径上有效的source/sink端点。比如”AIF Playback”</p>
 <h2 id="4-高通asoc音频通路"><a href="#4-高通asoc音频通路" class="headerlink" title="4. 高通asoc音频通路"></a>4. 高通asoc音频通路</h2><h3 id="4-1-非audioreach架构"><a href="#4-1-非audioreach架构" class="headerlink" title="4.1 非audioreach架构"></a>4.1 非audioreach架构</h3><p>高通平台非audioreach架构时，asoc的dai分为FE dai和BE dai，FE dai负责连接AP-&gt;ADSP，BE dai则负责连接ADSP-&gt;Codec，ADSP里面数据的route则通过msm-pcm-routing构建的widget’s path来完成。</p>
-<img src="/2025/02/23/Android-Audio-标准ASoc架构/qcom-dai.jpg" alt="qcom-dai" style="zoom: 67%;">
-
+<p><img src="/2025/02/23/Android-Audio-标准ASoc架构/qcom-dai.jpg" alt="qcom-dai"></p>
 <h3 id="4-2-audioreach架构"><a href="#4-2-audioreach架构" class="headerlink" title="4.2 audioreach架构"></a>4.2 audioreach架构</h3><p>在audioreach上，这些东西都简化了，TinyALSA插件通过agm-&gt;gsl, 再到kernel的Audio-Pkt和GPR，把数据和命令发送到ADSP，这里不再使用ASoC，所以高通的platform driver都是一些stub和dummy的实现。</p>
 <p><strong>问题汇总</strong></p>
 <p>1、 dapm是如何解决上下电杂音问题的？</p>
