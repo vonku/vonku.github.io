@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Hexo, NexT">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="Histreamer是OpenHarmony的轻量级的媒体引擎，提供播放、录制等场景的媒体数据流水线处理。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Histreamer框架分析">
+<meta property="og:url" content="http://yoursite.com/2025/03/09/Histreamer框架分析/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="Histreamer是OpenHarmony的轻量级的媒体引擎，提供播放、录制等场景的媒体数据流水线处理。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cpm.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cregister_data.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5C%E6%8F%92%E4%BB%B6%E6%B3%A8%E5%86%8C.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cclass_diagram.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cstate.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/filter_and_ports.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cregister_filter.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/filterbase.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/filter_and_ports.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cplugin_cb.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5C%E5%88%9B%E5%BB%BA%E6%92%AD%E6%94%BE%E5%99%A8.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cset_source.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cprepare.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5C%E6%8E%A5%E6%94%B6%E7%BD%91%E7%BB%9C%E6%95%B0%E6%8D%AE.jpg">
+<meta property="og:updated_time" content="2025-03-09T12:08:19.082Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Histreamer框架分析">
+<meta name="twitter:description" content="Histreamer是OpenHarmony的轻量级的媒体引擎，提供播放、录制等场景的媒体数据流水线处理。">
+<meta name="twitter:image" content="http://yoursite.com/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cpm.jpg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2025/03/09/Histreamer框架分析/">
+
+
+
+
+
+  <title>Histreamer框架分析 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2025/03/09/Histreamer框架分析/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Histreamer框架分析</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2025-03-09T19:40:32+08:00">
+                2025-03-09
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Audio/" itemprop="url" rel="index">
+                    <span itemprop="name">Audio</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2025/03/09/Histreamer框架分析/" class="leancloud_visitors" data-flag-title="Histreamer框架分析">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>Histreamer是OpenHarmony的轻量级的媒体引擎，提供播放、录制等场景的媒体数据流水线处理。</p>
+</blockquote>
+<a id="more"></a>
+
+<p>Histreamer是OpenHarmony的轻量级的媒体引擎，提供播放、录制等场景的媒体数据流水线处理。</p>
+<p>Histreamer使用pipeline管理音频数据，一条pipeline由若干个filter组成。Filter的功能通过plugins插件来实现，支持静态和动态注册插件的方式。</p>
+<h2 id="1-框架分析"><a href="#1-框架分析" class="headerlink" title="1. 框架分析"></a>1. 框架分析</h2><h3 id="1-1-Plugin的注册和管理"><a href="#1-1-Plugin的注册和管理" class="headerlink" title="1.1 Plugin的注册和管理"></a>1.1 Plugin的注册和管理</h3><p>本节首先介绍什么是插件，插件是如何进行注册和管理的，然后介绍新增一个插件需要做什么事情。</p>
+<h4 id="1-1-1-PluginLoader"><a href="#1-1-1-PluginLoader" class="headerlink" title="1.1.1 PluginLoader"></a>1.1.1 PluginLoader</h4><p>PluginLoader 主要是用于动态插件的加载和注册，它使用 dlopen() 打开动态库，并通过 dlsym() 从动态库中提取注册和反注册方法。注册插件方法的名字为 “register_“ + name ，反注册插件方法的名字为 “unregister_” + name。</p>
+<p>一个loader实例对应一个动态注册的插件。</p>
+<h4 id="1-1-2-PluginManager"><a href="#1-1-2-PluginManager" class="headerlink" title="1.1.2 PluginManager"></a>1.1.2 PluginManager</h4><p>PluginManager 是对外提供的插件管理类，它是一个单例实现。典型使用如下：</p>
+<p><code>Plugin::PluginManager::Instance().ListPlugins(pluginType)</code></p>
+<p><strong>数据结构：</strong></p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cpm.jpg" alt="pm"></p>
+<p>PluginManager把插件的注册封装到 pluginRegister_类型中。Filter可以通过 CreaterxxxPlugin() 方法创建对应的插件。</p>
+<p><strong>创建插件：</strong></p>
+<p>创建插件就是从提前注册好的 pluginRegister_ 中找到注册器信息，然后调用它们自己的creator() 方法。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span>&lt;<span class="keyword">typename</span> T, <span class="keyword">typename</span> U&gt;</span><br><span class="line"><span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;T&gt; CreatePlugin(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp; name, PluginType pluginType)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">auto</span> regInfo = pluginRegister_-&gt;GetPluginRegInfo(pluginType, name);</span><br><span class="line">    <span class="keyword">if</span> (!regInfo) &#123;</span><br><span class="line">        <span class="keyword">return</span> &#123;&#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">auto</span> plugin = ReinterpretPointerCast&lt;U&gt;(regInfo-&gt;creator(name));</span><br><span class="line">    <span class="keyword">if</span> (!plugin) &#123;</span><br><span class="line">        <span class="keyword">return</span> &#123;&#125;;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;T&gt;(</span><br><span class="line">        <span class="keyword">new</span> T(regInfo-&gt;packageDef-&gt;pkgVersion, regInfo-&gt;info-&gt;apiVersion, plugin));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>假设我们要创建一个FileSource的插件，那么这里会调用到FileSource注册时提供的creator方法：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;SourcePlugin&gt; FileSourcePluginCreator(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp; name)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> <span class="built_in">std</span>::make_shared&lt;FileSourcePlugin&gt;(name);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其实就是创建一个对象。</p>
+<h4 id="1-1-3-PluginRegister"><a href="#1-1-3-PluginRegister" class="headerlink" title="1.1.3 PluginRegister"></a>1.1.3 PluginRegister</h4><p>PluginRegister 依赖内部类 RegisterImpl 内部类来完成实际的注册管理工作。实际是在私有成员 registerData_ 中保存所有的注册信息。</p>
+<p>管理所有注册信息的数据结构 RegisterData ：</p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cregister_data.jpg" alt="register_data"></p>
+<h4 id="1-1-4-插件注册流程"><a href="#1-1-4-插件注册流程" class="headerlink" title="1.1.4 插件注册流程"></a>1.1.4 插件注册流程</h4><p>以FileSource为例说明插件注册的流程。</p>
+<ul>
+<li>定义插件</li>
+</ul>
+<p><code>PLUGIN_DEFINITION(FileSource, LicenseType::APACHE_V2, FileSourceRegister, [] {});</code></p>
+<p>宏展开后得到：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">extern</span> <span class="string">"C"</span> __attribute__((dllexport))OHOS::Media::Plugin::Status</span><br><span class="line">register_FileSource(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;OHOS::Media::Plugin::PackageRegister&gt; &amp;pkgReg) &#123;</span><br><span class="line">    pkgReg-&gt;AddPackage(&#123;(((((<span class="number">1</span>)) &amp; <span class="number">0xFFFF</span>) &lt;&lt; <span class="number">16</span>) | (((<span class="number">0</span>)) &amp; <span class="number">0xFFFF</span>)), <span class="string">"FileSource"</span>, LicenseType::APACHE_V2&#125;);</span><br><span class="line">    <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;OHOS::Media::Plugin::Register&gt; pluginReg = pkgReg;</span><br><span class="line">    <span class="keyword">return</span> FileSourceRegister(pluginReg);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">extern</span> <span class="string">"C"</span> __attribute__((dllexport))<span class="function"><span class="keyword">void</span> <span class="title">unregister_FileSource</span><span class="params">()</span> </span>&#123; </span><br><span class="line">	[] &#123;&#125;(); </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，是定义了一个注册函数 register_FileSource() 和一个反注册函数 unregister_FileSource() 。</p>
+<ul>
+<li>插件注册流程</li>
+</ul>
+<p>程序流程图：</p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5C%E6%8F%92%E4%BB%B6%E6%B3%A8%E5%86%8C.jpg" alt="插件注册"></p>
+<p>核心流程说明如下：</p>
+<p>1）PluginManager初始化时调用PluginRegister的注册注册插件方法 RegisterPlugins()；</p>
+<p>2）RegisterPlugins() 调用 RegisterStaticPlugins() 注册静态插件，调用 RegisterDynamicPlugins() 注册动态插件；</p>
+<p>3) RegisterPluginStatic() 会依次调用各个静态插件的注册函数：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">RegisterPluginStatic</span><span class="params">(<span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;OHOS::Media::Plugin::Register&gt; reg)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    REGISTER_STATIC(FileSource, reg);</span><br><span class="line">    REGISTER_STATIC(FileFdSource, reg);</span><br><span class="line">    REGISTER_STATIC(WavDemuxer, reg);</span><br><span class="line">    REGISTER_STATIC(FFmpegDemuxer, reg);</span><br><span class="line">    REGISTER_STATIC(FFmpegMuxers, reg);</span><br><span class="line">    REGISTER_STATIC(FFmpegAudioDecoders, reg);</span><br><span class="line">    REGISTER_STATIC(FFmpegAudioEncoders, reg);</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>4）每个插件的注册函数又会反过来调用 注册器提供的 AddPlugin() 接口</p>
+<p>5）AddPlugin() 会检查参数合法性以及版本信息，然后在 UpdateRegisterTableAndRegisterNames() 中真正完成一个插件的注册工作。</p>
+<p>6）UpdateRegisterTableAndRegisterNames() 主要是根据PluginDefBase得到PluginRegInfo，并把插件添加到私有的registerData数据结构中进行统一管理。</p>
+<p><strong>小结：</strong></p>
+<p><strong>如何定义一个静态插件：</strong></p>
+<ol>
+<li>插件在自己的类中使用宏 PLUGIN_DEFINITION() 来定义插件，它其实是向外导出了一个注册方法和反注册方法；</li>
+</ol>
+<p><code>PLUGIN_DEFINITION(FileSource, LicenseType::APACHE_V2, FileSourceRegister, [] {});</code></p>
+<ol start="2">
+<li>在 all_plugin_static.h 的声明：</li>
+</ol>
+<p><code>PLUGIN_REGISTER_STATIC_DECLARE(FileSource);</code></p>
+<ol start="3">
+<li>在RegisterPluginStatic()中注册插件：</li>
+</ol>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">RegisterPluginStatic</span><span class="params">(<span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;OHOS::Media::Plugin::Register&gt; reg)</span> </span>&#123;&#125;&#123;</span><br><span class="line">	...</span><br><span class="line">    REGISTER_STATIC(FileSource, reg);</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="4">
+<li>典型的插件注册函数要完成两件事情：定义PluginDefBase数据结构，调用 reg-&gt;AddPlugin() 注册插件。</li>
+</ol>
+<h3 id="1-2-Pipeline、Filter和Port"><a href="#1-2-Pipeline、Filter和Port" class="headerlink" title="1.2 Pipeline、Filter和Port"></a>1.2 Pipeline、Filter和Port</h3><p>上一节介绍了什么是插件，本节介绍pipeline、filter和port。</p>
+<p>Pipeline是数据流的管道，是整体，pipeline由一个个filter过滤器组成。</p>
+<p>filter会对音频数据进行处理，主要有source/sink、decoder/encoder、demuxer/muxer这几种filter，它们分别负责数据的输入/输出、解码/编码、解封装/封装。</p>
+<p>port是filter的端口，分为inPort和outPort，一个filter可以有一个或多个inPorts或outPorts。</p>
+<h4 id="1-2-1-数据结构"><a href="#1-2-1-数据结构" class="headerlink" title="1.2.1 数据结构"></a>1.2.1 数据结构</h4><p><strong>类图：</strong></p>
+<p><img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cclass_diagram.jpg" alt="class_diagram">﻿</p>
+<p>数据结构的说明：</p>
+<ol>
+<li><p>一个播放器创建一个pipeline实例，播放器需实现 EvenReceiver和FilterCallback这两个接口，pipeline和filter可以把状态报给播放器。</p>
+</li>
+<li><p>pipeline由若干个filter组成。Pipeline派生自EventReceiver接口，在FilterBase初始化时，Pipeline把自己传给FilterBase的eventReceiver成员变量，后续Filter就可以通过eventReceiver-&gt;OnEvent()把状态回传给pipeline。</p>
+</li>
+<li><p>filter有两组Ports：InPorts和OutPorts，这里不是两个而是两组，原因是比如demuxer这样的filter可以有多个输出的。Port属于某一个Filter。</p>
+</li>
+</ol>
+<h4 id="1-2-2-pipeline-状态机"><a href="#1-2-2-pipeline-状态机" class="headerlink" title="1.2.2 pipeline-状态机"></a>1.2.2 pipeline-状态机</h4><p>pipeline管理着所有filter的状态，因此，pipeline的启动停止都是由filter完成的，pipeline保存着一个FilterState类型的私有成员变量state_，所以pipeline自己的状态，其实就是它所管理的filter的状态。</p>
+<p>pipeline的状态机如下：</p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cstate.jpg" alt="state"></p>
+<p>可以看到，在prepare的时候，pipeline需要收到所有的filter的ready事件，才会变成ready状态，才可以start。</p>
+<p>具体代码如下：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">void</span> PipelineCore::OnEvent(<span class="keyword">const</span> Event&amp; event)</span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (event.type != EventType::EVENT_READY) &#123;</span><br><span class="line">        NotifyEvent(event);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    readyEventCnt_++;</span><br><span class="line">    <span class="comment">// 所有的filter均ready，才是真的ready。</span></span><br><span class="line">    <span class="keyword">if</span> (readyEventCnt_ == filters_.size()) &#123;</span><br><span class="line">        state_ = FilterState::READY;</span><br><span class="line">        NotifyEvent(event);</span><br><span class="line">        readyEventCnt_ = <span class="number">0</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="1-2-3-pipeline-添加和连接filter"><a href="#1-2-3-pipeline-添加和连接filter" class="headerlink" title="1.2.3 pipeline-添加和连接filter"></a>1.2.3 pipeline-添加和连接filter</h4><p>PipelineCore::AddFilters()方法向pipeline添加一个filter。添加filter只是简单地将其添加到PipelineCore的成员变量 filters_ 中。</p>
+<p>PipelineCore::LinkFilter() 将filter连接起来，实现下图这样的效果：</p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/filter_and_ports.jpg" alt="filter_and_ports" style="zoom:60%;"></p>
+<h4 id="1-2-4-FilterFactory-注册和创建filter"><a href="#1-2-4-FilterFactory-注册和创建filter" class="headerlink" title="1.2.4 FilterFactory-注册和创建filter"></a>1.2.4 FilterFactory-注册和创建filter</h4><p>所有向系统注册的filter生成器，保存在FilterFactory的generator()这个map中。</p>
+<p>FilterFactory是Filter的工厂类，但是另外封装了AutoRegisterFilter() 这个帮助类给开发者使用。</p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cregister_filter.jpg" alt="register_filter"></p>
+<p>举个例子说明注册插件的流程：</p>
+<p><strong>注册插件</strong></p>
+<p>向系统注册一个demuxer filter，只需要在它自己的类中定义一个静态的生成器对象：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// demuxer_filter.cpp</span></span><br><span class="line"><span class="keyword">static</span> AutoRegisterFilter&lt;DemuxerFilter&gt; g_registerFilterHelper(<span class="string">"builtin.player.demuxer"</span>);</span><br></pre></td></tr></table></figure>
+
+<p>AutoRegisterFilter() 这个模板类在构造函数中就会调用FilterFactory的方法向系统注册一个Filter：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">explicit</span> <span class="title">AutoRegisterFilter</span><span class="params">(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp; name)</span> </span>&#123;</span><br><span class="line">    FilterFactory::Instance().RegisterFilter&lt;T&gt;(name);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>RegisterFilter() 方法其实是向系统中注册了一个默认的生成器：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">RegisterFilter</span><span class="params">(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp; name)</span> </span>&#123;</span><br><span class="line">	<span class="comment">// 默认的生成器就是new一个对象</span></span><br><span class="line">	RegisterGenerator(name, [](<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp; aliaName) &#123; <span class="keyword">return</span> <span class="built_in">std</span>::make_shared&lt;T&gt;(aliaName); &#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>补充说明：系统也支持filter定义定义自己的生成器：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">AutoRegisterFilter(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp; name, <span class="keyword">const</span> InstanceGenerator&amp; generator) &#123;</span><br><span class="line">	FilterFactory::Instance().RegisterGenerator(name, generator);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>而RegisterGenerator() 方法就是把生成器对象添加到FilterFactory的generators这个map中进行统一管理：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">void</span> FilterFactory::RegisterGenerator(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp; name, <span class="keyword">const</span> InstanceGenerator&amp; generator) &#123;</span><br><span class="line">    <span class="keyword">auto</span> result = generators.emplace(name, generator);</span><br><span class="line">    <span class="keyword">if</span> (!result.second) &#123;</span><br><span class="line">        result.first-&gt;second = generator;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>创建插件</strong></p>
+<p>可以通过FilterFactory的工厂方法创建插件：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// hiplayer_impl.cpp</span></span><br><span class="line">cdemuxer_ = FilterFactory::Instance().CreateFilterWithType&lt;DemuxerFilter&gt;(<span class="string">"builtin.player.demuxer"</span>, <span class="string">"demuxer"</span>);</span><br></pre></td></tr></table></figure>
+
+<p>它的实现就是根据插件的名字，从生成器map中找到生成器，然后调用生成器函数创造一个对应类型的filter对象。</p>
+<h4 id="1-2-5-Filter的工作机制"><a href="#1-2-5-Filter的工作机制" class="headerlink" title="1.2.5 Filter的工作机制"></a>1.2.5 Filter的工作机制</h4><p>﻿<img src="/2025/03/09/Histreamer框架分析/filterbase.jpg" alt="filterbase" style="zoom:80%;"></p>
+<ul>
+<li><strong>Init()</strong></li>
+</ul>
+<p>给eventReceiver_和callback_赋值，都是传进来的pipeline，用于回调。</p>
+<p>InitPorts() 初始化：对inPorts_和outPorts_进行初始化，它们的第一个成员都是FilterBase自己。对routeMap_进行初始化，这里保存的是in到out的路由，第一个成员是自己指向自己。</p>
+<ul>
+<li><strong>GetInPort()，GetOutPort()，GetNextFilters()，GetPreFilters()，FindPort()</strong> </li>
+</ul>
+<p>这些都是根据filter和port得到的帮助函数，理解这个数据结构即可：</p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/filter_and_ports.jpg" alt="filter_and_ports" style="zoom:67%;"></p>
+<ul>
+<li><strong>OnEvent</strong></li>
+</ul>
+<p>OnEvent(const Event&amp; event) 用于port给filter和pipeline传递信息</p>
+<p>OnEvent(const Plugin::PluginEvent &amp;event) 用于plugin给filter和pipeline传递信息</p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cplugin_cb.jpg" alt="plugin_cb"></p>
+<ul>
+<li><strong>Prepare()</strong></li>
+</ul>
+<p>Start()，Pause()，Stop()除了修改state外，都没做什么实际的事情。</p>
+<p>在Prepare()的时候会调用Inport的Active()方法，把port激活，filter也就开始数据的搬运工作了。</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ErrorCode FilterBase::Prepare() &#123;</span><br><span class="line">    state_ = FilterState::PREPARING;</span><br><span class="line">    <span class="comment">// Filter默认InPort按Push方式获取数据</span></span><br><span class="line">    <span class="comment">// 只有 Demuxer 的 Prepare() 需要覆写此实现， Demuxer的 InPort可能按 Pull 或 Push 方式获取数据</span></span><br><span class="line">    WorkMode mode;</span><br><span class="line">    <span class="keyword">return</span> GetInPort(PORT_NAME_DEFAULT)-&gt;Activate(&#123;WorkMode::PUSH&#125;, mode);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>ConfigPluginWithMeta(plugin，meta)</strong></li>
+</ul>
+<p>对meta参数进行合法性检查之后，调用plugin的Setparameter()方法给plugin设置参数</p>
+<p>主要是codec和sink相关的filter需要配置一些格式信息。</p>
+<p>比如如下日志：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CodecFilterBase INFO (codec_filter_base.cpp, 238) : Func(Configure) receive upstream meta Meta&#123;mime:(string)audio/mpeg, track_id:(uint32_t)0, bits_per_coded_sample:(uint32_t)0, duration:(int64_t)262512437500, bit_rate:(int64_t)128000, channels:(uint32_t)2, channel_layout:(AudioChannelLayout)STEREO, sample_rate:(uint32_t)44100, sample_fmt:(AudioSampleFormat)F32P, sample_per_frame:(uint32_t)1152, output_channels:(uint32_t)2, output_channel_layout:(AudioChannelLayout)STEREO, ad_mpeg_ver:(uint32_t)1, ad_mpeg_layer:(uint32_t)3&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>UpdateAndInitPluginByInfo()</strong></li>
+</ul>
+<p>创建plugin并调用plugin的init()</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">template</span> &lt;<span class="keyword">typename</span> T&gt;</span><br><span class="line"><span class="keyword">bool</span> FilterBase::UpdateAndInitPluginByInfo(<span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;T&gt;&amp; plugin, <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;Plugin::PluginInfo&gt;&amp; pluginInfo,</span><br><span class="line">	<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;Plugin::PluginInfo&gt;&amp; selectedPluginInfo,</span><br><span class="line">	<span class="keyword">const</span> <span class="built_in">std</span>::function&lt;<span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;T&gt;(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">string</span>&amp;)&gt;&amp; pluginCreator)</span><br><span class="line">&#123;</span><br><span class="line">    ...</span><br><span class="line">    plugin = pluginCreator(selectedPluginInfo-&gt;name);</span><br><span class="line">    <span class="keyword">if</span> (plugin == <span class="literal">nullptr</span>) &#123;</span><br><span class="line">    	MEDIA_LOG_E(<span class="string">"cannot create plugin "</span> PUBLIC_LOG_S, selectedPluginInfo-&gt;name.c_str());</span><br><span class="line">    	<span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">auto</span> err = TranslatePluginStatus(plugin-&gt;Init());</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="2-Code-flow"><a href="#2-Code-flow" class="headerlink" title="2. Code flow"></a>2. Code flow</h2><h3 id="2-1-创建播放器"><a href="#2-1-创建播放器" class="headerlink" title="2.1 创建播放器"></a>2.1 创建播放器</h3><figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">auto</span> engineFactory = <span class="built_in">std</span>::<span class="built_in">unique_ptr</span>&lt;OHOS::Media::IEngineFactory&gt;(CreateEngineFactory());</span><br><span class="line"></span><br><span class="line"><span class="keyword">auto</span> player = engineFactory-&gt;CreatePlayerEngine();</span><br></pre></td></tr></table></figure>
+
+<p><img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5C%E5%88%9B%E5%BB%BA%E6%92%AD%E6%94%BE%E5%99%A8.jpg" alt="创建播放器"></p>
+<p>﻿创建创建播放器主要做两个事情：</p>
+<ul>
+<li><p>HiPlayerImpl() 实例得到player</p>
+</li>
+<li><p>调用player的Init()</p>
+</li>
+</ul>
+<p><strong>HiPlayerImpl的构造函数：</strong></p>
+<ol>
+<li><p>在初始化task_私有成员，创建 callbackThread 回调线程，它的线程处理函数是：HiPlayerCallbackLooper::LoopOnce()</p>
+</li>
+<li><p>创建FilterFactory的实例并进行初始化：</p>
+</li>
+</ol>
+<p><code>FilterFactory::Instance().Init();</code></p>
+<ol start="3">
+<li>依次创建 syncManager_、audioSource_、demuxer_、audioSink_、pipeline_这些必要的私有成员。</li>
+</ol>
+<p><strong>player-&gt;Init()</strong></p>
+<ol>
+<li><p>pipeline-&gt;Init()；</p>
+</li>
+<li><p>给pipeline添加filter，这里AddFilter的时候会掉Filter进行初始化；</p>
+</li>
+<li><p>连接filter。</p>
+</li>
+</ol>
+<p>由此可见：对于一个player而言，必要的filter是 AudioSource 和 Demuxer。</p>
+<h3 id="2-2-SetSource"><a href="#2-2-SetSource" class="headerlink" title="2.2 SetSource"></a>2.2 SetSource</h3><p><code>player-&gt;SetSource(url);</code></p>
+<p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cset_source.jpg" alt="set_source"></p>
+<h3 id="2-3-Prepare"><a href="#2-3-Prepare" class="headerlink" title="2.3 Prepare"></a>2.3 Prepare</h3><p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5Cprepare.jpg" alt="prepare"></p>
+<h3 id="2-4-播放流程"><a href="#2-4-播放流程" class="headerlink" title="2.4 播放流程"></a>2.4 播放流程</h3><h5 id="2-4-1-Source-接收网络数据"><a href="#2-4-1-Source-接收网络数据" class="headerlink" title="2.4.1 Source-接收网络数据"></a>2.4.1 Source-接收网络数据</h5><p>﻿<img src="/2025/03/09/Histreamer框架分析/Histreamer%E6%A1%86%E6%9E%B6%E5%88%86%E6%9E%90%5C%E6%8E%A5%E6%94%B6%E7%BD%91%E7%BB%9C%E6%95%B0%E6%8D%AE.jpg" alt="接收网络数据"></p>
+<h5 id="2-4-2-Demuxer-解析数据"><a href="#2-4-2-Demuxer-解析数据" class="headerlink" title="2.4.2 Demuxer-解析数据"></a>2.4.2 Demuxer-解析数据</h5><h5 id="2-4-3-Decoder-解码数据"><a href="#2-4-3-Decoder-解码数据" class="headerlink" title="2.4.3 Decoder-解码数据"></a>2.4.3 Decoder-解码数据</h5><h5 id="2-4-4-Sink-数据输出"><a href="#2-4-4-Sink-数据输出" class="headerlink" title="2.4.4 Sink-数据输出"></a>2.4.4 Sink-数据输出</h5>
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2025/02/23/Android-Audio-标准ASoc架构/" rel="next" title="Android Audio-标准ASoc架构">
+                <i class="fa fa-chevron-left"></i> Android Audio-标准ASoc架构
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">33</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">10</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">15</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-框架分析"><span class="nav-number">1.</span> <span class="nav-text">1. 框架分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-Plugin的注册和管理"><span class="nav-number">1.1.</span> <span class="nav-text">1.1 Plugin的注册和管理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-1-PluginLoader"><span class="nav-number">1.1.1.</span> <span class="nav-text">1.1.1 PluginLoader</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-2-PluginManager"><span class="nav-number">1.1.2.</span> <span class="nav-text">1.1.2 PluginManager</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-3-PluginRegister"><span class="nav-number">1.1.3.</span> <span class="nav-text">1.1.3 PluginRegister</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-4-插件注册流程"><span class="nav-number">1.1.4.</span> <span class="nav-text">1.1.4 插件注册流程</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-Pipeline、Filter和Port"><span class="nav-number">1.2.</span> <span class="nav-text">1.2 Pipeline、Filter和Port</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-1-数据结构"><span class="nav-number">1.2.1.</span> <span class="nav-text">1.2.1 数据结构</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-2-pipeline-状态机"><span class="nav-number">1.2.2.</span> <span class="nav-text">1.2.2 pipeline-状态机</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-3-pipeline-添加和连接filter"><span class="nav-number">1.2.3.</span> <span class="nav-text">1.2.3 pipeline-添加和连接filter</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-4-FilterFactory-注册和创建filter"><span class="nav-number">1.2.4.</span> <span class="nav-text">1.2.4 FilterFactory-注册和创建filter</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-2-5-Filter的工作机制"><span class="nav-number">1.2.5.</span> <span class="nav-text">1.2.5 Filter的工作机制</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-Code-flow"><span class="nav-number">2.</span> <span class="nav-text">2. Code flow</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-创建播放器"><span class="nav-number">2.1.</span> <span class="nav-text">2.1 创建播放器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-SetSource"><span class="nav-number">2.2.</span> <span class="nav-text">2.2 SetSource</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Prepare"><span class="nav-number">2.3.</span> <span class="nav-text">2.3 Prepare</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-播放流程"><span class="nav-number">2.4.</span> <span class="nav-text">2.4 播放流程</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#2-4-1-Source-接收网络数据"><span class="nav-number">2.4.0.1.</span> <span class="nav-text">2.4.1 Source-接收网络数据</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-4-2-Demuxer-解析数据"><span class="nav-number">2.4.0.2.</span> <span class="nav-text">2.4.2 Demuxer-解析数据</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-4-3-Decoder-解码数据"><span class="nav-number">2.4.0.3.</span> <span class="nav-text">2.4.3 Decoder-解码数据</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-4-4-Sink-数据输出"><span class="nav-number">2.4.0.4.</span> <span class="nav-text">2.4.4 Sink-数据输出</span></a></li></ol></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
