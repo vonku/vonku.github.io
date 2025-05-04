@@ -95,7 +95,7 @@
 <meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/allocate.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/buffer.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/c2.jpg">
-<meta property="og:updated_time" content="2025-05-04T03:31:41.759Z">
+<meta property="og:updated_time" content="2025-05-04T09:14:30.079Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Media Study Notes - MediaCodec &amp; Codec 2.0">
 <meta name="twitter:description" content="本文介绍Android MediaCodec和Codec 2.0的基础知识。">
@@ -387,19 +387,36 @@
 
 <h2 id="MediaCodec-Code-Flow"><a href="#MediaCodec-Code-Flow" class="headerlink" title="MediaCodec Code Flow"></a>MediaCodec Code Flow</h2><h3 id="MediaCodec创建"><a href="#MediaCodec创建" class="headerlink" title="MediaCodec创建"></a>MediaCodec创建</h3><p><img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/construct.jpg" alt="construct"></p>
 <h3 id="findMatchingCodecs"><a href="#findMatchingCodecs" class="headerlink" title="findMatchingCodecs"></a>findMatchingCodecs</h3><p><img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/find.jpg" alt="find"></p>
-<p>查找匹配的codec前，首先要获取MediaCodecList的实例</p>
-<p>MediaCodecList::getInstance()会调用MediaPlayerService的getCodecList()方法来获取list，但实质还是获取MediaCodecList本地的对象（原因是MediaPlayerService也需要使用到MediaCodecList的对象）</p>
-<p>有两种codec，一是OMX的codec，二是Codec 2.0的codec。C2通过解析xml构造相应的codec list。</p>
-<p>构造好codec list之后便可以通过查找得到想要的match index、codec info和component name。</p>
-<h3 id="Configure"><a href="#Configure" class="headerlink" title="Configure"></a>Configure</h3><p>MediaCodec的configure()是通过发消息给自己的looper执行来完成的</p>
-<p>message为kWhatConfigure</p>
-<p>message携带的消息包括 ： “format”，”flags”，”surface”，”encoder”，”crypto”，”descrambler”，”metrics”</p>
-<p>metric中包含了profile，level，encoder，codec，mode，width，height等信息</p>
+<ol>
+<li><p>查找匹配的codec前，首先要获取MediaCodecList的实例</p>
+</li>
+<li><p>MediaCodecList::getInstance()会调用MediaPlayerService的getCodecList()方法来获取list，但实质还是获取MediaCodecList本地的对象（原因是MediaPlayerService也需要使用到MediaCodecList的对象）</p>
+</li>
+<li><p>有两种codec，一是OMX的codec，二是Codec 2.0的codec。C2通过解析xml构造相应的codec list。</p>
+</li>
+<li><p>构造好codec list之后便可以通过查找得到想要的match index、codec info和component name。</p>
+</li>
+</ol>
+<h3 id="Configure"><a href="#Configure" class="headerlink" title="Configure"></a>Configure</h3><ol>
+<li><p>MediaCodec的configure()是通过发消息给自己的looper执行来完成的</p>
+</li>
+<li><p>message为kWhatConfigure</p>
+</li>
+<li><p>message携带的消息包括 ： “format”，”flags”，”surface”，”encoder”，”crypto”，”descrambler”，”metrics”</p>
+</li>
+<li><p>metric中包含了profile，level，encoder，codec，mode，width，height等信息</p>
+</li>
+</ol>
 <h3 id="MediaCodec初始化"><a href="#MediaCodec初始化" class="headerlink" title="MediaCodec初始化"></a>MediaCodec初始化</h3><p>前面MediaCodec创建的时候，new了一个MediaCodec对象，然后在codec的init中传入componentName参数进行实际的初始化。﻿</p>
 <p><img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/init0.jpg" alt="init0"></p>
-<p>MediaCodec的初始化init()时，会根据codec info创建CCodec，这个CCodec才是C2的实例。</p>
-<p>new CCodec的时候只是创建了buffer channel和config，而实际的分配资源是通过发kWhatInit消息，转到MediaCodec线程执行的，核心是CCodec的initiateAllocateComponent()函数</p>
-<p>initiateAllocateComponent()的关键则是发消息执行allocate()</p>
+<ol>
+<li><p>MediaCodec的初始化init()时，会根据codec info创建CCodec，这个CCodec才是C2的实例。</p>
+</li>
+<li><p>new CCodec的时候只是创建了buffer channel和config，而实际的分配资源是通过发kWhatInit消息，转到MediaCodec线程执行的，核心是CCodec的initiateAllocateComponent()函数</p>
+</li>
+<li><p>initiateAllocateComponent()的关键则是发消息执行allocate()</p>
+</li>
+</ol>
 <h3 id="CCodec-Allocate"><a href="#CCodec-Allocate" class="headerlink" title="CCodec::Allocate"></a>CCodec::Allocate</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/allocate.jpg" alt="allocate"></p>
 <ol>
 <li><p>创建一个Listener</p>
