@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Andoid, Media,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="本文介绍Android MediaCodec和Codec 2.0的基础知识。">
+<meta name="keywords" content="Andoid, Media">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Media Study Notes - MediaCodec &amp; Codec 2.0">
+<meta property="og:url" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍Android MediaCodec和Codec 2.0的基础知识。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/cs.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/sm.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/construct.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/find.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/init0.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/allocate.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/buffer.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/c2.jpg">
+<meta property="og:updated_time" content="2025-05-04T03:31:41.759Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Media Study Notes - MediaCodec &amp; Codec 2.0">
+<meta name="twitter:description" content="本文介绍Android MediaCodec和Codec 2.0的基础知识。">
+<meta name="twitter:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/cs.jpg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: '博主'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/">
+
+
+
+
+
+  <title>Media Study Notes - MediaCodec & Codec 2.0 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Vonku's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">Keep calm or 烫烫烫</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br>
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            标签
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            分类
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            归档
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Vonku">
+      <meta itemprop="description" content>
+      <meta itemprop="image" content="/images/vonku.jpg">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Media Study Notes - MediaCodec & Codec 2.0</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+              <time title="创建于" itemprop="dateCreated datePublished" datetime="2025-05-04T11:13:41+08:00">
+                2025-05-04
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/Media/" itemprop="url" rel="index">
+                    <span itemprop="name">Media</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+             <span id="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/" class="leancloud_visitors" data-flag-title="Media Study Notes - MediaCodec & Codec 2.0">
+               <span class="post-meta-divider">|</span>
+               <span class="post-meta-item-icon">
+                 <i class="fa fa-eye"></i>
+               </span>
+               
+                 <span class="post-meta-item-text">阅读次数&#58;</span>
+               
+                 <span class="leancloud-visitors-count"></span>
+             </span>
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <blockquote>
+<p>本文介绍Android MediaCodec和Codec 2.0的基础知识。</p>
+</blockquote>
+<a id="more"></a>
+
+<h2 id="MediaCodec概述"><a href="#MediaCodec概述" class="headerlink" title="MediaCodec概述"></a>MediaCodec概述</h2><p>主页：<a href="https://developer.android.com/reference/android/media/MediaCodec" target="_blank" rel="noopener">https://developer.android.com/reference/android/media/MediaCodec</a></p>
+<p>MedicCodec是Android提供的底层多媒体编解码API，它是Android底层多媒体基础设施的一部分，通常与MediaExtractor, MediaSync, MediaMuxer, MediaCrypto, MediaDrm, Image, Surface, and AudioTrack等一起使用。</p>
+<h3 id="工作流程"><a href="#工作流程" class="headerlink" title="工作流程"></a>工作流程</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/cs.jpg" alt="cs"></p>
+<h3 id="工作生命周期"><a href="#工作生命周期" class="headerlink" title="工作生命周期"></a>工作生命周期</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/sm.jpg" alt="sm"></p>
+<h3 id="使用例子"><a href="#使用例子" class="headerlink" title="使用例子"></a>使用例子</h3><h4 id="异步API使用流程"><a href="#异步API使用流程" class="headerlink" title="异步API使用流程"></a>异步API使用流程</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 创建 MediaCodec 的实例</span></span><br><span class="line">MediaCodec codec = MediaCodec.createByCodecName(name);</span><br><span class="line">MediaFormat mOutputFormat;</span><br><span class="line"><span class="comment">// 2. 设置回调，使MediaCodec异步处理数据</span></span><br><span class="line">codec.setCallback(<span class="keyword">new</span> MediaCodec.Callback() &#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">void</span> <span class="title">onInputBufferAvailable</span><span class="params">(MediaCodec mc, <span class="keyword">int</span> inputBufferId)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 拿到 inputBuffer</span></span><br><span class="line">        ByteBuffer inputBuffer = codec.getInputBuffer(inputBufferId);</span><br><span class="line">        <span class="comment">// 省略填充数据到 inputBuffer</span></span><br><span class="line">        codec.queueInputBuffer(inputBufferId, ...);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onOutputBufferAvailable</span><span class="params">(MediaCodec mc, <span class="keyword">int</span> outputBufferId, ...)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 拿到 outputBuffer</span></span><br><span class="line">        ByteBuffer outputBuffer = codec.getOutputBuffer(outputBufferId);</span><br><span class="line">        mOutputFormat = codec.getOutputFormat(outputBufferId);</span><br><span class="line">        <span class="comment">// 省略使用 outputBuffer</span></span><br><span class="line">        codec.releaseOutputBuffer(outputBufferId, ...);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onOutputFormatChanged</span><span class="params">(MediaCodec mc, MediaFormat format)</span> </span>&#123;</span><br><span class="line">        <span class="comment">// 后续数据将使用新 format</span></span><br><span class="line">        mOutputFormat = format;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onError</span><span class="params">(...)</span> </span>&#123;</span><br><span class="line">    	<span class="comment">// 错误处理省略</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">void</span> <span class="title">onCryptoError</span><span class="params">(...)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// 解密错误省略</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 3. 配置MediaCodec</span></span><br><span class="line">codec.configure(format, ...);</span><br><span class="line"><span class="comment">// 获取MediaFormat</span></span><br><span class="line">mOutputFormat = codec.getOutputFormat();</span><br><span class="line"><span class="comment">// 4. 开始</span></span><br><span class="line">codec.start();</span><br><span class="line">...</span><br><span class="line"><span class="comment">// 5. 停止</span></span><br><span class="line">codec.stop();</span><br><span class="line"><span class="comment">// 6. 释放</span></span><br><span class="line">codec.release();</span><br></pre></td></tr></table></figure>
+
+<h4 id="同步API使用流程"><a href="#同步API使用流程" class="headerlink" title="同步API使用流程"></a>同步API使用流程</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 1. 创建 MediaCodec 实例:</span></span><br><span class="line">MediaCodec codec = MediaCodec.createByCodecName(name);</span><br><span class="line"><span class="comment">// 2. 配置 MediaCodec:</span></span><br><span class="line">codec.configure(format, ...);</span><br><span class="line">MediaFormat outputFormat = codec.getOutputFormat();</span><br><span class="line"><span class="comment">// 3. 开始编解码:</span></span><br><span class="line">codec.start();</span><br><span class="line"><span class="comment">// 循环处理数据:</span></span><br><span class="line"><span class="keyword">while</span> (<span class="keyword">true</span>) &#123;</span><br><span class="line">    <span class="comment">// 获取输入缓冲区 ID</span></span><br><span class="line">    <span class="keyword">int</span> inputBufferId = codec.dequeueInputBuffer(timeoutUs);</span><br><span class="line">    <span class="keyword">if</span> (inputBufferId &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// 获取输入缓冲区</span></span><br><span class="line">        ByteBuffer inputBuffer = codec.getInputBuffer(inputBufferId);</span><br><span class="line">        <span class="comment">// 填充数据到输入缓冲区</span></span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">        codec.queueInputBuffer(inputBufferId, ...);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 获取输出缓冲区 ID</span></span><br><span class="line">    <span class="keyword">int</span> outputBufferId = codec.dequeueOutputBuffer(...);</span><br><span class="line">    <span class="keyword">if</span> (outputBufferId &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// 获取输出缓冲区</span></span><br><span class="line">        ByteBuffer outputBuffer = codec.getOutputBuffer(outputBufferId);</span><br><span class="line">        <span class="comment">// 后续数据将使用新的 format:</span></span><br><span class="line">        MediaFormat bufferFormat = codec.getOutputFormat(outputBufferId);</span><br><span class="line">	<span class="comment">// 省略使用outputBuffer</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">// 使用完outputBuffer后，释放给codec</span></span><br><span class="line">		codec.releaseOutputBuffer(outputBufferId, ...);</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (outputBufferId == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) &#123;</span><br><span class="line">		<span class="comment">// 后续数据将使用新 format</span></span><br><span class="line">		outputFormat = codec.getOutputFormat();</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 4. 停止和释放MediaCodec</span></span><br><span class="line">codec.stop();</span><br><span class="line">codec.release();</span><br></pre></td></tr></table></figure>
+
+<h2 id="MediaCodec-Code-Flow"><a href="#MediaCodec-Code-Flow" class="headerlink" title="MediaCodec Code Flow"></a>MediaCodec Code Flow</h2><h3 id="MediaCodec创建"><a href="#MediaCodec创建" class="headerlink" title="MediaCodec创建"></a>MediaCodec创建</h3><p><img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/construct.jpg" alt="construct"></p>
+<h3 id="findMatchingCodecs"><a href="#findMatchingCodecs" class="headerlink" title="findMatchingCodecs"></a>findMatchingCodecs</h3><p><img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/find.jpg" alt="find"></p>
+<p>查找匹配的codec前，首先要获取MediaCodecList的实例</p>
+<p>MediaCodecList::getInstance()会调用MediaPlayerService的getCodecList()方法来获取list，但实质还是获取MediaCodecList本地的对象（原因是MediaPlayerService也需要使用到MediaCodecList的对象）</p>
+<p>有两种codec，一是OMX的codec，二是Codec 2.0的codec。C2通过解析xml构造相应的codec list。</p>
+<p>构造好codec list之后便可以通过查找得到想要的match index、codec info和component name。</p>
+<h3 id="Configure"><a href="#Configure" class="headerlink" title="Configure"></a>Configure</h3><p>MediaCodec的configure()是通过发消息给自己的looper执行来完成的</p>
+<p>message为kWhatConfigure</p>
+<p>message携带的消息包括 ： “format”，”flags”，”surface”，”encoder”，”crypto”，”descrambler”，”metrics”</p>
+<p>metric中包含了profile，level，encoder，codec，mode，width，height等信息</p>
+<h3 id="MediaCodec初始化"><a href="#MediaCodec初始化" class="headerlink" title="MediaCodec初始化"></a>MediaCodec初始化</h3><p>前面MediaCodec创建的时候，new了一个MediaCodec对象，然后在codec的init中传入componentName参数进行实际的初始化。﻿</p>
+<p><img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/init0.jpg" alt="init0"></p>
+<p>MediaCodec的初始化init()时，会根据codec info创建CCodec，这个CCodec才是C2的实例。</p>
+<p>new CCodec的时候只是创建了buffer channel和config，而实际的分配资源是通过发kWhatInit消息，转到MediaCodec线程执行的，核心是CCodec的initiateAllocateComponent()函数</p>
+<p>initiateAllocateComponent()的关键则是发消息执行allocate()</p>
+<h3 id="CCodec-Allocate"><a href="#CCodec-Allocate" class="headerlink" title="CCodec::Allocate"></a>CCodec::Allocate</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/allocate.jpg" alt="allocate"></p>
+<ol>
+<li><p>创建一个Listener</p>
+</li>
+<li><p>创建服务，得到一个codec2client //厂家自研</p>
+</li>
+<li><p>创建服务组件component</p>
+</li>
+<li><p>回调结果</p>
+</li>
+</ol>
+<h3 id="数据处理流程"><a href="#数据处理流程" class="headerlink" title="数据处理流程"></a>数据处理流程</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/buffer.jpg" alt="buffer"></p>
+<h3 id="End-of-Stream"><a href="#End-of-Stream" class="headerlink" title="End of Stream"></a>End of Stream</h3><p>当输入达到数据末尾时，在queueInputBuffer()的调用中指定BUFFER_FLAG_END_OF_STREAM标志来向编解码器发出结束信号。</p>
+<p>解码器将继续返回输出缓冲器，直到最终通过dequeueOutputBuffer或onOutputAvailable中发出输出流结束标志。</p>
+<h3 id="输出Surface"><a href="#输出Surface" class="headerlink" title="输出Surface"></a>输出Surface</h3><ol>
+<li><p>一般使用ByteBuffer模式来输出，当使用ByteBuffer模式时，可以利用Image类或通过getInut/OutputImage(int)方法访问到原始数据帧。</p>
+</li>
+<li><p>原始数据也可以输出到Suface，这会提高编解码器的性能，因为Surface直接使用本地视频数据缓存。当输出到Surface时，输出缓冲区将不可访问，并表示为空值。</p>
+</li>
+<li><p>使用输出Surface时，可以选择是否在Surface上渲染每个输出缓冲区：</p>
+</li>
+</ol>
+<ul>
+<li><p>不渲染缓冲区：调用releaseOutputBuffer(bufferId, false);</p>
+</li>
+<li><p>使用默认时间戳渲染缓冲区：调用releaseOutputBuffer(bufferId, true);</p>
+</li>
+<li><p>使用特定时间戳渲染缓冲区：调用releaseOutputBuffer(bufferId, timestamp);</p>
+</li>
+</ul>
+<ol start="4">
+<li>当输出到Surface时，Surface可能会丢弃过多的帧。在Build.VERSION_CODES.Q之后可以通过配置MediaFormat#KEY_ALLOW_FRAME_DROP为0，从而不丢弃帧，而是阻塞解码器。</li>
+</ol>
+<!--MediaCodec的基础介绍，对于C2的工作流程，还没有详细介绍，数据处理流程部分也没有介绍清楚C2Work和C2Buffer是如何工作和管理的。下面从C2视角介绍解码器的工作流程。-->
+
+<h2 id="Codec-2-0整体框架"><a href="#Codec-2-0整体框架" class="headerlink" title="Codec 2.0整体框架"></a>Codec 2.0整体框架</h2><p>Google在Andoird Q上推出的Codec2.0，旨在取代ACodec和OpenMAX。</p>
+<p><strong>C2优点:</strong></p>
+<ul>
+<li><p>更精确的帧控制</p>
+</li>
+<li><p>启动延迟低，支持播放过程中分辨率变更</p>
+</li>
+<li><p>减少内存分配占用（零拷贝）</p>
+</li>
+<li><p>先进的资源和配置管理（通过C2ComponentStore和C2ComponentInterface预先确定给定配置的组件）</p>
+</li>
+</ul>
+<p><strong>整体框图:</strong></p>
+<p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/c2.jpg" alt="c2"></p>
+<p><strong>代码位置</strong>：android/frameworks/av/media/codec2/</p>
+<p><strong>接口位置</strong>：android/hardware/interfaces/media/c2/aidl/</p>
+<h3 id="C2进程启动"><a href="#C2进程启动" class="headerlink" title="C2进程启动"></a>C2进程启动</h3><p>init进程解析/vendor/etc/init/vendor.qti.media.c2@1.0-service.rc/vendor/bin/hw/vendor.qti.media.c2@1.0-service 启动c2进程，并把自己注册到hwservicemanager中去。</p>
+<p>这个”<a href="mailto:vendor.qti.media.c2@1.0-service" target="_blank" rel="noopener">vendor.qti.media.c2@1.0-service</a>“也是prebuilt的bin。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Andoid-Media/" rel="tag"># Andoid, Media</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2025/03/09/Histreamer框架分析/" rel="next" title="Histreamer框架分析">
+                <i class="fa fa-chevron-left"></i> Histreamer框架分析
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/vonku.jpg" alt="Vonku">
+            
+              <p class="site-author-name" itemprop="name">Vonku</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">34</span>
+                  <span class="site-state-item-name">日志</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">11</span>
+                  <span class="site-state-item-name">分类</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">16</span>
+                  <span class="site-state-item-name">标签</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/vonku" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:512880475@qq.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="https://weibo.com/2130235290/profile?topnav=1&wvr=6&is_all=1" target="_blank" title="Weibo">
+                      
+                        <i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#MediaCodec概述"><span class="nav-number">1.</span> <span class="nav-text">MediaCodec概述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#工作流程"><span class="nav-number">1.1.</span> <span class="nav-text">工作流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#工作生命周期"><span class="nav-number">1.2.</span> <span class="nav-text">工作生命周期</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用例子"><span class="nav-number">1.3.</span> <span class="nav-text">使用例子</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#异步API使用流程"><span class="nav-number">1.3.1.</span> <span class="nav-text">异步API使用流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#同步API使用流程"><span class="nav-number">1.3.2.</span> <span class="nav-text">同步API使用流程</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#MediaCodec-Code-Flow"><span class="nav-number">2.</span> <span class="nav-text">MediaCodec Code Flow</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#MediaCodec创建"><span class="nav-number">2.1.</span> <span class="nav-text">MediaCodec创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#findMatchingCodecs"><span class="nav-number">2.2.</span> <span class="nav-text">findMatchingCodecs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Configure"><span class="nav-number">2.3.</span> <span class="nav-text">Configure</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MediaCodec初始化"><span class="nav-number">2.4.</span> <span class="nav-text">MediaCodec初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#CCodec-Allocate"><span class="nav-number">2.5.</span> <span class="nav-text">CCodec::Allocate</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#数据处理流程"><span class="nav-number">2.6.</span> <span class="nav-text">数据处理流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#End-of-Stream"><span class="nav-number">2.7.</span> <span class="nav-text">End of Stream</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#输出Surface"><span class="nav-number">2.8.</span> <span class="nav-text">输出Surface</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Codec-2-0整体框架"><span class="nav-number">3.</span> <span class="nav-text">Codec 2.0整体框架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#C2进程启动"><span class="nav-number">3.1.</span> <span class="nav-text">C2进程启动</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2025</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Vonku</span>
+
+  
+</div>
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> 强力驱动</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+  <script src="https://cdn1.lncld.net/static/js/av-core-mini-0.6.4.js"></script>
+  <script>AV.initialize("DYCuHQF6BHAmPubMYYr8mBUU-gzGzoHsz", "kzSFrKCofys93ER8yQbt6CPv");</script>
+  <script>
+    function showTime(Counter) {
+      var query = new AV.Query(Counter);
+      var entries = [];
+      var $visitors = $(".leancloud_visitors");
+
+      $visitors.each(function () {
+        entries.push( $(this).attr("id").trim() );
+      });
+
+      query.containedIn('url', entries);
+      query.find()
+        .done(function (results) {
+          var COUNT_CONTAINER_REF = '.leancloud-visitors-count';
+
+          if (results.length === 0) {
+            $visitors.find(COUNT_CONTAINER_REF).text(0);
+            return;
+          }
+
+          for (var i = 0; i < results.length; i++) {
+            var item = results[i];
+            var url = item.get('url');
+            var time = item.get('time');
+            var element = document.getElementById(url);
+
+            $(element).find(COUNT_CONTAINER_REF).text(time);
+          }
+          for(var i = 0; i < entries.length; i++) {
+            var url = entries[i];
+            var element = document.getElementById(url);
+            var countSpan = $(element).find(COUNT_CONTAINER_REF);
+            if( countSpan.text() == '') {
+              countSpan.text(0);
+            }
+          }
+        })
+        .fail(function (object, error) {
+          console.log("Error: " + error.code + " " + error.message);
+        });
+    }
+
+    function addCount(Counter) {
+      var $visitors = $(".leancloud_visitors");
+      var url = $visitors.attr('id').trim();
+      var title = $visitors.attr('data-flag-title').trim();
+      var query = new AV.Query(Counter);
+
+      query.equalTo("url", url);
+      query.find({
+        success: function(results) {
+          if (results.length > 0) {
+            var counter = results[0];
+            counter.fetchWhenSave(true);
+            counter.increment("time");
+            counter.save(null, {
+              success: function(counter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(counter.get('time'));
+              },
+              error: function(counter, error) {
+                console.log('Failed to save Visitor num, with error message: ' + error.message);
+              }
+            });
+          } else {
+            var newcounter = new Counter();
+            /* Set ACL */
+            var acl = new AV.ACL();
+            acl.setPublicReadAccess(true);
+            acl.setPublicWriteAccess(true);
+            newcounter.setACL(acl);
+            /* End Set ACL */
+            newcounter.set("title", title);
+            newcounter.set("url", url);
+            newcounter.set("time", 1);
+            newcounter.save(null, {
+              success: function(newcounter) {
+                var $element = $(document.getElementById(url));
+                $element.find('.leancloud-visitors-count').text(newcounter.get('time'));
+              },
+              error: function(newcounter, error) {
+                console.log('Failed to create');
+              }
+            });
+          }
+        },
+        error: function(error) {
+          console.log('Error:' + error.code + " " + error.message);
+        }
+      });
+    }
+
+    $(function() {
+      var Counter = AV.Object.extend("Counter");
+      if ($('.leancloud_visitors').length == 1) {
+        addCount(Counter);
+      } else if ($('.post-title-link').length > 1) {
+        showTime(Counter);
+      }
+    });
+  </script>
+
+
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
