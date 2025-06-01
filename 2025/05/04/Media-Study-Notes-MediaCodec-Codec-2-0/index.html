@@ -94,8 +94,15 @@
 <meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/init0.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/allocate.jpg">
 <meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/buffer.jpg">
-<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/c2.jpg">
-<meta property="og:updated_time" content="2025-05-04T09:14:30.079Z">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/C2%E7%B1%BB%E5%9B%BE.png">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E5%88%9D%E5%A7%8B%E5%8C%96%E6%B5%81%E7%A8%8B.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E8%A7%A3%E7%A0%81%E6%B5%81%E7%A8%8B.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/C2%E7%BC%93%E5%AD%98.png">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E7%AE%80%E5%8C%96%E7%B1%BB%E5%9B%BE.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E8%B7%A8%E8%BF%9B%E7%A8%8B%E7%AE%A1%E7%90%86.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E7%94%B3%E8%AF%B7%E8%BE%93%E5%85%A5%E7%BC%93%E5%86%B2.jpg">
+<meta property="og:image" content="http://yoursite.com/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E7%94%9F%E6%88%90C2Buffer.jpg">
+<meta property="og:updated_time" content="2025-06-01T02:23:01.220Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Media Study Notes - MediaCodec &amp; Codec 2.0">
 <meta name="twitter:description" content="本文介绍Android MediaCodec和Codec 2.0的基础知识。">
@@ -453,7 +460,7 @@
 <!--MediaCodec的基础介绍，对于C2的工作流程，还没有详细介绍，数据处理流程部分也没有介绍清楚C2Work和C2Buffer是如何工作和管理的。下面从C2视角介绍解码器的工作流程。-->
 
 <h2 id="Codec-2-0整体框架"><a href="#Codec-2-0整体框架" class="headerlink" title="Codec 2.0整体框架"></a>Codec 2.0整体框架</h2><p>Google在Andoird Q上推出的Codec2.0，旨在取代ACodec和OpenMAX。</p>
-<p><strong>C2优点:</strong></p>
+<p><strong>C2优点：</strong></p>
 <ul>
 <li><p>更精确的帧控制</p>
 </li>
@@ -464,12 +471,211 @@
 <li><p>先进的资源和配置管理（通过C2ComponentStore和C2ComponentInterface预先确定给定配置的组件）</p>
 </li>
 </ul>
-<p><strong>整体框图:</strong></p>
-<p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/c2.jpg" alt="c2"></p>
-<p><strong>代码位置</strong>：android/frameworks/av/media/codec2/</p>
-<p><strong>接口位置</strong>：android/hardware/interfaces/media/c2/aidl/</p>
+<p><strong>代码位置：</strong></p>
+<p>android/frameworks/av/media/codec2/</p>
+<p><strong>接口位置：</strong></p>
+<p>android/hardware/interfaces/media/c2/aidl/</p>
 <h3 id="C2进程启动"><a href="#C2进程启动" class="headerlink" title="C2进程启动"></a>C2进程启动</h3><p>init进程解析/vendor/etc/init/vendor.qti.media.c2@1.0-service.rc/vendor/bin/hw/vendor.qti.media.c2@1.0-service 启动c2进程，并把自己注册到hwservicemanager中去。</p>
 <p>这个”<a href="mailto:vendor.qti.media.c2@1.0-service" target="_blank" rel="noopener">vendor.qti.media.c2@1.0-service</a>“也是prebuilt的bin。</p>
+<h3 id="C2-APIs"><a href="#C2-APIs" class="headerlink" title="C2 APIs"></a>C2 APIs</h3><p>C2ComponentStore</p>
+<p>C2ComponentInterface</p>
+<p>C2Component</p>
+<p>C2Work</p>
+<p>C2AllocatorStore</p>
+<p>C2Param</p>
+<h3 id="C2类图"><a href="#C2类图" class="headerlink" title="C2类图"></a>C2类图</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/C2%E7%B1%BB%E5%9B%BE.png" alt="C2类图"></p>
+<p><strong>CCodec</strong></p>
+<ol>
+<li><p>最顶层的类是CCodec，对接到MediaCodec。MediaCodec初始化时就会创建CCodec实例，得到mCodec。</p>
+</li>
+<li><p>CCodec主要实现编解码功能，它主要与三个类打交道，包括CCodecBufferChannel、Codec2Client以及CCodecConfig类。</p>
+</li>
+</ol>
+<p><strong>Codec2Client</strong></p>
+<ol>
+<li><p>Codec2Client继承自Codec2ConfigurableClient，具备参数交互的操作接口。</p>
+</li>
+<li><p>Codec2Client本身提供与组件创建相关的接口，它可以创建component和interface，可以获取ParamReflector。</p>
+</li>
+<li><p>在CCodec的allocate()函数中会调用Codec2Client::CreateComponentByName()这个静态方法，创建Codec2Client::Component对象。</p>
+</li>
+<li><p>Codec2Client的成员mHidlBase1_0保存了ComponentStore，用来创建component和interface</p>
+</li>
+</ol>
+<p><strong>Codec2Client::Component</strong></p>
+<ol>
+<li><p>Codec2Client的成员mHidlBase1_0保存了IComponent的客户端代理</p>
+</li>
+<li><p>Codec2Client::Component的主要功能通过mHidlBase1_0来实现</p>
+</li>
+</ol>
+<p>Codec2Client::Component的初始化：</p>
+<figure class="highlight c++"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="keyword">c2_status_t</span> Codec2Client::createComponent(</span><br><span class="line"></span><br><span class="line">        <span class="keyword">const</span> C2String&amp; name,</span><br><span class="line">    </span><br><span class="line">        <span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;Codec2Client::Listener&gt;&amp; listener,</span><br><span class="line">    </span><br><span class="line">        <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;Codec2Client::Component&gt;* <span class="keyword">const</span> component) &#123;</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line"></span><br><span class="line"><span class="comment">// 以aidl为例说明</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;c2_aidl::IComponent&gt; aidlComponent;</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line"></span><br><span class="line"><span class="comment">// 这里的Codec2Client的mAdilBase是ComponentStore的代理</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 使用ComponentStore的createComponent()接口创建IComponent对象</span></span><br><span class="line"></span><br><span class="line">::ndk::ScopedAStatus transStatus = mAidlBase-&gt;createComponent(</span><br><span class="line"></span><br><span class="line">        name,</span><br><span class="line">    </span><br><span class="line">        aidlListener,</span><br><span class="line">    </span><br><span class="line">        bufferpool2_aidl::implementation::ClientManager::getInstance(),</span><br><span class="line">    </span><br><span class="line">        &amp;aidlComponent);</span><br><span class="line"></span><br><span class="line"><span class="comment">// 使用aidlComponent对Codec2Client::Component进行构造</span></span><br><span class="line"></span><br><span class="line">*component = <span class="built_in">std</span>::make_shared&lt;Codec2Client::Component&gt;(aidlComponent);</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">// 在Codec2Client::Component的构造函数中，Icomponent被保存到mAidlBase中</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 后续可以使用Codec2Client::Component的</span></span><br><span class="line"></span><br><span class="line">Codec2Client::Component::Component(<span class="keyword">const</span> <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;AidlBase&gt; &amp;base)</span><br><span class="line"></span><br><span class="line">      : Configurable&#123;</span><br><span class="line">    </span><br><span class="line">            [base]() -&gt; <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;c2_aidl::IConfigurable&gt; &#123;</span><br><span class="line">    </span><br><span class="line">                <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;c2_aidl::IComponentInterface&gt; aidlIntf;</span><br><span class="line">    </span><br><span class="line">                ::ndk::ScopedAStatus transStatus = base-&gt;getInterface(&amp;aidlIntf);</span><br><span class="line">    </span><br><span class="line">                <span class="keyword">if</span> (!transStatus.isOk()) &#123;</span><br><span class="line">    </span><br><span class="line">                    <span class="keyword">return</span> <span class="literal">nullptr</span>;</span><br><span class="line">    </span><br><span class="line">                &#125;</span><br><span class="line">    </span><br><span class="line">                <span class="built_in">std</span>::<span class="built_in">shared_ptr</span>&lt;c2_aidl::IConfigurable&gt; aidlConfigurable;</span><br><span class="line">    </span><br><span class="line">                transStatus = aidlIntf-&gt;getConfigurable(&amp;aidlConfigurable);</span><br><span class="line">    </span><br><span class="line">                <span class="keyword">return</span> transStatus.isOk() ? aidlConfigurable : <span class="literal">nullptr</span>;</span><br><span class="line">    </span><br><span class="line">            &#125;()</span><br><span class="line">    </span><br><span class="line">        &#125;,</span><br><span class="line">    </span><br><span class="line">        mAidlBase&#123;base&#125;,</span><br><span class="line">    </span><br><span class="line">        mAidlBufferPoolSender&#123;<span class="built_in">std</span>::make_unique&lt;AidlBufferPoolSender&gt;()&#125;,</span><br><span class="line">    </span><br><span class="line">        mGraphicBufferAllocators&#123;<span class="built_in">std</span>::make_unique&lt;GraphicBufferAllocators&gt;()&#125; &#123;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Component</strong></p>
+<ol>
+<li><p>Component实现了IComponent的方法</p>
+</li>
+<li><p>Component依赖C2Component这个抽象类来实现功能</p>
+</li>
+<li><p>C2Component的具体实现是SimpleC2Component</p>
+</li>
+</ol>
+<p><strong>SimpleC2Component</strong></p>
+<ol>
+<li>SimpleC2Component类实现的是各个组件的共同操作，相当于一个公共适配层，每一个组件都继承于SimpleC2Component类。</li>
+</ol>
+<h3 id="初始化流程"><a href="#初始化流程" class="headerlink" title="初始化流程"></a>初始化流程</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E5%88%9D%E5%A7%8B%E5%8C%96%E6%B5%81%E7%A8%8B.jpg" alt="初始化流程"></p>
+<h3 id="解码流程"><a href="#解码流程" class="headerlink" title="解码流程"></a>解码流程</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E8%A7%A3%E7%A0%81%E6%B5%81%E7%A8%8B.jpg" alt="解码流程"></p>
+<h2 id="Codec-2-0缓存管理"><a href="#Codec-2-0缓存管理" class="headerlink" title="Codec 2.0缓存管理"></a>Codec 2.0缓存管理</h2><h3 id="缓存整体图"><a href="#缓存整体图" class="headerlink" title="缓存整体图"></a>缓存整体图</h3><p>Java：ByteBuffer</p>
+<p>JNI： MediaCodecBuffer</p>
+<p>BlockPool：Block</p>
+<p>BufferPool ：InternalBuffer</p>
+<p>Allocator：Allocation C2Buffer/WorkBundle &lt;-&gt; Component</p>
+<p>Kernel：DMA-buf Gralloc</p>
+<p><strong>如何做到零拷贝：</strong></p>
+<ul>
+<li><p>Java端需要内存在native生成</p>
+</li>
+<li><p>client native端的MediaCodecBuffer与C2Buffer共享底层的Block</p>
+</li>
+<li><p>kernel内存同事映射client和component端进程空间</p>
+</li>
+</ul>
+<h3 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h3><p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/C2%E7%BC%93%E5%AD%98.png" alt="C2缓存"></p>
+<p><strong>关键数据结构介绍：</strong></p>
+<ul>
+<li><p>MediaCodecBuffer</p>
+<ul>
+<li><p>MediaCodecBuffer的实现是通过ABuffer实现的；</p>
+</li>
+<li><p>MediaCodecBuffer有一个asC2Buffer() 方法，可以转换成C2Buffer。</p>
+</li>
+</ul>
+</li>
+<li><p>Codec2Buffer</p>
+<ul>
+<li>继承自MediaCodecBuffer</li>
+</ul>
+</li>
+<li><p>GraphicBlockBuffer和LinearBlockBuffer </p>
+<ul>
+<li><p>它们是MediaCodecBuffer的子类</p>
+</li>
+<li><p>静态方法Allocate()：传入C2LinearBlock，创建LinearBlockBuffer。</p>
+</li>
+<li><p>asC2Block()：通过C2Buffer::CreateLinearBuffer由mBlock构造出一个C2Buffer。</p>
+</li>
+<li><p>ABuffer里面的data是从block获取的。</p>
+</li>
+<li><p>所以这个LinearBlockBuffer的关键依赖是传入的block</p>
+</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">std::shared_ptr&lt;C2Buffer&gt; LinearBlockBuffer::asC2Buffer() &#123;</span><br><span class="line"></span><br><span class="line">return C2Buffer::CreateLinearBuffer(mBlock-&gt;share(offset(), size(), C2Fence()));</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>小结：这些是client端的buffer，它们依赖构造的时候传入block。</p>
+<ul>
+<li><p>C2LinearBlock</p>
+<ul>
+<li><p>继承自C2Block1D</p>
+</li>
+<li><p>map()方法返回一个write view，</p>
+</li>
+<li><p>它使用父类mImpl的C2LinearAllocation来获取base地址，再用base地址构造write view</p>
+</li>
+</ul>
+</li>
+<li><p>C2Block1D</p>
+<ul>
+<li>C2Block1D依赖C2Block1D::Impl， C2Block1D::Impl继承自_C2Block1DImpl</li>
+<li>_C2Block1DImpl是所有1D block和view implementations的基类</li>
+</ul>
+</li>
+<li><p>_C2Block1DImpl</p>
+<ul>
+<li>mAllocation，分配器，需要在构造的时候传入C2LinearAllocation（接口类）</li>
+<li>mPoolData，保存了PoolData</li>
+</ul>
+</li>
+<li><p>C2LinearAllocation</p>
+<ul>
+<li><p>这个是接口类，定义了如何分配内存</p>
+</li>
+<li><p>实际负责分配的是它的子类：C2AllocatorBlob，C2DmaBufAllocator，C2AllocatorIon。它们依赖BufferAllocator和C2Allocator::id_t来完成内存的分配。它们里面也保存着C2Handle。BufferAllocator 这些是系统的内存分配器</p>
+</li>
+</ul>
+</li>
+</ul>
+<p>小结：block是实际的内存块，它们需要内存分配器来完成分配</p>
+<ul>
+<li><p>C2Buffer</p>
+<ul>
+<li><p>buffer的基类，它对底层的buffer对象（native buffers, dma buffers, ion buffers）持有一个单引用；</p>
+</li>
+<li><p>data() 方法返回C2BufferData;</p>
+</li>
+<li><p>提供两个静态方法来实例化对象，不能自己构造。</p>
+</li>
+</ul>
+</li>
+<li><p>C2BufferData</p>
+<ul>
+<li>缓冲区的主要非元数据，也就是buffer的数据主体；</li>
+<li>构造时需传入C2ConstLinearBlock的引用</li>
+</ul>
+</li>
+</ul>
+<p>小结：可以看到C2Buffer也是依赖传入block，所以C2Buffer和MediaCodecBuffer是共享底层的缓存的。</p>
+<p>简化的缓存关系图如下：</p>
+<p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E7%AE%80%E5%8C%96%E7%B1%BB%E5%9B%BE.jpg" alt="简化类图"></p>
+<h3 id="跨进程管理缓存对象生命周期"><a href="#跨进程管理缓存对象生命周期" class="headerlink" title="跨进程管理缓存对象生命周期"></a>跨进程管理缓存对象生命周期</h3><ul>
+<li><p>BufferPool里面的内存对象需要被多个进程使用和管理</p>
+</li>
+<li><p>d通过FMQ发送的命令，命令有postBufferStatusMessage(包含send、receive)，postBufferRelease等等,发送命令会导致Buffer的状态变更，postBufferRelease会导致InternalBuffer-&gt;mOwnerCount减1，为0进入到free的集合mFreeBuffers（下次重新使用，以免再次open和mmap系统调用）。</p>
+</li>
+</ul>
+<p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E8%B7%A8%E8%BF%9B%E7%A8%8B%E7%AE%A1%E7%90%86.jpg" alt="跨进程管理"></p>
+<h3 id="输入缓冲区的申请和释放"><a href="#输入缓冲区的申请和释放" class="headerlink" title="输入缓冲区的申请和释放"></a>输入缓冲区的申请和释放</h3><p><strong>什么时候申请输入缓冲区？</strong></p>
+<p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E7%94%B3%E8%AF%B7%E8%BE%93%E5%85%A5%E7%BC%93%E5%86%B2.jpg" alt="申请输入缓冲"></p>
+<ul>
+<li><p>Codec-&gt;start()的时候申请输入缓冲区，关键是调用LinearInputBuffer的createNewBuffer，Alloc时通过调用pool的fetchLinearBlock()，实际从bufferPoolManager去做实际的allocation内存分配动作。</p>
+</li>
+<li><p>从BufferPool里面分配内存，得到cHandle和bufferPoolData；再间接得到alloc和poolData，然后用它们作为参数CreateLinearBlock，得到block。</p>
+</li>
+<li><p>LinearBlockBuffer::Allocate(format, block)就可以用刚得到的block创建LinearBlockBuffer。</p>
+</li>
+<li><p>最后会调用FlexBuffersImpl的assignSlot分配一个slot。</p>
+</li>
+</ul>
+<p><strong>什么时候再申请MediaCodecBuffer？</strong></p>
+<p>-MediaCodecBuffer在queueBuffer到Component之后，会销毁掉，这样导致可用的MediaCodecBuffer减少</p>
+<p>-会调用CCodecBufferChannel-&gt;feedInputBufferIfAvailable()重新去申请MediaCodeBuffer</p>
+<p>-申请的时机：当queue一个buffer之后，立即申请；当处理完一个输入缓冲，得到输出缓冲后也会调用</p>
+<p><strong>什么时候生成并使用C2Buffer？</strong></p>
+<p>﻿<img src="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/%E7%94%9F%E6%88%90C2Buffer.jpg" alt="生成C2Buffer"></p>
+<p><strong>什么时候销毁C2Buffer？</strong></p>
+<ul>
+<li><p>C2Buffer分为client侧和Component侧。</p>
+</li>
+<li><p>输入缓冲区解码完成后，也就是对应的输出缓冲创建以后，这时候不再需要输入缓冲，Component侧会调用IComponentListener-&gt;onInputBuffersReleased(),通知客户端销毁C2Bufer。</p>
+</li>
+<li><p>client的PipelineWatcher把C2Buffer移除。</p>
+</li>
+</ul>
+<p><strong>输出缓冲区在哪里创建？</strong></p>
+<ul>
+<li><p>输出缓冲在HAL/Component侧创建的，创建好之后给内核/decoder使用，内核使用的输出缓冲类型v4l2_buffer</p>
+</li>
+<li><p>通过C2BufferQueueBlockPool::fetchGraphicBlock()获取C2GraphicBlock，根据C2GraphicBlock生成vcodec::Buffer。</p>
+</li>
+<li><p>当调用VCodecV4L2::pushOutputBuffer()，V4L2Device-&gt;getAvailableOutputSlot()，取得v4l2_buffer的指针，然后用上面的vcodec::Buffer赋值v4l2_buffer。</p>
+</li>
+</ul>
+<p><strong>参考链接</strong></p>
+<p><a href="https://blog.csdn.net/Kayson12345?type=blog" target="_blank" rel="noopener">https://blog.csdn.net/Kayson12345?type=blog</a></p>
+<p><a href="https://cloud.tencent.com/developer/article/2393435" target="_blank" rel="noopener">https://cloud.tencent.com/developer/article/2393435</a></p>
 
       
     </div>
@@ -664,7 +870,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#MediaCodec概述"><span class="nav-number">1.</span> <span class="nav-text">MediaCodec概述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#工作流程"><span class="nav-number">1.1.</span> <span class="nav-text">工作流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#工作生命周期"><span class="nav-number">1.2.</span> <span class="nav-text">工作生命周期</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用例子"><span class="nav-number">1.3.</span> <span class="nav-text">使用例子</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#异步API使用流程"><span class="nav-number">1.3.1.</span> <span class="nav-text">异步API使用流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#同步API使用流程"><span class="nav-number">1.3.2.</span> <span class="nav-text">同步API使用流程</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#MediaCodec-Code-Flow"><span class="nav-number">2.</span> <span class="nav-text">MediaCodec Code Flow</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#MediaCodec创建"><span class="nav-number">2.1.</span> <span class="nav-text">MediaCodec创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#findMatchingCodecs"><span class="nav-number">2.2.</span> <span class="nav-text">findMatchingCodecs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Configure"><span class="nav-number">2.3.</span> <span class="nav-text">Configure</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MediaCodec初始化"><span class="nav-number">2.4.</span> <span class="nav-text">MediaCodec初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#CCodec-Allocate"><span class="nav-number">2.5.</span> <span class="nav-text">CCodec::Allocate</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#数据处理流程"><span class="nav-number">2.6.</span> <span class="nav-text">数据处理流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#End-of-Stream"><span class="nav-number">2.7.</span> <span class="nav-text">End of Stream</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#输出Surface"><span class="nav-number">2.8.</span> <span class="nav-text">输出Surface</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Codec-2-0整体框架"><span class="nav-number">3.</span> <span class="nav-text">Codec 2.0整体框架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#C2进程启动"><span class="nav-number">3.1.</span> <span class="nav-text">C2进程启动</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#MediaCodec概述"><span class="nav-number">1.</span> <span class="nav-text">MediaCodec概述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#工作流程"><span class="nav-number">1.1.</span> <span class="nav-text">工作流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#工作生命周期"><span class="nav-number">1.2.</span> <span class="nav-text">工作生命周期</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用例子"><span class="nav-number">1.3.</span> <span class="nav-text">使用例子</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#异步API使用流程"><span class="nav-number">1.3.1.</span> <span class="nav-text">异步API使用流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#同步API使用流程"><span class="nav-number">1.3.2.</span> <span class="nav-text">同步API使用流程</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#MediaCodec-Code-Flow"><span class="nav-number">2.</span> <span class="nav-text">MediaCodec Code Flow</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#MediaCodec创建"><span class="nav-number">2.1.</span> <span class="nav-text">MediaCodec创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#findMatchingCodecs"><span class="nav-number">2.2.</span> <span class="nav-text">findMatchingCodecs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Configure"><span class="nav-number">2.3.</span> <span class="nav-text">Configure</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#MediaCodec初始化"><span class="nav-number">2.4.</span> <span class="nav-text">MediaCodec初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#CCodec-Allocate"><span class="nav-number">2.5.</span> <span class="nav-text">CCodec::Allocate</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#数据处理流程"><span class="nav-number">2.6.</span> <span class="nav-text">数据处理流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#End-of-Stream"><span class="nav-number">2.7.</span> <span class="nav-text">End of Stream</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#输出Surface"><span class="nav-number">2.8.</span> <span class="nav-text">输出Surface</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Codec-2-0整体框架"><span class="nav-number">3.</span> <span class="nav-text">Codec 2.0整体框架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#C2进程启动"><span class="nav-number">3.1.</span> <span class="nav-text">C2进程启动</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#C2-APIs"><span class="nav-number">3.2.</span> <span class="nav-text">C2 APIs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#C2类图"><span class="nav-number">3.3.</span> <span class="nav-text">C2类图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#初始化流程"><span class="nav-number">3.4.</span> <span class="nav-text">初始化流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#解码流程"><span class="nav-number">3.5.</span> <span class="nav-text">解码流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Codec-2-0缓存管理"><span class="nav-number">4.</span> <span class="nav-text">Codec 2.0缓存管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#缓存整体图"><span class="nav-number">4.1.</span> <span class="nav-text">缓存整体图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#数据结构"><span class="nav-number">4.2.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#跨进程管理缓存对象生命周期"><span class="nav-number">4.3.</span> <span class="nav-text">跨进程管理缓存对象生命周期</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#输入缓冲区的申请和释放"><span class="nav-number">4.4.</span> <span class="nav-text">输入缓冲区的申请和释放</span></a></li></ol></li></ol></div>
             
 
           </div>
