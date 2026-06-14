@@ -1,0 +1,44 @@
+scheme: Gemini
+
+darkmode: false
+
+menu:
+  home: / || fa fa-home
+  about: /about/ || fa fa-user
+  tags: /tags/ || fa fa-tags
+  categories: /categories/ || fa fa-th
+  archives: /archives/ || fa fa-archive
+
+sidebar:
+  position: left
+  display: post
+
+avatar:
+  url: /images/vonku.jpg
+  rounded: true
+
+social:
+  GitHub: https://github.com/vonku || fab fa-github
+  E-Mail: mailto:512880475@qq.com || fa fa-envelope
+
+social_icons:
+  enable: true
+  icons_only: false
+
+codeblock:
+  theme:
+    light: default
+    dark: tomorrow-night-bright
+  copy_button:
+    enable: true
+
+back2top:
+  enable: true
+
+footer:
+  since: 2019
+  powered: true
+
+post_meta:
+  updated_at:
+    enable: false
