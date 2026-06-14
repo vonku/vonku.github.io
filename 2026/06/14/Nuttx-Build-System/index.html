@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="一份 defconfig 如何驱动编译出针对特定芯片的 OS 二进制？本文拆解 NuttX Make 构建系统的每一层——配置生成、symlink 路由、递归编译、依赖追踪、三种构建模式，以及最终的链接拼接。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - Build System">
+<meta property="og:url" content="http://yoursite.com/2026/06/14/Nuttx-Build-System/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="一份 defconfig 如何驱动编译出针对特定芯片的 OS 二进制？本文拆解 NuttX Make 构建系统的每一层——配置生成、symlink 路由、递归编译、依赖追踪、三种构建模式，以及最终的链接拼接。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-14T02:11:50.000Z">
+<meta property="article:modified_time" content="2026-06-14T08:43:24.339Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/14/Nuttx-Build-System/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/14/Nuttx-Build-System/","path":"2026/06/14/Nuttx-Build-System/","title":"Nuttx - Build System"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - Build System | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E8%BF%99%E6%A0%B7%E4%B8%80%E4%B8%AA%E6%9E%84%E5%BB%BA%E7%B3%BB%E7%BB%9F%EF%BC%9F"><span class="nav-text">1. 为什么需要这样一个构建系统？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E9%85%8D%E7%BD%AE%E4%B9%8B%E6%BA%90%EF%BC%9Adefconfig-%E4%B8%8E-configure-sh"><span class="nav-text">2. 配置之源：defconfig 与 configure.sh</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%8F%82%E6%95%B0%E8%A7%A3%E6%9E%90"><span class="nav-text">2.1 参数解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%AF%BB%E6%89%BE-Make-defs%E2%80%94%E2%80%94%E5%B7%A5%E5%85%B7%E9%93%BE%E7%9A%84%E5%AE%9A%E4%B9%89%E8%80%85"><span class="nav-text">2.2 寻找 Make.defs——工具链的定义者</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E9%85%8D%E7%BD%AE-Pipeline-%E5%85%A8%E8%B2%8C"><span class="nav-text">2.3 配置 Pipeline 全貌</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-defconfig-%E7%9A%84%E6%96%87%E6%9C%AC%E9%A2%84%E5%A4%84%E7%90%86%EF%BC%9Aprocess-config-sh"><span class="nav-text">2.4 defconfig 的文本预处理：process_config.sh</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-%E5%AE%BF%E4%B8%BB%E7%8E%AF%E5%A2%83%E8%AE%BE%E7%BD%AE%E4%B8%8E-Kconfig-%E8%AF%AD%E4%B9%89%E5%B1%95%E5%BC%80%EF%BC%9Asethost-sh"><span class="nav-text">2.5 宿主环境设置与 Kconfig 语义展开：sethost.sh</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-config-%E7%9A%84%E5%8F%8C%E9%87%8D%E8%BA%AB%E4%BB%BD%EF%BC%9AMake-%E5%8F%98%E9%87%8F%E4%B8%8E-C-%E5%A4%B4%E6%96%87%E4%BB%B6"><span class="nav-text">3. .config 的双重身份：Make 变量与 C 头文件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%BD%9C%E4%B8%BA-Make-%E5%8F%98%E9%87%8F%E7%9A%84-config"><span class="nav-text">3.1 作为 Make 变量的 .config</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E4%BD%9C%E4%B8%BA-C-%E5%A4%B4%E6%96%87%E4%BB%B6%E7%9A%84-config"><span class="nav-text">3.2 作为 C 头文件的 .config</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E9%85%8D%E7%BD%AE%E8%84%8F%E6%A0%87%E8%AE%B0%EF%BC%88dirty-tracking%EF%BC%89"><span class="nav-text">3.3 配置脏标记（dirty tracking）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%9E%84%E5%BB%BA%E5%85%A5%E5%8F%A3%EF%BC%9AMakefile-%E7%9A%84%E8%B7%AF%E7%94%B1%E6%9C%BA%E5%88%B6"><span class="nav-text">4. 构建入口：Makefile 的路由机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E9%A1%B6%E5%B1%82-Makefile"><span class="nav-text">4.1 顶层 Makefile</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-Unix-mk-%E7%9A%84-include-%E9%93%BE"><span class="nav-text">4.2 Unix.mk 的 include 链</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E9%80%9A%E7%94%A8%E5%90%8D%E7%BA%A6%E5%AE%9A%EF%BC%9A%E7%94%A8%E7%AC%A6%E5%8F%B7%E9%93%BE%E6%8E%A5%E6%B6%88%E9%99%A4%E7%A1%AC%E4%BB%B6%E5%B7%AE%E5%BC%82"><span class="nav-text">5. 通用名约定：用符号链接消除硬件差异</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E9%97%AE%E9%A2%98"><span class="nav-text">5.1 问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88%EF%BC%9A%E9%80%9A%E7%94%A8%E5%90%8D-%E7%AC%A6%E5%8F%B7%E9%93%BE%E6%8E%A5"><span class="nav-text">5.2 解决方案：通用名 + 符号链接</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%B8%80%E4%B8%AA%E7%89%B9%E6%AE%8A%E6%A1%88%E4%BE%8B%EF%BC%9Aboard-%E7%9B%AE%E5%BD%95%E7%9A%84%E4%B8%A4%E5%B1%82%E7%BB%93%E6%9E%84"><span class="nav-text">5.3 一个特殊案例：board 目录的两层结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-Dummy-%E6%9C%BA%E5%88%B6"><span class="nav-text">5.4 Dummy 机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E6%9E%84%E5%BB%BA%E7%9A%84%E4%B8%89%E6%AD%A5%E8%88%9E%EF%BC%9Acontext-%E2%86%92-pass1-pass2-%E2%86%92-link"><span class="nav-text">6. 构建的三步舞：context → pass1&#x2F;pass2 → link</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-Context-%E9%98%B6%E6%AE%B5%EF%BC%9A%E7%8E%AF%E5%A2%83%E5%B0%B1%E7%BB%AA"><span class="nav-text">6.1 Context 阶段：环境就绪</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-Pass1dep-%E5%92%8C-Pass2dep%EF%BC%9A%E4%BE%9D%E8%B5%96%E7%94%9F%E6%88%90"><span class="nav-text">6.2 Pass1dep 和 Pass2dep：依赖生成</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-Pass1-%E5%92%8C-Pass2%EF%BC%9A%E7%BC%96%E8%AF%91%E5%BA%93"><span class="nav-text">6.3 Pass1 和 Pass2：编译库</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-BIN-%EF%BC%9A%E6%9C%80%E7%BB%88%E9%93%BE%E6%8E%A5"><span class="nav-text">6.4 $(BIN)：最终链接</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E4%B8%89%E7%A7%8D%E6%9E%84%E5%BB%BA%E6%A8%A1%E5%BC%8F%EF%BC%9AFlatLibs-mk-ProtectedLibs-mk-KernelLibs-mk"><span class="nav-text">7. 三种构建模式：FlatLibs.mk &#x2F; ProtectedLibs.mk &#x2F; KernelLibs.mk</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-FLAT-%E6%A8%A1%E5%BC%8F%EF%BC%88FlatLibs-mk%EF%BC%89"><span class="nav-text">7.1 FLAT 模式（FlatLibs.mk）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-PROTECTED-%E6%A8%A1%E5%BC%8F%EF%BC%88ProtectedLibs-mk%EF%BC%89"><span class="nav-text">7.2 PROTECTED 模式（ProtectedLibs.mk）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-KERNEL-%E6%A8%A1%E5%BC%8F%EF%BC%88KernelLibs-mk%EF%BC%89"><span class="nav-text">7.3 KERNEL 模式（KernelLibs.mk）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-KDEFINE%EF%BC%9A%E5%86%85%E6%A0%B8%E7%BC%96%E8%AF%91%E6%A0%87%E5%BF%97"><span class="nav-text">7.4 KDEFINE：内核编译标志</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%BA%93%E7%9A%84%E5%86%85%E9%83%A8%E7%BB%93%E6%9E%84%EF%BC%9A%E4%BB%A5-libc-%E4%B8%BA%E4%BE%8B"><span class="nav-text">8. 库的内部结构：以 libc 为例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E6%BA%90%E6%96%87%E4%BB%B6%E8%81%9A%E5%90%88"><span class="nav-text">8.1 源文件聚合</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-Board-mk%EF%BC%9A%E6%9D%BF%E7%BA%A7%E5%BA%93%E7%9A%84%E9%80%9A%E7%94%A8%E6%A8%A1%E6%9D%BF"><span class="nav-text">8.2 Board.mk：板级库的通用模板</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-Config-mk%EF%BC%9A%E6%9E%84%E5%BB%BA%E5%9F%BA%E7%A1%80%E8%AE%BE%E6%96%BD%E7%9A%84%E5%AE%8F%E5%B7%A5%E5%8E%82"><span class="nav-text">9. Config.mk：构建基础设施的宏工厂</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-Config-mk%EF%BC%9A%E6%9E%84%E5%BB%BA%E5%9F%BA%E7%A1%80%E8%AE%BE%E6%96%BD%E7%9A%84%E5%AE%8F%E5%B7%A5%E5%8E%82-1"><span class="nav-text">9. Config.mk：构建基础设施的宏工厂</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-%E7%BC%96%E8%AF%91%E5%99%A8%E5%89%8D%E7%BC%80%E6%A3%80%E6%B5%8B"><span class="nav-text">9.1 编译器前缀检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E8%B7%AF%E5%BE%84%E5%88%86%E9%9A%94%E7%AC%A6%E5%92%8C%E5%B9%B3%E5%8F%B0%E5%B7%AE%E5%BC%82"><span class="nav-text">9.2 路径分隔符和平台差异</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-3-%E9%80%92%E5%BD%92%E9%80%9A%E9%85%8D%E7%AC%A6%E5%92%8C%E5%B7%A5%E5%85%B7%E5%AE%8F"><span class="nav-text">9.3 递归通配符和工具宏</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E4%B8%A4%E4%B8%AA-Pass-%E7%9A%84%E9%AB%98%E7%BA%A7%E5%9C%BA%E6%99%AF%EF%BC%9ABUILD-2PASS"><span class="nav-text">10. 两个 Pass 的高级场景：BUILD_2PASS</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-make-export%EF%BC%9A%E6%9E%84%E5%BB%BA%E7%B3%BB%E7%BB%9F%E7%9A%84%E5%AF%B9%E5%A4%96%E6%8E%A5%E5%8F%A3"><span class="nav-text">11. make export：构建系统的对外接口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#12-%E6%B8%85%E7%90%86%E4%BD%93%E7%B3%BB"><span class="nav-text">12. 清理体系</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#13-%E4%B8%8E-Linux-Kernel-%E6%9E%84%E5%BB%BA%E7%B3%BB%E7%BB%9F%E7%9A%84%E6%AF%94%E8%BE%83"><span class="nav-text">13. 与 Linux Kernel 构建系统的比较</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#14-%E6%80%BB%E7%BB%93"><span class="nav-text">14. 总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#15-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6%E7%B4%A2%E5%BC%95"><span class="nav-text">15. 参考文件索引</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/14/Nuttx-Build-System/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - Build System | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - Build System
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-14 10:11:50" itemprop="dateCreated datePublished" datetime="2026-06-14T10:11:50+08:00">2026-06-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>一份 defconfig 如何驱动编译出针对特定芯片的 OS 二进制？本文拆解 NuttX Make 构建系统的每一层——配置生成、symlink 路由、递归编译、依赖追踪、三种构建模式，以及最终的链接拼接。</p>
+</blockquote>
+<span id="more"></span>
+
+<hr>
+<h2 id="1-为什么需要这样一个构建系统？"><a href="#1-为什么需要这样一个构建系统？" class="headerlink" title="1. 为什么需要这样一个构建系统？"></a>1. 为什么需要这样一个构建系统？</h2><p>嵌入式操作系统的构建面临三个核心难题：</p>
+<p><strong>硬件碎片化。</strong> 一个 OS 需要支持 ARM、RISC-V、x86、Xtensa 等十多种架构，每种架构下又有上百种芯片，每种芯片可能有数十个开发板。内核代码相同（<code>sched/</code>、<code>fs/</code>、<code>net/</code>），但启动代码、外设驱动、链接脚本、交叉编译器完全不同。</p>
+<p><strong>配置驱动的编译。</strong> 不是所有代码都需要编译——一个没有网络栈的 IoT 传感器不应编译 <code>net/</code> 目录中的任何文件。配置系统必须精确控制哪些源文件参与编译、哪些头文件路径被包含、哪些编译选项被启用。</p>
+<p><strong>构建模式的多样性。</strong> NuttX 支持三种运行模式：FLAT（单一地址空间）、PROTECTED（MPU 隔离）、KERNEL（MMU 虚拟内存）。同是 <code>libc</code>，在 FLAT 模式下编译一次，在 PROTECTED 模式下却需要编译两次——kernel 版本（带 <code>-D__KERNEL__</code>）和 user 版本（不带）。</p>
+<p>NuttX 的 Make 构建系统通过<strong>分层抽象</strong>解决这些问题：它用”通用名”（generic names）消除硬件差异、用 Kconfig 约定配置、用递归 Make 组织编译。下面的源码追踪将展示每一层如何工作。</p>
+<hr>
+<h2 id="2-配置之源：defconfig-与-configure-sh"><a href="#2-配置之源：defconfig-与-configure-sh" class="headerlink" title="2. 配置之源：defconfig 与 configure.sh"></a>2. 配置之源：<code>defconfig</code> 与 <code>configure.sh</code></h2><p>构建 NuttX 的第一步永远是配置：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cd</span> nuttx</span><br><span class="line">$ tools/configure.sh qemu-armv7a:knsh</span><br></pre></td></tr></table></figure>
+
+<p>这条命令背后发生了什么？入口是 <code>tools/configure.sh</code>，一个 362 行的 bash 脚本。</p>
+<h3 id="2-1-参数解析"><a href="#2-1-参数解析" class="headerlink" title="2.1 参数解析"></a>2.1 参数解析</h3><p><code>configure.sh</code> 接受 <code>&lt;board-name&gt;:&lt;config-name&gt;</code> 这种紧凑格式。它首先解析出 <code>boarddir</code> 和 <code>configdir</code>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/configure.sh:149-155</span></span><br><span class="line">configdir=`<span class="built_in">echo</span> <span class="variable">$&#123;boardconfig&#125;</span> | <span class="built_in">cut</span> -s -d<span class="string">&#x27;:&#x27;</span> -f2`</span><br><span class="line"><span class="keyword">if</span> [ -z <span class="string">&quot;<span class="variable">$&#123;configdir&#125;</span>&quot;</span> ]; <span class="keyword">then</span></span><br><span class="line">  boarddir=`<span class="built_in">echo</span> <span class="variable">$&#123;boardconfig&#125;</span> | <span class="built_in">cut</span> -d<span class="string">&#x27;/&#x27;</span> -f1`</span><br><span class="line">  configdir=`<span class="built_in">echo</span> <span class="variable">$&#123;boardconfig&#125;</span> | <span class="built_in">cut</span> -d<span class="string">&#x27;/&#x27;</span> -f2`</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">  boarddir=`<span class="built_in">echo</span> <span class="variable">$&#123;boardconfig&#125;</span> | <span class="built_in">cut</span> -d<span class="string">&#x27;:&#x27;</span> -f1`</span><br><span class="line"><span class="keyword">fi</span></span><br></pre></td></tr></table></figure>
+
+<p>然后构造配置路径：<code>configpath</code> 首先尝试 <code>boards/&lt;arch&gt;/&lt;chip&gt;/&lt;board&gt;/configs/&lt;config&gt;</code>。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/configure.sh:157</span></span><br><span class="line">configpath=<span class="variable">$&#123;TOPDIR&#125;</span>/boards/*/*/<span class="variable">$&#123;boarddir&#125;</span>/configs/<span class="variable">$&#123;configdir&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>对于 <code>qemu-armv7a:knsh</code>，实际路径解析为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">boards/arm/qemu/qemu-armv7a/configs/knsh</span><br></pre></td></tr></table></figure>
+
+<p>如果此路径不存在，脚本依次尝试自定义路径（相对 TOPDIR）、绝对路径。</p>
+<h3 id="2-2-寻找-Make-defs——工具链的定义者"><a href="#2-2-寻找-Make-defs——工具链的定义者" class="headerlink" title="2.2 寻找 Make.defs——工具链的定义者"></a>2.2 寻找 Make.defs——工具链的定义者</h3><p><code>Make.defs</code> 是构建系统的核心文件，它定义了交叉编译器、编译选项和链接脚本。<code>configure.sh</code> 按以下顺序搜索：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/configure.sh:174-195</span></span><br><span class="line">src_makedefs=<span class="variable">$&#123;TOPDIR&#125;</span>/boards/*/*/<span class="variable">$&#123;boarddir&#125;</span>/configs/<span class="variable">$&#123;configdir&#125;</span>/Make.defs</span><br><span class="line"><span class="comment"># 如果不存在，尝试：</span></span><br><span class="line">src_makedefs=<span class="variable">$&#123;TOPDIR&#125;</span>/boards/*/*/<span class="variable">$&#123;boarddir&#125;</span>/scripts/Make.defs</span><br><span class="line"><span class="comment"># 还找不到，依次尝试：</span></span><br><span class="line">src_makedefs=<span class="variable">$&#123;configpath&#125;</span>/Make.defs</span><br><span class="line">src_makedefs=<span class="variable">$&#123;configpath&#125;</span>/../../scripts/Make.defs</span><br><span class="line">src_makedefs=<span class="variable">$&#123;configpath&#125;</span>/../../../common/scripts/Make.defs</span><br></pre></td></tr></table></figure>
+
+<p>这五个位置对应了开发板目录的常见布局变化——有些板子在 <code>configs/</code> 下有独立的 Make.defs，有些则共享 <code>scripts/</code> 下的通用文件。</p>
+<p>一旦找到，脚本用符号链接将其安装到 NuttX 根目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/configure.sh:242-243</span></span><br><span class="line"><span class="built_in">ln</span> -sf <span class="variable">$&#123;src_makedefs&#125;</span> <span class="variable">$&#123;dest_makedefs&#125;</span> || \</span><br><span class="line">  &#123; <span class="built_in">echo</span> <span class="string">&quot;Failed to symlink <span class="variable">$&#123;src_makedefs&#125;</span>&quot;</span> ; <span class="built_in">exit</span> 8 ; &#125;</span><br></pre></td></tr></table></figure>
+
+<p>于是 <code>$(TOPDIR)/Make.defs</code> 指向了：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">boards/arm/qemu/qemu-armv7a/scripts/Make.defs</span><br></pre></td></tr></table></figure>
+
+<p>打开这个文件（<code>boards/arm/qemu/qemu-armv7a/scripts/Make.defs:23-25</code>），它自身又引入三条关键链：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">include</span> <span class="variable">$(TOPDIR)</span>/.config        <span class="comment"># Kconfig 输出（此时尚未生成！）</span></span><br><span class="line"><span class="keyword">include</span> <span class="variable">$(TOPDIR)</span>/tools/Config.mk <span class="comment"># 公共构建宏</span></span><br><span class="line"><span class="keyword">include</span> <span class="variable">$(TOPDIR)</span>/arch/arm/src/armv7-a/Toolchain.defs  <span class="comment"># arm-none-eabi-gcc 定义</span></span><br></pre></td></tr></table></figure>
+
+<p>注意这里的一个”先有鸡还是先有蛋”问题：<code>Make.defs</code> 需要 <code>.config</code>，但 <code>.config</code> 还没生成。实际构建时 <code>include .config</code> 发生在顶层 <code>Makefile</code> 之后——<code>Makefile</code> 先 include <code>.config</code>，再 include <code>Make.defs</code>。所以这条链是 <code>Makefile → .config → Make.defs → Config.mk → Toolchain.defs</code>。</p>
+<h3 id="2-3-配置-Pipeline-全貌"><a href="#2-3-配置-Pipeline-全貌" class="headerlink" title="2.3 配置 Pipeline 全貌"></a>2.3 配置 Pipeline 全貌</h3><p>在深入每个子步骤之前，先看清整条流水线的全景。下面是从 <code>configure.sh</code> 被调用到最终 <code>.config</code> 落地的完整链路：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">tools/configure.sh qemu-armv7a:knsh</span><br><span class="line">│</span><br><span class="line">├─ 1. 定位 defconfig + Make.defs ───────── 从 boards/ 目录树中找到配置</span><br><span class="line">│</span><br><span class="line">├─ 2. process_config.sh ───────────────── 文本级 #include 展开 + 去重</span><br><span class="line">│     └── 输出: .config（片段拼接后的中间结果）</span><br><span class="line">│</span><br><span class="line">├─ 3. 注入 CONFIG_APPS_DIR / CONFIG_BASE_DEFCONFIG ── 合成 .config 尾部</span><br><span class="line">│</span><br><span class="line">├─ 4. sethost.sh ──────────────────────── 检测 OS，设置 CONFIG_HOST_*</span><br><span class="line">│     └── 调用: make olddefconfig</span><br><span class="line">│           │</span><br><span class="line">│           └─ 5. Kconfig 引擎 (kconfig-conf) ───── 语义级解析！</span><br><span class="line">│                 │</span><br><span class="line">│                 ├── 读取整个 Kconfig 树（所有子目录的 Kconfig 文件）</span><br><span class="line">│                 ├── 以步骤 3 的 .config 为用户显式设定的基线</span><br><span class="line">│                 ├── 解析 select:    CONFIG_ARCH_ARM=y → 自动选上 CONFIG_ARCH_HAVE_xxx</span><br><span class="line">│                 ├── 解析 depends on: 不满足的选项 → n</span><br><span class="line">│                 ├── 填入 default:    未显式声明的 → 取默认值</span><br><span class="line">│                 └── 输出: .config（完整的最终配置！）</span><br><span class="line">│</span><br><span class="line">└─ 6. 保存 .config.orig ───────────────── 去除 BASE_DEFCONFIG，供后续脏检测</span><br></pre></td></tr></table></figure>
+
+<p>关键理解：**步骤 2 和步骤 5 是两种完全不同的”展开”**。<code>process_config.sh</code> 做的是纯文本级别的 <code>#include</code> 拼接——它不认识 Kconfig 语义，只管把一个 <code>defconfig</code> 及其 <code>#include</code> 的文件拼成一个大文件。而 Kconfig 引擎做的是语义级别的解析——<code>select</code>、<code>depends on</code>、<code>default</code> 的逻辑都在这一层。两者共同完成从板级最小配置到完整 OS 配置的转换。</p>
+<p>下面逐一拆解每个环节。</p>
+<h3 id="2-4-defconfig-的文本预处理：process-config-sh"><a href="#2-4-defconfig-的文本预处理：process-config-sh" class="headerlink" title="2.4 defconfig 的文本预处理：process_config.sh"></a>2.4 defconfig 的文本预处理：<code>process_config.sh</code></h3><p><strong>为什么需要预处理？</strong> 很多芯片家族的开发板共享大量配置——比如所有 STM32 板子都启用 <code>CONFIG_ARCH_CHIP_STM32=y</code>，所有 QEMU 仿真板都禁用了真实硬件相关选项。如果不支持 <code>#include</code>，每个板子的 <code>defconfig</code> 都需要完整列出几百行配置，重复且难以维护。NuttX 的解决方式是让 <code>defconfig</code> 支持 <code>#include</code> 指令来复用配置片段，被 include 的配置可以被后面的定义覆盖（后者优先）。这是 NuttX 对 Kconfig 生态的一个重要扩展——参考官方文档 <code>Documentation/implementation/make_build_system.rst</code> 第 96-101 行的说明。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/configure.sh:244-246</span></span><br><span class="line"><span class="variable">$&#123;TOPDIR&#125;</span>/tools/process_config.sh -I <span class="variable">$&#123;configpath&#125;</span>/../../common/configs \</span><br><span class="line">  -I <span class="variable">$&#123;configpath&#125;</span>/../common -I <span class="variable">$&#123;configpath&#125;</span> -I <span class="variable">$&#123;TOPDIR&#125;</span>/../apps -I <span class="variable">$&#123;TOPDIR&#125;</span>/../nuttx-apps \</span><br><span class="line">  -o <span class="variable">$&#123;dest_config&#125;</span> <span class="variable">$&#123;src_config&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>这里指定了五个 include 搜索路径：</p>
+<ol>
+<li><code>boards/arm/qemu/common/configs</code>（芯片家族的公共配置）</li>
+<li><code>boards/arm/qemu/qemu-armv7a/configs/common</code>（板级公共配置）</li>
+<li><code>$&#123;configpath&#125;</code> 即 <code>boards/arm/qemu/qemu-armv7a/configs/knsh</code>（当前配置目录）</li>
+<li><code>../apps</code>（apps 目录中的配置片段）</li>
+<li><code>../nuttx-apps</code>（备选 apps 路径）</li>
+</ol>
+<p><code>process_config.sh</code> 做了什么？看核心函数 <code>process_file()</code>（<code>tools/process_config.sh:22-68</code>）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="title">process_file</span></span>() &#123;</span><br><span class="line">    <span class="built_in">local</span> output_file=<span class="string">&quot;<span class="variable">$1</span>&quot;</span></span><br><span class="line">    <span class="built_in">local</span> input_file=<span class="string">&quot;<span class="variable">$2</span>&quot;</span></span><br><span class="line">    <span class="built_in">local</span> include_paths=(<span class="string">&quot;<span class="variable">$&#123;!3&#125;</span>&quot;</span>)</span><br><span class="line">    <span class="keyword">while</span> IFS= <span class="built_in">read</span> -r line || [ -n <span class="string">&quot;<span class="variable">$line</span>&quot;</span> ]</span><br><span class="line">    <span class="keyword">do</span></span><br><span class="line">        <span class="keyword">if</span> [[ <span class="variable">$line</span> == \#include* ]]; <span class="keyword">then</span></span><br><span class="line">            <span class="built_in">local</span> include_file=$(<span class="built_in">echo</span> <span class="variable">$line</span> | sed -E <span class="string">&#x27;s/#include [&lt;&quot;](.+)[&quot;&gt;]/\1/&#x27;</span>)</span><br><span class="line">            <span class="comment"># 在 include_paths 中递归搜索并展开</span></span><br><span class="line">            <span class="keyword">for</span> path <span class="keyword">in</span> <span class="string">&quot;<span class="variable">$&#123;include_paths[@]&#125;</span>&quot;</span>; <span class="keyword">do</span></span><br><span class="line">                <span class="built_in">local</span> full_path=<span class="string">&quot;<span class="variable">$path</span>/<span class="variable">$include_file</span>&quot;</span></span><br><span class="line">                <span class="keyword">if</span> [ -f <span class="variable">$full_path</span> ]; <span class="keyword">then</span></span><br><span class="line">                    process_file <span class="variable">$output_file</span> <span class="variable">$full_path</span> include_paths[@]</span><br><span class="line">                    found=<span class="literal">true</span></span><br><span class="line">                    <span class="built_in">break</span></span><br><span class="line">                <span class="keyword">fi</span></span><br><span class="line">            <span class="keyword">done</span></span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            <span class="comment"># 去重：如果同 key 的配置已存在，先删除再追加（后者覆盖）</span></span><br><span class="line">            <span class="keyword">if</span> [[ -n <span class="string">&quot;<span class="variable">$line</span>&quot;</span> ]]; <span class="keyword">then</span></span><br><span class="line">                <span class="keyword">if</span> [[ ! <span class="string">&quot;<span class="variable">$line</span>&quot;</span> == \#* ]]; <span class="keyword">then</span></span><br><span class="line">                    <span class="built_in">local</span> key_config=<span class="string">&quot;<span class="subst">$(echo <span class="string">&quot;<span class="variable">$line</span>&quot;</span> | cut -d= -f1)</span>=&quot;</span></span><br><span class="line">                    sed -i.backup <span class="string">&quot;/^<span class="variable">$key_config</span>/d&quot;</span> <span class="string">&quot;<span class="variable">$output_file</span>&quot;</span></span><br><span class="line">                <span class="keyword">fi</span></span><br><span class="line">                <span class="built_in">echo</span> <span class="string">&quot;<span class="variable">$line</span>&quot;</span> &gt;&gt; <span class="string">&quot;<span class="variable">$output_file</span>&quot;</span></span><br><span class="line">            <span class="keyword">fi</span></span><br><span class="line">        <span class="keyword">fi</span></span><br><span class="line">    <span class="keyword">done</span> &lt; <span class="string">&quot;<span class="variable">$input_file</span>&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>经过 <code>process_config.sh</code> 处理后，你得到的是一个<strong>文本级展开但未经 Kconfig 语义解析的中间产物</strong>——<code>.config</code> 包含了 defconfig 及其 <code>#include</code> 的所有片段拼接在一起，重复项以后者覆盖。但它还不知道 <code>select</code>、<code>depends on</code>、<code>default</code> 的含义。一个例子：如果 defconfig 写了 <code>CONFIG_ARCH_ARM=y</code>，它背后 <code>select</code> 出的 <code>CONFIG_ARCH_HAVE_xxx</code> 系列此时还<strong>不在</strong> <code>.config</code> 里——得等到下一步 Kconfig 引擎（<code>make olddefconfig</code>）来补全。</p>
+<p>最后，<code>configure.sh</code> 将原始 defconfig 备份到 <code>$(TOPDIR)/defconfig</code>，供后续检测配置变更：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/configure.sh:247-248</span></span><br><span class="line">install -m 644 <span class="variable">$&#123;src_config&#125;</span> <span class="string">&quot;<span class="variable">$&#123;backup_config&#125;</span>&quot;</span> || \</span><br><span class="line">  &#123; <span class="built_in">echo</span> <span class="string">&quot;Failed to backup <span class="variable">$&#123;src_config&#125;</span>&quot;</span> ; <span class="built_in">exit</span> 10 ; &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-5-宿主环境设置与-Kconfig-语义展开：sethost-sh"><a href="#2-5-宿主环境设置与-Kconfig-语义展开：sethost-sh" class="headerlink" title="2.5 宿主环境设置与 Kconfig 语义展开：sethost.sh"></a>2.5 宿主环境设置与 Kconfig 语义展开：<code>sethost.sh</code></h3><p>上一步 <code>process_config.sh</code> 得到的 <code>.config</code> 只是一个文本拼接产物——<code>select</code>、<code>depends on</code>、<code>default</code> 这些 Kconfig 语义都还没生效。真正完成这一步的是 <code>sethost.sh</code>，它做了两件事。</p>
+<p><strong>第一，检测宿主环境。</strong> NuttX 支持在 Linux、macOS、Windows、Cygwin、MSYS 等不同宿主上编译。Windows 原生环境需要反斜杠路径、<code>del</code> 代替 <code>rm</code>；Cygwin 需要路径转换。<code>sethost.sh</code> 通过 <code>uname -s</code> 检测当前 OS，然后调用 <code>kconfig-tweak</code> 写入对应的 <code>CONFIG_HOST_LINUX=y</code> 或 <code>CONFIG_HOST_MACOS=y</code> 或 <code>CONFIG_HOST_WINDOWS=y</code>。这些选项后续会影响 <code>Config.mk</code> 中路径分隔符、文件操作命令的选择。</p>
+<p><strong>第二，也是最关键的一步——调用 <code>make olddefconfig</code>。</strong> 这是整条配置流水线中第一次也是唯一一次运行 Kconfig 引擎。它以当前 <code>.config</code>（process_config 拼出来的 + sethost 写入的宿主信息）作为”旧配置”，走完整个 Kconfig 树的语义解析：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">.config (文本拼接产物 + 宿主信息)</span><br><span class="line">    │</span><br><span class="line">    └── make olddefconfig ── Kconfig 引擎遍历所有 Kconfig 文件</span><br><span class="line">          │</span><br><span class="line">          ├── 解析 select 链：    CONFIG_ARCH_ARM=y → 自动选中 CONFIG_ARCH_HAVE_xxx</span><br><span class="line">          ├── 解析 depends on：   不满足依赖的选项 → 强制为 n</span><br><span class="line">          ├── 填入 default：      未显式声明的选项 → 取 Kconfig 默认值</span><br><span class="line">          │</span><br><span class="line">          └── 输出：              .config（完整配置，所有选项都有确定值）</span><br></pre></td></tr></table></figure>
+
+<p>至此，<code>.config</code> 从几十行的 Board 选择，扩展为包含所有 Kconfig 默认值的完整配置——之后 <code>make</code> 中读到的每一个 <code>CONFIG_*</code> 变量都有了确定值。</p>
+<hr>
+<h2 id="3-config-的双重身份：Make-变量与-C-头文件"><a href="#3-config-的双重身份：Make-变量与-C-头文件" class="headerlink" title="3. .config 的双重身份：Make 变量与 C 头文件"></a>3. <code>.config</code> 的双重身份：Make 变量与 C 头文件</h2><p><code>.config</code> 是 Kconfig 的输出文件，格式是简单的 <code>KEY=VALUE</code> 对。NuttX 的巧妙之处在于：<strong>同一个文件既被 Make 直接 include 为 Make 变量，又被转换成 C 头文件供源码使用。</strong></p>
+<h3 id="3-1-作为-Make-变量的-config"><a href="#3-1-作为-Make-变量的-config" class="headerlink" title="3.1 作为 Make 变量的 .config"></a>3.1 作为 Make 变量的 <code>.config</code></h3><p>顶层 <code>Makefile</code>（<code>/workspace/nuttx/Makefile:33</code>）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">include</span> .config</span><br></pre></td></tr></table></figure>
+
+<p>这行代码将 <code>.config</code> 中所有的 <code>CONFIG_*=y/n/value</code> 直接变成 Make 宏。于是你可以在任何 Makefile 中用 <code>ifeq ($(CONFIG_NET),y)</code> 做条件判断。GNU Make 的语法恰好兼容 Kconfig 的输出格式——<code>CONFIG_NET=y</code> 在 Make 中就是变量 <code>CONFIG_NET</code> 赋值 <code>y</code>。</p>
+<h3 id="3-2-作为-C-头文件的-config"><a href="#3-2-作为-C-头文件的-config" class="headerlink" title="3.2 作为 C 头文件的 .config"></a>3.2 作为 C 头文件的 <code>.config</code></h3><p>但 C 代码不认识 <code>CONFIG_NET=y</code>——它需要 <code>#define CONFIG_NET 1</code>。这个转换由 <code>tools/mkconfig</code> 完成。</p>
+<p><code>mkconfig</code> 是一个 C 程序（<code>tools/mkconfig.c:60-121</code>），核心逻辑很简单：调用 <code>generate_definitions()</code>（实现在 <code>tools/cfgdefine.c:294-356</code>）逐行扫描 <code>.config</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* tools/cfgdefine.c:294-356, generate_definitions() 的主循环体 */</span></span><br><span class="line"><span class="keyword">do</span></span><br><span class="line">  &#123;</span><br><span class="line">    ptr = read_line(stream);</span><br><span class="line">    <span class="keyword">if</span> (ptr)</span><br><span class="line">      &#123;</span><br><span class="line">        parse_line(ptr, &amp;varname, &amp;varval);</span><br><span class="line">        <span class="keyword">if</span> (varname)</span><br><span class="line">          &#123;</span><br><span class="line">            varval = dequote_value(varname, varval);</span><br><span class="line">            <span class="keyword">if</span> (!varval || <span class="built_in">strcmp</span>(varval, <span class="string">&quot;n&quot;</span>) == <span class="number">0</span>)</span><br><span class="line">              <span class="built_in">printf</span>(<span class="string">&quot;#undef %s\n&quot;</span>, varname);</span><br><span class="line">            <span class="keyword">else</span> <span class="keyword">if</span> (<span class="built_in">strcmp</span>(varval, <span class="string">&quot;y&quot;</span>) == <span class="number">0</span>)</span><br><span class="line">              <span class="built_in">printf</span>(<span class="string">&quot;#define %s 1\n&quot;</span>, varname);</span><br><span class="line">            <span class="keyword">else</span> <span class="keyword">if</span> (<span class="built_in">strcmp</span>(varval, <span class="string">&quot;m&quot;</span>) == <span class="number">0</span>)</span><br><span class="line">              <span class="built_in">printf</span>(<span class="string">&quot;#define %s 2\n&quot;</span>, varname);</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">              <span class="built_in">printf</span>(<span class="string">&quot;#define %s %s\n&quot;</span>, varname, varval);</span><br><span class="line">          &#125;</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br><span class="line"><span class="keyword">while</span> (ptr);</span><br></pre></td></tr></table></figure>
+
+<p>即：<code>CONFIG_NET=y</code> → <code>#define CONFIG_NET 1</code>；<code>=n</code> 或未定义 → <code>#undef CONFIG_NET</code>；带引号的字符串值（如 <code>CONFIG_INIT_ENTRYPOINT=&quot;nsh_main&quot;</code>）经过去引号处理后输出 <code>#define CONFIG_INIT_ENTRYPOINT nsh_main</code>。</p>
+<p>但有一个细节：<strong>去引号</strong>。某些配置值在 Kconfig 中被存储为带引号的字符串（如 <code>CONFIG_INIT_ENTRYPOINT=&quot;nsh_main&quot;</code>），在 C 代码中必须去掉引号。<code>cfgdefine.c:49-85</code> 维护了一个去引号白名单 <code>dequote_list[]</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* tools/cfgdefine.c:49-85, dequote_list[] 白名单 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="type">char</span> *dequote_list[] =</span><br><span class="line">&#123;</span><br><span class="line">  <span class="string">&quot;CONFIG_INIT_ENTRYPOINT&quot;</span>,       <span class="comment">/* Name of entry point function */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_PASS1_BUILDIR&quot;</span>,         <span class="comment">/* Pass1 build directory */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_PASS1_TARGET&quot;</span>,          <span class="comment">/* Pass1 build target */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_PASS1_OBJECT&quot;</span>,          <span class="comment">/* Pass1 build object */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_INIT_ARGS&quot;</span>,             <span class="comment">/* Argument list of entry point */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_INIT_SYMTAB&quot;</span>,           <span class="comment">/* Global symbol table */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_INIT_NEXPORTS&quot;</span>,         <span class="comment">/* Global symbol table size */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_EXECFUNCS_SYMTAB_ARRAY&quot;</span>,<span class="comment">/* Symbol table array used by exec[l|v] */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_EXECFUNCS_NSYMBOLS_VAR&quot;</span>,<span class="comment">/* Variable holding number of symbols */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_LIBC_ELF_SYMTAB_ARRAY&quot;</span>, <span class="comment">/* Symbol table array for elf loader */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_LIBC_ELF_NSYMBOLS_VAR&quot;</span>, <span class="comment">/* Variable holding symbol count */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_TTY_LAUNCH_ENTRYPOINT&quot;</span>, <span class="comment">/* Entry point from tty launch */</span></span><br><span class="line">  <span class="string">&quot;CONFIG_TTY_LAUNCH_ARGS&quot;</span>,       <span class="comment">/* Arguments for tty launch */</span></span><br><span class="line">  <span class="comment">/* ... NxWidgets/NxWM and apps/ entries: CONFIG_NXWM_* , CONFIG_NSH_* ... */</span></span><br><span class="line">  <span class="literal">NULL</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这些值会被 <code>dequote_value()</code> 函数去掉双引号再输出。</p>
+<p><code>mkconfig</code> 还在生成的 <code>config.h</code> 末尾添加了安全检查。对应 <code>tools/mkconfig.c:96-112</code> 中的 <code>printf</code> 调用：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* tools/mkconfig.c:96-112, mkconfig 主函数中写入 config.h 尾巴的部分 */</span></span><br><span class="line"><span class="built_in">printf</span>(</span><br><span class="line">  <span class="string">&quot;\n/* Sanity Checks *****************************************/\n\n&quot;</span></span><br><span class="line">  <span class="string">&quot;/* If the end of RAM is not specified then it is assumed to be\n&quot;</span></span><br><span class="line">  <span class="string">&quot; * the beginning of RAM plus the RAM size.\n&quot;</span></span><br><span class="line">  <span class="string">&quot; */\n\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#ifndef CONFIG_RAM_END\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#  define CONFIG_RAM_END (CONFIG_RAM_START+CONFIG_RAM_SIZE)\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#endif\n\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#ifndef CONFIG_RAM_VEND\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#  define CONFIG_RAM_VEND (CONFIG_RAM_VSTART+CONFIG_RAM_SIZE)\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#endif\n\n&quot;</span></span><br><span class="line">  <span class="string">&quot;/* If the end of FLASH is not specified then it is assumed to be\n&quot;</span></span><br><span class="line">  <span class="string">&quot; * the beginning of FLASH plus the FLASH size.\n&quot;</span></span><br><span class="line">  <span class="string">&quot; */\n\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#ifndef CONFIG_FLASH_END\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#  define CONFIG_FLASH_END (CONFIG_FLASH_START+CONFIG_FLASH_SIZE)\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#endif\n\n&quot;</span></span><br><span class="line">  <span class="string">&quot;#endif /* __INCLUDE_NUTTX_CONFIG_H */\n&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>如果 defconfig 没有显式定义 RAM_END，它会自动计算。这是一个防御性设计。</p>
+<h3 id="3-3-配置脏标记（dirty-tracking）"><a href="#3-3-配置脏标记（dirty-tracking）" class="headerlink" title="3.3 配置脏标记（dirty tracking）"></a>3.3 配置脏标记（dirty tracking）</h3><blockquote>
+<p><strong>注：本节描述的是一个辅助性审计机制，不参与编译决策逻辑。急于理解构建流程的读者可以跳过，不影响后续章节的阅读。</strong></p>
+</blockquote>
+<p>你开发板子在跑，一切正常。半年后客户报了一个 bug，你想复现当年的固件。你从 Git 里找到 <code>qemu-armv7a:knsh</code> 的 defconfig，<code>configure.sh</code> + <code>make</code>，烧进去——结果行为不一样。因为你半年前跑 <code>make menuconfig</code> 改过一个选项，但没保存。</p>
+<p>这就是 dirty tracking 要解决的问题：<strong>在固件里留下一个”免责声明”，告诉拿到这个固件的人：配置被人改过，别只看 defconfig 名字。</strong></p>
+<p>具体做法是，每次 <code>make</code> 生成 <code>config.h</code> 之前，构建系统比较当前 <code>.config</code> 和 <code>configure.sh</code> 当初保存的原始快照：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:266-276</span></span><br><span class="line"><span class="section">include/nuttx/config.h: <span class="variable">$(TOPDIR)</span>/.config tools/mkconfig<span class="variable">$(HOSTEXEEXT)</span></span></span><br><span class="line">	<span class="variable">$(Q)</span> grep -v <span class="string">&quot;CONFIG_BASE_DEFCONFIG&quot;</span> <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config&quot;</span> &gt; <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config.tmp&quot;</span></span><br><span class="line">	<span class="variable">$(Q)</span> if ! cmp -s <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config.tmp&quot;</span> <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config.orig&quot;</span> ; then \</span><br><span class="line">		sed -e <span class="string">&quot;/CONFIG_BASE_DEFCONFIG/ &#123; /-dirty/! s/\&quot;$$/-dirty\&quot;/; &#125;&quot;</span> <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config&quot;</span> &gt; <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config.dirty&quot;</span> ; \</span><br><span class="line">	<span class="keyword">else</span> \</span><br><span class="line">		sed <span class="string">&quot;s/-dirty//g&quot;</span> <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config&quot;</span> &gt; <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config.dirty&quot;</span>; \</span><br><span class="line">	fi</span><br><span class="line">	<span class="variable">$(Q)</span> rm -f <span class="string">&quot;<span class="variable">$(TOPDIR)</span>/.config.tmp&quot;</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(<span class="built_in">call</span> TESTANDREPLACEFILE, <span class="variable">$(TOPDIR)</span>/.config.dirty, <span class="variable">$(TOPDIR)</span>/.config)</span></span><br><span class="line">	<span class="variable">$(Q)</span> tools/mkconfig <span class="variable">$(TOPDIR)</span> &gt; <span class="variable">$@</span>.tmp</span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(<span class="built_in">call</span> TESTANDREPLACEFILE, <span class="variable">$@</span>.tmp, <span class="variable">$@</span>)</span></span><br></pre></td></tr></table></figure>
+
+<p>步骤：排除 <code>CONFIG_BASE_DEFCONFIG</code> 行生成临时文件 → 与 <code>.config.orig</code> 比较 → 不同则追加 <code>-dirty</code>，相同则去掉 <code>-dirty</code> → 覆盖 <code>.config</code> → 重新生成 <code>config.h</code>。</p>
+<p>最终效果是，<code>CONFIG_BASE_DEFCONFIG</code> 的值会被编译进固件，并通过 <code>/proc/version</code> 暴露到运行时：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">nsh&gt; cat /proc/version</span><br><span class="line">NuttX version 12.x.x, base configuration qemu-armv7a/knsh-dirty</span><br></pre></td></tr></table></figure>
+
+<p>这个 <code>-dirty</code> 就是一条审计线索：</p>
+<ul>
+<li>没有 <code>-dirty</code> → 这个固件可以用对应的 defconfig 精确复现</li>
+<li>有 <code>-dirty</code> → 配置被改过，想复现必须找作者要 <code>.config</code>，或者让他 <code>make savedefconfig</code> 提交</li>
+</ul>
+<p>换句话说，<strong>dirty 不是技术机制的参与者——它不参与编译决策。它只是一个”路标”，告诉后来人这条路走歪了，要复现请留神。</strong></p>
+<p>至此，<code>.config</code> 已生成、<code>Make.defs</code> 已就位、<code>config.h</code> 已备妥。但<strong>谁来使用它们来驱动实际的编译</strong>？下一节将看到，NuttX 用了一个极其简洁的路由机制，将 <code>.config</code> 和 <code>Make.defs</code> 组装成一套可工作的编译流程。</p>
+<hr>
+<h2 id="4-构建入口：Makefile-的路由机制"><a href="#4-构建入口：Makefile-的路由机制" class="headerlink" title="4. 构建入口：Makefile 的路由机制"></a>4. 构建入口：<code>Makefile</code> 的路由机制</h2><h3 id="4-1-顶层-Makefile"><a href="#4-1-顶层-Makefile" class="headerlink" title="4.1 顶层 Makefile"></a>4.1 顶层 Makefile</h3><p>顶层 <code>Makefile</code>（<code>nuttx/Makefile:25-42</code>）极其简洁——只做两件事：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># nuttx/Makefile:25-42</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(<span class="built_in">wildcard</span> .config)</span>,)</span><br><span class="line">.DEFAULT default:</span><br><span class="line">	@echo <span class="string">&quot;NuttX has not been configured!&quot;</span></span><br><span class="line">	@echo <span class="string">&quot;To configure the project:&quot;</span></span><br><span class="line">	@echo <span class="string">&quot;  tools/configure.sh &lt;config&gt;&quot;</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line"><span class="keyword">include</span> .config</span><br><span class="line"></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_WINDOWS_NATIVE)</span>,y)</span><br><span class="line"><span class="keyword">include</span> tools/Win.mk</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line"><span class="keyword">include</span> tools/Unix.mk</span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p>如果 <code>.config</code> 不存在，打印帮助信息。如果存在，include <code>.config</code> 然后根据 <code>CONFIG_WINDOWS_NATIVE</code> 路由到 <code>tools/Win.mk</code> 或 <code>tools/Unix.mk</code>。对于 99% 的场景（Linux、macOS、WSL、Cygwin、MSYS），使用的是 <code>Unix.mk</code>。</p>
+<h3 id="4-2-Unix-mk-的-include-链"><a href="#4-2-Unix-mk-的-include-链" class="headerlink" title="4.2 Unix.mk 的 include 链"></a>4.2 Unix.mk 的 include 链</h3><p><code>Unix.mk</code> 被 include 后，会触发一系列 Make 变量和规则的求值。我们先梳理它的 include 链（按代码顺序）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Makefile</span><br><span class="line">  └── tools/Unix.mk                          # main build orchestrator</span><br><span class="line">        ├── $(TOPDIR)/Make.defs               # Unix.mk:32 -&gt; Makefile:32 chain</span><br><span class="line">        │     ├── $(TOPDIR)/.config           # -&gt; Kconfig output</span><br><span class="line">        │     ├── $(TOPDIR)/tools/Config.mk   # -&gt; macros &amp; rules</span><br><span class="line">        │     └── $(TOPDIR)/arch/arm/src/armv7-a/Toolchain.defs</span><br><span class="line">        ├── tools/Directories.mk              # -&gt; KERNDEPDIRS, USERDEPDIRS, etc.</span><br><span class="line">        └── tools/&#123;Flat,Protected,Kernel&#125;Libs.mk  # -&gt; NUTTXLIBS, USERLIBS</span><br></pre></td></tr></table></figure>
+
+<p>这条链的求值顺序至关重要：Unix.mk 首先 <code>include $(TOPDIR)/Make.defs</code>，而 <code>Make.defs</code> 内部又依次 include <code>.config</code>、<code>Config.mk</code> 和 <code>Toolchain.defs</code>。这意味着 <strong>当 Unix.mk 执行到 <code>include tools/Directories.mk</code> 时，所有 Kconfig 变量（<code>CONFIG_NET</code>、<code>CONFIG_BUILD_FLAT</code> 等）和所有编译宏（<code>COMPILE</code>、<code>ARCHIVE</code> 等）都已经被定义了</strong>。<code>Directories.mk</code> 利用这些变量来决定哪些目录参与编译，<code>&#123;Flat,Protected,Kernel&#125;Libs.mk</code> 利用它们来决定编译哪些库。</p>
+<p><strong>Config.mk</strong> 是编译基础设施的核心。它定义了所有你需要的构建宏：</p>
+<ul>
+<li><strong>编译宏</strong>：<code>COMPILE</code>、<code>COMPILEXX</code>、<code>ASSEMBLE</code>、<code>PREPROCESS</code>、<code>ARCHIVE</code>、<code>PRELINK</code></li>
+<li><strong>依赖规则</strong>：<code>%.ddc</code>、<code>%.dds</code>、<code>%.ddp</code> 的 pattern rules</li>
+<li><strong>路径工具</strong>：<code>INCDIR</code>、<code>DEFINE</code>（调用 <code>tools/incdir</code> 和 <code>tools/define</code> 获取编译器特定的 flag 格式）</li>
+<li><strong>平台适配</strong>：<code>HOSTCC</code>、<code>HOSTCFLAGS</code>、<code>DELIM</code>（路径分隔符 <code>/</code> 或 <code>\</code>）、<code>KDEFINE = -D__KERNEL__</code></li>
+<li><strong>工具选择</strong>：<code>MKDEP</code>、<code>DIRLINK</code>（<code>link.sh</code> 或 <code>copydir.sh</code>，取决于是否支持符号链接）</li>
+</ul>
+<p>Config.mk 中的 <code>COMPILE</code> 宏（<code>tools/Config.mk:304-308</code>）展示了宏如何抽象编译：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">define</span> COMPILE</span><br><span class="line">	<span class="variable">$(ECHO_BEGIN)</span><span class="string">&quot;CC: $1 &quot;</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(CCACHE)</span> <span class="variable">$(CC)</span> -c <span class="variable">$(CFLAGS)</span> $3 $(<span class="variable">$(<span class="built_in">strip</span> $1)</span>_CFLAGS) $1 -o $2</span><br><span class="line">	<span class="variable">$(ECHO_END)</span></span><br><span class="line"><span class="keyword">endef</span></span><br></pre></td></tr></table></figure>
+
+<p><code>$($(strip $1)_CFLAGS)</code> 的含义是：对于源文件 <code>foo.c</code>，先查找 Make 变量 <code>foo.c_CFLAGS</code>，如果存在则追加这些特定的编译选项。这实现了<strong>每个文件级别的编译选项定制</strong>——不需要修改 Makefile 就可以给单个文件添加特殊 flag。</p>
+<p>至此，include 链已经把所有构建变量和宏定义好了。但要真正编译源代码，我们还需要解决一个更根本的问题：<strong>Makefile 怎样在不知道具体芯片的情况下，写出正确的 include 路径和源文件引用？</strong> 答案藏在 NuttX 最优雅的符号链接机制中。</p>
+<hr>
+<h2 id="5-通用名约定：用符号链接消除硬件差异"><a href="#5-通用名约定：用符号链接消除硬件差异" class="headerlink" title="5. 通用名约定：用符号链接消除硬件差异"></a>5. 通用名约定：用符号链接消除硬件差异</h2><p>这是 NuttX 构建系统最优雅的设计。</p>
+<h3 id="5-1-问题"><a href="#5-1-问题" class="headerlink" title="5.1 问题"></a>5.1 问题</h3><p>在内核代码中，你需要 <code>#include &lt;arch/chip.h&gt;</code> 或 <code>#include &lt;arch/board/board.h&gt;</code>。但有效的 <code>chip.h</code> 文件取决于具体芯片：对于 STM32 它是 <code>arch/arm/include/stm32/chip.h</code>，对于 ESP32 它是 <code>arch/xtensa/include/esp32/chip.h</code>。</p>
+<p>如果每个源文件都用具体路径，那么所有 Makefile 中都需要类似这样的条件判断（示意，并非真实代码——NuttX 实际采用了下一节介绍的 symlink 方案）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 说明：这是演示坏设计的示意代码，不存在于 NuttX 仓库中</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_ARCH_CHIP_STM32)</span>,y)</span><br><span class="line">  INCLUDES += -Iarch/arm/<span class="keyword">include</span>/stm32</span><br><span class="line"><span class="keyword">else</span> <span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_ARCH_CHIP_ESP32)</span>,y)</span><br><span class="line">  INCLUDES += -Iarch/xtensa/<span class="keyword">include</span>/esp32</span><br><span class="line"><span class="comment"># ... 每种芯片都要写一段</span></span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p>这是不可维护的。</p>
+<h3 id="5-2-解决方案：通用名-符号链接"><a href="#5-2-解决方案：通用名-符号链接" class="headerlink" title="5.2 解决方案：通用名 + 符号链接"></a>5.2 解决方案：通用名 + 符号链接</h3><p>NuttX 的答案是定义一个”通用名”命名空间，然后在 <code>context</code> 阶段把真实目录 symlink 进来。下表以 <code>qemu-armv7a</code> 为例展示映射关系：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Generic Name      Real Path (qemu-armv7a)</span><br><span class="line">────────────────  ──────────────────────────────────────────────────</span><br><span class="line">include/arch    → arch/arm/include</span><br><span class="line">include/arch/board → boards/arm/qemu/qemu-armv7a/include</span><br><span class="line">include/arch/chip   → arch/arm/include/armv7-a</span><br><span class="line">arch/arm/src/chip   → arch/arm/src/armv7-a</span><br><span class="line">arch/arm/src/board  → boards/arm/qemu/qemu-armv7a/src</span><br><span class="line">drivers/platform    → boards/arm/qemu/../drivers (or drivers/dummy)</span><br></pre></td></tr></table></figure>
+
+<p>这些 symlink 是在 <code>context</code> 目标的 <code>.dirlinks</code> 子目标中建立的（<code>Unix.mk:295-369</code>）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:297-299</span></span><br><span class="line"><span class="section">include/arch:</span></span><br><span class="line">	@echo <span class="string">&quot;LN: <span class="variable">$@</span> to <span class="variable">$(ARCH_DIR)</span>/include&quot;</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(DIRLINK)</span> <span class="variable">$(TOPDIR)</span>/<span class="variable">$(ARCH_DIR)</span>/<span class="keyword">include</span> <span class="variable">$@</span></span><br></pre></td></tr></table></figure>
+
+<p><code>DIRLINK</code> 变量在 <code>Config.mk</code> 中根据宿主平台选择（<code>tools/Config.mk:196-212</code>）：Linux 上它是 <code>tools/link.sh</code>（创建符号链接），Windows 原生环境上是 <code>tools/copydir.bat</code>（复制目录），Cygwin&#x2F;MSYS 上是 <code>tools/copydir.sh</code>。</p>
+<h3 id="5-3-一个特殊案例：board-目录的两层结构"><a href="#5-3-一个特殊案例：board-目录的两层结构" class="headerlink" title="5.3 一个特殊案例：board 目录的两层结构"></a>5.3 一个特殊案例：board 目录的两层结构</h3><p>有些开发板共享一个 <code>common</code> 目录（如所有 STM32F4 Discovery 板共享 <code>boards/arm/stm32/stm32f4discovery/common</code>）。这时 symlink 需要两层：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:318-335</span></span><br><span class="line"><span class="keyword">ifneq</span> (<span class="variable">$(BOARD_COMMON_DIR)</span>,)</span><br><span class="line">ARCH_SRC_BOARD_SYMLINK=<span class="variable">$(BOARD_COMMON_DIR)</span></span><br><span class="line">ARCH_SRC_BOARD_BOARD_SYMLINK=<span class="variable">$(BOARD_DIR)</span>/src</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">ARCH_SRC_BOARD_SYMLINK=<span class="variable">$(BOARD_DIR)</span>/src</span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p>有 common 目录时：<code>arch/arm/src/board</code> → <code>common/</code>，<code>arch/arm/src/board/board</code> → <code>具体板子/src/</code>。这使得板级代码可以用 <code>#include &quot;board/board.h&quot;</code> 访问具体板子头文件，用 <code>#include &quot;board.h&quot;</code> 访问公共头文件。</p>
+<h3 id="5-4-Dummy-机制"><a href="#5-4-Dummy-机制" class="headerlink" title="5.4 Dummy 机制"></a>5.4 Dummy 机制</h3><p>Kconfig 不支持”条件 include”——你不能写 <code>if EXTERNALDIR_EXISTS: source &quot;external/Kconfig&quot;</code>。NuttX 的解决方式是”dummy 重定向”：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:84</span></span><br><span class="line">EXTERNALDIR := <span class="variable">$(<span class="built_in">shell</span> <span class="built_in">if</span> [ -r <span class="variable">$(TOPDIR)</span>/external/Kconfig ]; then echo &#x27;external&#x27;; else echo &#x27;dummy&#x27;; fi)</span></span><br></pre></td></tr></table></figure>
+
+<p>如果用户没有 <code>external/</code> 目录，<code>EXTERNALDIR</code> 被设为 <code>dummy</code>，Kconfig 会 include 一个空的 <code>dummy/Kconfig</code>。</p>
+<p>同样的策略用于芯片和板子的 Kconfig：</p>
+<ul>
+<li>使用官方芯片时，<code>CHIP_KCONFIG</code> 指向 <code>arch/dummy/dummy_kconfig</code>（空文件）</li>
+<li>使用自定义芯片时，指向用户提供的真实 <code>Kconfig</code></li>
+</ul>
+<p>符号链接一旦就位，编译环境就真正”通用化”了。接下来的问题是：<strong>编译本身是如何排程的？</strong> 先做什么后做什么？依赖如何在 100+ 个目录间逐层传递？下面将看到 NuttX 构建的时间线是如何精确编排的。</p>
+<hr>
+<h2 id="6-构建的三步舞：context-→-pass1-pass2-→-link"><a href="#6-构建的三步舞：context-→-pass1-pass2-→-link" class="headerlink" title="6. 构建的三步舞：context → pass1&#x2F;pass2 → link"></a>6. 构建的三步舞：context → pass1&#x2F;pass2 → link</h2><p>完整的 <code>make</code> 构建流程由依赖关系驱动。下面是核心目标的依赖链：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">make</span><br><span class="line">  └── all: $(BIN)                           # Unix.mk:161</span><br><span class="line">        └── $(BIN): pass1 pass2              # Unix.mk:553</span><br><span class="line">              ├── pass1: $(USERLIBS)         # Unix.mk:541 -- depends on pass1dep</span><br><span class="line">              ├── pass2: $(NUTTXLIBS)        # Unix.mk:543 -- depends on pass2dep</span><br><span class="line">              └── context:                   # Unix.mk:463 -- prereq for everything</span><br><span class="line">                    ├── include/nuttx/config.h  (mkconfig from .config)</span><br><span class="line">                    ├── include/nuttx/version.h (mkversion from .version)</span><br><span class="line">                    ├── .dirlinks              (all symlinks)</span><br><span class="line">                    └── $(CONTEXTDIRS)/.context (recursive context)</span><br></pre></td></tr></table></figure>
+
+<p>这条链的实际执行顺序是：Make 首先解析依赖图，发现 <code>$(BIN)</code> 依赖 <code>pass1</code> 和 <code>pass2</code>，而这两个又依赖 <code>pass1dep</code> 和 <code>pass2dep</code>，后者又依赖 <code>context</code>。因此 <strong>context 最先执行</strong>——先建 symlink、生成 config.h、准备好所有环境。然后按 <code>pass1dep → pass1</code>、<code>pass2dep → pass2</code> 的顺序编译和链接。最后才执行 <code>$(BIN)</code> 的链接规则，生成 <code>nuttx</code> ELF 甚至 <code>.hex</code>、<code>.bin</code> 等附加格式。</p>
+<h3 id="6-1-Context-阶段：环境就绪"><a href="#6-1-Context-阶段：环境就绪" class="headerlink" title="6.1 Context 阶段：环境就绪"></a>6.1 Context 阶段：环境就绪</h3><p><code>context</code> 目标（<code>Unix.mk:463</code>）负责准备好一切”一次性”的东西：</p>
+<ol>
+<li><strong>构建 host 工具</strong>：<code>tools/incdir$(HOSTEXEEXT)</code>（编译器 include 前缀检测工具）</li>
+<li><strong>生成 config.h</strong>：调用 <code>tools/mkconfig</code> 将 <code>.config</code> 转为 C 头文件</li>
+<li><strong>生成 version.h</strong>：调用 <code>tools/mkversion</code> 从 <code>.version</code>（Git 导出版本号）生成版本信息</li>
+<li><strong>建立 dirlinks</strong>：所有通用名符号链接</li>
+<li><strong>可选头文件拷贝</strong>：<code>math.h</code>、<code>float.h</code>、<code>stdarg.h</code>、<code>setjmp.h</code> 等——如果未使用工具链的默认头文件，则用 NuttX 的替代</li>
+<li><strong>递归 context</strong>：在所有 <code>CONTEXTDIRS</code> 目录中执行 <code>make context</code></li>
+</ol>
+<p><code>Directories.mk</code>（<code>tools/Directories.mk:64</code>）定义了 <code>CONTEXTDIRS</code>：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CONTEXTDIRS = boards drivers fs <span class="variable">$(APPDIR)</span> <span class="variable">$(ARCH_SRC)</span> mm</span><br></pre></td></tr></table></figure>
+
+<p>这些是需要特殊预备工作的目录。例如 <code>boards</code> 的 context 可能创建符号链接，<code>libs/libc</code> 的 context 创建 <code>bin/</code> 和 <code>kbin/</code> 输出目录（为双版本编译准备）。</p>
+<h3 id="6-2-Pass1dep-和-Pass2dep：依赖生成"><a href="#6-2-Pass1dep-和-Pass2dep：依赖生成" class="headerlink" title="6.2 Pass1dep 和 Pass2dep：依赖生成"></a>6.2 Pass1dep 和 Pass2dep：依赖生成</h3><p><strong>为什么需要自定义 mkdeps？</strong> 标准做法是使用 <code>gcc -M</code> 自动生成 <code>.d</code> 依赖文件，Make 再 <code>-include</code> 它们。但 NuttX 面向的不只是 GCC + Linux 环境——它还必须支持 Windows 原生（路径反斜杠）、Cygwin 跨编译（Windows 版编译器期望 Windows 路径但 Make 运行在 POSIX 下）、以及 ZDS-II、SDCC、Tasking 等不兼容 GCC <code>-M</code> 格式的嵌入式编译器。因此 NuttX 实现了自己的 <code>tools/mkdeps.c</code>（1020 行），统一了跨编译器、跨平台的依赖生成。这套机制的详细文档见 <code>Documentation/implementation/make_build_system.rst</code> 第 144-152 行。</p>
+<p>依赖生成分两遍。第一遍处理用户空间的目录（<code>USERDEPDIRS</code>），第二遍处理内核空间的目录（<code>KERNDEPDIRS</code>），并且内核版本传入 <code>KDEFINE</code>（即 <code>-D__KERNEL__</code>）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:673-681</span></span><br><span class="line"><span class="section">pass1dep: context tools/mkdeps<span class="variable">$(HOSTEXEEXT)</span> tools/cnvwindeps<span class="variable">$(HOSTEXEEXT)</span></span></span><br><span class="line">	<span class="variable">$(Q)</span> for dir in <span class="variable">$(USERDEPDIRS)</span> ; do \</span><br><span class="line">		<span class="variable">$(MAKE)</span> -C $$dir depend || exit; \</span><br><span class="line">	done</span><br><span class="line"></span><br><span class="line"><span class="section">pass2dep: context tools/mkdeps<span class="variable">$(HOSTEXEEXT)</span> tools/cnvwindeps<span class="variable">$(HOSTEXEEXT)</span></span></span><br><span class="line">	<span class="variable">$(Q)</span> for dir in <span class="variable">$(KERNDEPDIRS)</span> ; do \</span><br><span class="line">		<span class="variable">$(MAKE)</span> -C $$dir EXTRAFLAGS=<span class="string">&quot;<span class="variable">$(KDEFINE)</span> <span class="variable">$(EXTRAFLAGS)</span>&quot;</span> depend || exit; \</span><br><span class="line">	done</span><br></pre></td></tr></table></figure>
+
+<p><code>tools/mkdeps.c</code>（1020 行）是一个完整的依赖生成器，支持 <code>--dep-path</code>（搜索路径）、<code>--obj-path</code>（输出目录映射）、<code>--obj-suffix</code>（对象文件扩展名）、<code>--winnative</code>（Windows 原生模式）。</p>
+<p>依赖生成的 pattern rules 定义在 <code>Config.mk:228-241</code>：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Config.mk:228-241</span></span><br><span class="line"><span class="section">%.ddc: %.c</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(MKDEP)</span> --obj-path <span class="variable">$(OBJPATH)</span> --obj-suffix <span class="variable">$(OBJEXT)</span> <span class="variable">$(DEPPATH)</span> <span class="string">&quot;<span class="variable">$(CC)</span>&quot;</span> -- <span class="variable">$(CFLAGS)</span> -- <span class="variable">$&lt;</span> &gt; <span class="variable">$@</span></span><br></pre></td></tr></table></figure>
+
+<p>每个 <code>.c</code> 文件产生一个 <code>.ddc</code> 文件，其中包含该源文件依赖的所有头文件路径。这些 <code>.ddc</code> 文件被收集为目录级的 <code>Make.dep</code> 文件，最终被 <code>-include Make.dep</code> 引入，实现增量编译。</p>
+<p>这些都准备好之后，真正的编译——编译所有子系统库——就可以开始了。这是本节调度之舞的高潮。</p>
+<h3 id="6-3-Pass1-和-Pass2：编译库"><a href="#6-3-Pass1-和-Pass2：编译库" class="headerlink" title="6.3 Pass1 和 Pass2：编译库"></a>6.3 Pass1 和 Pass2：编译库</h3><p><code>pass1: $(USERLIBS)</code> 和 <code>pass2: $(NUTTXLIBS)</code> 的定义取决于构建模式。这两个变量在 <code>FlatLibs.mk</code> &#x2F; <code>ProtectedLibs.mk</code> &#x2F; <code>KernelLibs.mk</code> 中填充。</p>
+<p><code>$(USERLIBS)</code> 和 <code>$(NUTTXLIBS)</code> 的元素是 <code>staging/libxxx.a</code> 形式的路径。每个库对应的构建规则在 <code>LibTargets.mk</code> 中定义。例如 libc 的用户版本：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/LibTargets.mk:191-199</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_BUILD_FLAT)</span>,y)</span><br><span class="line"><span class="section">libs$(DELIM)libc$(DELIM)libc$(LIBEXT): pass2dep</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line"><span class="section">libs$(DELIM)libc$(DELIM)libc$(LIBEXT): pass1dep</span></span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(MAKE)</span> -C libs<span class="variable">$(DELIM)</span>libc libc<span class="variable">$(LIBEXT)</span> EXTRAFLAGS=<span class="string">&quot;<span class="variable">$(EXTRAFLAGS)</span>&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="section">staging$(DELIM)libc$(LIBEXT): libs<span class="variable">$(DELIM)</span>libc<span class="variable">$(DELIM)</span>libc<span class="variable">$(LIBEXT)</span></span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(<span class="built_in">call</span> INSTALL_LIB,<span class="variable">$&lt;</span>,<span class="variable">$@</span>)</span></span><br></pre></td></tr></table></figure>
+
+<p>每个库的构建分两步：</p>
+<ol>
+<li><strong>编译步骤</strong>：递归 <code>make -C &lt;libdir&gt; libX$(LIBEXT)</code>——在库的源目录中编译所有源文件并归档</li>
+<li><strong>安装步骤</strong>：将编译好的 <code>.a</code> 文件 install 到 <code>staging/</code> 目录（使用 <code>install -m 0644</code>）</li>
+</ol>
+<p><code>INSTALL_LIB</code> 宏（<code>Config.mk:434-438</code>）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">define</span> INSTALL_LIB</span><br><span class="line">	<span class="variable">$(ECHO_BEGIN)</span><span class="string">&quot;IN: $1 -&gt; $2 &quot;</span></span><br><span class="line">	<span class="variable">$(Q)</span> install -m 0644 $1 $2</span><br><span class="line">	<span class="variable">$(ECHO_END)</span></span><br><span class="line"><span class="keyword">endef</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用一个 staging 目录？</strong> 最终链接时需要所有库的路径。与其记住 <code>sched/libsched.a</code>、<code>mm/libmm.a</code>、<code>fs/libfs.a</code> 等散布在各处的路径，不如统一安装到 <code>staging/</code>。链接命令只需引用 <code>staging/libsched.a staging/libmm.a staging/libfs.a ...</code>。</p>
+<h3 id="6-4-BIN-：最终链接"><a href="#6-4-BIN-：最终链接" class="headerlink" title="6.4 $(BIN)：最终链接"></a>6.4 $(BIN)：最终链接</h3><p>所有库编译完毕后，<code>$(BIN): pass1 pass2</code> 执行最终链接（<code>Unix.mk:553-604</code>）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$(BIN)</span>: pass1 pass2</span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(MAKE)</span> -C <span class="variable">$(ARCH_SRC)</span> EXTRA_OBJS=<span class="string">&quot;<span class="variable">$(EXTRA_OBJS)</span>&quot;</span> LINKLIBS=<span class="string">&quot;<span class="variable">$(LINKLIBS)</span>&quot;</span> \</span><br><span class="line">		APPDIR=<span class="string">&quot;<span class="variable">$(APPDIR)</span>&quot;</span> EXTRAFLAGS=<span class="string">&quot;<span class="variable">$(KDEFINE)</span> <span class="variable">$(EXTRAFLAGS)</span>&quot;</span> <span class="variable">$(BIN)</span></span><br><span class="line">	<span class="variable">$(Q)</span> echo <span class="variable">$(BIN)</span> &gt; nuttx.manifest</span><br></pre></td></tr></table></figure>
+
+<p>它将接力棒交给架构 Makefile（例如 <code>arch/arm/src/Makefile</code>）。架构 Makefile 负责：</p>
+<ol>
+<li>预处理链接脚本（<code>.ld</code> → <code>.ld.tmp</code>，展开 C 预处理宏）</li>
+<li>调用 LD 链接 <code>HEAD_OBJ + STARTUP_OBJS + 所有库</code></li>
+<li>可选生成 <code>nuttx.hex</code>、<code>nuttx.bin</code>、<code>nuttx.srec</code>、<code>uImage</code>、反汇编 <code>.asm</code></li>
+<li>调用 <code>POSTBUILD</code> 钩子（平台特定的后处理，如签名、打包）</li>
+</ol>
+<p>架构链接器命令的核心（<code>arch/arm/src/Makefile:211-248</code>，简化）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># arch/arm/src/Makefile 中的最终链接命令（简化）</span></span><br><span class="line"><span class="variable">$(LD)</span> <span class="variable">$(LDFLAGS)</span> <span class="variable">$(EXTRA_LIBPATHS)</span> -o <span class="variable">$@</span> <span class="variable">$(STARTUP_OBJS)</span> <span class="variable">$(HEAD_OBJ)</span> \</span><br><span class="line">	--start-group <span class="variable">$(LINKLIBS)</span> --end-group <span class="variable">$(EXTRA_OBJS)</span> <span class="variable">$(LDLIBS)</span></span><br></pre></td></tr></table></figure>
+
+<p><code>LINKLIBS</code> 是从 <code>NUTTXLIBS</code> 中去掉了 <code>staging/</code> 前缀的结果（<code>Unix.mk:135</code>）。因为链接时已经通过 <code>-L</code> 指定了 <code>staging/</code> 路径。</p>
+<p>上面描述的是 FLAT 模式下的编译流程——所有代码链接成一个二进制。但 <code>pass1</code> 和 <code>pass2</code> 的定义，以及 <code>NUTTXLIBS</code> 和 <code>USERLIBS</code> 的成员列表，在不同构建模式下完全不同。这正是下一节要拆解的：NuttX 如何用同一套 Makefile 支持三种截然不同的内存隔离模型。</p>
+<hr>
+<h2 id="7-三种构建模式：FlatLibs-mk-ProtectedLibs-mk-KernelLibs-mk"><a href="#7-三种构建模式：FlatLibs-mk-ProtectedLibs-mk-KernelLibs-mk" class="headerlink" title="7. 三种构建模式：FlatLibs.mk &#x2F; ProtectedLibs.mk &#x2F; KernelLibs.mk"></a>7. 三种构建模式：FlatLibs.mk &#x2F; ProtectedLibs.mk &#x2F; KernelLibs.mk</h2><p>构建模式的选择由 Kconfig 的 <code>CONFIG_BUILD_FLAT</code>、<code>CONFIG_BUILD_PROTECTED</code>、<code>CONFIG_BUILD_KERNEL</code> 决定。在 <code>Unix.mk:124-130</code>：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_BUILD_PROTECTED)</span>,y)</span><br><span class="line"><span class="keyword">include</span> tools/ProtectedLibs.mk</span><br><span class="line"><span class="keyword">else</span> <span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_BUILD_KERNEL)</span>,y)</span><br><span class="line"><span class="keyword">include</span> tools/KernelLibs.mk</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line"><span class="keyword">include</span> tools/FlatLibs.mk</span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-1-FLAT-模式（FlatLibs-mk）"><a href="#7-1-FLAT-模式（FlatLibs-mk）" class="headerlink" title="7.1 FLAT 模式（FlatLibs.mk）"></a>7.1 FLAT 模式（FlatLibs.mk）</h3><p>FLAT 模式最简单——所有代码链接到一个 <code>nuttx</code> 二进制：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/FlatLibs.mk:30-158</span></span><br><span class="line">NUTTXLIBS = staging<span class="variable">$(DELIM)</span>libsched<span class="variable">$(LIBEXT)</span></span><br><span class="line">USERLIBS =</span><br><span class="line"></span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libdrivers<span class="variable">$(LIBEXT)</span></span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libboards<span class="variable">$(LIBEXT)</span></span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libc<span class="variable">$(LIBEXT)</span></span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libmm<span class="variable">$(LIBEXT)</span></span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libarch<span class="variable">$(LIBEXT)</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_NET)</span>,y)</span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libnet<span class="variable">$(LIBEXT)</span></span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_CRYPTO)</span>,y)</span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libcrypto<span class="variable">$(LIBEXT)</span></span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line"><span class="comment"># ... CONFIG_LIB_BUILTIN, CONFIG_LIBM, CONFIG_HAVE_CXX, CONFIG_NX,</span></span><br><span class="line"><span class="comment">#     CONFIG_AUDIO, CONFIG_VIDEO, CONFIG_WIRELESS, CONFIG_LIBDSP,</span></span><br><span class="line"><span class="comment">#     CONFIG_OPENAMP, CONFIG_ARCH_BOARD_COMMON conditionals follow ...</span></span><br><span class="line">NUTTXLIBS += staging<span class="variable">$(DELIM)</span>libfs<span class="variable">$(LIBEXT)</span></span><br><span class="line">EXPORTLIBS = <span class="variable">$(NUTTXLIBS)</span></span><br></pre></td></tr></table></figure>
+
+<p>所有库都在 <code>NUTTXLIBS</code> 中，<code>USERLIBS</code> 为空。<code>EXPORTLIBS</code> 包含全部库给 <code>make export</code> 做外部打包。</p>
+<p>库的排列顺序是精心设计的——<strong>链接顺序影响符号解析</strong>（GNU LD 默认从左到右解析符号，后面的库可以引用前面的符号）。<code>libsched</code> 必须在最前，因为它包含 <code>nx_start()</code> 启动函数所需的核心符号。</p>
+<h3 id="7-2-PROTECTED-模式（ProtectedLibs-mk）"><a href="#7-2-PROTECTED-模式（ProtectedLibs-mk）" class="headerlink" title="7.2 PROTECTED 模式（ProtectedLibs.mk）"></a>7.2 PROTECTED 模式（ProtectedLibs.mk）</h3><p>PROTECTED 模式区分内核空间和用户空间：</p>
+<ul>
+<li><strong>NUTTXLIBS</strong>（内核）：<code>libsched</code>、<code>libdrivers</code>、<code>libboards</code>、<code>libstubs</code>（syscall stub）、<code>libkc</code>（内核 C 库）、<code>libkmm</code>（内核内存管理）、<code>libkarch</code>（内核架构）</li>
+<li><strong>USERLIBS</strong>（用户）：<code>libproxies</code>（syscall 代理）、<code>libc</code>、<code>libmm</code>、<code>libarch</code>、<code>libxx</code>、<code>libapps</code></li>
+<li>**EXPORTLIBS &#x3D; $(USERLIBS)**：只导出用户库</li>
+</ul>
+<p>注意 <code>libc</code> vs <code>libkc</code>——同一个 <code>libs/libc</code> 编译两次：</p>
+<ul>
+<li>内核版（<code>libkc</code>）：带 <code>EXTRAFLAGS=&quot;$(KDEFINE) $(EXTRAFLAGS)&quot;</code>（即 <code>-D__KERNEL__</code>）</li>
+<li>用户版（<code>libc</code>）：不带 <code>KDEFINE</code></li>
+</ul>
+<p>内核和用户代码共享大量源代码，但通过 <code>#ifdef __KERNEL__</code> 分叉行为。例如内存分配——内核使用 <code>kmalloc()</code>，用户使用 <code>malloc()</code>，虽然底层都调用同一个 <code>mm_malloc()</code>。</p>
+<h3 id="7-3-KERNEL-模式（KernelLibs-mk）"><a href="#7-3-KERNEL-模式（KernelLibs-mk）" class="headerlink" title="7.3 KERNEL 模式（KernelLibs.mk）"></a>7.3 KERNEL 模式（KernelLibs.mk）</h3><p>KERNEL 模式类似 PROTECTED，但不编译任何用户空间应用：</p>
+<ul>
+<li><strong>NUTTXLIBS</strong>：仅内核库（同 PROTECTED 的内核部分）</li>
+<li><strong>USERLIBS</strong>：空</li>
+<li>**EXPORTLIBS &#x3D; $(USERLIBS)**：空</li>
+</ul>
+<p>用户程序作为独立的 ELF 文件存在，由内核通过 ELF loader 加载到用户地址空间执行。构建系统只负责内核本身的编译。</p>
+<h3 id="7-4-KDEFINE：内核编译标志"><a href="#7-4-KDEFINE：内核编译标志" class="headerlink" title="7.4 KDEFINE：内核编译标志"></a>7.4 KDEFINE：内核编译标志</h3><p><code>KDEFINE</code> 定义在 <code>Config.mk:126</code>：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">KDEFINE ?= $&#123;DEFINE_PREFIX&#125;__KERNEL__</span><br></pre></td></tr></table></figure>
+
+<p><code>DEFINE_PREFIX</code> 通过调用编译器的探测确定——GCC 上是 <code>-D</code>，ZDS-II 上是 <code>-define=</code>，等等。最终 <code>KDEFINE</code> 通常是 <code>-D__KERNEL__</code>。</p>
+<p>在 <code>LibTargets.mk</code> 中，内核库的编译规则显式传递这个标志：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/LibTargets.mk:34-35 (libkc 的内核编译)</span></span><br><span class="line"><span class="section">libs$(DELIM)libc$(DELIM)libkc$(LIBEXT): pass2dep</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(MAKE)</span> -C libs<span class="variable">$(DELIM)</span>libc libkc<span class="variable">$(LIBEXT)</span> BINDIR=kbin EXTRAFLAGS=<span class="string">&quot;<span class="variable">$(KDEFINE)</span> <span class="variable">$(EXTRAFLAGS)</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>而用户库不带：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/LibTargets.mk:191-196 (libc 的用户编译)</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_BUILD_FLAT)</span>,y)</span><br><span class="line"><span class="section">libs$(DELIM)libc$(DELIM)libc$(LIBEXT): pass2dep</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line"><span class="section">libs$(DELIM)libc$(DELIM)libc$(LIBEXT): pass1dep</span></span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(MAKE)</span> -C libs<span class="variable">$(DELIM)</span>libc libc<span class="variable">$(LIBEXT)</span> EXTRAFLAGS=<span class="string">&quot;<span class="variable">$(EXTRAFLAGS)</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>也注意 <code>BINDIR=kbin</code>——内核版输出到 <code>libs/libc/kbin/</code>，用户版输出到 <code>libs/libc/bin/</code>，避免编译产物互相覆盖。</p>
+<p>模式选好、库列表确定，现在来看看每个库的 <strong>Makefile 内部</strong>是如何组织的——所有的源文件列表、编译规则、归档命令是如何从一个 200 多行的模板中衍生出来的。</p>
+<hr>
+<h2 id="8-库的内部结构：以-libc-为例"><a href="#8-库的内部结构：以-libc-为例" class="headerlink" title="8. 库的内部结构：以 libc 为例"></a>8. 库的内部结构：以 libc 为例</h2><p>每个库的 Makefile 遵循统一模式。以 <code>libs/libc/Makefile</code> 为例。</p>
+<h3 id="8-1-源文件聚合"><a href="#8-1-源文件聚合" class="headerlink" title="8.1 源文件聚合"></a>8.1 源文件聚合</h3><p>顶层 Makefile 通过 include 各个子目录的 <code>Make.defs</code> 来聚合源文件：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># libs/libc/Makefile:25-74 (前15个子目录, 共50+个)</span></span><br><span class="line"><span class="keyword">include</span> aio/Make.defs</span><br><span class="line"><span class="keyword">include</span> assert/Make.defs</span><br><span class="line"><span class="keyword">include</span> audio/Make.defs</span><br><span class="line"><span class="keyword">include</span> builtin/Make.defs</span><br><span class="line"><span class="keyword">include</span> ctype/Make.defs</span><br><span class="line"><span class="keyword">include</span> dirent/Make.defs</span><br><span class="line"><span class="keyword">include</span> dlfcn/Make.defs</span><br><span class="line"><span class="keyword">include</span> errno/Make.defs</span><br><span class="line"><span class="keyword">include</span> eventfd/Make.defs</span><br><span class="line"><span class="keyword">include</span> fixedmath/Make.defs</span><br><span class="line"><span class="keyword">include</span> gdbstub/Make.defs</span><br><span class="line"><span class="keyword">include</span> grp/Make.defs</span><br><span class="line"><span class="keyword">include</span> gnssutils/Make.defs</span><br><span class="line"><span class="keyword">include</span> hex2bin/Make.defs</span><br><span class="line"><span class="keyword">include</span> inttypes/Make.defs</span><br></pre></td></tr></table></figure>
+
+<p>每个 <code>*/Make.defs</code> 定义该子目录的源文件列表，用条件编译控制：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># libs/libc/stdio/Make.defs:22-37</span></span><br><span class="line">CSRCS += lib_printf.c lib_sprintf.c lib_asprintf.c</span><br><span class="line">CSRCS += lib_snprintf.c lib_vsprintf.c lib_vasprintf.c</span><br><span class="line">CSRCS += lib_dprintf.c lib_vdprintf.c lib_vprintf.c</span><br><span class="line">CSRCS += lib_perror.c lib_putchar.c lib_getchar.c lib_puts.c</span><br><span class="line">CSRCS += lib_gets_s.c lib_gets.c lib_sscanf.c</span><br><span class="line">CSRCS += lib_tempnam.c lib_tmpnam.c</span><br><span class="line">CSRCS += lib_remove.c lib_renameat.c</span><br><span class="line"></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_FILE_STREAM)</span>,y)</span><br><span class="line">CSRCS += lib_fopen.c lib_fclose.c lib_fread.c lib_fseek.c</span><br><span class="line">CSRCS += lib_fgetc.c lib_fputc.c lib_ftell.c lib_ftello.c</span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line"><span class="keyword">ifneq</span> (<span class="variable">$(CONFIG_STDIO_DISABLE_BUFFERING)</span>,y)</span><br><span class="line">CSRCS += lib_setvbuf.c lib_setbuf.c</span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p>这些 <code>CSRCS</code> 变量在顶层被收集后，传给 VPATH 和构建规则。</p>
+<h3 id="8-2-Board-mk：板级库的通用模板"><a href="#8-2-Board-mk：板级库的通用模板" class="headerlink" title="8.2 Board.mk：板级库的通用模板"></a>8.2 Board.mk：板级库的通用模板</h3><p><code>boards/Board.mk</code>（136 行）是一个<strong>被所有板子 Makefile include 的公共模板</strong>。板子只需要定义 <code>CSRCS</code>、<code>ASRCS</code>，其余的逻辑（编译、归档、清理、依赖生成）都由 <code>Board.mk</code> 提供。</p>
+<p>板子 Makefile 的典型写法（实际源码见 <code>boards/arm/qemu/qemu-armv7a/src/Makefile:18-30</code>）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">include</span> <span class="variable">$(TOPDIR)</span>/boards/Board.mk</span><br><span class="line"></span><br><span class="line">CSRCS = qemu_boot.c qemu_irq.c</span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_BOARDCTL)</span>,y)</span><br><span class="line">CSRCS += qemu_appinit.c</span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p><code>Board.mk</code> 使用 Config.mk 中定义的宏来编译：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># boards/Board.mk:99-100</span></span><br><span class="line"><span class="variable">$(COBJS)</span> <span class="variable">$(LINKOBJS)</span>: %<span class="variable">$(OBJEXT)</span>: %.c</span><br><span class="line">	<span class="variable">$(<span class="built_in">call</span> COMPILE, <span class="variable">$&lt;</span>, <span class="variable">$@</span>)</span></span><br></pre></td></tr></table></figure>
+
+<p>刚才多次用到的 <code>COMPILE</code>、<code>ARCHIVE</code>、<code>INSTALL_LIB</code> 等宏，都来自 <code>tools/Config.mk</code>。这个 813 行的文件堪称 NuttX 构建系统的”宏工厂”——它不仅是编译基础设施，还处理了编译器差异、平台差异、路径格式等底层适配。下一节我们深入这个文件，看它是如何实现”一次定义，到处使用”的。</p>
+<hr>
+<h2 id="9-Config-mk：构建基础设施的宏工厂"><a href="#9-Config-mk：构建基础设施的宏工厂" class="headerlink" title="9. Config.mk：构建基础设施的宏工厂"></a>9. Config.mk：构建基础设施的宏工厂</h2><h2 id="9-Config-mk：构建基础设施的宏工厂-1"><a href="#9-Config-mk：构建基础设施的宏工厂-1" class="headerlink" title="9. Config.mk：构建基础设施的宏工厂"></a>9. Config.mk：构建基础设施的宏工厂</h2><p><code>tools/Config.mk</code> 是整个构建系统的”标准库”。除了前面介绍过的 <code>COMPILE</code>、<code>ASSEMBLE</code>、<code>INSTALL_LIB</code>，还有几个关键设施。</p>
+<h3 id="9-1-编译器前缀检测"><a href="#9-1-编译器前缀检测" class="headerlink" title="9.1 编译器前缀检测"></a>9.1 编译器前缀检测</h3><p>不同编译器使用不同的前置标志格式：</p>
+<table>
+<thead>
+<tr>
+<th>编译器</th>
+<th>include 标志</th>
+<th>define 标志</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GCC&#x2F;Clang</td>
+<td><code>-I</code> &#x2F; <code>-isystem</code></td>
+<td><code>-D</code></td>
+</tr>
+<tr>
+<td>ZDS-II</td>
+<td><code>-usrinc:&#39;path&#39;</code></td>
+<td><code>-define:</code></td>
+</tr>
+<tr>
+<td>SDCC</td>
+<td><code>-I</code></td>
+<td><code>-D</code></td>
+</tr>
+</tbody></table>
+<p>NuttX 通过 <code>tools/incdir.c</code>（520 行）在运行期检测编译器的能力，并在 <code>Config.mk</code> 中保存结果：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Config.mk:731-748</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(<span class="built_in">origin</span> DEFINE_PREFIX)</span>,undefined)</span><br><span class="line">  DEFINE_PREFIX := <span class="variable">$(<span class="built_in">subst</span> X,,$&#123;<span class="built_in">shell</span> <span class="variable">$(DEFINE)</span> <span class="string">&quot;<span class="variable">$(CC)</span>&quot;</span> X 2&gt; $&#123;EMPTYFILE&#125;&#125;)</span></span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(<span class="built_in">origin</span> INCDIR_PREFIX)</span>,undefined)</span><br><span class="line">  INCDIR_PREFIX := <span class="variable">$(<span class="built_in">subst</span> <span class="string">&quot;X&quot;</span>,,$&#123;<span class="built_in">shell</span> <span class="variable">$(INCDIR)</span> <span class="string">&quot;<span class="variable">$(CC)</span>&quot;</span> X 2&gt; $&#123;EMPTYFILE&#125;&#125;)</span></span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p>探测方式：用 <code>$(CC)</code> 尝试编译一个只定义宏 <code>X</code> 的单元，观察编译器输出的命令行格式。<code>DEFINE_PREFIX</code> 就是把 <code>&quot; -DX&quot;</code> 中的 <code>-DX</code> 提取出来。</p>
+<p><strong>实例：qemu-armv7a:knsh 编译时的前缀检测</strong></p>
+<p>以 <code>qemu-armv7a:knsh</code> 配置（<code>CONFIG_ARCH_ARM=y, CONFIG_ARM_TOOLCHAIN_GNU_EABI=y</code>）为例，编译器是 <code>arm-none-eabi-gcc</code>。运行 <code>tools/incdir.sh &quot;arm-none-eabi-gcc&quot; X</code> 会输出 <code>&quot; -I X&quot;</code>，提取后得到 <code>INCDIR_PREFIX=&quot; -I &quot;</code>，于是 <code>tools/Config.mk:758</code> 中的 <code>ARCHINCLUDES += $&#123;INCSYSDIR_PREFIX&#125;$(TOPDIR)$(DELIM)include</code> 展开为 <code>-I /workspace/nuttx/include</code>。</p>
+<p>同样 <code>tools/define.sh &quot;arm-none-eabi-gcc&quot; X</code> 返回 <code>&quot; -D X&quot;</code>，<code>DEFINE_PREFIX=&quot; -D &quot;</code>。<code>KDEFINE</code> 最终为 <code>-D__KERNEL__</code>。</p>
+<h3 id="9-2-路径分隔符和平台差异"><a href="#9-2-路径分隔符和平台差异" class="headerlink" title="9.2 路径分隔符和平台差异"></a>9.2 路径分隔符和平台差异</h3><p>Config.mk 对平台差异的抽象非常彻底。以 <code>DELFILE</code>（删除文件）为例：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Config.mk:513-525</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_WINDOWS_NATIVE)</span>,y)</span><br><span class="line"><span class="keyword">define</span> DELFILE</span><br><span class="line">	<span class="variable">$(<span class="built_in">foreach</span> FILE, $(1)</span>, <span class="variable">$(NEWLINE)</span> <span class="variable">$(Q)</span> if exist <span class="variable">$(FILE)</span> (del /f /q  <span class="variable">$(FILE)</span>))</span><br><span class="line"><span class="keyword">endef</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line"><span class="keyword">define</span> DELFILE</span><br><span class="line">	<span class="variable">$(Q)</span> rm -f $1</span><br><span class="line"><span class="keyword">endef</span></span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p>Windows 原生环境使用 <code>del /f /q</code>，POSIX 环境使用 <code>rm -f</code>。类似的宏还有 <code>DELDIR</code>、<code>MOVEFILE</code>、<code>COPYFILE</code>、<code>CATFILE</code> 等，每个都有 Windows&#x2F;POSIX 两套实现。</p>
+<h3 id="9-3-递归通配符和工具宏"><a href="#9-3-递归通配符和工具宏" class="headerlink" title="9.3 递归通配符和工具宏"></a>9.3 递归通配符和工具宏</h3><p><code>RWILDCARD</code>（递归通配符）是一个纯 Make 实现的 <code>find</code>：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Config.mk:598-600</span></span><br><span class="line"><span class="keyword">define</span> RWILDCARD</span><br><span class="line">  <span class="variable">$(<span class="built_in">foreach</span> d,$(<span class="built_in">wildcard</span> $1/*)</span>,<span class="variable">$(<span class="built_in">call</span> RWILDCARD,$d,$2)</span><span class="variable">$(<span class="built_in">filter</span> $(<span class="built_in">subst</span> *,%,$2)</span>,$d))</span><br><span class="line"><span class="keyword">endef</span></span><br></pre></td></tr></table></figure>
+
+<p>它递归遍历目录树，匹配文件名模式。与 <code>$(shell find ...)</code> 相比，这是纯 Make 实现，跨平台且不需要外部命令。</p>
+<p><code>TESTANDREPLACEFILE</code> 是另一个精巧的工具（<code>Config.mk:692-716</code>）——只有当新文件和旧文件不同时才替换，避免不必要的时间戳更新（防止触发不必要的重编译）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">define</span> TESTANDREPLACEFILE</span><br><span class="line">	if [ -f $2 ]; then \</span><br><span class="line">		if cmp -s $1 $2; then \</span><br><span class="line">			rm -f $1; \</span><br><span class="line">		<span class="keyword">else</span> \</span><br><span class="line">			mv $1 $2; \</span><br><span class="line">		fi \</span><br><span class="line">	<span class="keyword">else</span> \</span><br><span class="line">		mv $1 $2; \</span><br><span class="line">  fi</span><br><span class="line"><span class="keyword">endef</span></span><br></pre></td></tr></table></figure>
+
+<p><code>TESTANDREPLACEFILE</code> 展示了 Config.mk 的宏设计哲学——用简单的 conditional move 避免不必要的文件更新触发的级联重编译。下面我们将看到这种”避免不必要工作”的哲学如何延伸到更高级的场景：当需要在最终链接前先构建一部分代码时，NuttX 提供的 BUILD_2PASS 机制。</p>
+<hr>
+<h2 id="10-两个-Pass-的高级场景：BUILD-2PASS"><a href="#10-两个-Pass-的高级场景：BUILD-2PASS" class="headerlink" title="10. 两个 Pass 的高级场景：BUILD_2PASS"></a>10. 两个 Pass 的高级场景：BUILD_2PASS</h2><p>在某些场景下，NuttX 需要<strong>先构建一部分代码，然后用其产出来参与最终链接</strong>。这就是 <code>CONFIG_BUILD_2PASS</code>：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:554-568</span></span><br><span class="line"><span class="variable">$(BIN)</span>: pass1 pass2</span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_BUILD_2PASS)</span>,y)</span><br><span class="line">	<span class="variable">$(Q)</span> if [ -z <span class="string">&quot;<span class="variable">$(CONFIG_PASS1_BUILDIR)</span>&quot;</span> ]; then \</span><br><span class="line">		echo <span class="string">&quot;ERROR: CONFIG_PASS1_BUILDIR not defined&quot;</span>; \</span><br><span class="line">		exit 1; \</span><br><span class="line">	fi</span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(MAKE)</span> -C <span class="variable">$(CONFIG_PASS1_BUILDIR)</span> LINKLIBS=<span class="string">&quot;<span class="variable">$(LINKLIBS)</span>&quot;</span> \</span><br><span class="line">		USERLIBS=<span class="string">&quot;<span class="variable">$(USERLIBS)</span>&quot;</span> <span class="string">&quot;<span class="variable">$(CONFIG_PASS1_TARGET)</span>&quot;</span></span><br><span class="line"><span class="keyword">endif</span></span><br><span class="line">	<span class="variable">$(Q)</span> <span class="variable">$(MAKE)</span> -C <span class="variable">$(ARCH_SRC)</span> ... <span class="variable">$(BIN)</span></span><br></pre></td></tr></table></figure>
+
+<p>Pass1 的输出（<code>CONFIG_PASS1_OBJECT</code>）是一个额外的链接对象，在最终链接时作为 <code>EXTRA_OBJS</code> 加入：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:111-113</span></span><br><span class="line"><span class="keyword">ifeq</span> (<span class="variable">$(CONFIG_BUILD_2PASS)</span>,y)</span><br><span class="line">EXTRA_OBJS += <span class="variable">$(CONFIG_PASS1_OBJECT)</span></span><br><span class="line"><span class="keyword">endif</span></span><br></pre></td></tr></table></figure>
+
+<p>典型用例是 ROMFS 文件系统镜像——先在 pass1 中构建文件系统内容，生成一个 <code>.o</code> 文件（通过 <code>xxd -i</code> 将二进制数据转为 C 数组并编译），然后在 pass2 中将该对象链接进内核。</p>
+<p>BUILD_2PASS 是针对 NuttX 内部元编程的需求。但当 NuttX 需要与外部世界交互时（例如作为 Zephyr 的子模块，或被裸机应用框架引用），构建系统必须提供一种方式”对外输出”。<code>make export</code> 就是为此而生。</p>
+<hr>
+<h2 id="11-make-export：构建系统的对外接口"><a href="#11-make-export：构建系统的对外接口" class="headerlink" title="11. make export：构建系统的对外接口"></a>11. make export：构建系统的对外接口</h2><p>当 NuttX 与其他 RTOS 框架集成时（如 Zephyr 或 bare-metal 应用的构建系统），需要把编译好的库和头文件”导出”给外部使用。</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># tools/Unix.mk:818-819</span></span><br><span class="line"><span class="section">export: <span class="variable">$(NUTTXLIBS)</span></span></span><br><span class="line">	<span class="variable">$(Q)</span> MAKE=<span class="string">&quot;$&#123;MAKE&#125;&quot;</span> <span class="variable">$(MKEXPORT)</span> <span class="variable">$(MKEXPORT_ARGS)</span> -l <span class="string">&quot;<span class="variable">$(EXPORTLIBS)</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>tools/mkexport.sh</code>（557 行）负责打包：</p>
+<ol>
+<li>创建 <code>nuttx-export/</code> 目录</li>
+<li>复制所有头文件（<code>include/</code> 及架构相关头文件）</li>
+<li>复制所有 <code>EXPORTLIBS</code> 中列出的库文件</li>
+<li>复制链接脚本和构建配置</li>
+<li>生成 <code>scripts/Make.defs</code>（工具链定义）供外部 Makefile 使用</li>
+<li>打包为 <code>nuttx-export.zip</code> 或 <code>.tar.gz</code></li>
+</ol>
+<p>导出的内容因构建模式而异——FLAT 模式导出全部，PROTECTED 模式只导出用户库（通过 <code>EXPORTLIBS = $(USERLIBS)</code>）。</p>
+<p>导出和构建都会产生大量中间文件。NuttX 提供了一套精细的多级清理机制，确保不会残留任何过期产物——这就是构建系统中的”垃圾回收”。</p>
+<hr>
+<h2 id="12-清理体系"><a href="#12-清理体系" class="headerlink" title="12. 清理体系"></a>12. 清理体系</h2><p>NuttX 的清理有四级：</p>
+<table>
+<thead>
+<tr>
+<th>目标</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>make clean</code></td>
+<td>删除 <code>.o</code>、<code>.a</code>、<code>nuttx</code> 二进制、<code>staging/</code>、中间文件</td>
+</tr>
+<tr>
+<td><code>make clean_context</code></td>
+<td>删除 <code>config.h</code>、<code>version.h</code>、所有 dirlinks 和 context 产物</td>
+</tr>
+<tr>
+<td><code>make distclean</code></td>
+<td>clean + clean_context + 删除 <code>.config</code>、<code>Make.defs</code>、<code>defconfig</code></td>
+</tr>
+<tr>
+<td><code>make apps_clean</code> &#x2F; <code>apps_distclean</code></td>
+<td>仅清理 apps 目录</td>
+</tr>
+</tbody></table>
+<p><code>clean</code> 的实现利用 <code>SDIR_template</code> 宏为每个已知目录生成对应的清理目标（<code>Unix.mk:833</code>）：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="variable">$(<span class="built_in">foreach</span> SDIR, <span class="variable">$(CLEANDIRS)</span>, $(<span class="built_in">eval</span> $(<span class="built_in">call</span> SDIR_template,<span class="variable">$(SDIR)</span>,clean)</span>))</span><br></pre></td></tr></table></figure>
+
+<p><code>SDIR_template</code> 定义在 <code>Config.mk:725-729</code>：</p>
+<figure class="highlight makefile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">define</span> SDIR_template</span><br><span class="line"><span class="section">$(1)_$(2):</span></span><br><span class="line">	+<span class="variable">$(Q)</span> <span class="variable">$(MAKE)</span> -C $(1) $(2) APPDIR=<span class="string">&quot;<span class="variable">$(APPDIR)</span>&quot;</span></span><br><span class="line"><span class="keyword">endef</span></span><br></pre></td></tr></table></figure>
+
+<p>这为每个目录（如 <code>sched</code>、<code>drivers</code>、<code>fs</code> 等）生成 <code>sched_clean</code>、<code>drivers_clean</code> 等目标，然后 <code>subdir_clean</code> 依赖所有这些目标。</p>
+<p>至此，我们已经走完了 NuttX Make 构建系统的完整链路——从 <code>configure.sh</code> 到 <code>make clean</code>。在结束之前，一个值得问的问题是：<strong>这套设计和 Linux Kernel 的 Kbuild 有何异同？</strong> 理解这个对比，能帮助有 Linux 内核经验的读者更快定位 NuttX 构建系统的独有特性。</p>
+<hr>
+<h2 id="13-与-Linux-Kernel-构建系统的比较"><a href="#13-与-Linux-Kernel-构建系统的比较" class="headerlink" title="13. 与 Linux Kernel 构建系统的比较"></a>13. 与 Linux Kernel 构建系统的比较</h2><p>NuttX 的构建系统受到了 Linux Kernel Kbuild 的影响，但有很多独立的设计选择：</p>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>NuttX</th>
+<th>Linux Kernel</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kconfig toolchain</td>
+<td>Kconfig (same kconfig-frontends &#x2F; kconfiglib)</td>
+<td>Kconfig</td>
+</tr>
+<tr>
+<td>Build engine</td>
+<td>GNU Make (recursive)</td>
+<td>GNU Make (non-recursive, single pass)</td>
+</tr>
+<tr>
+<td>Dependency generation</td>
+<td>Custom mkdeps tool</td>
+<td>gcc -M generates .cmd files</td>
+</tr>
+<tr>
+<td>Config → C header</td>
+<td>mkconfig.c (custom)</td>
+<td>scripts&#x2F;basic&#x2F;fixdep + auto.conf</td>
+</tr>
+<tr>
+<td>Cross-platform</td>
+<td>Built-in Windows native (Win.mk)</td>
+<td>Relies on Cygwin&#x2F;WSL</td>
+</tr>
+<tr>
+<td>Subdirectory inclusion</td>
+<td>Make.defs aggregating CSRCS</td>
+<td>Makefile + Kbuild + obj-y</td>
+</tr>
+<tr>
+<td>Library model</td>
+<td>Each subsystem is .a static archive</td>
+<td>Direct object file linking (thin archive)</td>
+</tr>
+</tbody></table>
+<p>NuttX 独特的设计在于：</p>
+<ul>
+<li><strong>通用名 + symlink</strong> 解决硬件碎片化（Linux 用 <code>arch/</code> + <code>mach-</code> + <code>plat-</code> 的目录结构）</li>
+<li><strong>自定义 mkdeps</strong> 解决多编译器多平台依赖生成</li>
+<li><strong>双版本编译</strong>（libc vs libkc）解决了同源码内核&#x2F;用户空间的差异编译</li>
+</ul>
+<hr>
+<h2 id="14-总结"><a href="#14-总结" class="headerlink" title="14. 总结"></a>14. 总结</h2><p>NuttX 的 Make 构建系统通过以下关键设计解决了嵌入式 OS 构建的核心挑战：</p>
+<ol>
+<li><strong>三层抽象</strong>：<code>Makefile</code>（路由）→ <code>Unix.mk</code>（编排）→ <code>Config.mk</code>（基础设施），职责清晰分离</li>
+<li><strong>通用名 symlink</strong>：<code>include/arch</code>、<code>include/arch/board</code>、<code>arch/&lt;arch&gt;/src/chip</code> 三个符号链接用一个构建脚本覆盖所有硬件</li>
+<li><strong><code>.config</code> 双重身份</strong>：既是 Make 变量源，又通过 <code>mkconfig</code> 转为 C 头文件，消除了配置文件格式的分裂</li>
+<li><strong>双 pass 构建</strong>：<code>pass1</code>（用户）和 <code>pass2</code>（内核）的分离，用 <code>KDEFINE = -D__KERNEL__</code> 控制同源码的不同编译行为</li>
+<li><strong>条件驱动</strong>：<code>Directories.mk</code> 和 <code>FlatLibs.mk</code> 等文件用 <code>ifeq ($(CONFIG_XXX),y)</code> 精确控制哪些代码参与编译，未启用的特性零编译成本</li>
+<li><strong>自研工具链</strong>：<code>mkdeps</code>、<code>incdir</code>、<code>mkconfig</code>、<code>define.sh</code> 等 host 工具将编译器差异封装在统一的接口后</li>
+</ol>
+<p>理解这套构建系统，是在 NuttX 上做移植、调试编译问题、或为此系统开发工具的基础。当你下一次看到 <code>CPP: arm_head.S -&gt; arm_head.o</code> 那行输出时，你就知道背后经过了哪些文件、哪些转换。</p>
+<hr>
+<h2 id="15-参考文件索引"><a href="#15-参考文件索引" class="headerlink" title="15. 参考文件索引"></a>15. 参考文件索引</h2><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>功能</th>
+<th>核心行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>nuttx/Makefile</code></td>
+<td>顶层路由入口</td>
+<td>:25-42</td>
+</tr>
+<tr>
+<td><code>tools/Unix.mk</code></td>
+<td>Unix 构建编排</td>
+<td>:1-902</td>
+</tr>
+<tr>
+<td><code>tools/Win.mk</code></td>
+<td>Windows 构建编排</td>
+<td>对应文件</td>
+</tr>
+<tr>
+<td><code>tools/Config.mk</code></td>
+<td>构建基础设施宏</td>
+<td>:1-813</td>
+</tr>
+<tr>
+<td><code>tools/configure.sh</code></td>
+<td>配置脚本</td>
+<td>:1-362</td>
+</tr>
+<tr>
+<td><code>tools/process_config.sh</code></td>
+<td>defconfig 预处理</td>
+<td>:1-119</td>
+</tr>
+<tr>
+<td><code>tools/sethost.sh</code></td>
+<td>宿主环境设置</td>
+<td>:1-235</td>
+</tr>
+<tr>
+<td><code>tools/mkconfig.c</code></td>
+<td>.config → C 头文件</td>
+<td>:1-121</td>
+</tr>
+<tr>
+<td><code>tools/cfgdefine.c</code></td>
+<td>配置定义的生成</td>
+<td>:49-85, :294-356</td>
+</tr>
+<tr>
+<td><code>tools/mkdeps.c</code></td>
+<td>依赖生成工具</td>
+<td>:1-1020</td>
+</tr>
+<tr>
+<td><code>tools/incdir.c</code></td>
+<td>编译器前缀检测</td>
+<td>:1-520</td>
+</tr>
+<tr>
+<td><code>tools/incdir.sh</code></td>
+<td>编译器 include 前缀探测脚本</td>
+<td>shell 版本</td>
+</tr>
+<tr>
+<td><code>tools/define.sh</code></td>
+<td>编译器 define 前缀探测脚本</td>
+<td>shell 版本</td>
+</tr>
+<tr>
+<td><code>tools/link.sh</code></td>
+<td>POSIX 符号链接包装</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>tools/copydir.sh</code></td>
+<td>目录复制（MSYS&#x2F;Cygwin）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>tools/mkexport.sh</code></td>
+<td>导出打包</td>
+<td>:1-557</td>
+</tr>
+<tr>
+<td><code>tools/Directories.mk</code></td>
+<td>构建目录列表</td>
+<td>:1-199</td>
+</tr>
+<tr>
+<td><code>tools/FlatLibs.mk</code></td>
+<td>FLAT 模式库列表</td>
+<td>:1-158</td>
+</tr>
+<tr>
+<td><code>tools/ProtectedLibs.mk</code></td>
+<td>PROTECTED 模式库列表</td>
+<td>:1-159</td>
+</tr>
+<tr>
+<td><code>tools/KernelLibs.mk</code></td>
+<td>KERNEL 模式库列表</td>
+<td>:1-145</td>
+</tr>
+<tr>
+<td><code>tools/LibTargets.mk</code></td>
+<td>每个库的构建规则</td>
+<td>:1-257</td>
+</tr>
+<tr>
+<td><code>tools/Makefile.host</code></td>
+<td>host 工具构建</td>
+<td>:1-296</td>
+</tr>
+<tr>
+<td><code>boards/Board.mk</code></td>
+<td>板级库通用模板</td>
+<td>:1-136</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/Makefile</code></td>
+<td>ARM 架构链接器</td>
+<td>:1-301</td>
+</tr>
+<tr>
+<td><code>boards/arm/qemu/qemu-armv7a/scripts/Make.defs</code></td>
+<td>工具链定义示例</td>
+<td>:1-42</td>
+</tr>
+<tr>
+<td><code>libs/libc/Makefile</code></td>
+<td>C 库顶层 Makefile</td>
+<td>:25-74</td>
+</tr>
+<tr>
+<td><code>libs/libc/stdio/Make.defs</code></td>
+<td>C 库 stdio 源文件定义</td>
+<td>:22-37</td>
+</tr>
+<tr>
+<td><code>Documentation/implementation/make_build_system.rst</code></td>
+<td>官方构建系统文档</td>
+<td>:1-607</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2025/05/04/Media-Study-Notes-MediaCodec-Codec-2-0/" rel="prev" title="Media Study Notes - MediaCodec &amp; Codec 2.0">
+                  <i class="fa fa-angle-left"></i> Media Study Notes - MediaCodec & Codec 2.0
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/14/Nuttx-Address-Translation/" rel="next" title="Nuttx - Address Translation">
+                  Nuttx - Address Translation <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从 arm_head.S 的 boot 初始化到每进程复制 L1 页表，再到 ELF 加载与 syscall 调度——一条完整链路拆解 NuttX 如何在 ARMv7-A 上通过两级页表实现轻量级进程隔离。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - Address Translation">
+<meta property="og:url" content="http://yoursite.com/2026/06/14/Nuttx-Address-Translation/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从 arm_head.S 的 boot 初始化到每进程复制 L1 页表，再到 ELF 加载与 syscall 调度——一条完整链路拆解 NuttX 如何在 ARMv7-A 上通过两级页表实现轻量级进程隔离。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-06-14T08:40:41.000Z">
+<meta property="article:modified_time" content="2026-06-14T08:43:18.985Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/14/Nuttx-Address-Translation/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/14/Nuttx-Address-Translation/","path":"2026/06/14/Nuttx-Address-Translation/","title":"Nuttx - Address Translation"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - Address Translation | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E8%83%8C%E6%99%AF%EF%BC%9A%E4%B8%89%E7%A7%8D%E6%9E%84%E5%BB%BA%E6%A8%A1%E5%BC%8F"><span class="nav-text">1. 背景：三种构建模式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-knsh-%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%EF%BC%88%E6%A0%B8%E5%BF%83%E5%B8%B8%E9%87%8F%EF%BC%89"><span class="nav-text">1.1 knsh 内存布局（核心常量）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-ARMv7-A-MMU-%E4%B8%A4%E7%BA%A7%E9%A1%B5%E8%A1%A8%E7%BB%93%E6%9E%84"><span class="nav-text">2. ARMv7-A MMU 两级页表结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84"><span class="nav-text">2.1 整体架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%AE%9E%E4%BE%8B%E4%B8%80%EF%BC%9A%E5%86%85%E6%A0%B8%E8%AE%BF%E9%97%AE-UART-%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%88%E6%AE%B5%E6%98%A0%E5%B0%84%EF%BC%8C%E4%B8%80%E6%AD%A5%E5%88%B0%E4%BD%8D%EF%BC%89"><span class="nav-text">2.2 实例一：内核访问 UART 寄存器（段映射，一步到位）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%AE%9E%E4%BE%8B%E4%BA%8C%EF%BC%9A%E7%94%A8%E6%88%B7%E8%BF%9B%E7%A8%8B%E5%8F%96-text-%E6%8C%87%E4%BB%A4%EF%BC%88L2-%E5%B0%8F%E9%A1%B5%E6%98%A0%E5%B0%84%EF%BC%8C%E4%B8%A4%E7%BA%A7%E6%9F%A5%E8%A1%A8%EF%BC%89"><span class="nav-text">2.3 实例二：用户进程取 .text 指令（L2 小页映射，两级查表）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-NuttX-%E4%BD%BF%E7%94%A8%E7%9A%84-MMU-%E6%A0%87%E5%BF%97"><span class="nav-text">2.4 NuttX 使用的 MMU 标志</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B%EF%BC%9A%E4%BB%8E%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80%E5%88%B0%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80"><span class="nav-text">3. 启动流程：从物理地址到虚拟地址</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%80%BB%E4%BD%93%E6%89%A7%E8%A1%8C%E6%B5%81"><span class="nav-text">3.1 总体执行流</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%90%AF%E5%8A%A8%E9%98%B6%E6%AE%B5%E4%B8%80%EF%BC%9A-start-%E7%9A%84%E9%A1%B5%E8%A1%A8%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">3.2 启动阶段一：__start 的页表初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%90%AF%E5%8A%A8%E9%98%B6%E6%AE%B5%E4%BA%8C%EF%BC%9A%E8%A1%A5%E5%85%A8%E5%86%85%E6%A0%B8%E9%A1%B5%E8%A1%A8"><span class="nav-text">3.3 启动阶段二：补全内核页表</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%AF%8F%E8%BF%9B%E7%A8%8B%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%EF%BC%9A%E5%AE%8C%E6%95%B4-L1-%E5%A4%8D%E5%88%B6%E7%AD%96%E7%95%A5"><span class="nav-text">4. 每进程地址环境：完整 L1 复制策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AE%BE%E8%AE%A1%E5%86%B3%E7%AD%96%EF%BC%9A%E4%B8%BA%E4%BD%95%E5%A4%8D%E5%88%B6%E6%95%B4%E5%BC%A0-L1-%E8%A1%A8%EF%BC%9F"><span class="nav-text">4.1 设计决策：为何复制整张 L1 表？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-up-addrenv-create-%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B"><span class="nav-text">4.2 up_addrenv_create() 完整流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-L2-%E9%A1%B5%E8%A1%A8%E6%9E%84%E5%BB%BA%E5%99%A8"><span class="nav-text">4.3 L2 页表构建器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E9%A1%B5%E8%A1%A8%E5%88%87%E6%8D%A2%EF%BC%9A%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E7%9A%84%E6%A0%B8%E5%BF%83"><span class="nav-text">4.4 页表切换：上下文切换的核心</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-ELF-%E5%8A%A0%E8%BD%BD%EF%BC%9A%E5%BE%80%E5%8F%A6%E4%B8%80%E4%B8%AA%E8%BF%9B%E7%A8%8B%E7%9A%84%E7%A9%BA%E9%97%B4%E5%86%99%E6%95%B0%E6%8D%AE"><span class="nav-text">5. ELF 加载：往另一个进程的空间写数据</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E7%89%A9%E7%90%86%E9%A1%B5%E6%B1%A0"><span class="nav-text">6. 物理页池</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E9%A1%B5%E6%B1%A0%E9%85%8D%E7%BD%AE"><span class="nav-text">6.1 页池配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E8%99%9A%E5%AE%9E%E5%9C%B0%E5%9D%80%E8%BD%AC%E6%8D%A2"><span class="nav-text">6.2 虚实地址转换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E5%A0%86%E7%9A%84%E6%8C%89%E9%9C%80%E5%A2%9E%E9%95%BF"><span class="nav-text">6.3 堆的按需增长</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E4%B8%8E%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E5%85%A8%E9%93%BE%E8%B7%AF"><span class="nav-text">7. 系统调用与上下文切换全链路</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E8%BF%9B%E7%A8%8B%E5%88%87%E6%8D%A2%E6%97%B6%E7%9A%84%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E5%88%87%E6%8D%A2%E6%97%B6%E6%9C%BA"><span class="nav-text">7.1 进程切换时的地址空间切换时机</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-FLAT-%E4%B8%8E-KERNEL-%E6%A8%A1%E5%BC%8F%E5%AE%8C%E6%95%B4%E5%AF%B9%E6%AF%94"><span class="nav-text">8. FLAT 与 KERNEL 模式完整对比</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E6%9E%B6%E6%9E%84%E5%B7%AE%E5%BC%82"><span class="nav-text">8.1 架构差异</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E4%BB%A3%E7%A0%81%E6%89%A7%E8%A1%8C%E8%B7%AF%E5%BE%84%E5%AF%B9%E6%AF%94"><span class="nav-text">8.2 代码执行路径对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E6%95%85%E9%9A%9C%E9%9A%94%E7%A6%BB%E5%AF%B9%E6%AF%94"><span class="nav-text">8.3 故障隔离对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%85%B3%E9%94%AE%E8%AE%BE%E8%AE%A1%E8%A6%81%E7%82%B9"><span class="nav-text">9. 关键设计要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E4%B8%8E-Linux-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-text">10. 与 Linux 的对比</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/14/Nuttx-Address-Translation/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - Address Translation | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - Address Translation
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-14 16:40:41" itemprop="dateCreated datePublished" datetime="2026-06-14T16:40:41+08:00">2026-06-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从 arm_head.S 的 boot 初始化到每进程复制 L1 页表，再到 ELF 加载与 syscall 调度——一条完整链路拆解 NuttX 如何在 ARMv7-A 上通过两级页表实现轻量级进程隔离。</p>
+</blockquote>
+<span id="more"></span>
+
+<hr>
+<h2 id="1-背景：三种构建模式"><a href="#1-背景：三种构建模式" class="headerlink" title="1. 背景：三种构建模式"></a>1. 背景：三种构建模式</h2><p>NuttX 支持三种构建模式，内存隔离能力逐级递增：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>硬件</th>
+<th>隔离程度</th>
+<th>内核&#x2F;用户特权</th>
+<th>典型平台</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>FLAT</strong></td>
+<td>无要求</td>
+<td>无隔离——单一地址空间</td>
+<td>无分离</td>
+<td>Cortex-M、无 MMU RISC-V</td>
+</tr>
+<tr>
+<td><strong>PROTECTED</strong></td>
+<td>MPU</td>
+<td>特权级分离（同一个地址空间）</td>
+<td>PL0&#x2F;PL1</td>
+<td>Cortex-M3&#x2F;M4&#x2F;M7 + MPU</td>
+</tr>
+<tr>
+<td><strong>KERNEL</strong></td>
+<td>MMU</td>
+<td>完整虚拟地址隔离（每进程独立地址空间）</td>
+<td>PL0&#x2F;PL1 + TTBR0 切换</td>
+<td>Cortex-A7&#x2F;A9&#x2F;A15</td>
+</tr>
+</tbody></table>
+<p>FLAT 模式下，内核、C 库、NSH shell、所有应用程序链接为单一 <code>nuttx</code> ELF。应用调用内核是一条 <code>bl</code> 指令——零 syscall 开销，但也零保护。任意空指针解引用直接崩溃整个系统。</p>
+<p>PROTECTED 模式引入两层特权级，但所有代码仍位于同一物理地址空间。MPU 通过 8 个硬件 region 隔离内核和用户的内存块。应用通过 SVC 指令进入内核（类似 ARM Cortex-M 的 <code>svc</code>），有 syscall 开销但无需 MMU。</p>
+<p>KERNEL 模式颠覆一切：内核运行在独立的特权地址空间中，每个用户进程拥有<strong>私有的虚拟地址空间</strong>，通过 syscall 与内核通信——很像 Linux，但更精简。</p>
+<p>本文以 <code>qemu-armv7a:knsh</code> 配置（Cortex-A7，CONFIG_BUILD_KERNEL&#x3D;y）为蓝本，逐层拆解 ARMv7-A 两级页表的完整翻译机制。</p>
+<h3 id="1-1-knsh-内存布局（核心常量）"><a href="#1-1-knsh-内存布局（核心常量）" class="headerlink" title="1.1 knsh 内存布局（核心常量）"></a>1.1 knsh 内存布局（核心常量）</h3><p>以下是整个分析的基础——来自 <code>boards/arm/qemu/qemu-armv7a/configs/knsh/defconfig</code> 的实际数值：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line">         Physical (PA == VA identity mapped)            Virtual (VA only)</span><br><span class="line">         ─────────────────────────────────────          ─────────────────</span><br><span class="line">0x00000000 ┌──────────────────────────────┐</span><br><span class="line">           │  FLASH  1MB                  │  kernel .text + .rodata</span><br><span class="line">           │  MMU_MEMFLAGS, 128 sections  │  (NUTTX_TEXT resident here</span><br><span class="line">0x00100000 ├──────────────────────────────┤   when CONFIG_BOOT_RUNFROMFLASH)</span><br><span class="line">           │  (reserved / unused)         │</span><br><span class="line">0x08000000 ├──────────────────────────────┤</span><br><span class="line">           │  IO/Peripherals  96MB        │  UART, GIC, timers,</span><br><span class="line">           │  MMU_IOFLAGS, XN             │  all MMIO registers</span><br><span class="line">0x0E000000 ├──────────────────────────────┤</span><br><span class="line">           │  Secure Memory  16MB         │</span><br><span class="line">0x0F000000 ├──────────────────────────────┤</span><br><span class="line">           │                              │</span><br><span class="line">           │  PCIE ECAM/MMIO  768MB       │</span><br><span class="line">           │  MMU_IOFLAGS, XN             │</span><br><span class="line">0x40000000 ├──────────────────────────────┤  ── kernel/user boundary (L1 index 0x800) ──</span><br><span class="line">           │                              │              ┌──────────────────────────────┐</span><br><span class="line">           │  DDR (kernel heap, stacks,   │  0x80000000  │ User .text  (1MB, 256 pages) │</span><br><span class="line">           │  TCBs, free pages...)        │              │ MMU_L2_UTEXTFLAGS (PL0=RO)   │</span><br><span class="line">           │  MMU_MEMFLAGS, 256 sections  │              │ each process → different PA  │</span><br><span class="line">0x40300000 │  ┌────────────────────────┐  │  0x80100000  ├──────────────────────────────┤</span><br><span class="line">           │  │ Page Pool  ~13MB       │  │              │ User .data/.bss (1MB)        │</span><br><span class="line">           │  │ (L1 tables, L2 tables, │  │              │ MMU_L2_UDATAFLAGS (PL0=RW)   │</span><br><span class="line">           │  │  user data/heap pages) │  │              │ [+ARCH_DATA_RESERVE 4KB]     │</span><br><span class="line">0x40FFC000 │  ├────────────────────────┤  │  0x80200000  ├──────────────────────────────┤</span><br><span class="line">           │  │ Kernel L1 Page Table   │  │              │ User heap     (1MB, 256 pgs) │</span><br><span class="line">           │  │ 16KB (4096 entries)    │  │              │ grows via sbrk → pgalloc     │</span><br><span class="line">           │  │ PGTABLE_BASE_VADDR     │  │  0x80300000  ├──────────────────────────────┤</span><br><span class="line">0x41000000 │  └────────────────────────┘  │              │ User stack (if dynamic)      │</span><br><span class="line">0x50000000 └──────────────────────────────┘              └──────────────────────────────┘</span><br><span class="line"></span><br><span class="line">  All kernel regions are IDENTITY mapped: PA == VA.</span><br><span class="line">  User regions at 0x80000000+ are per-process L2 page tables → different PA per process.</span><br><span class="line"></span><br><span class="line">Detailed config parameters (knsh defconfig):</span><br><span class="line">  Parameter                              Value            Meaning</span><br><span class="line">  ────────────────────────────────────────────────────────────────────</span><br><span class="line">  CONFIG_RAM_START                       0x40000000       Physical RAM base (16MB total)</span><br><span class="line">  CONFIG_RAM_VSTART                      0x40000000       Virtual RAM base (identity mapped)</span><br><span class="line">  CONFIG_RAM_SIZE                        0x01000000       16MB</span><br><span class="line">  CONFIG_FLASH_START                     0x00000000       Physical FLASH base</span><br><span class="line">  CONFIG_FLASH_VSTART                    0x00000000       Virtual FLASH base (identity)</span><br><span class="line">  CONFIG_FLASH_SIZE                      0x00100000       1MB</span><br><span class="line"></span><br><span class="line">  CONFIG_ARCH_TEXT_VBASE                 0x80000000       User .text virtual base</span><br><span class="line">  CONFIG_ARCH_TEXT_NPAGES                256              .text region: 256 pages x 4KB = 1MB</span><br><span class="line">  CONFIG_ARCH_DATA_VBASE                 0x80100000       User .data/.bss virtual base</span><br><span class="line">  CONFIG_ARCH_DATA_NPAGES                256              .data region: 256 pages x 4KB = 1MB</span><br><span class="line">  CONFIG_ARCH_HEAP_VBASE                 0x80200000       User heap virtual base</span><br><span class="line">  CONFIG_ARCH_HEAP_NPAGES                256              heap region: 256 pages x 4KB = 1MB</span><br><span class="line"></span><br><span class="line">  CONFIG_ARCH_PGPOOL_PBASE              0x40300000       Page pool physical base</span><br><span class="line">  CONFIG_ARCH_PGPOOL_VBASE              0x40300000       Page pool virtual base (identity)</span><br><span class="line">  CONFIG_ARCH_PGPOOL_SIZE               13631488         ~13MB page pool</span><br><span class="line"></span><br><span class="line">  PGTABLE_BASE_PADDR                    0x40FFC000       L1 page table (16KB, end of RAM - 16KB)</span><br><span class="line">  PGTABLE_BASE_VADDR                    0x40FFC000       (identity mapped)</span><br><span class="line">  PGTABLE_SIZE                          0x00004000       16KB (4096 entries x 4 bytes)</span><br><span class="line"></span><br><span class="line">  CONFIG_MM_PGSIZE                      4096             4KB pages</span><br><span class="line">  CONFIG_MM_PGSHIFT                     12               log2(4096) = 12</span><br><span class="line">  CONFIG_ARCH_KERNEL_STACKSIZE          3072 Bytes        每进程内核栈</span><br><span class="line"></span><br><span class="line">  Derived:</span><br><span class="line">  ARCH_TEXT_NSECTS                      1                ((256 + 255) &gt;&gt; 8) = 1 个 1MB section</span><br><span class="line">  ARCH_DATA_NSECTS                      1                同上</span><br><span class="line">  ARCH_HEAP_NSECTS                      1                同上</span><br><span class="line">  ARCH_DATA_RESERVE_SIZE                4096             内核在用户 .data 区域的保留空间</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>关键观察</strong>：NuttX 的 knsh 给每个用户进程分配 3 个 1MB section（text&#x2F;data&#x2F;heap），总共 3MB 虚拟地址空间。这远小于 Linux 的默认 3GB 用户空间，但对嵌入式 RTOS 场景完全够用。NuttX 官方文档 <code>Documentation/implementation/memory_configurations.rst:796-805</code> 明确阐述了这一设计权衡——“Reducing the supported virtual address from 3GiB to, say, 4MiB would also reduce the amount of memory that has to be allocated for each process.”</p>
+</blockquote>
+<hr>
+<h2 id="2-ARMv7-A-MMU-两级页表结构"><a href="#2-ARMv7-A-MMU-两级页表结构" class="headerlink" title="2. ARMv7-A MMU 两级页表结构"></a>2. ARMv7-A MMU 两级页表结构</h2><h3 id="2-1-整体架构"><a href="#2-1-整体架构" class="headerlink" title="2.1 整体架构"></a>2.1 整体架构</h3><p>ARMv7-A 使用 Short-descriptor 格式的两级页表：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Virtual Address (32-bit) — L1 index selects 1MB section, L2 index selects 4KB page within section</span><br><span class="line">┌────────────────────┬──────────────────────────────────────────┐</span><br><span class="line">│  L1 Index[31:20]   │  L2 Index[19:12]  +  Page Offset[11:0]  │</span><br><span class="line">│  12 bits = 4096    │  8 bits = 256     +  12 bits = 4096     │</span><br><span class="line">│  entries           │  entries           +  page bytes         │</span><br><span class="line">└────────────────────┴──────────────────────────────────────────┘</span><br><span class="line"></span><br><span class="line">L1 Page Table (TTBR0 -&gt; 16KB = 4096 entries x 4 bytes)</span><br><span class="line">┌──────────┬──────────┬──────────┬─────┬───────────┐</span><br><span class="line">│  Entry0  │  Entry1  │  Entry2  │ ... │ Entry4095 │</span><br><span class="line">│  VA 0~1M │ VA 1~2M  │ VA 2~3M  │     │ VA ~4G    │</span><br><span class="line">└──────────┴──────────┴──────────┴─────┴───────────┘</span><br><span class="line"></span><br><span class="line">Each L1 entry [1:0] determines type:</span><br><span class="line">  &quot;10&quot; = Section descriptor -&gt; direct 1MB mapping</span><br><span class="line">  &quot;01&quot; = PTE descriptor    -&gt; pointer to L2 page table</span><br><span class="line">  &quot;00&quot; = Fault             -&gt; unmapped, access =&gt; translation fault</span><br></pre></td></tr></table></figure>
+
+<p>L1 Section Descriptor (1MB direct mapping):</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">      Bit 31              20 19     15 14 12 11 10   5  4   3 2   1 0</span><br><span class="line">┌───────────────────────────┬──────┬──────┬────┬────┬───┬───┬───┬───┐</span><br><span class="line">│ PhysBase[31:20]           │ NG S │ TEX  │ AP │Dom │C B│XN │1 0│   │</span><br><span class="line">│ 12-bit physical base      │      │      │    │    │   │   │   │   │</span><br><span class="line">└───────────────────────────┴──────┴──────┴────┴────┴───┴───┴───┴───┘</span><br><span class="line">  PA = PhysBase &lt;&lt; 20 | VA[19:0]           ↑ Section type marker</span><br></pre></td></tr></table></figure>
+
+<p>L2 Small Page Descriptor (4KB mapping):</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">      Bit 31              12 11 10  9  8  7  6  5  4  3 2   1 0</span><br><span class="line">┌───────────────────────────┬───┬───┬──┬──┬──┬──┬──┬───┬───┐</span><br><span class="line">│ PhysBase[31:12]           │NG │S  │AP│T │T │T │AP│C B│1 0│</span><br><span class="line">│ 20-bit physical base      │   │   │2 │E │E │E │  │   │   │</span><br><span class="line">│                           │   │   │  │X │X │X │  │   │   │</span><br><span class="line">└───────────────────────────┴───┴───┴──┴──┴──┴──┴──┴───┴───┘</span><br><span class="line">  PA = PhysBase &lt;&lt; 12 | VA[11:0]          ↑ Small page marker</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-实例一：内核访问-UART-寄存器（段映射，一步到位）"><a href="#2-2-实例一：内核访问-UART-寄存器（段映射，一步到位）" class="headerlink" title="2.2 实例一：内核访问 UART 寄存器（段映射，一步到位）"></a>2.2 实例一：内核访问 UART 寄存器（段映射，一步到位）</h3><p>CPU 要读 <code>0x0800_1234</code>（PL011 UART 状态寄存器，位于 IO 区域）。knsh 的内核页表已将整个 IO 区域通过 identity 段映射建立好：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">Step 1 — 拆虚拟地址 VA = 0x08001234</span><br><span class="line">  [31:20] = 0x080  → L1 表索引 = 128</span><br><span class="line">  [19:0]  = 0x01234 → 段内偏移</span><br><span class="line"></span><br><span class="line">Step 2 — 查 L1 表</span><br><span class="line">  L1 表物理基址 PGTABLE_BASE_PADDR = 0x40FFC000</span><br><span class="line">  目标项地址 = 0x40FFC000 + 128 × 4 = 0x40FFC200</span><br><span class="line">  读出该项的值 = 0x08000000 | MMU_IOFLAGS</span><br><span class="line">               = 0x08000C12</span><br><span class="line">  │31                    20│19            12│11 10   5  4   3 2   1 0│</span><br><span class="line">  │ 0x080 (PhysBase[31:20])│     SBZ       │ AP │Dom │ XN│C B│1 0│</span><br><span class="line">  │                        │               │ RW │  0 │ 1 │0 1│   │ ↑ Section marker</span><br><span class="line">  → 末尾 [1:0] = 0b10 → 段描述符，直接拼物理地址</span><br><span class="line"></span><br><span class="line">Step 3 — 拼物理地址</span><br><span class="line">  PA = PhysBase[31:20] &lt;&lt; 20 | VA[19:0]</span><br><span class="line">     =     0x080          &lt;&lt; 20 | 0x01234</span><br><span class="line">     =     0x0800_0000          | 0x01234</span><br><span class="line">     =     0x0800_1234</span><br><span class="line">  → 物理 == 虚拟（identity mapping），一步完成</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>三步走完。内核所有 IO&#x2F;DDR&#x2F;FLASH 都是这种 identity 段映射，物理&#x3D;&#x3D;虚拟，TLB 命中后硬件自动完成翻译。<code>MMU_IOFLAGS</code> 中的 <code>PMD_SECT_XN</code> 确保这段 IO 空间不可执行。</p>
+</blockquote>
+<h3 id="2-3-实例二：用户进程取-text-指令（L2-小页映射，两级查表）"><a href="#2-3-实例二：用户进程取-text-指令（L2-小页映射，两级查表）" class="headerlink" title="2.3 实例二：用户进程取 .text 指令（L2 小页映射，两级查表）"></a>2.3 实例二：用户进程取 .text 指令（L2 小页映射，两级查表）</h3><p>进程 A 要取指 <code>0x8000_4567</code>（自己的 <code>.text</code> 段，假设该处指令为 <code>mov r0, #0</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">Step 1 — 拆虚拟地址 VA = 0x80004567</span><br><span class="line">  [31:20] = 0x800  → L1 表索引 = 2048</span><br><span class="line">  [19:0]  = 0x04567 → 段内偏移（还要再拆）</span><br><span class="line"></span><br><span class="line">Step 2 — 查 L1 表，发现是 PTE 条目</span><br><span class="line">  目标项地址 = l1table_base + 2048 × 4</span><br><span class="line">  读出值 = l1table[2048]</span><br><span class="line">         = 0x4030_0000 | MMU_L1_PGTABFLAGS</span><br><span class="line">         = 0x4030_1001</span><br><span class="line">  │31                    10│9          5  4   3 2   1 0│</span><br><span class="line">  │ L2 表基址 PA[31:10]    │  Domain 0  │PXN│    │0 1│</span><br><span class="line">  │ = 0x4030_0000 &gt;&gt; 10    │            │ 1 │    │   │ ↑ PTE marker</span><br><span class="line">  → 末尾 [1:0] = 0b01 → PTE 描述符，指向一张 L2 页表在物理地址 0x40300000</span><br><span class="line"></span><br><span class="line">Step 3 — 查 L2 页表</span><br><span class="line">  段内偏移 0x04567 再拆：</span><br><span class="line">    [19:12] = 0x045 → L2 表内索引 = 69</span><br><span class="line">    [11:0]  = 0x567 → 页内偏移</span><br><span class="line"></span><br><span class="line">  L2 表虚拟地址 = arm_pgvaddr(0x40300000) = 0x40300000（identity）</span><br><span class="line">  目标项地址 = 0x40300000 + 69 × 4 = 0x40300114</span><br><span class="line">  读出值 = l2table[69]</span><br><span class="line">         = 0x4030_4000 | MMU_L2_UTEXTFLAGS</span><br><span class="line">         = 0x4030_45FE</span><br><span class="line">  │31                    12│11        4│  3 2   1 0│</span><br><span class="line">  │ PhysBase[31:12]        │  AP  TEX   │C B│  1 0│</span><br><span class="line">  │ = 0x40304              │R12 R0      │1 1│     │ ↑ Small page marker</span><br><span class="line">  │                        │PL1=rw PL0=ro│   │     │</span><br><span class="line"></span><br><span class="line">Step 4 — 拼物理地址</span><br><span class="line">  PA = PhysPage &lt;&lt; 12 | 页内偏移[11:0]</span><br><span class="line">     =  0x40304    &lt;&lt; 12 | 0x567</span><br><span class="line">     =  0x4030_4000       | 0x567</span><br><span class="line">     =  0x4030_4567</span><br><span class="line">  → 虚拟 0x80004567 → 物理 0x40304567，四步完成，比段映射多一次查表</span><br></pre></td></tr></table></figure>
+
+<p>这两个实例展示了关键区别：</p>
+<ul>
+<li><strong>段映射</strong>（查表 1 次）：用于内核区域（0~2GB），1MB 粒度，identity 映射</li>
+<li><strong>小页映射</strong>（查表 2 次）：用于用户区域（0x80000000+），4KB 粒度，独立物理页</li>
+</ul>
+<p>同一虚拟地址 <code>0x80004567</code> 在进程 B 中会映射到<strong>不同物理页</strong>（如 <code>0x4031_4567</code>），因为 B 的 L2 页表指向 B 独有的物理页。这就是虚拟地址隔离的本质。</p>
+<h3 id="2-4-NuttX-使用的-MMU-标志"><a href="#2-4-NuttX-使用的-MMU-标志" class="headerlink" title="2.4 NuttX 使用的 MMU 标志"></a>2.4 NuttX 使用的 MMU 标志</h3><p>来自 <code>arch/arm/src/armv7-a/mmu.h:592-657</code>：</p>
+<table>
+<thead>
+<tr>
+<th>宏</th>
+<th>展开值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MMU_MEMFLAGS</code></td>
+<td><code>(PMD_TYPE_SECT | PMD_SECT_AP_RW1 | PMD_CACHEABLE | PMD_SECT_DOM(0))</code></td>
+<td>内核 RAM 段映射：1MB section, PL1 读写, Write-Back Cache, Domain 0</td>
+</tr>
+<tr>
+<td><code>MMU_IOFLAGS</code></td>
+<td><code>(PMD_TYPE_SECT | PMD_SECT_AP_RW1 | PMD_DEVICE | PMD_SECT_DOM(0) | PMD_SECT_XN)</code></td>
+<td>内核 IO 段映射：同上 + Device 内存 + 禁止执行</td>
+</tr>
+<tr>
+<td><code>MMU_L2_UTEXTFLAGS</code></td>
+<td><code>(PTE_TYPE_SMALL | PTE_WRITE_BACK | PTE_AP_RW12_R0)</code></td>
+<td>用户 .text L2 小页：PL1 读写, PL0 只读, Write-Back Cache</td>
+</tr>
+<tr>
+<td><code>MMU_L2_UDATAFLAGS</code></td>
+<td><code>(PTE_TYPE_SMALL | PTE_WRITE_BACK | PTE_AP_RW01)</code></td>
+<td>用户 .data&#x2F;heap L2 小页：PL1 读写, PL0 读写, Write-Back Cache</td>
+</tr>
+<tr>
+<td><code>MMU_L1_PGTABFLAGS</code></td>
+<td><code>(PMD_TYPE_PTE | PMD_PTE_PXN | PTE_WRITE_THROUGH | PMD_PTE_DOM(0))</code></td>
+<td>L1 指向 L2 页表的 PTE 条目：禁止 PL1 执行, Write-Through</td>
+</tr>
+<tr>
+<td><code>MMU_L1_TEXTFLAGS</code></td>
+<td><code>(PMD_TYPE_PTE | PMD_PTE_DOM(0))</code></td>
+<td>可用于 L1 用户 .text 区域的 PTE（当前未使用此宏）</td>
+</tr>
+</tbody></table>
+<p>权限模型（legacy AP[2:0]，非 AFE 模式）：</p>
+<ul>
+<li><code>PMD_SECT_AP_RW1</code> &#x2F; <code>PTE_AP_RW12</code> &#x3D; AP[2:0]&#x3D;001：PL1 读写, PL0 不可访问</li>
+<li><code>PTE_AP_RW01</code> &#x2F; <code>PTE_AP_RW012</code> &#x3D; AP[2:0]&#x3D;011：PL1 读写, PL0 读写</li>
+<li><code>PTE_AP_RW12_R0</code> &#x2F; <code>PTE_AP_RW012_R0</code> &#x3D; AP[2:0]&#x3D;010：PL1 读写, PL0 只读</li>
+</ul>
+<blockquote>
+<p><strong>设计要点</strong>：内核的所有映射使用 <code>PMD_SECT_AP_RW1</code>（仅 PL1 可访问），用户进程的 .text 使用 <code>PTE_AP_RW12_R0</code>（PL0 只读），.data&#x2F;heap 使用 <code>PTE_AP_RW01</code>（PL0 可读写）。这是进程隔离的基础——用户代码执行在 PL0 (USR mode)，不能访问内核的段映射区域。</p>
+</blockquote>
+<hr>
+<h2 id="3-启动流程：从物理地址到虚拟地址"><a href="#3-启动流程：从物理地址到虚拟地址" class="headerlink" title="3. 启动流程：从物理地址到虚拟地址"></a>3. 启动流程：从物理地址到虚拟地址</h2><h3 id="3-1-总体执行流"><a href="#3-1-总体执行流" class="headerlink" title="3.1 总体执行流"></a>3.1 总体执行流</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">__start (arm_head.S:181)          [MMU OFF, executing at phys=0x00000000]</span><br><span class="line">  ├→ disable MMU + caches (SCTLR)   arm_head.S:229-232</span><br><span class="line">  ├→ clear 16KB L1 page table      arm_head.S:237-248</span><br><span class="line">  ├→ map .text region (1MB sections) arm_head.S:285-321</span><br><span class="line">  │    ├→ if !IDENTITY_TEXTMAP: create temp identity mapping  arm_head.S:296-298</span><br><span class="line">  │    └→ loop: write L1 entries for each 1MB section         arm_head.S:316-321</span><br><span class="line">  ├→ map RAM (if run-from-flash)    arm_head.S:340-353</span><br><span class="line">  ├→ invalidate TLB + caches        arm_head.S:377-389</span><br><span class="line">  ├→ write TTBR0, TTBR1, TTBCR     arm_head.S:407-420</span><br><span class="line">  ├→ write DACR (domain 0 client)   arm_head.S:432-433</span><br><span class="line">  ├→ configure SCTLR (enable MMU + caches)  arm_head.S:437-551</span><br><span class="line">  └→ mov pc, lr -&gt; .Lvstart        arm_head.S:559  [NOW IN VIRTUAL ADDRESS SPACE]</span><br><span class="line"></span><br><span class="line">.Lvstart (arm_head.S:660)</span><br><span class="line">  ├→ remove temp identity mapping   arm_head.S:668-672</span><br><span class="line">  ├→ set up stack pointer           arm_head.S:676-678</span><br><span class="line">  ├→ arm_data_initialize            arm_head.S:687</span><br><span class="line">  │    ├→ zero .bss</span><br><span class="line">  │    └→ copy .data from FLASH to RAM</span><br><span class="line">  ├→ arm_boot()                     qemu_boot.c:77</span><br><span class="line">  │    └→ qemu_setupmappings()      qemu_memorymap.c:80</span><br><span class="line">  │         └→ mmu_l1_map_regions(g_section_mapping[])  arm_mmu.c:176</span><br><span class="line">  │              └→ for each section: mmu_l1_setentry(paddr, vaddr, flags)</span><br><span class="line">  │                   └→ l1table[vaddr&gt;&gt;20] = paddr | flags  arm_mmu.c:55-73</span><br><span class="line">  └→ nx_start()                     arm_head.S:708  [NuttX OS entry]</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-启动阶段一：-start-的页表初始化"><a href="#3-2-启动阶段一：-start-的页表初始化" class="headerlink" title="3.2 启动阶段一：__start 的页表初始化"></a>3.2 启动阶段一：__start 的页表初始化</h3><p>内核被 QEMU 加载到物理地址 <code>0x00000000</code>（FLASH 起始地址，identity 映射到 <code>NUTTX_TEXT_VADDR=0x00000000</code>）。入口 <code>__start</code> 在 MMU 关闭的情况下执行，所有地址都是物理地址。</p>
+<p><strong>第一步：清零 L1 页表</strong>（<code>arm_head.S:237-248</code>）</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">ldr     r5, .LCppgtable           ; r5 = PGTABLE_BASE_PADDR = 0x40FFC000</span><br><span class="line">mov     r0, r5                    ; r0 = start of page table</span><br><span class="line">mov     r1, #0                    ; r1 = zero</span><br><span class="line">add     r2, r0, #PGTABLE_SIZE     ; r2 = end of page table (0x41000000)</span><br><span class="line">.Lpgtableclear:</span><br><span class="line">str     r1, [r0], #4              ; write zero, advance by 4</span><br><span class="line">str     r1, [r0], #4</span><br><span class="line">str     r1, [r0], #4</span><br><span class="line">str     r1, [r0], #4</span><br><span class="line">teq     r0, r2</span><br><span class="line">bne     .Lpgtableclear             ; loop until all 16384 bytes cleared</span><br></pre></td></tr></table></figure>
+
+<p><strong>第二步：映射 .text 区域</strong>（<code>arm_head.S:285-321</code>）</p>
+<p>目标：让内核自己的代码在 MMU 开启后能被 CPU 取指。做法是往 L1 页表里写入段描述符，把 .text 的物理地址映射到虚拟地址。</p>
+<p>为了理解下面这段汇编，先知道三条关键信息：</p>
+<ol>
+<li><code>.LCtextinfo</code> 是一个编译时定义的常量表，存着 .text 的物理基址、虚拟基址、MMU 标志、段数量</li>
+<li><code>ldmia</code> 一次从内存加载 4 个值到 4 个寄存器</li>
+<li><code>r5</code> 在第 1 步已经设为 L1 页表的物理基址 <code>0x40FFC000</code></li>
+</ol>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">  adr     r0, .LCtextinfo             /* 取 .text 映射描述符表的地址             */</span><br><span class="line">  ldmia   r0, &#123;r1, r2, r3, r4&#125;        /* 一次加载四个值：                        */</span><br><span class="line">                                      /*   r1 = NUTTX_TEXT_PADDR (物理起始地址)  */</span><br><span class="line">                                      /*   r2 = NUTTX_TEXT_VADDR (虚拟起始地址)  */</span><br><span class="line">                                      /*   r3 = MMU_MEMFLAGS   (段描述符标志位)  */</span><br><span class="line">                                      /*   r4 = 段数量 (1MB 段)                  */</span><br><span class="line"></span><br><span class="line">#ifndef CONFIG_IDENTITY_TEXTMAP</span><br><span class="line">  /* 创建 .text 第一个 1MB 段的身份映射。                                         *</span><br><span class="line">   * 没有这个映射，MMU 一开启下一条指令取指就会 fault，                            *</span><br><span class="line">   * 因为此时 PC 还在物理地址上跑。物理 ≠ 虚拟时此映射是必需的。                    */</span><br><span class="line"></span><br><span class="line">  orr     r0, r1, r3                 /* r0 = 物理段基址 | MMU 标志               */</span><br><span class="line">  str     r0, [r5, r1, lsr #18]      /* l1table[phys&gt;&gt;20] = r0                   */</span><br><span class="line">                                     /* [r5, r1, lsr #18] = l1table基址 + 偏移    */</span><br><span class="line">                                     /* 偏移 = 索引 × 4                          */</span><br><span class="line">                                     /* 索引 = phys &gt;&gt; 20                        */</span><br><span class="line">                                     /* 所以偏移 = (phys &gt;&gt; 20) × 4 = phys &gt;&gt; 18 */</span><br><span class="line">#endif</span><br><span class="line"></span><br><span class="line">  /* 将整个 .text 区域填入 L1 页表。此时还没有开启 cache，                        *</span><br><span class="line">   * 可以确保数据在 cache 打开之前已经写入物理内存。                              *</span><br><span class="line">   *                                                                             *</span><br><span class="line">   * r5 = L1 表物理基址                                                           *</span><br><span class="line">   * r2 = 虚拟基址 &gt;&gt; 18，即 l1table 中的字节偏移                                  */</span><br><span class="line"></span><br><span class="line">  add     r2, r5, r2, lsr #18       /* r2 = l1table基址 + 虚拟基址索引的偏移     */</span><br><span class="line">.Lpgtextloop:</span><br><span class="line">  orr     r0, r1, r3                /* r0 = 物理段地址 | MMU 标志                */</span><br><span class="line">  subs    r4, r4, #1                /* 剩余段数 - 1                              */</span><br><span class="line">  str     r0, [r2], #4              /* l1table[index] = r0, index++              */</span><br><span class="line">  add     r1, r1, #(1024*1024)      /* 物理地址前进 1MB                          */</span><br><span class="line">  bne     .Lpgtextloop              /* 段数 ≠ 0 则继续                            */</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>lsr #18</code> 为什么是右移 18 位？</strong></p>
+<p>L1 表是 <code>uint32_t l1table[4096]</code>。要写入的索引是 <code>VA[31:20]</code>。计算地址偏移：<code>索引 × 4 = (VA &gt;&gt; 20) × 4 = VA &gt;&gt; 18</code>。</p>
+<p>当前 CPU 跑在物理地址（MMU 还没开）。<code>r1</code> 存的是 .text 的<strong>物理</strong>起始地址。<code>r1 &gt;&gt; 20</code> 就是物理地址所在的 L1 索引，<code>r1 &gt;&gt; 18</code> 就是该索引在 L1 表中的字节偏移。</p>
+<p>举个例子：假设 .text 物理在 <code>0x40000000</code>（DDR 起始），<code>r1 = 0x40000000</code>。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">l1 索引 = 0x40000000 &gt;&gt; 20 = 0x400</span><br><span class="line">字节偏移 = 0x400 × 4 = 0x1000</span><br><span class="line">r1 &gt;&gt; 18  = 0x40000000 &gt;&gt; 18 = 0x1000     ← 一样</span><br></pre></td></tr></table></figure>
+<p>所以 <code>str r0, [r5, r1, lsr #18]</code> 就是 <code>l1table[0x400] = 0x40000000 | MMU_MEMFLAGS</code>。</p>
+<p><strong><code>#ifndef CONFIG_IDENTITY_TEXTMAP</code> 块在做什么？</strong></p>
+<p>它创建一个”身份映射”——把物理地址 <code>0x40000000</code> 所在的 1MB 区域映射到<strong>它自己</strong>。结果：</p>
+<ul>
+<li>VA <code>0x40000000</code> → PA <code>0x40000000</code>（通过这条新写的 entry）</li>
+<li>VA <code>0x40001000</code>（启用 MMU 后下一条指令的 PC）→ PA <code>0x40001000</code></li>
+</ul>
+<p>没有这个映射，MMU 一开启，CPU 的下一次取指就会因为虚拟地址在页表里找不到对应条目而触发 prefetch abort——系统在开 MMU 的瞬间就死了。身份映射充当了”过渡桥梁”：MMU 开启后的第一条指令在物理和虚拟两边都能命中。后续到达 <code>.Lvstart</code> 之后这个临时映射会被清除。</p>
+<p><strong>为什么 knsh 不需要这个？</strong></p>
+<p>因为 knsh 的 .text 物理地址就是 <code>0x00000000</code>，虚拟地址也是 <code>0x00000000</code>。第一步清零 L1 表后，<code>Lpgtextloop</code> 写入的段映射已经把 <code>0x00000000 → 0x00000000 | MMU_MEMFLAGS</code> 写进了 <code>l1table[0]</code>。物理&#x3D;&#x3D;虚拟，所以这个映射天然就是身份映射——不需要额外写一份。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">knsh 的情况：</span><br><span class="line">  物理 .text = 0x00000000，虚拟 .text = 0x00000000</span><br><span class="line">  → CONFIG_IDENTITY_TEXTMAP 被定义</span><br><span class="line">  → #ifndef 块被完整跳过</span><br><span class="line">  → 直接进入 Lpgtextloop</span><br></pre></td></tr></table></figure>
+
+<p><strong>用 knsh 实际值走一遍 Lpgtextloop：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">初始状态：r1=0x00000000, r2=l1table[0]地址, r3=MMU_MEMFLAGS, r4=1</span><br><span class="line"></span><br><span class="line">第 1 次循环：</span><br><span class="line">  r0 = 0x00000000 | MMU_MEMFLAGS   → 写 l1table[0]</span><br><span class="line">  r4 = 0                           → 减到零</span><br><span class="line">  r1 = 0x00000000 + 1MB = 0x100000</span><br><span class="line">  循环结束</span><br></pre></td></tr></table></figure>
+
+<p>结果：<code>l1table[0] = 0x00000000 | MMU_MEMFLAGS</code>，L1 表里只有 entry 0 指向 .text 的第一个 1MB。其余 4095 个 entry 全为零（第一步清零的结果）。</p>
+<p><strong>第三步：映射 RAM 区域</strong>（<code>arm_head.S:340-355</code>）</p>
+<p>如果内核从 FLASH 启动（<code>CONFIG_BOOT_RUNFROMFLASH=y</code>），.text 在 FLASH 里（<code>0x00000000</code>），但内核的 .data、.bss、heap、stack 都在 DDR（<code>0x40000000</code>）。<strong>在 MMU 打开之前必须先把 DDR 的 L1 条目写好</strong>，否则一开 MMU，<code>arm_data_initialize</code> 要清零 .bss 时访问 <code>0x4000_????</code> 就会 translation fault。</p>
+<p>这段代码和映射 .text 完全一样的逻辑，只是源数据表叫 <code>.LCraminfo</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">  adr     r0, .LCraminfo             /* 取 RAM 映射描述符表的地址             */</span><br><span class="line">  ldmia   r0, &#123;r1, r2, r3, r4&#125;      /* r1=NUTTX_RAM_PADDR, r2=NUTTX_RAM_VADDR */</span><br><span class="line">                                     /* r3=MMU_MEMFLAGS, r4=RAM 的 1MB 段数量  */</span><br><span class="line">  add     r2, r5, r2, lsr #18       /* r2 = l1table[vaddr_index] 的地址       */</span><br><span class="line">.Lpgramloop:</span><br><span class="line">  orr     r0, r1, r3                /* r0 = 物理段地址 | MMU_MEMFLAGS          */</span><br><span class="line">  subs    r4, r4, #1                /* 剩余段数 - 1                            */</span><br><span class="line">  str     r0, [r2], #4              /* 写 L1 条目                              */</span><br><span class="line">  add     r1, r1, #(1024*1024)      /* 物理地址前进 1MB                        */</span><br><span class="line">  bne     .Lpgramloop               /* 段数 ≠ 0 则继续                          */</span><br></pre></td></tr></table></figure>
+
+<p>knsh 里 <code>NUTTX_RAM_SIZE</code> &#x3D; 16MB，所以 <code>r4 = 16</code>。循环写 16 个段条目，覆盖 <code>0x40000000</code> → <code>0x41000000</code>。此时 L1 表里 .text 和 RAM 的条目都有了。</p>
+<p><strong>第四步：无效化 TLB 和 Cache</strong>（<code>arm_head.S:377-389</code>）</p>
+<p>开 MMU 之前必须清空 TLB 和 Cache——你不知道 bootloader 在里面留了什么：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">mov     r0, #0</span><br><span class="line">mcr     CP15_TPIDRPRW(r0)         /* 初始化 percpu 寄存器 (线程指针)        */</span><br><span class="line">mcr     CP15_TLBIALL(r0, c7)      /* 无效化整个统一 TLB                     */</span><br><span class="line">mcr     CP15_TLBIALL(r0, c6)</span><br><span class="line">mcr     CP15_TLBIALL(r0, c5)</span><br><span class="line">mcr     CP15_BPIALL(r0)           /* 无效化分支预测缓存                      */</span><br><span class="line">mcr     CP15_ICIALLU(r0)          /* 无效化指令 Cache                        */</span><br><span class="line">isb</span><br></pre></td></tr></table></figure>
+
+<p>数据和统一 TLB 全部清空。I-Cache 刷新确保 MMU 开启后的第一条指令不会被旧的缓存行干扰。</p>
+<p><strong>第五步：告诉 MMU 页表在哪——写 TTBR0&#x2F;TTBR1&#x2F;TTBCR</strong>（<code>arm_head.S:407-420</code>）</p>
+<p>MMU 需要知道页表的物理地址才能做表遍历：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">orr     r1, r5, #(TTBR0_RGN_WBWA | TTBR0_IRGN0)</span><br><span class="line">                                  /* r5 = L1 表物理地址, 加上 cache 属性:    */</span><br><span class="line">                                  /*  Outer/Inner Write-Back, Write-Allocate  */</span><br><span class="line">mcr     CP15_TTBR0(r1)            /* TTBR0 = L1 表物理地址                   */</span><br><span class="line">mcr     CP15_TTBR1(r1)            /* TTBR1 = 同上 (实际只用 TTBR0)            */</span><br><span class="line">mcr     CP15_TTBCR(r0)            /* TTBCR = 0:                              */</span><br><span class="line">                                  /*   N=0  → 用 TTBR0, 16KB 页表            */</span><br><span class="line">                                  /*   PD0=0 → 使能 TTBR0 的表遍历            */</span><br><span class="line">                                  /*   PD1=0 → 使能 TTBR1 (备用)              */</span><br></pre></td></tr></table></figure>
+
+<p>TTBR0 存的是<strong>物理地址</strong>（<code>0x40FFC000</code>），不是虚拟地址。MMU 做页表遍历时直接用这个物理地址访问内存，不经过翻译。</p>
+<p><strong>第六步：开 MMU——DACR + SCTLR + 跳转</strong>（<code>arm_head.S:432-559</code>）</p>
+<p>Domain 0 设为 client 模式（让页表条目的 AP 位生效），然后写 SCTLR 的 M&#x2F;C&#x2F;I 位使能 MMU 和 Cache：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">mov     r0, #DACR_CLIENT(0)        /* DACR = 0x01: domain 0 受页表权限控制    */</span><br><span class="line">mcr     CP15_DACR(r0)</span><br><span class="line"></span><br><span class="line">mrc     CP15_SCTLR(r0)             /* 读当前 SCTLR                           */</span><br><span class="line">bic     r0, r0, #(SCTLR_A | SCTLR_C | ...)  /* 清除复位默认位                */</span><br><span class="line">orr     r0, r0, #(SCTLR_M | SCTLR_C | SCTLR_I)  /* M=MMU, C=D-Cache, I=I-Cache */</span><br><span class="line">mcr     CP15_SCTLR(r0)             /* 写 SCTLR——MMU 从这里开始生效！          */</span><br><span class="line">isb</span><br><span class="line">nop; nop; ... (12 NOPs)            /* 等流水线刷新                             */</span><br><span class="line"></span><br><span class="line">ldr     lr, .LCvstart              /* lr = .Lvstart 的虚拟地址                */</span><br><span class="line">mov     pc, lr                      /* 跳转——从此 CPU 在虚拟地址空间执行        */</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>为何需要 12 个 NOP？</strong> 架构参考手册指出写入 SCTLR 后需要同步流水线。部分核心（Cortex-A8）需要这段 NOP 确保新映射已被识别。</p>
+</blockquote>
+<h3 id="3-3-启动阶段二：补全内核页表"><a href="#3-3-启动阶段二：补全内核页表" class="headerlink" title="3.3 启动阶段二：补全内核页表"></a>3.3 启动阶段二：补全内核页表</h3><p>在 <code>.Lvstart</code> 处（<code>arm_head.S:660</code>），栈已设置、.bss 已清零，然后调用 <code>arm_boot()</code>（<code>qemu_boot.c:77</code>），后者调用 <code>qemu_setupmappings()</code> 补全剩余的内核 L1 条目。</p>
+<p>qemu 的静态内存映射表（<code>qemu_memorymap.c:44-66</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">section_mapping_s</span> <span class="title">g_section_mapping</span>[] =</span></span><br><span class="line">&#123;</span><br><span class="line">  &#123; VIRT_FLASH_PSECTION,  VIRT_FLASH_VSECTION,  MMU_MEMFLAGS, _NSECTIONS(<span class="number">128</span>MB) &#125;, <span class="comment">// 0x00000000, 128 sections</span></span><br><span class="line">  &#123; VIRT_IO_PSECTION,     VIRT_IO_VSECTION,     MMU_IOFLAGS,  _NSECTIONS(<span class="number">96</span>MB)  &#125;, <span class="comment">// 0x08000000, 96 sections</span></span><br><span class="line">  &#123; VIRT_SEC_MEM_PSECTION, VIRT_SEC_MEM_VSECTION, MMU_MEMFLAGS, _NSECTIONS(<span class="number">16</span>MB) &#125;, <span class="comment">// 0x0E000000, 16 sections</span></span><br><span class="line">  &#123; VIRT_PCIE_PSECTION,   VIRT_PCIE_VSECTION,   MMU_IOFLAGS,  _NSECTIONS(<span class="number">768</span>MB) &#125;, <span class="comment">// 0x10000000, 768 sections</span></span><br><span class="line">  &#123; VIRT_DDR_PSECTION,    VIRT_DDR_VSECTION,    MMU_MEMFLAGS, _NSECTIONS(<span class="number">256</span>MB) &#125;, <span class="comment">// 0x40000000, 256 sections</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个映射由 <code>mmu_l1_setentry()</code>（<code>arm_mmu.c:55-73</code>）依次写入 L1 条目：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">mmu_l1_setentry</span><span class="params">(<span class="type">uintptr_t</span> paddr, <span class="type">uintptr_t</span> vaddr, <span class="type">uint32_t</span> mmuflags)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">uintptr_t</span> *l1table = mmu_l1_getpgtable();  <span class="comment">// get current L1 table base</span></span><br><span class="line">  <span class="type">uint32_t</span> index = vaddr &gt;&gt; <span class="number">20</span>;              <span class="comment">// L1 index from VA[31:20]</span></span><br><span class="line">  l1table[index] = (paddr | mmuflags);</span><br><span class="line">  cp15_clean_dcache_bymva(&amp;l1table[index]);  <span class="comment">// flush D-cache line</span></span><br><span class="line">  mmu_invalidate_region(vaddr, SECTION_SIZE); <span class="comment">// invalidate TLB for this 1MB</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>重要</strong>：qemu 上所有内核区域都是 identity 映射（<code>VIRT_FLASH_VSECTION == VIRT_FLASH_PSECTION</code> 等，见 <code>qemu_memorymap.h:51-55</code>）。这意味着物理地址 &#x3D;&#x3D; 虚拟地址，大大简化了内核地址管理。</p>
+</blockquote>
+<p>启动完成后，内核 L1 页表的用户区域（<code>0x80000000</code> 以上）全是 fault entry（值为 0）。这些条目会在进程创建时由 <code>up_addrenv_create()</code> 填充。</p>
+<p>最终内核 L1 页表布局：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">L1 Table (PGTABLE_BASE_VADDR=0x40FFC000):</span><br><span class="line">  Index    VA Range        PA Range         Type    Flags</span><br><span class="line">  ──────── ──────────────  ──────────────   ──────  ──────────</span><br><span class="line">  [0x000]  0x00000000      0x00000000 (ID)  Sect    MMU_MEMFLAGS  &#125; 128</span><br><span class="line">  ...      ~0x08000000     ~0x08000000                                                  &#125; sections</span><br><span class="line">  [0x07F]                                                                               &#125; (FLASH)</span><br><span class="line">  [0x080]  0x08000000      0x08000000 (ID)  Sect    MMU_IOFLAGS   &#125; 96</span><br><span class="line">  ...      ~0x0E000000     ~0x0E00000                                                   &#125; sections</span><br><span class="line">  [0x0DF]                                                                               &#125; (IO)</span><br><span class="line">  [0x0E0]  0x0E000000      0x0E000000 (ID)  Sect    MMU_MEMFLAGS  &#125; 16 sections (SEC_MEM)</span><br><span class="line">  [0x0EF]</span><br><span class="line">  [0x100]  0x10000000      0x10000000 (ID)  Sect    MMU_IOFLAGS   &#125; 768  sections (PCIE)</span><br><span class="line">  [0x3FF]</span><br><span class="line">  [0x400]  0x40000000      0x40000000 (ID)  Sect    MMU_MEMFLAGS  &#125; 256</span><br><span class="line">  ...      ~0x50000000     ~0x50000000                                                  &#125; sections (DDR)</span><br><span class="line">  [0x4FF]</span><br><span class="line">  [0x500]  0x50000000      -                Fault   (zero)</span><br><span class="line">  ...      ~0x7FFFFFFF</span><br><span class="line">  [0x7FF]                                                                  &lt;- 内核区域结束</span><br><span class="line">  [0x800]  0x80000000      -                Fault   (zero)     &lt;- 用户区域开始</span><br><span class="line">  ...      ~0xFFFFFFFF</span><br><span class="line">  [0xFFF]</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="4-每进程地址环境：完整-L1-复制策略"><a href="#4-每进程地址环境：完整-L1-复制策略" class="headerlink" title="4. 每进程地址环境：完整 L1 复制策略"></a>4. 每进程地址环境：完整 L1 复制策略</h2><p>这是 NuttX 与 Linux 之间<strong>最大的设计差异</strong>。NuttX 为每个用户进程拷贝一份<strong>完整的</strong> L1 页表（16KB），而 Linux 只复制内核部分的 L1 条目（通常约 256 个，对应 1GB 内核空间）。</p>
+<h3 id="4-1-设计决策：为何复制整张-L1-表？"><a href="#4-1-设计决策：为何复制整张-L1-表？" class="headerlink" title="4.1 设计决策：为何复制整张 L1 表？"></a>4.1 设计决策：为何复制整张 L1 表？</h3><p>NuttX 官方文档（<code>Documentation/implementation/memory_configurations.rst:787-805</code>）记录了最初的提案方案：</p>
+<p><strong>原始提案</strong>（未采用）：共享单张 L1 页表，每次上下文切换只替换 3~4 个 L1 条目（text&#x2F;data&#x2F;heap&#x2F;stack）。这样可以节省内存但每次切换要执行多次 MMU 写入+缓存刷新。</p>
+<p><strong>实际实现</strong>（当前代码）：为每个进程分配并复制完整的 16KB L1 表。<code>arch_addrenv_s</code> 结构（<code>arch/arm/include/arch.h:134-157</code>）中的注释直接说明了原因：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">arch_addrenv_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="comment">/* Alloc whole l1table to make better context switch performance */</span></span><br><span class="line">  <span class="type">uintptr_t</span> *l1table;</span><br><span class="line">  ...</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>权衡分析</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>内存开销&#x2F;进程</th>
+<th>上下文切换延迟</th>
+<th>实现复杂度</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>共享 L1 + 替换条目</strong></td>
+<td>~16KB（共享）+ 几乎 0</td>
+<td>多次 MMU 写入 + 多次 TLB 刷新</td>
+<td>高（需追踪哪些条目被修改）</td>
+</tr>
+<tr>
+<td><strong>完整 L1 复制</strong>（实际采用）</td>
+<td>16KB × 每进程</td>
+<td><strong>单次 TTBR0 写 + 单次 TLB 刷新</strong></td>
+<td>低（<code>memcpy</code> + 写 TTBR0）</td>
+</tr>
+<tr>
+<td><strong>Linux 方式</strong>（部分复制）</td>
+<td>~4KB（仅内核 256 条目 + 用户 PGD）</td>
+<td>写 TTBR0 + ASID（无需刷 TLB）</td>
+<td>高（需 ASID 支持）</td>
+</tr>
+</tbody></table>
+<p>NuttX 选择了最简单的路径——在嵌入式场景中，多占用几十 KB 内存换取上下文切换的极致简单是合理的。Linux 用 ASID 避免刷 TLB 是为了服务器场景（数千进程），NuttX 不需要。</p>
+<h3 id="4-2-up-addrenv-create-完整流程"><a href="#4-2-up-addrenv-create-完整流程" class="headerlink" title="4.2 up_addrenv_create() 完整流程"></a>4.2 <code>up_addrenv_create()</code> 完整流程</h3><p><code>arch/arm/src/armv7-a/arm_addrenv.c:165-254</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">up_addrenv_create(textsize, datasize, heapsize, &amp;addrenv)</span><br><span class="line">  │</span><br><span class="line">  ├→ memset(addrenv, 0, sizeof(arch_addrenv_t))         // 清零结构体</span><br><span class="line">  │</span><br><span class="line">  ├→ addrenv-&gt;l1table = mm_pgalloc_align(4, 4)          // 从物理页池分配 16KB</span><br><span class="line">  │    // mm_pgalloc_align 分配 4 个页（16KB = 4 × 4KB），并按 4 页对齐</span><br><span class="line">  │</span><br><span class="line">  ├→ memcpy(addrenv-&gt;l1table, PGTABLE_BASE_VADDR, 16KB) // 完整复制内核 L1 表！</span><br><span class="line">  │    // 进程由此继承所有内核映射（PA 0~0x7FFFFFFF）</span><br><span class="line">  │    // 关键：内核的 IO、DDR、FLASH 映射全部继承</span><br><span class="line">  │</span><br><span class="line">  ├→ arm_addrenv_create_region(l1table, 1, 0x80000000, textsize, MMU_L2_UTEXTFLAGS)</span><br><span class="line">  │    // 为用户 .text 区域 (0x80000000) 建立 L2 页表映射</span><br><span class="line">  │</span><br><span class="line">  ├→ arm_addrenv_create_region(l1table, 1, 0x80100000, datasize+4096, MMU_L2_UDATAFLAGS)</span><br><span class="line">  │    // 为用户 .data/.bss 区域 (0x80100000) 建立 L2 页表映射</span><br><span class="line">  │    // datasize + ARCH_DATA_RESERVE_SIZE(4096)</span><br><span class="line">  │</span><br><span class="line">  ├→ arm_addrenv_create_region(l1table, 1, 0x80200000, heapsize, MMU_L2_UDATAFLAGS)</span><br><span class="line">  │    // 为用户 heap 区域 (0x80200000) 建立 L2 页表映射</span><br><span class="line">  │</span><br><span class="line">  └→ addrenv-&gt;heapsize = (npages &lt;&lt; 12)                // 保存初始堆大小</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>复制内核 L1 表的意义</strong>：内核映射在整个 L1 表中占据 entry 0<del>2047（0x000</del>0x7FF），覆盖物理地址 0~2GB。通过 <code>memcpy</code> 复制，每个进程自动继承对所有硬件 IO 和内内存的访问权。当进程执行 syscall 进入内核时，<strong>TTBR0 无需切换</strong>——内核映射已经在那儿了。</p>
+</blockquote>
+<h3 id="4-3-L2-页表构建器"><a href="#4-3-L2-页表构建器" class="headerlink" title="4.3 L2 页表构建器"></a>4.3 L2 页表构建器</h3><p><code>arm_addrenv_create_region()</code>（<code>arm_addrenv_utils.c:58-149</code>）是构建 L2 页表的主函数：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">arm_addrenv_create_region(l1table, nsects, vaddr, size, mmuflags)</span><br><span class="line">  │</span><br><span class="line">  ├→ npages = MM_NPAGES(size)                           // 需要的 4KB 页数</span><br><span class="line">  ├→ nlist = ceil(npages / 256)                         // 需要的 L2 页表数</span><br><span class="line">  │    // 对 knsh：每个 region 最大 256 页 = 1MB = 恰好 1 个 L2 表</span><br><span class="line">  │</span><br><span class="line">  └→ for each L2 table (i = 0; i &lt; nlist; i++):</span><br><span class="line">       │</span><br><span class="line">       ├→ paddr = mm_pgalloc(1)                         // 分配 4KB 物理页作为 L2 表</span><br><span class="line">       │</span><br><span class="line">       ├→ mmu_l1table_setentry(l1table, paddr, vaddr, MMU_L1_PGTABFLAGS)</span><br><span class="line">       │    // 写 L1 条目：l1table[vaddr&gt;&gt;20] = paddr | PMD_TYPE_PTE | PMD_PTE_PXN | ...</span><br><span class="line">       │    // PXN 位确保 L2 表本身不会被当做代码执行</span><br><span class="line">       │</span><br><span class="line">       ├→ l2table = arm_pgvaddr(paddr)                  // 获取 L2 表的虚拟地址</span><br><span class="line">       │    // arm_pgvaddr: paddr - 0x40300000 + 0x40300000 = paddr (identity)</span><br><span class="line">       │</span><br><span class="line">       ├→ memset(l2table, 0, 256*sizeof(uintptr_t))    // 清零 L2 表</span><br><span class="line">       │</span><br><span class="line">       └→ for each 4KB page in this L2 (j = 0; j &lt; 256 &amp;&amp; nmapped &lt; size; j++):</span><br><span class="line">            │</span><br><span class="line">            ├→ paddr = mm_pgalloc(1)                    // 分配一页物理内存</span><br><span class="line">            ├→ set_l2_entry(l2table, paddr, vaddr, mmuflags)</span><br><span class="line">            │    // l2table[(vaddr&gt;&gt;12)&amp;0xFF] = paddr | mmuflags</span><br><span class="line">            │    // 例如：l2table[0] = 0x40305000 | MMU_L2_UTEXTFLAGS</span><br><span class="line">            ├→ nmapped += 4096</span><br><span class="line">            └→ vaddr += 4096</span><br></pre></td></tr></table></figure>
+
+<p>以 knsh 配置创建新进程为例（假设 .text 需要 64KB）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">创建一个进程的 .text 映射：</span><br><span class="line">  textsize = 64KB → npages = 16 → 需要  1 个 L2 表 (16页 &lt;= 256)</span><br><span class="line">  .data   = 32KB → npages = 8 → 需要 1 个 L2 表</span><br><span class="line">  heap    = 128KB → npages = 32 → 需要  1 个 L2 表</span><br><span class="line"></span><br><span class="line">物理页分配总计：</span><br><span class="line">  - L1 表：1 × 16KB = 4 页</span><br><span class="line">  - L2 表：3 × 4KB = 3 页</span><br><span class="line">  - 数据页：16+8+32 = 56 页</span><br><span class="line">  ─────────────────────────</span><br><span class="line">  总计：63 页 = 252KB</span><br><span class="line"></span><br><span class="line">最终每进程地址空间：</span><br><span class="line">┌──────────────┬────────────────┬──────────────┬─────────────────────────┐</span><br><span class="line">│ Virtual Addr │ Physical Addr  │ Mapping      │ Permission              │</span><br><span class="line">├──────────────┼────────────────┼──────────────┼─────────────────────────┤</span><br><span class="line">│ 0x00000000   │ 0x00000000(ID) │ L1 Sect 128× │ Kern rwx (from copy)    │</span><br><span class="line">│ ...          │ ...            │              │                         │</span><br><span class="line">│ 0x40000000   │ 0x40000000(ID) │ L1 Sect 256× │ Kern rwx (from copy)    │</span><br><span class="line">│ 0x7FFFFFFF   │ 0x7FFFFFFF     │              │                         │</span><br><span class="line">├──────────────┼────────────────┼──────────────┼─────────────────────────┤</span><br><span class="line">│ 0x80000000   │ 0x40304000     │ L2 L1→0x4030 │ PL1=rw PL0=ro (text)    │</span><br><span class="line">│ 0x80010000   │ 0x40305000     │ L2 L1→0x4030 │ PL1=rw PL0=rw (text)    │</span><br><span class="line">│ ... (16 pgs) │ ...            │              │                         │</span><br><span class="line">│ 0x8003FFFF   │ ...            │              │                         │</span><br><span class="line">├──────────────┼────────────────┼──────────────┼─────────────────────────┤</span><br><span class="line">│ 0x80100000   │ 0x40310000     │ L2 L1→0x4031 │ PL1=rw PL0=rw (data)    │</span><br><span class="line">│ 0x80101000   │ ← ARCH_DATA_RESERVE_SIZE = 4096 → kernel reserved area  │</span><br><span class="line">│ 0x80102000   │ 0x40311000     │ L2 L1→0x4031 │ PL1=rw PL0=rw (data)    │</span><br><span class="line">│ ...          │ ...            │              │                         │</span><br><span class="line">├──────────────┼────────────────┼──────────────┼─────────────────────────┤</span><br><span class="line">│ 0x80200000   │ 0x40320000     │ L2 L1→0x4032 │ PL1=rw PL0=rw (heap)    │</span><br><span class="line">│ ...          │ ...            │              │                         │</span><br><span class="line">└──────────────┴────────────────┴──────────────┴─────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>进程 A 和进程 B 都看到 <code>0x80000000</code> 是它们的 .text 起始地址，但各自的 L2 页表指向完全不同的物理页。</strong> 内核映射区域对两个进程完全一致（拷贝自同一源），而用户区域通过各自的 L2 表实现了物理隔离。</p>
+</blockquote>
+<h3 id="4-4-页表切换：上下文切换的核心"><a href="#4-4-页表切换：上下文切换的核心" class="headerlink" title="4.4 页表切换：上下文切换的核心"></a>4.4 页表切换：上下文切换的核心</h3><p><code>addrenv_switch()</code>（<code>sched/addrenv/addrenv.c:125</code>）在每次任务上下文切换时被调用：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">addrenv_switch(tcb)</span><br><span class="line">  │</span><br><span class="line">  ├→ next = tcb-&gt;addrenv_curr              // 目标进程的地址环境</span><br><span class="line">  ├→ if (curr != next):</span><br><span class="line">  │    ├→ up_addrenv_coherent(&amp;curr-&gt;addrenv)    // 刷出旧环境的 D-Cache</span><br><span class="line">  │    │    // arm_addrenv.c:331-337</span><br><span class="line">  │    │    up_invalidate_icache_all();</span><br><span class="line">  │    │    up_flush_dcache_all();</span><br><span class="line">  │    │</span><br><span class="line">  │    └→ up_addrenv_select(&amp;next-&gt;addrenv)       // 切换到新环境</span><br><span class="line">  │         // arm_addrenv.c:453-460</span><br><span class="line">  │         └→ mmu_l1_setpgtable(addrenv-&gt;l1table)</span><br><span class="line">  │              // mmu.h:1408-1412</span><br><span class="line">  │              cp15_wrttb((uint32_t)ttb | TTBR0_RGN_WBWA | TTBR0_IRGN0);</span><br><span class="line">  │              cp15_invalidate_tlbs();          // 刷整个 TLB</span><br></pre></td></tr></table></figure>
+
+<p>这就是 NuttX 进程切换的全部 MMU 操作——<strong>两条 CP15 指令</strong>：</p>
+<ol>
+<li><code>MCR p15, 0, Rd, c2, c0, 0</code>（写 TTBR0）</li>
+<li><code>MCR p15, 0, R0, c8, c7, 0</code>（invalidate unified TLB）+ barriers</li>
+</ol>
+<p>对比 Linux 的上下文切换：Linux 使用 ASID（Address Space ID）标记 TLB 条目，切换进程时只写 TTBR0 但<strong>不刷 TLB</strong>。TTBR0 的高位携带新的 ASID，硬件在 TLB 命中时会检查 ASID 匹配。NuttX 选择不用 ASID，直接全刷 TLB——简单直接，在嵌入式场景（最多几十个进程）下 TLB 重填开销可忽略。</p>
+<hr>
+<h2 id="5-ELF-加载：往另一个进程的空间写数据"><a href="#5-ELF-加载：往另一个进程的空间写数据" class="headerlink" title="5. ELF 加载：往另一个进程的空间写数据"></a>5. ELF 加载：往另一个进程的空间写数据</h2><p>将 ELF 加载到一个新进程需要内核在<strong>进程被调度之前</strong>将数据写入其虚拟内存。整个过程涉及临时地址空间切换：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">binfmt_execmodule.c:223-226</span><br><span class="line">  │</span><br><span class="line">  ├→ addrenv_select(binp-&gt;addrenv, &amp;binp-&gt;oldenv)   // 临时切换到目标进程页表</span><br><span class="line">  │    └→ addrenv_switch(tcb)  // 写 TTBR0(目标L1表) + 刷TLB</span><br><span class="line">  │</span><br><span class="line">  ├→ umm_initialize(vheap, heap_base, heap_size)     // 初始化用户堆管理器</span><br><span class="line">  │</span><br><span class="line">  └→ addrenv_attach(tcb, binp-&gt;addrenv)              // 绑定 addrenv 到 TCB</span><br><span class="line">       └→ tcb-&gt;addrenv_own = addrenv                 // 进程退出时自动释放</span><br></pre></td></tr></table></figure>
+
+<p>ELF 加载器在加载过程中使用的流程（<code>libs/libc/elf/elf_addrenv.c</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">libelf_addrenv_alloc(loadinfo, textsize, datasize)    // elf_addrenv.c:83</span><br><span class="line">  │</span><br><span class="line">  ├→ addrenv_allocate()                               // 分配 addrenv_s 包装结构</span><br><span class="line">  ├→ up_addrenv_create(textsize, datasize, heapsize, &amp;addrenv-&gt;addrenv)</span><br><span class="line">  │    // 创建完整地址环境（L1复制 + L2页表 + 物理页分配）</span><br><span class="line">  ├→ up_addrenv_vtext(&amp;addrenv-&gt;addrenv, &amp;vtext)      // vtext = 0x80000000</span><br><span class="line">  ├→ up_addrenv_vdata(&amp;addrenv-&gt;addrenv, textsize, &amp;vdata) // vdata = 0x80101000</span><br><span class="line">  │    // 注意 vdata 跳过了 ARCH_DATA_RESERVE_SIZE (4096)</span><br><span class="line">  ├→ loadinfo-&gt;textalloc = 0x80000000</span><br><span class="line">  └→ loadinfo-&gt;datastart = 0x80101000</span><br><span class="line"></span><br><span class="line">libelf_addrenv_select(loadinfo)                       // elf_addrenv.c:159</span><br><span class="line">  │</span><br><span class="line">  ├→ addrenv_select(loadinfo-&gt;addrenv, &amp;loadinfo-&gt;oldenv)</span><br><span class="line">  │    // 保存当前内核环境，切换到目标进程页表</span><br><span class="line">  └→ up_addrenv_mprot(&amp;addrenv-&gt;addrenv, textalloc, textsize, PROT_READ|PROT_WRITE|PROT_EXEC)</span><br><span class="line">       // 将 .text 区域临时设为可写（加载 ELF 数据时需要）</span><br><span class="line">       // arm_addrenv_text_enable_write 遍历 L2 表修改 AP 位</span><br><span class="line"></span><br><span class="line">// 此时内核可以直接 memcpy(0x80000000, elf_data, size)</span><br><span class="line">// 写入操作经过目标进程页表 -&gt; 落到目标的物理页</span><br><span class="line"></span><br><span class="line">libelf_addrenv_restore(loadinfo)                      // elf_addrenv.c:200</span><br><span class="line">  │</span><br><span class="line">  ├→ up_addrenv_mprot(&amp;addrenv-&gt;addrenv, textalloc, textsize, PROT_READ|PROT_EXEC)</span><br><span class="line">  │    // 将 .text 恢复为只读+可执行</span><br><span class="line">  └→ addrenv_restore(loadinfo-&gt;oldenv)</span><br><span class="line">       // 切回内核页表</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>为什么加载期间要把 .text 设成可写？</strong> 因为 ELF 的 <code>.text</code> 段通过 <code>memcpy</code> 写入目标进程的虚拟地址。MMU 的 AP 位决定了 PL0 访问权限，内核执行在 PL1 本来不受影响——但通过 <code>up_addrenv_mprot()</code> 修改的是页表条目的 AP 字段，确保两个特权级都能写入。加载完成后恢复 <code>PTE_AP_RW12_R0</code>（PL1 可读写，PL0 只读）。</p>
+</blockquote>
+<hr>
+<h2 id="6-物理页池"><a href="#6-物理页池" class="headerlink" title="6. 物理页池"></a>6. 物理页池</h2><p>NuttX 的所有物理内存分配（L1 表、L2 表、用户数据&#x2F;堆页面）都来自一个由 <code>mm_pgalloc()</code> 管理的连续物理页池。</p>
+<h3 id="6-1-页池配置"><a href="#6-1-页池配置" class="headerlink" title="6.1 页池配置"></a>6.1 页池配置</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CONFIG_ARCH_PGPOOL_PBASE = 0x40300000</span><br><span class="line">CONFIG_ARCH_PGPOOL_VBASE = 0x40300000   // identity 映射</span><br><span class="line">CONFIG_ARCH_PGPOOL_SIZE  = 13631488     // ~13MB = 3328 个 4KB 页面</span><br></pre></td></tr></table></figure>
+
+<p>这个页池位于 DDR 地址空间的上半部分（DDR 从 <code>0x40000000</code> 到 <code>0x50000000</code>，共 256MB，页池占用其中 <code>0x40300000</code> 开始的 ~13MB）。</p>
+<h3 id="6-2-虚实地址转换"><a href="#6-2-虚实地址转换" class="headerlink" title="6.2 虚实地址转换"></a>6.2 虚实地址转换</h3><p>由于页池是 identity 映射的，<code>arm_pgvaddr()</code> 宏极其简单（<code>pgalloc.h:68-74</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">uintptr_t</span> <span class="title function_">arm_pgvaddr</span><span class="params">(<span class="type">uintptr_t</span> paddr)</span></span><br><span class="line">&#123;</span><br><span class="line">  DEBUGASSERT(paddr &gt;= CONFIG_ARCH_PGPOOL_PBASE &amp;&amp;</span><br><span class="line">              paddr &lt; CONFIG_ARCH_PGPOOL_PEND);</span><br><span class="line">  <span class="keyword">return</span> paddr - CONFIG_ARCH_PGPOOL_PBASE + CONFIG_ARCH_PGPOOL_VBASE;</span><br><span class="line">  <span class="comment">// = paddr - 0x40300000 + 0x40300000 = paddr</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这意味着 <code>mm_pgalloc()</code> 返回的物理地址可以直接当虚拟地址用。这对 ARMv7-A 来说正合适——ARM MMU 支持硬件页表遍历（hardware page table walk），但软件在访问页表内容时仍然需要虚拟地址。</p>
+<h3 id="6-3-堆的按需增长"><a href="#6-3-堆的按需增长" class="headerlink" title="6.3 堆的按需增长"></a>6.3 堆的按需增长</h3><p>用户进程调用 <code>malloc()</code> 耗尽预分配堆空间时，<code>sbrk()</code> 系统调用最终触发 <code>pgalloc()</code>（<code>arm_pgalloc.c:176-254</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">pgalloc(brkaddr=0x80201000, npages=3)          // 进程请求增长 3 页</span><br><span class="line">  │</span><br><span class="line">  └→ for i=0; i&lt;3; i++:</span><br><span class="line">       │</span><br><span class="line">       ├→ paddr = get_pgtable(addrenv, brkaddr)          // arm_pgalloc.c:96</span><br><span class="line">       │    │</span><br><span class="line">       │    ├→ l1entry = mmu_l1_getentry(vaddr)            // 读当前 L1 条目</span><br><span class="line">       │    ├→ if l1entry == 0:                             // heap 的 L2 表还不存在</span><br><span class="line">       │    │    ├→ paddr = alloc_pgtable()                 // 分配新 L2 表 (4KB)</span><br><span class="line">       │    │    │    ├→ mm_pgalloc(1)                      // 物理分配</span><br><span class="line">       │    │    │    ├→ memset(l2table, 0, 4096)           // 清零</span><br><span class="line">       │    │    │    └→ up_flush_dcache(...)               // 确保写入物理内存</span><br><span class="line">       │    │    │</span><br><span class="line">       │    │    ├→ l1entry = paddr | MMU_L1_PGTABFLAGS     // 构建 L1 PTE 条目</span><br><span class="line">       │    │    └→ up_addrenv_select(addrenv)              // 实例化新 L2 表</span><br><span class="line">       │    │         // 为什么这里又做一次 addrenv_select?</span><br><span class="line">       │    │         // pgalloc 可能在内核上下文中（syscall 处理期间），</span><br><span class="line">       │    │         // 需要确保目标进程的页表是当前活跃的</span><br><span class="line">       │    │</span><br><span class="line">       │    └→ return l1entry &amp; PMD_PTE_PADDR_MASK         // 返回 L2 表物理地址</span><br><span class="line">       │</span><br><span class="line">       ├→ l2table = arm_pgvaddr(paddr)                     // 获取 L2 表的虚拟地址</span><br><span class="line">       ├→ index = (brkaddr &amp; 0x000FF000) &gt;&gt; 12             // L2 表内索引</span><br><span class="line">       ├→ l2table[index] = mm_pgalloc(1) | MMU_L2_UDATAFLAGS  // 分配物理页 + 写 PTE</span><br><span class="line">       ├→ up_flush_dcache(...)                              // 确保写入物理内存</span><br><span class="line">       └→ brkaddr += 4096</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="7-系统调用与上下文切换全链路"><a href="#7-系统调用与上下文切换全链路" class="headerlink" title="7. 系统调用与上下文切换全链路"></a>7. 系统调用与上下文切换全链路</h2><p>KERNEL 模式下，用户进程的所有内核交互都通过 <code>SVC #0</code> 指令触发 syscall。以下是完整的从用户 <code>write()</code> 到返回用户态的端到端流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line">[User mode, PL0, 进程 A 的页表活跃]</span><br><span class="line">app_main()</span><br><span class="line">  └→ printf(&quot;hello\n&quot;)</span><br><span class="line">       └→ write(fd, buf, len)          // libc 中的 syscall proxy</span><br><span class="line">            └→ SVC #0                  // 触发 SVC 异常</span><br><span class="line">                 ───── enters SVC mode ─────</span><br><span class="line"></span><br><span class="line">[Kernel mode, PL1, 同一进程 A 的 L1 表仍然活跃]</span><br><span class="line">arm_vectorsvc (arm_vectors.S:294)</span><br><span class="line">  ├→ srsdb sp!, #PSR_MODE_SYS          // 保存 LR_svc 和 SPSR_svc 到 SYS 模式栈</span><br><span class="line">  ├→ cpsid if, #PSR_MODE_SYS           // 切换到 SYS 模式</span><br><span class="line">  ├→ stmdb sp!, &#123;r0-r12&#125;               // 保存通用寄存器</span><br><span class="line">  ├→ save r13(sp_usr), r14(lr_usr)    // 保存用户栈指针和返回地址</span><br><span class="line">  └→ bl arm_syscall                     // 调用 C 语言 syscall 分发器</span><br><span class="line"></span><br><span class="line">arm_syscall(regs) (arm_syscall.c:162)</span><br><span class="line">  ├→ switch (regs[REG_R0]):</span><br><span class="line">  │    case SYS_write:</span><br><span class="line">  │      dispatch_syscall() (arm_syscall.c:124)</span><br><span class="line">  │        ├→ g_stublookup[R0-CONFIG_SYS_RESERVED]</span><br><span class="line">  │        │    // 查找 SYS_write 对应的内核 stub 函数指针</span><br><span class="line">  │        ├→ blx ip                    // 调用真正的内核 write() 实现</span><br><span class="line">  │        │    └→ uart_write() → pl011_send()</span><br><span class="line">  │        └→ SVC #SYS_syscall_return   // 重新进入 svc 以返回用户态</span><br><span class="line">  │</span><br><span class="line">  │    case SYS_syscall_return: (arm_syscall.c:218)</span><br><span class="line">  │      // 恢复用户 CPSR、PC、R0，处理 pending signal</span><br><span class="line">  │      // 如果此 syscall 触发了任务切换（如 sleep），</span><br><span class="line">  │      // 则返回的是新任务的寄存器上下文</span><br><span class="line">  │</span><br><span class="line">  │    case SYS_switch_context: (arm_syscall.c:269)</span><br><span class="line">  │      └→ nxsched_switch_context()    // 触发调度器选择下一个任务</span><br><span class="line">  │</span><br><span class="line">  │    case SYS_restore_context: (arm_syscall.c:275)</span><br><span class="line">  │      ├→ addrenv_switch(tcb)         // &lt;— 地址空间切换发生在这里！</span><br><span class="line">  │      │    └→ up_addrenv_select(&amp;next-&gt;addrenv)</span><br><span class="line">  │      │         └→ mmu_l1_setpgtable(l1table)  // 写 TTBR0 + 刷 TLB</span><br><span class="line">  │      ├→ *running_task = tcb</span><br><span class="line">  │      └→ regs = tcb-&gt;xcp.regs       // 获取新任务的寄存器快照</span><br><span class="line">  │</span><br><span class="line">  └→ return regs;                       // 返回寄存器上下文给汇编层</span><br><span class="line"></span><br><span class="line">[汇编层]</span><br><span class="line">  rfeia r14                            // 原子恢复 PC (r14) 和 CPSR (SPSR_svc)</span><br><span class="line">  ───── returns to user mode ─────</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>关键洞察</strong>：整个 syscall 处理过程中<strong>从未切换 TTBR0</strong>——因为进程 A 的 L1 表中已经有完整的内核映射。内核代码不需要切换到”内核页表”，因为根本就不存在单独的”内核页表”——每个进程的 L1 表就是内核页表和用户页表的混合体。这消除了 syscall 路径上的页表切换开销。</p>
+</blockquote>
+<h3 id="7-1-进程切换时的地址空间切换时机"><a href="#7-1-进程切换时的地址空间切换时机" class="headerlink" title="7.1 进程切换时的地址空间切换时机"></a>7.1 进程切换时的地址空间切换时机</h3><p>当进程 A 执行 <code>sleep(1)</code>，syscall 处理过程中：</p>
+<ol>
+<li><code>SYS_nanosleep</code> stub 调用内核的 sleep 实现</li>
+<li>内核将进程 A 移出就绪队列，选择进程 B</li>
+<li><code>SYS_switch_context</code> → <code>nxsched_switch_context()</code> 设置 TCB 切换标记</li>
+<li>返回到 arm_syscall 后，<code>SYS_syscall_return</code> 注意到需要切换上下文</li>
+<li><code>SYS_restore_context</code> 处理 → <code>addrenv_switch(tcb_B)</code> → <strong>写 TTBR0 为进程 B 的 L1 表</strong> → <strong>刷 TLB</strong></li>
+<li>返回进程 B 的寄存器上下文，<code>rfeia</code> 回到进程 B 的用户态</li>
+</ol>
+<hr>
+<h2 id="8-FLAT-与-KERNEL-模式完整对比"><a href="#8-FLAT-与-KERNEL-模式完整对比" class="headerlink" title="8. FLAT 与 KERNEL 模式完整对比"></a>8. FLAT 与 KERNEL 模式完整对比</h2><h3 id="8-1-架构差异"><a href="#8-1-架构差异" class="headerlink" title="8.1 架构差异"></a>8.1 架构差异</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">FLAT Mode:</span><br><span class="line">  ┌──────────────────────────────────────┐</span><br><span class="line">  │  Single flat address space            │</span><br><span class="line">  │  ┌────────┬────────┬────────┬──────┐ │</span><br><span class="line">  │  │ Kernel │  libc  │  NSH   │ App  │ │</span><br><span class="line">  │  │ code   │        │        │ code │ │</span><br><span class="line">  │  └────────┴────────┴────────┴──────┘ │</span><br><span class="line">  │  All linked into one &quot;nuttx&quot; binary   │</span><br><span class="line">  │  No MMU page tables (identity only)   │</span><br><span class="line">  └──────────────────────────────────────┘</span><br><span class="line">  App calls kernel: bl &lt;func&gt;          (direct branch, 1 cycle)</span><br><span class="line">  App crashes:     Data Abort → PANIC  (everything dies)</span><br><span class="line"></span><br><span class="line">KERNEL Mode:</span><br><span class="line">  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐</span><br><span class="line">  │ Process A    │  │ Process B    │  │ Process C    │</span><br><span class="line">  │ VA space     │  │ VA space     │  │ VA space     │</span><br><span class="line">  │              │  │              │  │              │</span><br><span class="line">  │ Kernel map ──┼──┼──────────────┼──┼── (shared)   │</span><br><span class="line">  │ (0x00000000) │  │ (same copy)  │  │ (same copy)  │</span><br><span class="line">  │              │  │              │  │              │</span><br><span class="line">  │ User .text   │  │ User .text   │  │ User .text   │</span><br><span class="line">  │ (0x80000000) │  │ (0x80000000) │  │ (0x80000000) │</span><br><span class="line">  │ → phys A     │  │ → phys B     │  │ → phys C     │</span><br><span class="line">  │ User .data   │  │ User .data   │  │ User .data   │</span><br><span class="line">  │ (0x80100000) │  │ (0x80100000) │  │ (0x80100000) │</span><br><span class="line">  │ → phys A&#x27;    │  │ → phys B&#x27;    │  │ → phys C&#x27;    │</span><br><span class="line">  └──────────────┘  └──────────────┘  └──────────────┘</span><br><span class="line">  App calls kernel: SVC #0 → ...       (syscall, ~50-100 cycles)</span><br><span class="line">  App crashes:     Data Abort → SIGSEGV (only this app dies)</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-代码执行路径对比"><a href="#8-2-代码执行路径对比" class="headerlink" title="8.2 代码执行路径对比"></a>8.2 代码执行路径对比</h3><p>以 <code>printf(&quot;hello\n&quot;)</code> 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">FLAT:</span><br><span class="line">  printf()                     // libc function, same address space</span><br><span class="line">    └→ lib_vsprintf()</span><br><span class="line">         └→ up_putc()          // direct register write to UART</span><br><span class="line">              // No privilege change, no MMU interaction</span><br><span class="line"></span><br><span class="line">KERNEL:</span><br><span class="line">  printf()                     // user-space libc proxy</span><br><span class="line">    └→ write(fd, buf, len)     // user-space syscall proxy</span><br><span class="line">         └→ SVC #0             // trap to kernel</span><br><span class="line">              └→ arm_vectorsvc // save context (20+ registers)</span><br><span class="line">                   └→ arm_syscall</span><br><span class="line">                        └→ dispatch_syscall</span><br><span class="line">                             └→ sys_write() stub</span><br><span class="line">                                  └→ uart_write()</span><br><span class="line">                                       └→ pl011_send() // UART register write</span><br><span class="line">              └→ rfeia          // return to user</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-故障隔离对比"><a href="#8-3-故障隔离对比" class="headerlink" title="8.3 故障隔离对比"></a>8.3 故障隔离对比</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">FLAT crash:</span><br><span class="line">  Task:  *((int*)0) = 42;      // null pointer write</span><br><span class="line">  CPU:   Data Abort at PC=0x80001234</span><br><span class="line">  NuttX: PANIC! System halted.</span><br><span class="line">  Result: Everything dead.</span><br><span class="line"></span><br><span class="line">KERNEL crash:</span><br><span class="line">  Task:  *((int*)0) = 42;      // null pointer write in PL0</span><br><span class="line">  CPU:   Data Abort at PC=0x80001234, DFSR=0x805 (translation fault, PL0)</span><br><span class="line">  NuttX: arm_dataabort()</span><br><span class="line">           ├→ Read DFAR (fault address), DFSR (fault status)</span><br><span class="line">           ├→ Determine: translation fault at address 0, PL0 access</span><br><span class="line">           └→ Deliver SIGSEGV to task</span><br><span class="line">              └→ Task exits, resources freed, page table destroyed</span><br><span class="line">                  NSH continues running.</span><br><span class="line"></span><br><span class="line">  Task&#x27;s L1 table freed: l1table returned to page pool</span><br><span class="line">  Task&#x27;s L2 tables freed: each L2 page + data pages freed</span><br><span class="line">  Task&#x27;s kernel stack freed</span><br><span class="line">  Remaining processes untouched.</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="9-关键设计要点"><a href="#9-关键设计要点" class="headerlink" title="9. 关键设计要点"></a>9. 关键设计要点</h2><ol>
+<li><p><strong>L1 管内核，L2 管用户。</strong> 内核物理区域用 <code>PMD_TYPE_SECT</code>（1MB 段描述符）直接映射，用户空间用 <code>PMD_TYPE_PTE</code> → L2 小页（4KB）映射。内核用段映射追求简单和性能，用户用小页追求灵活分配和权限隔离。</p>
+</li>
+<li><p><strong>整表复制策略是 NuttX 的最大特色。</strong> 每个进程获得一张完整 L1 表的 16KB 拷贝——不是共享 L1 + 交换条目，也不是 Linux 的部分复制。<code>arch_addrenv_s:136</code> 的注释直接说明了原因：”Alloc whole l1table to make better context switch performance”。这在嵌入式场景（进程数少，内存有限但够用）是合理的——用 16KB&#x2F;进程换取上下文切换只需写一次 TTBR0。</p>
+</li>
+<li><p><strong>进程切换 &#x3D; 一次 TTBR0 写入 + 一次 TLB 刷新。</strong> <code>mmu_l1_setpgtable()</code> 就是两条 CP15 指令。没有 ASID 管理、没有复杂的 TLB shootdown 协议。NuttX 官方文档 <code>Documentation/implementation/memory_configurations.rst:725-737</code> 提到 ARMv7-A 的硬件页表遍历（HW page table walk）是”huge performance advantage”——TLB miss 由硬件自动填充，无需软件 page fault handler 介入。</p>
+</li>
+<li><p><strong>内核映射存在于每个进程的页表中。</strong> 通过 <code>memcpy()</code> 从内核 L1 表复制，每个进程的 L1 表 entries 0<del>2047（覆盖 PA 0</del>2GB）完全相同。这意味着 syscall 处理过程中<strong>无需切换 TTBR0</strong>——内核代码就在”那里”，只是从 PL1 执行。</p>
+</li>
+<li><p><strong>ELF 加载需要临时地址空间切换。</strong> 内核通过 <code>addrenv_select()</code> 临时切换到目标进程的页表，将 ELF 段通过 <code>memcpy</code> 写入目标虚拟地址。加载完成后，.text 的 AP 位从 <code>PROT_WRITE</code> 恢复为只读。</p>
+</li>
+<li><p><strong>双栈机制是 exec() 正确性的保障。</strong> 当进程 A 执行 <code>exec()</code> 启动进程 B 时，A 的地址环境（包括用户栈）需要被替换。如果内核逻辑跑在 A 的用户栈上，替换地址空间时栈就没了。解决方案：<code>CONFIG_ARCH_KERNEL_STACK</code> 为每个进程分配一个 3072 字节的内核栈，syscall 处理期间切换到内核栈。</p>
+</li>
+<li><p><strong>页池 identity 映射简化了虚实转换。</strong> 页池在 <code>0x40300000</code> 处 identity 映射，<code>arm_pgvaddr(paddr) = paddr</code>。这对页表遍历至关重要——MMU 的硬件页表遍历使用物理地址，但软件在修改页表内容时使用虚拟地址。</p>
+</li>
+</ol>
+<hr>
+<h2 id="10-与-Linux-的对比"><a href="#10-与-Linux-的对比" class="headerlink" title="10. 与 Linux 的对比"></a>10. 与 Linux 的对比</h2><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>NuttX</th>
+<th>Linux</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>L1 页表管理</strong></td>
+<td>每进程完整 16KB 拷贝</td>
+<td>每进程独立 PGD，内核部分共享（swapper_pg_dir 作为模板）</td>
+</tr>
+<tr>
+<td><strong>上下文切换</strong></td>
+<td>写 TTBR0 + 刷全部 TLB</td>
+<td>写 TTBR0（含 ASID），不刷 TLB</td>
+</tr>
+<tr>
+<td><strong>ASID</strong></td>
+<td>不使用</td>
+<td>使用 8 位 ASID，支持 256 个活跃地址空间</td>
+</tr>
+<tr>
+<td><strong>用户空间大小</strong></td>
+<td>~3MB（可配置）</td>
+<td>3GB（arm），128TB（arm64）</td>
+</tr>
+<tr>
+<td><strong>页表占用</strong></td>
+<td>16KB L1 + ~1-4KB L2&#x2F;进程</td>
+<td>~16KB PGD + ~1-4KB PUD&#x2F;PMD&#x2F;PTE&#x2F;进程</td>
+</tr>
+<tr>
+<td><strong>Demand Paging</strong></td>
+<td>不支持（CONFIG_PAGING 仅 LPC31xx）</td>
+<td>全面支持 page fault + swap</td>
+</tr>
+<tr>
+<td><strong>Copy-on-Write</strong></td>
+<td>不支持 fork()</td>
+<td>fork() 的核心机制</td>
+</tr>
+<tr>
+<td><strong>Shared Libraries</strong></td>
+<td>静态链接（计划支持）</td>
+<td>ELF .so 动态链接</td>
+</tr>
+<tr>
+<td><strong>内核&#x2F;用户地址空间</strong></td>
+<td>不重叠（内核 0~2GB, 用户 0x80000000+）</td>
+<td>3G&#x2F;1G 或 2G&#x2F;2G 分割</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><table>
+<thead>
+<tr>
+<th>内容</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>构建模式与内存配置官方文档</td>
+<td><code>Documentation/implementation/memory_configurations.rst</code></td>
+</tr>
+<tr>
+<td>地址环境 API 官方文档</td>
+<td><code>Documentation/reference/os/addrenv.rst</code></td>
+</tr>
+<tr>
+<td>ARM 页表提案与设计权衡</td>
+<td><code>Documentation/implementation/memory_configurations.rst:695-812</code></td>
+</tr>
+<tr>
+<td>启动页表初始化（汇编）</td>
+<td><code>arch/arm/src/armv7-a/arm_head.S:181-824</code></td>
+</tr>
+<tr>
+<td>MMU 标志与描述符位域定义</td>
+<td><code>arch/arm/src/armv7-a/mmu.h:267-657</code></td>
+</tr>
+<tr>
+<td>MMU CP15 内联操作</td>
+<td><code>arch/arm/src/armv7-a/mmu.h:1237-1476</code></td>
+</tr>
+<tr>
+<td>L1 映射引擎（mmu_l1_setentry 等）</td>
+<td><code>arch/arm/src/armv7-a/arm_mmu.c:55-218</code></td>
+</tr>
+<tr>
+<td>QEMU 内核内存映射表</td>
+<td><code>arch/arm/src/qemu/qemu_memorymap.c:44-85</code></td>
+</tr>
+<tr>
+<td>QEMU 内存映射常量定义</td>
+<td><code>arch/arm/src/qemu/qemu_memorymap.h:41-64</code></td>
+</tr>
+<tr>
+<td>QEMU 芯片级常量（PGTABLE_BASE_*）</td>
+<td><code>arch/arm/src/qemu/chip.h:44-59</code></td>
+</tr>
+<tr>
+<td>每进程 addrenv 创建与销毁</td>
+<td><code>arch/arm/src/armv7-a/arm_addrenv.c:165-355</code></td>
+</tr>
+<tr>
+<td>L2 区域构建器</td>
+<td><code>arch/arm/src/armv7-a/arm_addrenv_utils.c:58-212</code></td>
+</tr>
+<tr>
+<td>页表切换实现</td>
+<td><code>arch/arm/src/armv7-a/arm_addrenv.c:453-460</code></td>
+</tr>
+<tr>
+<td>arch_addrenv_s 结构定义</td>
+<td><code>arch/arm/include/arch.h:134-159</code></td>
+</tr>
+<tr>
+<td>虚实地址转换（VA→PA）</td>
+<td><code>arch/arm/src/armv7-a/arm_physpgaddr.c:57-117</code></td>
+</tr>
+<tr>
+<td>页池虚实转换（arm_pgvaddr）</td>
+<td><code>arch/arm/src/armv7-a/pgalloc.h:68-74</code></td>
+</tr>
+<tr>
+<td>L2 条目操作（set&#x2F;get&#x2F;clr_l2_entry）</td>
+<td><code>arch/arm/src/armv7-a/pgalloc.h:112-176</code></td>
+</tr>
+<tr>
+<td>堆按需增长（pgalloc）</td>
+<td><code>arch/arm/src/armv7-a/arm_pgalloc.c:176-254</code></td>
+</tr>
+<tr>
+<td>ELF addrenv 集成</td>
+<td><code>libs/libc/elf/elf_addrenv.c:83-251</code></td>
+</tr>
+<tr>
+<td>调度器地址环境切换</td>
+<td><code>sched/addrenv/addrenv.c:125-180</code></td>
+</tr>
+<tr>
+<td>SVC 异常入口（汇编）</td>
+<td><code>arch/arm/src/armv7-a/arm_vectors.S:294-352</code></td>
+</tr>
+<tr>
+<td>Syscall 分发器（C）</td>
+<td><code>arch/arm/src/armv7-a/arm_syscall.c:162-556</code></td>
+</tr>
+<tr>
+<td>knsh defconfig</td>
+<td><code>boards/arm/qemu/qemu-armv7a/configs/knsh/defconfig</code></td>
+</tr>
+<tr>
+<td>地址环境常量派生</td>
+<td><code>include/nuttx/addrenv.h:54-254</code></td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/14/Nuttx-Build-System/" rel="prev" title="Nuttx - Build System">
+                  <i class="fa fa-angle-left"></i> Nuttx - Build System
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/14/Nuttx-Boot-Flow/" rel="next" title="Nuttx - Boot Flow">
+                  Nuttx - Boot Flow <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

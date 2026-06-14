@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="嵌入式设备经常会遇到各种各样的异常，理解和掌握如何快速调试和解决这类问题非常重要。本文主要介绍如何在ARM Cortex-M设备上调试异常，包括错误寄存器和如何自动进行故障分析。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cortex-m fault debug">
+<meta property="og:url" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="嵌入式设备经常会遇到各种各样的异常，理解和掌握如何快速调试和解决这类问题非常重要。本文主要介绍如何在ARM Cortex-M设备上调试异常，包括错误寄存器和如何自动进行故障分析。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/cfsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/ufsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/bfsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/abfsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/mmfsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/hfsr.png">
+<meta property="article:published_time" content="2023-04-29T11:55:35.000Z">
+<meta property="article:modified_time" content="2026-06-14T09:10:14.581Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="debug">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/cfsr.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2023/04/29/Cortex-m-fault-debug/","path":"2023/04/29/Cortex-m-fault-debug/","title":"Cortex-m fault debug"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Cortex-m fault debug | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E9%94%99%E8%AF%AF%E7%8A%B6%E6%80%81%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">1 错误状态寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-Configurable-Fault-Status-Registers%EF%BC%88CFSR%EF%BC%89-0xE000ED28"><span class="nav-text">1.1 Configurable Fault Status Registers（CFSR）- 0xE000ED28</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-1-Usage-Fault-Status-Register-UFSR-0xE000ED2A"><span class="nav-text">1.1.1 Usage Fault Status Register (UFSR) - 0xE000ED2A</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-2-BusFault-Status-Register-BFSR-0xE000ED29"><span class="nav-text">1.1.2 BusFault Status Register (BFSR) - 0xE000ED29</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-3-Auxiliary-Control-Register-ACTLR-0xE000E008"><span class="nav-text">1.1.3 Auxiliary Control Register (ACTLR) - 0xE000E008</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-4-Auxiliary-Bus-Fault-Status-Register-ABFSR-0xE000EFA8"><span class="nav-text">1.1.4 Auxiliary Bus Fault Status Register (ABFSR) - 0xE000EFA8</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-1-5-MemManage-Status-Register-MMFSR-0xE000ED28"><span class="nav-text">1.1.5 MemManage Status Register (MMFSR) - 0xE000ED28</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-HardFault-Status-Register-HFSR-0xE000ED2C"><span class="nav-text">1.2 HardFault Status Register (HFSR) - 0xE000ED2C</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E8%B0%83%E7%94%A8%E6%A0%88%E6%81%A2%E5%A4%8D"><span class="nav-text">2 调用栈恢复</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%BC%82%E5%B8%B8%E4%B8%AD%E5%86%8D%E5%8F%91%E7%94%9F%E5%BC%82%E5%B8%B8"><span class="nav-text">2.1 异常中再发生异常</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E8%87%AA%E5%8A%A8%E9%94%99%E8%AF%AF%E5%88%86%E6%9E%90"><span class="nav-text">3 自动错误分析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%9A%82%E5%81%9C%E5%92%8C%E7%A1%AE%E5%AE%9A%E6%A0%B8%E5%BF%83%E5%AF%84%E5%AD%98%E5%99%A8%E7%8A%B6%E6%80%81"><span class="nav-text">3.1 暂停和确定核心寄存器状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E8%B0%83%E8%AF%95%E6%8F%92%E4%BB%B6"><span class="nav-text">3.2 调试插件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E4%BA%8B%E5%90%8E%E5%88%86%E6%9E%90%EF%BC%88Postmortem-Analysis%EF%BC%89"><span class="nav-text">3.3 事后分析（Postmortem Analysis）</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/04/29/Cortex-m-fault-debug/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Cortex-m fault debug | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Cortex-m fault debug
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2023-04-29 19:55:35" itemprop="dateCreated datePublished" datetime="2023-04-29T19:55:35+08:00">2023-04-29</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>嵌入式设备经常会遇到各种各样的异常，理解和掌握如何快速调试和解决这类问题非常重要。<br>本文主要介绍如何在ARM Cortex-M设备上调试异常，包括错误寄存器和如何自动进行故障分析。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>Cortex-M 系列的MCU有几种不同的状态，发生故障时我们可以分析这些状态，以追查问题发生的原因。</p>
+<h2 id="1-错误状态寄存器"><a href="#1-错误状态寄存器" class="headerlink" title="1 错误状态寄存器"></a>1 错误状态寄存器</h2><h3 id="1-1-Configurable-Fault-Status-Registers（CFSR）-0xE000ED28"><a href="#1-1-Configurable-Fault-Status-Registers（CFSR）-0xE000ED28" class="headerlink" title="1.1 Configurable Fault Status Registers（CFSR）- 0xE000ED28"></a>1.1 Configurable Fault Status Registers（CFSR）- 0xE000ED28</h3><p>这个32位寄存器包含发生并导致异常的故障的主要信息。它包含了三个不同的状态寄存器：UFSR、BFSR和MMFSR</p>
+<p><img src="/2023/04/29/Cortex-m-fault-debug/cfsr.png" alt="img"></p>
+<p>可以通过0xE000ED28处的32位读取访问该寄存器，也可以单独读取每个寄存器。</p>
+<ul>
+<li>整个CFSR - <code>print/x *(uint32_t *) 0xE000ED28</code></li>
+<li>UFSR  - <code>print/x *(uint16_t *) 0xE000ED2A</code></li>
+<li>BFSR  - <code>print/x *(uint8_t *) 0xE000ED29</code></li>
+<li>MMFSR  - <code>print/x *(uint8_t *) 0xE000ED28</code></li>
+</ul>
+<h4 id="1-1-1-Usage-Fault-Status-Register-UFSR-0xE000ED2A"><a href="#1-1-1-Usage-Fault-Status-Register-UFSR-0xE000ED2A" class="headerlink" title="1.1.1 Usage Fault Status Register (UFSR) - 0xE000ED2A"></a>1.1.1 Usage Fault Status Register (UFSR) - 0xE000ED2A</h4><p>这个寄存器由2字节，它总结了与内存访问失败无关的任何故障，如执行了无效指令、尝试进入无效状态。</p>
+<p><img src="/2023/04/29/Cortex-m-fault-debug/ufsr.png" alt="img"></p>
+<p>其中，</p>
+<ul>
+<li><p><strong>DIVBYZERO</strong> - 除零错误。该故障是可配置的。 </p>
+</li>
+<li><p><strong>UNALIGNED</strong> - 表示发生了未对齐的访问操作。未对齐的多字访问，例如访问非 8 字节对齐的 uint64_t，将产生此错误。除 Cortex-M0 MCU 外，4 字节以下的未对齐访问是否产生故障也是可配置的。 </p>
+</li>
+<li><p><strong>NOCP</strong> - 指示已发出 Cortex-M 协处理器指令，但协处理器已禁用或不存在。发生此故障的一种常见情况是，当代码被编译为使用浮点扩展 (<code>-mfloat-abi=hard -mfpu=fpv4-sp-d16</code>) 但协处理器未在启动时启用。</p>
+</li>
+<li><p><strong>INVPC</strong> - 指示 EXC_RETURN 上的完整性检查失败。如果设置了此故障标志，则意味着在异常退出时使用了保留的 EXC_RETURN 值。</p>
+</li>
+<li><p><strong>INVSTATE</strong> - 表示处理器尝试执行某个指令，但程序状态寄存器 (EPSR) 的值是无效的。</p>
+</li>
+</ul>
+<p>  一般情况下，ESPR 指示处理器是否处于 Thumb 模式。使用 <code>bx &amp; blx 或 ldr &amp; ldm</code> 加载 pc 相对值时，必须将指令的位 [0] 设置为 1。如果违反此规则，将生成一个 INVSTATE 异常。一般编写 C 代码时，编译器会自动处理此问题。但如果是手写汇编的话，就比较可能出现这个错误。 </p>
+<p>  <em>平时在实践中，最常见的是传入一个错误的PC值（如注册的callback是非法的），然后进行跳转，就容易出现这个错误。</em></p>
+<ul>
+<li><strong>UNDEFINSTR</strong> - 表示执行了未定义的指令。如果<strong>堆栈损坏</strong>，这可能会在异常退出时发生。编译器也可能会针对应该无法访问的代码路径发出未定义的指令。</li>
+</ul>
+<p><strong>Configurable UsageFault</strong></p>
+<p>某些usage fault的类型可以通过CCR寄存器来配置是否使能。</p>
+<ul>
+<li>Bit 4 (DIV_0_TRP) - 控制除0是否产生错误</li>
+<li>Bit3 (UNALIGN_TRP) - 控制非对齐访问是否产生错误</li>
+</ul>
+<h4 id="1-1-2-BusFault-Status-Register-BFSR-0xE000ED29"><a href="#1-1-2-BusFault-Status-Register-BFSR-0xE000ED29" class="headerlink" title="1.1.2 BusFault Status Register (BFSR) - 0xE000ED29"></a>1.1.2 BusFault Status Register (BFSR) - 0xE000ED29</h4><p>这是一个1字节的寄存器，用来汇总与指令预取和内存访问失败相关的故障。</p>
+<p><img src="/2023/04/29/Cortex-m-fault-debug/bfsr.png" alt="img"></p>
+<ul>
+<li><strong>BFARVALID</strong> - 表示总线故障地址寄存器 (BFAR-0xE000ED38) 是否保存了触发故障的地址。</li>
+<li><strong>LSPERR &amp; STKERR</strong> - 分别表示在惰性状态保存期间（lazy state preservation）或异常进入期间发生的故障。这两种情况都是硬件自动在堆栈上保存状态。可能发生此错误的一种方式是，在尝试处理异常时栈溢出了有效的 RAM 地址范围。 </li>
+<li><strong>UNSTKERR</strong> - 表示尝试从异常返回时发生错误。通常发生这种错误的情况是：在处理异常时堆栈破坏，或者切换栈帧时栈里面的内容没有正确地初始化。 </li>
+<li><strong>IMPRECISERR</strong> - 这个标志非常重要。它告诉我们硬件是否能够确定故障的确切位置。这种错误一般比较难查一点。</li>
+<li><strong>PRECISERR</strong> - 表示在异常进入之前正在执行的指令触发了错误。这种情况下异常发生时自动保存的PC就是导致错误的PC。</li>
+</ul>
+<p><strong>非精确错误的调试建议</strong></p>
+<p>非精确错误是最难查的错误，这意味着堆栈在异常入口处的寄存器不会指向导致异常的代码。</p>
+<p>Cortex-M设备上，<strong>指令预取和数据加载通常产生的是同步的错误</strong>，并且是精确的。而<strong>存储操作则会发生异步故障</strong>。这是因为写入操作有时候会被缓存，所以有时候PC会在数据存储完成之前增加。</p>
+<p>当遇到一个不精确的错误时，<strong>我们需要检查报告异常区域看起来可疑的存储指令</strong>。如果MCU支持ARM Embbedded Trace Macrocell（ETM），一些调试器可以查看最近执行指令的历史纪录。</p>
+<h4 id="1-1-3-Auxiliary-Control-Register-ACTLR-0xE000E008"><a href="#1-1-3-Auxiliary-Control-Register-ACTLR-0xE000E008" class="headerlink" title="1.1.3 Auxiliary Control Register (ACTLR) - 0xE000E008"></a>1.1.3 Auxiliary Control Register (ACTLR) - 0xE000E008</h4><p>辅助控制寄存器。这个寄存器关闭一些硬件优化或特性（通常会带来性能的损失和中断的延迟）。</p>
+<p>对Cortex M3和M4，可以通过设置这个寄存器的 bit 1(DISDEFWBUF) 为1，来关闭写缓冲，从而让所有的非精确错误都变成精确错误。</p>
+<h4 id="1-1-4-Auxiliary-Bus-Fault-Status-Register-ABFSR-0xE000EFA8"><a href="#1-1-4-Auxiliary-Bus-Fault-Status-Register-ABFSR-0xE000EFA8" class="headerlink" title="1.1.4 Auxiliary Bus Fault Status Register (ABFSR) - 0xE000EFA8"></a>1.1.4 Auxiliary Bus Fault Status Register (ABFSR) - 0xE000EFA8</h4><p>这个寄存器仅存在于Cortex-M7设备。当非精确错误发生时，这个寄存器可以指示错误发生在什么内存总线上。</p>
+<p><img src="/2023/04/29/Cortex-m-fault-debug/abfsr.png" alt="img"></p>
+<h4 id="1-1-5-MemManage-Status-Register-MMFSR-0xE000ED28"><a href="#1-1-5-MemManage-Status-Register-MMFSR-0xE000ED28" class="headerlink" title="1.1.5 MemManage Status Register (MMFSR) - 0xE000ED28"></a>1.1.5 MemManage Status Register (MMFSR) - 0xE000ED28</h4><p>这个寄存器报告了MPU相关的错误。</p>
+<p>一般来说只有MPU被配置并使能之后才会产生MPU错误。但是有一些内存访问错误也会出发MemManage Fault。如：尝试在系统地址范围（0xExxx.xxxx）内执行代码。</p>
+<p><img src="/2023/04/29/Cortex-m-fault-debug/mmfsr.png" alt="img"></p>
+<ul>
+<li><strong>MMARVALID</strong> - 表示 MemManage 故障地址寄存器 (MMFAR - 0xE000ED34) 中是否保存了触发 MemManage 故障的地址。 </li>
+<li><strong>MLSPERR &amp; MSTKERR</strong> - 分别表示在惰性状态保存或异常进入期间发生了 MemManage 故障。例如，如果使用 MPU 区域检测堆栈溢出，就有可能会发生这种情况。 </li>
+<li><strong>MUNSTKERR</strong> - 表示从异常返回时发生错误 </li>
+<li><strong>DACCVIOL</strong> - 表示数据访问触发了 MemManage 故障。</li>
+<li><strong>IACCVIOL</strong> - 指示尝试执行一条指令触发了 MPU 或从不执行 (XN) 故障。</li>
+</ul>
+<h3 id="1-2-HardFault-Status-Register-HFSR-0xE000ED2C"><a href="#1-2-HardFault-Status-Register-HFSR-0xE000ED2C" class="headerlink" title="1.2 HardFault Status Register (HFSR) - 0xE000ED2C"></a>1.2 HardFault Status Register (HFSR) - 0xE000ED2C</h3><p>这个寄存器表示发生了 HardFault。</p>
+<p><img src="/2023/04/29/Cortex-m-fault-debug/hfsr.png" alt="img"></p>
+<ul>
+<li><strong>DEBUGEVT</strong> - 未启用调试子系统时发生了指示调试事件（即执行断点指令）</li>
+<li><strong>FORCED</strong> - 这意味着可配置故障（即我们在前面部分讨论的故障类型）升级为 HardFault，如可配置故障处理程序未启用，或者在handler中发生了故障。 </li>
+<li><strong>VECTTBL</strong> - 表示由于从向量表中的地址读取问题而发生故障。这种情况很少，但如果向量表中存在错误地址并且意外中断触发，则可能会发生这种情况。</li>
+</ul>
+<h2 id="2-调用栈恢复"><a href="#2-调用栈恢复" class="headerlink" title="2 调用栈恢复"></a>2 调用栈恢复</h2><p>如果可以复现问题，我们可以在异常处理函数处添加断点：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">(gdb)<span class="keyword">break</span> HardFault_Handler</span><br></pre></td></tr></table></figure>
+
+<p>在异常发生时，一些寄存器会自动压栈。（FPU开启会压更多的寄存器）</p>
+<p>Cortex-M设备有两个栈指针，msp和psp。在异常发生时，EXC_RETURN 会被保存在 lr 寄存器中，它的bit 2指示了发生异常时使用的是msp还是psp。如果bit2为1，则使用psp，否则使用msp。</p>
+<p>示例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">illegal_instruction_execution</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">  <span class="type">int</span> (*bad_instruction)(<span class="type">void</span>) = (<span class="type">void</span> *)<span class="number">0xE0000000</span>;</span><br><span class="line">  <span class="keyword">return</span> bad_instruction();	<span class="comment">// 这个PC是非法的，返回到这个地址会触发错误</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果我们在异常入口添加了断点：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">(gdb) p/x $lr</span><br><span class="line">$<span class="number">4</span> = <span class="number">0xfffffffd</span></span><br><span class="line"></span><br><span class="line"><span class="meta"># lr的bit2为1，说明错误发生时用的是psp</span></span><br><span class="line">(gdb) p/x $lr&amp;(<span class="number">1</span>&lt;&lt;<span class="number">2</span>)</span><br><span class="line">$<span class="number">5</span> = <span class="number">0x4</span></span><br><span class="line"></span><br><span class="line"># 栈中最开始的<span class="number">8</span>个寄存器总是这个顺序:</span><br><span class="line"># r0, r1, r2, r3, r12, LR, pc, xPSR</span><br><span class="line">(gdb) p/a *(<span class="type">uint32_t</span>[<span class="number">8</span>] *)$psp</span><br><span class="line">$<span class="number">16</span> = &#123;</span><br><span class="line">  <span class="number">0x0</span> &lt;g_pfnVectors&gt;,</span><br><span class="line">  <span class="number">0x200003c4</span> &lt;ucHeap+<span class="number">604</span>&gt;,</span><br><span class="line">  <span class="number">0x10000000</span>,</span><br><span class="line">  <span class="number">0xe0000000</span>,</span><br><span class="line">  <span class="number">0x200001b8</span> &lt;ucHeap+<span class="number">80</span>&gt;,</span><br><span class="line">  <span class="number">0x61</span> &lt;illegal_instruction_execution+<span class="number">16</span>&gt;,</span><br><span class="line">  <span class="number">0xe0000000</span>,</span><br><span class="line">  <span class="number">0x80000000</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>当我们知道sp之后，我们就可以从栈中恢复异常发生前的 callstack。</p>
+<h3 id="2-1-异常中再发生异常"><a href="#2-1-异常中再发生异常" class="headerlink" title="2.1 异常中再发生异常"></a>2.1 异常中再发生异常</h3><p>如果在异常中再次发生异常，会发生什么？</p>
+<p>如果使能了可配置错误寄存器（如MemManage, BusFault, UsageFault），这些异常处理程序中的错误，会升级为HardFault。</p>
+<p>一旦到了HardFault，ARM Core就会在不可配置的优先级（-1）上执行。这时候，错误会使得处理器处于无法恢复的状态，需要重置。这种状态被成为<strong>锁定（Lockup）</strong>。</p>
+<p>通常处理器会在进入锁定状态后自动复位，但这不是规范中要求的。这时候，你可以通过使能硬件看门狗来进行复位。</p>
+<p>如果接上了调试器，lockup可能会有不同的行为。如在NRF52840上，处于调试模式时lockup是关闭的。</p>
+<p>当发生lockup时，处理器会重复执行相同的指令，0xFFFFFFFE，或者出发lockup的指令，直到复位。</p>
+<h2 id="3-自动错误分析"><a href="#3-自动错误分析" class="headerlink" title="3 自动错误分析"></a>3 自动错误分析</h2><p>现在我们已经掌握了错误分析的主要信息。接下来我们看如何自动分析这些错误。</p>
+<h3 id="3-1-暂停和确定核心寄存器状态"><a href="#3-1-暂停和确定核心寄存器状态" class="headerlink" title="3.1 暂停和确定核心寄存器状态"></a>3.1 暂停和确定核心寄存器状态</h3><p>第一步，我们在系统异常的时候触发一个断点：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// <span class="doctag">NOTE:</span> If you are using CMSIS, the registers can also be</span></span><br><span class="line"><span class="comment">// accessed through CoreDebug-&gt;DHCSR &amp; CoreDebug_DHCSR_C_DEBUGEN_Msk</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> HALT_IF_DEBUGGING()                              \</span></span><br><span class="line"><span class="meta">  do &#123;                                                   \</span></span><br><span class="line"><span class="meta">    <span class="keyword">if</span> ((*(volatile uint32_t *)0xE000EDF0) &amp; (1 &lt;&lt; 0)) &#123; \</span></span><br><span class="line"><span class="meta">      __asm(<span class="string">&quot;bkpt 1&quot;</span>);                                   \</span></span><br><span class="line"><span class="meta">    &#125;                                                    \</span></span><br><span class="line"><span class="meta">&#125; while (0)</span></span><br></pre></td></tr></table></figure>
+
+<p>为了不需要手动展开寄存器状态，我们定义一个c的结构体：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> __<span class="title">attribute__</span>((<span class="title">packed</span>)) <span class="title">ContextStateFrame</span> &#123;</span></span><br><span class="line">  <span class="type">uint32_t</span> r0;</span><br><span class="line">  <span class="type">uint32_t</span> r1;</span><br><span class="line">  <span class="type">uint32_t</span> r2;</span><br><span class="line">  <span class="type">uint32_t</span> r3;</span><br><span class="line">  <span class="type">uint32_t</span> r12;</span><br><span class="line">  <span class="type">uint32_t</span> lr;</span><br><span class="line">  <span class="type">uint32_t</span> return_address;</span><br><span class="line">  <span class="type">uint32_t</span> xpsr;</span><br><span class="line">&#125; sContextStateFrame;</span><br></pre></td></tr></table></figure>
+
+<p>我们可以通过一段小的汇编指令来确定在错误发生时使用的是msp还是psp，并把sp传给<code>my_fault_handler_c</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> HARDFAULT_HANDLING_ASM(_x)               \</span></span><br><span class="line"><span class="meta">  __asm volatile(                                \</span></span><br><span class="line"><span class="meta">      <span class="string">&quot;tst lr, #4 \n&quot;</span>                            \</span></span><br><span class="line"><span class="meta">      <span class="string">&quot;ite eq \n&quot;</span>                                \</span></span><br><span class="line"><span class="meta">      <span class="string">&quot;mrseq r0, msp \n&quot;</span>                         \</span></span><br><span class="line"><span class="meta">      <span class="string">&quot;mrsne r0, psp \n&quot;</span>                         \</span></span><br><span class="line"><span class="meta">      <span class="string">&quot;b my_fault_handler_c \n&quot;</span>                  \</span></span><br><span class="line"><span class="meta">                                                 )</span></span><br></pre></td></tr></table></figure>
+
+<p>这时候，我们的c的处理函数可以写成这个样子：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 关闭优化，以确保frame参数不会被优化掉</span></span><br><span class="line">__attribute__((optimize(<span class="string">&quot;O0&quot;</span>)))</span><br><span class="line"><span class="type">void</span> <span class="title function_">my_fault_handler_c</span><span class="params">(sContextStateFrame *frame)</span> &#123;</span><br><span class="line">  <span class="comment">// 如果接着调试器，我们执行断点</span></span><br><span class="line">  HALT_IF_DEBUGGING();</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 异常处理的逻辑，如:</span></span><br><span class="line">  <span class="comment">//  - 记录错误以进行事后分析</span></span><br><span class="line">  <span class="comment">//  - 如果错误可恢复</span></span><br><span class="line">  <span class="comment">//    - 则清除错误并返回到 Thread Mode</span></span><br><span class="line">  <span class="comment">//  - 否则</span></span><br><span class="line">  <span class="comment">//    - 重启系统</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果接着调试器，我们就可以把寄存器状态打印出来：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">0x00000244</span> in <span class="title function_">my_fault_handler_c</span> <span class="params">(frame=<span class="number">0x200005d8</span> &lt;ucHeap+<span class="number">1136</span>&gt;)</span> at ./cortex-m-fault-debug/startup.c:94</span><br><span class="line">94	  <span class="title function_">HALT_IF_DEBUGGING</span><span class="params">()</span>;</span><br><span class="line">(gdb) p/a *frame</span><br><span class="line">$<span class="number">18</span> = &#123;</span><br><span class="line">  r0 = <span class="number">0x0</span> &lt;g_pfnVectors&gt;,</span><br><span class="line">  r1 = <span class="number">0x200003c4</span> &lt;ucHeap+<span class="number">604</span>&gt;,</span><br><span class="line">  r2 = <span class="number">0x10000000</span>,</span><br><span class="line">  r3 = <span class="number">0xe0000000</span>,</span><br><span class="line">  r12 = <span class="number">0x200001b8</span> &lt;ucHeap+<span class="number">80</span>&gt;,</span><br><span class="line">  lr = <span class="number">0x61</span> &lt;illegal_instruction_execution+<span class="number">16</span>&gt;,</span><br><span class="line">  return_address = <span class="number">0xe0000000</span>,</span><br><span class="line">  xpsr = <span class="number">0x80000000</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这时候，我们就有了一个错误的现场，我们可以结合PC，LR，SP，来做进一步的分析，内存变量也都可以查看。</p>
+<h3 id="3-2-调试插件"><a href="#3-2-调试插件" class="headerlink" title="3.2 调试插件"></a>3.2 调试插件</h3><p>很多IDE都有插件可以看到寄存器。这些实现通常是利用了CMSIS系统视图描述格式文件（System View Description），它是一个XML的标准格式，用来描述ARM MCY的内存映射寄存器。</p>
+<p>你甚至可以通过GDB来加载这些文件，如 PyCortexMDebug，一个GDB的python脚本。</p>
+<p>这是一个实例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">(gdb) source cmdebug/svd_gdb.py</span><br><span class="line">(gdb) svd_load cortex-m4-scb.svd</span><br><span class="line">(gdb) svd</span><br><span class="line">Available Peripherals:</span><br><span class="line">    ...</span><br><span class="line">	SCB:        System control block</span><br><span class="line">    ...</span><br><span class="line">(gdb) svd SCB</span><br><span class="line">Registers in SCB:</span><br><span class="line">    ...</span><br><span class="line">	CFSR_UFSR_BFSR_MMFSR:      <span class="number">524288</span>  Configurable fault status <span class="keyword">register</span></span><br><span class="line">    ...</span><br><span class="line">(gdb) svd SCB CFSR_UFSR_BFSR_MMFSR</span><br><span class="line">Fields in SCB CFSR_UFSR_BFSR_MMFSR:</span><br><span class="line">	IACCVIOL:     <span class="number">0</span>  Instruction access violation flag</span><br><span class="line">	DACCVIOL:     <span class="number">0</span>  Data access violation flag</span><br><span class="line">	MUNSTKERR:    <span class="number">0</span>  Memory manager fault on unstacking <span class="keyword">for</span> a <span class="keyword">return</span> from exception</span><br><span class="line">	MSTKERR:      <span class="number">0</span>  Memory manager fault on stacking <span class="keyword">for</span> exception entry.</span><br><span class="line">	MLSPERR:      <span class="number">0</span></span><br><span class="line">	MMARVALID:    <span class="number">0</span>  Memory Management Fault Address Register (MMAR) valid flag</span><br><span class="line">	IBUSERR:      <span class="number">1</span>  Instruction bus error</span><br><span class="line">	PRECISERR:    <span class="number">0</span>  Precise data bus error</span><br><span class="line">	IMPRECISERR:  <span class="number">0</span>  Imprecise data bus error</span><br><span class="line">	UNSTKERR:     <span class="number">0</span>  Bus fault on unstacking <span class="keyword">for</span> a <span class="keyword">return</span> from exception</span><br><span class="line">	STKERR:       <span class="number">0</span>  Bus fault on stacking <span class="keyword">for</span> exception entry</span><br><span class="line">	LSPERR:       <span class="number">0</span>  Bus fault on floating-point lazy state preservation</span><br><span class="line">	BFARVALID:    <span class="number">0</span>  Bus Fault Address Register (BFAR) valid flag</span><br><span class="line">	UNDEFINSTR:   <span class="number">0</span>  Undefined instruction usage fault</span><br><span class="line">	INVSTATE:     <span class="number">1</span>  Invalid state usage fault</span><br><span class="line">	INVPC:        <span class="number">0</span>  Invalid PC load usage fault</span><br><span class="line">	NOCP:         <span class="number">0</span>  No coprocessor usage fault.</span><br><span class="line">	UNALIGNED:    <span class="number">0</span>  Unaligned access usage fault</span><br><span class="line">	DIVBYZERO:    <span class="number">0</span>  Divide by zero usage fault</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-事后分析（Postmortem-Analysis）"><a href="#3-3-事后分析（Postmortem-Analysis）" class="headerlink" title="3.3 事后分析（Postmortem Analysis）"></a>3.3 事后分析（Postmortem Analysis）</h3><p>通常说的保存dump文件，就是事后分析。我们可以参考CmBacktrace之类的一些开源组件来完成。它里面的代码，就是对上述知识点的运用。 </p>
+<p><strong>参考资料：</strong></p>
+<ol>
+<li><p><em><a target="_blank" rel="noopener" href="https://interrupt.memfault.com/blog/cortex-m-hardfault-debug">https://interrupt.memfault.com/blog/cortex-m-hardfault-debug</a></em></p>
+</li>
+<li><p><em><a target="_blank" rel="noopener" href="https://github.com/armink/CmBacktrace">https://github.com/armink/CmBacktrace</a></em></p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/debug/" rel="tag"># debug</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2023/04/29/%E5%9F%BA%E4%BA%8EuECC%E7%9A%84mbedTLS%E5%8A%A0%E9%80%9F%E6%96%B9%E6%B3%95/" rel="prev" title="基于uECC的mbedTLS加速方法">
+                  <i class="fa fa-angle-left"></i> 基于uECC的mbedTLS加速方法
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2023/05/03/Bluedroid-Study-Notes-%E8%BF%9E%E6%8E%A5/" rel="next" title="Bluedroid Study Notes - 连接">
+                  Bluedroid Study Notes - 连接 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

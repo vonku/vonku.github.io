@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从 CPU 上电复位到 NSH Shell 出现提示符，NuttX 内核经历了汇编级 MMU 初始化、OS 子系统逐层构建、ELF 可执行文件加载和用户态地址空间创建四个阶段。本文以 qemu-armv7a:knsh 配置为实例，逐行追踪完整的启动调用链。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - Boot Flow">
+<meta property="og:url" content="http://yoursite.com/2026/06/14/Nuttx-Boot-Flow/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从 CPU 上电复位到 NSH Shell 出现提示符，NuttX 内核经历了汇编级 MMU 初始化、OS 子系统逐层构建、ELF 可执行文件加载和用户态地址空间创建四个阶段。本文以 qemu-armv7a:knsh 配置为实例，逐行追踪完整的启动调用链。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/06/14/Nuttx-Boot-Flow/boot_flow.png">
+<meta property="article:published_time" content="2026-06-14T08:41:03.000Z">
+<meta property="article:modified_time" content="2026-06-14T09:10:14.638Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/06/14/Nuttx-Boot-Flow/boot_flow.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/14/Nuttx-Boot-Flow/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/14/Nuttx-Boot-Flow/","path":"2026/06/14/Nuttx-Boot-Flow/","title":"Nuttx - Boot Flow"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - Boot Flow | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B%E5%85%A8%E6%99%AF"><span class="nav-text">1. 启动流程全景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-Phase-A-%E2%80%94-%E6%B1%87%E7%BC%96%E7%BA%A7%E5%90%AF%E5%8A%A8%EF%BC%9A%E4%BB%8E%E5%A4%8D%E4%BD%8D%E5%88%B0-C-%E5%87%BD%E6%95%B0"><span class="nav-text">2. Phase A — 汇编级启动：从复位到 C 函数</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E6%B1%87%E7%BC%96%E5%90%AF%E5%8A%A8%EF%BC%9F"><span class="nav-text">2.1 为什么需要汇编启动？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%A4%8D%E4%BD%8D%E5%90%91%E9%87%8F%EF%BC%9A%E7%AC%AC%E4%B8%80%E6%9D%A1%E6%8C%87%E4%BB%A4"><span class="nav-text">2.2 复位向量：第一条指令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-start%EF%BC%9A%E5%BB%BA%E7%AB%8B-MMU-%E9%A1%B5%E8%A1%A8"><span class="nav-text">2.3 __start：建立 MMU 页表</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-1-%E8%BF%9B%E5%85%A5%E5%AE%89%E5%85%A8%E7%8A%B6%E6%80%81"><span class="nav-text">2.3.1 进入安全状态</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-2-%E6%B8%85%E9%9B%B6-L1-%E9%A1%B5%E8%A1%A8"><span class="nav-text">2.3.2 清零 L1 页表</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-3-%E6%98%A0%E5%B0%84%E5%86%85%E6%A0%B8-text-%E5%8C%BA%E5%9F%9F"><span class="nav-text">2.3.3 映射内核 .text 区域</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-4-%E6%97%A0%E6%95%88%E5%8C%96-TLB-%E5%92%8C-Cache"><span class="nav-text">2.3.4 无效化 TLB 和 Cache</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-5-%E9%85%8D%E7%BD%AE-MMU-%E5%AF%84%E5%AD%98%E5%99%A8%E5%B9%B6%E5%BC%80%E5%90%AF"><span class="nav-text">2.3.5 配置 MMU 寄存器并开启</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-Lvstart%EF%BC%9A%E5%87%86%E5%A4%87-C-%E8%BF%90%E8%A1%8C%E7%8E%AF%E5%A2%83"><span class="nav-text">2.4 .Lvstart：准备 C 运行环境</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-Phase-A-%E7%BB%AD-%E2%80%94-arm-boot-%EF%BC%9A%E5%B9%B3%E5%8F%B0%E7%BA%A7-C-%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">3. Phase A 续 — arm_boot()：平台级 C 初始化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%AE%8C%E5%96%84-MMU-%E6%98%A0%E5%B0%84-%E2%80%94-qemu-setupmappings"><span class="nav-text">3.1 完善 MMU 映射 — qemu_setupmappings()</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Phase-B-%E2%80%94-nx-start-%EF%BC%9AOS-%E5%86%85%E6%A0%B8%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">4. Phase B — nx_start()：OS 内核初始化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%88%9D%E5%A7%8B%E5%8C%96%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-text">4.1 初始化状态机</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%88%9B%E5%BB%BA-IDLE-%E4%BB%BB%E5%8A%A1"><span class="nav-text">4.2 创建 IDLE 任务</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E5%99%A8%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">4.3 内存管理器初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-OS-%E5%AD%90%E7%B3%BB%E7%BB%9F%E5%88%9D%E5%A7%8B%E5%8C%96%E9%93%BE"><span class="nav-text">4.4 OS 子系统初始化链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-up-initialize-%EF%BC%9A%E7%A1%AC%E4%BB%B6%E9%A9%B1%E5%8A%A8%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">4.5 up_initialize()：硬件驱动初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E7%8A%B6%E6%80%81%E8%AE%B0%E5%BD%95"><span class="nav-text">4.6 状态记录</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Phase-B-%E7%BB%AD-%E2%80%94-nx-bringup-%EF%BC%9A%E7%B3%BB%E7%BB%9F-Bring-Up"><span class="nav-text">5. Phase B 续 — nx_bringup()：系统 Bring-Up</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E8%AE%BE%E7%BD%AE%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F"><span class="nav-text">5.1 设置环境变量</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%90%AF%E5%8A%A8%E5%86%85%E6%A0%B8%E5%B7%A5%E4%BD%9C%E7%BA%BF%E7%A8%8B"><span class="nav-text">5.2 启动内核工作线程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E5%88%9B%E5%BB%BA%E5%BA%94%E7%94%A8%E5%88%9D%E5%A7%8B%E5%8C%96%E7%BA%BF%E7%A8%8B"><span class="nav-text">5.3 创建应用初始化线程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-nx-start-application-%EF%BC%9A%E5%90%AF%E5%8A%A8%E7%94%A8%E6%88%B7%E7%A8%8B%E5%BA%8F"><span class="nav-text">5.4 nx_start_application()：启动用户程序</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-exec-spawn-%EF%BC%9AKERNEL-%E6%A8%A1%E5%BC%8F%E7%9A%84%E8%BF%9B%E7%A8%8B%E5%88%9B%E5%BB%BA"><span class="nav-text">5.5 exec_spawn()：KERNEL 模式的进程创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-%E7%94%A8%E6%88%B7%E7%A8%8B%E5%BA%8F%E5%85%A5%E5%8F%A3"><span class="nav-text">5.6 用户程序入口</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-Phase-C-%E2%80%94-%E7%94%A8%E6%88%B7%E7%A8%8B%E5%BA%8F%EF%BC%9ANSH-Shell-%E5%90%AF%E5%8A%A8"><span class="nav-text">6. Phase C — 用户程序：NSH Shell 启动</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%AE%8C%E6%95%B4%E8%B0%83%E7%94%A8%E9%93%BE%E6%80%BB%E7%BB%93"><span class="nav-text">7. 完整调用链总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%85%B3%E9%94%AE%E8%AE%BE%E8%AE%A1%E5%86%B3%E7%AD%96%E8%A7%A3%E6%9E%90"><span class="nav-text">8. 关键设计决策解析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-KERNEL-vs-FLAT-%E6%A8%A1%E5%BC%8F%E7%9A%84%E6%9C%AC%E8%B4%A8%E5%8C%BA%E5%88%AB"><span class="nav-text">8.1 KERNEL vs FLAT 模式的本质区别</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-Identity-Mapping-%E7%9A%84%E5%A6%99%E7%94%A8"><span class="nav-text">8.2 Identity Mapping 的妙用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-IDLE-%E7%BA%BF%E7%A8%8B%E5%8D%B3%E5%88%9D%E5%A7%8B%E5%8C%96%E7%BA%BF%E7%A8%8B"><span class="nav-text">8.3 IDLE 线程即初始化线程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%8F%82%E8%80%83"><span class="nav-text">9. 参考</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%AE%8C%E6%95%B4%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B%E5%9B%BE"><span class="nav-text">10. 完整启动流程图</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/14/Nuttx-Boot-Flow/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - Boot Flow | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - Boot Flow
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-14 16:41:03" itemprop="dateCreated datePublished" datetime="2026-06-14T16:41:03+08:00">2026-06-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从 CPU 上电复位到 NSH Shell 出现提示符，NuttX 内核经历了汇编级 MMU 初始化、OS 子系统逐层构建、ELF 可执行文件加载和用户态地址空间创建四个阶段。本文以 <code>qemu-armv7a:knsh</code> 配置为实例，逐行追踪完整的启动调用链。</p>
+</blockquote>
+<span id="more"></span>
+
+<hr>
+<h2 id="1-启动流程全景"><a href="#1-启动流程全景" class="headerlink" title="1. 启动流程全景"></a>1. 启动流程全景</h2><p>处理器上电后，要运行一个用户程序（比如 shell），需要解决三个问题：</p>
+<ol>
+<li><strong>硬件就绪</strong>：CPU 从物理地址执行，没有 MMU 映射，没有 C 运行环境（栈、.bss、.data）。</li>
+<li><strong>OS 就绪</strong>：需要初始化调度器、内存管理、文件系统、中断、时钟等 OS 子系统。</li>
+<li><strong>用户程序就绪</strong>：KERNEL 模式下，用户程序是独立的 ELF 可执行文件，需要加载、创建独立的地址空间、从内核态切换到用户态执行。</li>
+</ol>
+<p>NuttX 官方文档将这一过程划分为三个 Phase（参见 <code>Documentation/implementation/nuttx_initialization_sequence.rst</code>），再加上 KERNEL 模式特有的用户态准备，实际形成 <strong>四个阶段</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">                        Physical Address Space      Virtual Address Space</span><br><span class="line">                        (MMU Disabled)              (MMU Enabled)</span><br><span class="line">                            |                            |</span><br><span class="line">Phase A ────────────────────┤                            |</span><br><span class="line">  vector table → __start    |                            |</span><br><span class="line">  arm_head.S (MMU init)     |──── MMU Enabled ─────────→ |</span><br><span class="line">  ├─ Clear L1 Page Table    |                            |</span><br><span class="line">  ├─ Map .text Region       |                            |</span><br><span class="line">  ├─ Set TTBR/TTBCR/DACR    |                            |</span><br><span class="line">  └─ mov pc, lr ──────────────────────────────────────→ |</span><br><span class="line">                            |                            |</span><br><span class="line">Phase A (cont.) ──────────────────────────────────────── |</span><br><span class="line">  .Lvstart                  |                            |</span><br><span class="line">  ├─ Set Stack Pointer      |                            |</span><br><span class="line">  ├─ Clear .bss / .data     |                            |</span><br><span class="line">  └─ arm_boot() → nx_start()                             |</span><br><span class="line">                            |                            |</span><br><span class="line">Phase B ──────────────────────────────────────────────── |</span><br><span class="line">  nx_start() (~520 lines)   |                            |</span><br><span class="line">  ├─ Task/Mem/FS/IRQ init   |                            |</span><br><span class="line">  ├─ up_initialize()        |                            |</span><br><span class="line">  └─ nx_bringup()           |                            |</span><br><span class="line">                            |                            |</span><br><span class="line">Phase B (cont.) ──────────────────────────────────────── |</span><br><span class="line">  nx_bringup()              |                            |</span><br><span class="line">  ├─ Env vars, Work Queues  |                            |</span><br><span class="line">  ├─ board_late_initialize()|                            |</span><br><span class="line">  └─ exec_spawn(&quot;/bin/init&quot;)|── Create User Addr ──────→ |</span><br><span class="line">                            |       Space                |</span><br><span class="line">Phase C ─────────────────────────────────────────────────┤</span><br><span class="line">  NSH Shell Start           |                            |</span><br><span class="line">  nsh_consolemain() loop    |    User Space 0x80000000   |</span><br><span class="line">  (waiting for cmd input)   |                            |</span><br></pre></td></tr></table></figure>
+
+<p><strong>与 Linux 的对比</strong>：Linux 启动分为 bootloader → kernel decompression → start_kernel() → rest_init() → init 进程，整体结构类似，但 NuttX 的实现更紧凑——整个启动过程从头到尾在一个函数调用链中完成，直到 <code>exec_spawn()</code> 才创建第一个用户态进程。</p>
+<p>下面我们逐阶段深入源代码。</p>
+<hr>
+<h2 id="2-Phase-A-—-汇编级启动：从复位到-C-函数"><a href="#2-Phase-A-—-汇编级启动：从复位到-C-函数" class="headerlink" title="2. Phase A — 汇编级启动：从复位到 C 函数"></a>2. Phase A — 汇编级启动：从复位到 C 函数</h2><h3 id="2-1-为什么需要汇编启动？"><a href="#2-1-为什么需要汇编启动？" class="headerlink" title="2.1 为什么需要汇编启动？"></a>2.1 为什么需要汇编启动？</h3><p>C 语言需要栈才能运行，需要已初始化的全局变量（<code>.data</code>）和已清零的未初始化变量（<code>.bss</code>）。在 CPU 上电瞬间，这些都不存在。此外，ARMv7-A 处理器刚上电时 MMU 是关闭的，所有地址都是物理地址。我们需要用汇编语言准备 C 运行环境，并建立 MMU 页表，才能跳转到 C 代码。</p>
+<h3 id="2-2-复位向量：第一条指令"><a href="#2-2-复位向量：第一条指令" class="headerlink" title="2.2 复位向量：第一条指令"></a>2.2 复位向量：第一条指令</h3><p>ARMv7-A 的复位向量在地址 <code>0x00000000</code>（低向量配置，<code>CONFIG_ARCH_LOWVECTORS=y</code>）。链接脚本将 <code>.vectors</code> 段放在镜像最开头：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dramboot.ld:55   *(.vectors)   → ROM 起始位置 (0x00000000)</span><br></pre></td></tr></table></figure>
+
+<p>向量表位于 <code>arch/arm/src/armv7-a/arm_vectortab.S:60-73</code>，跳转目标地址定义在 <code>:84-99</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">arm_vectortab.S:60-73</span><br><span class="line">.section .vectors, &quot;ax&quot;</span><br><span class="line"></span><br><span class="line">_vector_start:</span><br><span class="line">    ldr  pc, .Lresethandler           /* 0x00: Reset */</span><br><span class="line">    ldr  pc, .Lundefinedhandler       /* 0x04: Undefined instruction */</span><br><span class="line">    ldr  pc, .Lsvchandler             /* 0x08: Supervisor Call (SVC) */</span><br><span class="line">    ldr  pc, .Lprefetchaborthandler   /* 0x0c: Prefetch abort */</span><br><span class="line">    ldr  pc, .Ldataaborthandler       /* 0x10: Data abort */</span><br><span class="line">    ldr  pc, .Laddrexcptnhandler      /* 0x14: Reserved */</span><br><span class="line">    ldr  pc, .Lirqhandler             /* 0x18: IRQ */</span><br><span class="line">    ldr  pc, .Lfiqhandler             /* 0x1c: FIQ */</span><br></pre></td></tr></table></figure>
+
+<p>这些跳转目标在编译时由链接器填充（<code>arm_vectortab.S:84-99</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">arm_vectortab.S:84-99</span><br><span class="line">.Lresethandler:</span><br><span class="line">    .long __start                     /* 复位向量 → __start */</span><br><span class="line">.Lundefinedhandler:</span><br><span class="line">    .long arm_vectorundefinsn</span><br><span class="line">.Lsvchandler:</span><br><span class="line">    .long arm_vectorsvc</span><br><span class="line">    ...</span><br></pre></td></tr></table></figure>
+
+<p>每条 <code>ldr pc, ...</code> 指令从紧跟的 <code>.long</code> 地址加载处理函数入口并跳转。复位向量指向 <code>__start</code> 函数，位于 <code>arch/arm/src/armv7-a/arm_head.S:181</code>。</p>
+<p><strong>与 Cortex-M 的不同</strong>：Cortex-M 的向量表前两项是”初始 SP + 复位入口地址”，硬件自动加载 SP 再跳转。Cortex-A 没有这个硬件约定，需要软件自行处理所有事情。</p>
+<h3 id="2-3-start：建立-MMU-页表"><a href="#2-3-start：建立-MMU-页表" class="headerlink" title="2.3 __start：建立 MMU 页表"></a>2.3 __start：建立 MMU 页表</h3><p><code>__start</code> 是第一个被执行的函数，它要完成的任务是：<strong>在物理地址空间中，手工填写 L1 页表，然后打开 MMU，让 CPU 切换到虚拟地址空间运行</strong>。</p>
+<h4 id="2-3-1-进入安全状态"><a href="#2-3-1-进入安全状态" class="headerlink" title="2.3.1 进入安全状态"></a>2.3.1 进入安全状态</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:220-232</span><br><span class="line"></span><br><span class="line">__cpu0_start:</span><br><span class="line">    cpsid  if, #PSR_MODE_SYS          /* 进入 SYS 模式，禁用 IRQ 和 FIQ */</span><br><span class="line"></span><br><span class="line">    mrc    CP15_SCTLR(r0)             /* 读取 SCTLR */</span><br><span class="line">    bic    r0, r0, #(SCTLR_M | SCTLR_C)  /* 禁用 MMU 和 D-Cache */</span><br><span class="line">    bic    r0, r0, #(SCTLR_I)         /* 禁用 I-Cache */</span><br><span class="line">    mcr    CP15_SCTLR(r0)</span><br></pre></td></tr></table></figure>
+
+<p>为什么要禁用 MMU 再重新配置？上电后的 SCTLR 状态是不确定的（可能被 bootloader 修改过），必须重置到已知状态。此外，在填写页表期间 MMU 必须关闭，否则 TLB 中可能残留旧的映射。</p>
+<h4 id="2-3-2-清零-L1-页表"><a href="#2-3-2-清零-L1-页表" class="headerlink" title="2.3.2 清零 L1 页表"></a>2.3.2 清零 L1 页表</h4><p>页表位于物理地址 <code>PGTABLE_BASE_PADDR</code>，这个值是由 <code>chip.h:45</code> 计算出来的：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">chip.h:<span class="number">44</span><span class="number">-49</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PGTABLE_SIZE          0x00004000     <span class="comment">/* 16KB */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> PGTABLE_BASE_PADDR    (CONFIG_RAM_START + CONFIG_RAM_SIZE - PGTABLE_SIZE * CONFIG_SMP_NCPUS)</span></span><br><span class="line">                                     <span class="comment">/* = 0x40000000 + 0x01000000 - 0x4000 * 1 */</span></span><br><span class="line">                                     <span class="comment">/* = 0x40FFC000                             */</span></span><br></pre></td></tr></table></figure>
+
+<p>代入实际值：<code>CONFIG_RAM_START=0x40000000</code>，<code>CONFIG_RAM_SIZE=16777216</code> (16MB)，<code>CONFIG_SMP_NCPUS=1</code>，所以页表位于 <code>0x40FFC000</code>——物理 RAM 的最顶端。这是因为低向量表要放在 <code>0x00000000</code>，页表如果也放在低地址会冲突，所以放在高地址。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:237-248</span><br><span class="line">    ldr    r5, .LCppgtable             /* r5 = 页表物理基址 = 0x40FFC000 */</span><br><span class="line">    mov    r0, r5</span><br><span class="line">    mov    r1, #0</span><br><span class="line">    add    r2, r0, #PGTABLE_SIZE       /* r2 = 页表结束地址 */</span><br><span class="line">.Lpgtableclear:</span><br><span class="line">    str    r1, [r0], #4                /* 每次写 4 字节零，共 16KB / 4 = 4096 次 */</span><br><span class="line">    str    r1, [r0], #4</span><br><span class="line">    str    r1, [r0], #4</span><br><span class="line">    str    r1, [r0], #4</span><br><span class="line">    teq    r0, r2</span><br><span class="line">    bne    .Lpgtableclear</span><br></pre></td></tr></table></figure>
+
+<p>这里使用循环展开（4 个 <code>str</code> 一组）来加速清零，避免分支预测失败的开销。</p>
+<h4 id="2-3-3-映射内核-text-区域"><a href="#2-3-3-映射内核-text-区域" class="headerlink" title="2.3.3 映射内核 .text 区域"></a>2.3.3 映射内核 .text 区域</h4><p>ARMv7-A 的 L1 页表使用 <strong>段（section）</strong> 映射，每个 32-bit 页表项映射 1MB 地址空间。虚拟地址的 <code>[31:20]</code> 位作为页表索引。</p>
+<p>对于 <code>knsh</code> 配置，镜像直接加载到 RAM 中运行（<code>CONFIG_BOOT_RUNFROMFLASH=n</code>），FLASH 和 RAM 物理地址相同（identity mapping），所以 <code>CONFIG_IDENTITY_TEXTMAP=1</code>。这意味着不需要创建临时 identity 映射。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:285-321</span><br><span class="line">    adr    r0, .LCtextinfo             /* 加载文本段描述信息的地址 */</span><br><span class="line">    ldmia  r0, &#123;r1, r2, r3, r4&#125;       /* r1=物理地址, r2=虚拟地址, r3=MMU标志, r4=段数 */</span><br><span class="line"></span><br><span class="line">    /* .LCtextinfo 中的实际值 (arm_head.S:602-614):</span><br><span class="line">     *   r1 = NUTTX_TEXT_PADDR = 0x00000000 (CONFIG_FLASH_VSTART &amp; 0xfff00000)</span><br><span class="line">     *   r2 = NUTTX_TEXT_VADDR = 0x00000000</span><br><span class="line">     *   r3 = MMU_MEMFLAGS (可读写, 可缓存, domain 0)</span><br><span class="line">     *   r4 = 1 (1 个 1MB 段)</span><br><span class="line">     */</span><br><span class="line"></span><br><span class="line">    add    r2, r5, r2, lsr #18         /* r2 = 页表基址 + (虚拟地址&gt;&gt;18) = 页表项地址 */</span><br><span class="line">.Lpgtextloop:</span><br><span class="line">    orr    r0, r1, r3                  /* r0 = 物理地址 | MMU 标志 */</span><br><span class="line">    subs   r4, r4, #1                  /* 段计数减 1 */</span><br><span class="line">    str    r0, [r2], #4                /* 写入页表项，指针递增 */</span><br><span class="line">    add    r1, r1, #(1024*1024)        /* 物理地址 +1MB */</span><br><span class="line">    bne    .Lpgtextloop</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例 — 第一个页表项的构造</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">页表基址       = 0x40FFC000</span><br><span class="line">虚拟地址       = 0x00000000</span><br><span class="line">页表索引       = 0x00000000 &gt;&gt; 20 = 0</span><br><span class="line">页表项地址     = 0x40FFC000 + 0*4 = 0x40FFC000</span><br><span class="line"></span><br><span class="line">页表项值:</span><br><span class="line">  物理地址      = 0x00000000</span><br><span class="line">  MMU_MEMFLAGS  = PMD_TYPE_SECT | PMD_SECT_AP_RW1 | PMD_CACHEABLE | PMD_SECT_DOM(0)</span><br><span class="line">                = (2&lt;&lt;0) | (1&lt;&lt;10) | ((1&lt;&lt;2)|(1&lt;&lt;3)) | (0&lt;&lt;5)</span><br><span class="line">                = 0x0000040E</span><br><span class="line">  最终值        = 0x00000000 | 0x0000040E = 0x0000040E</span><br><span class="line"></span><br><span class="line">结果：</span><br><span class="line">  虚拟地址 0x00000000 ~ 0x000FFFFF → 物理地址 0x00000000 ~ 0x000FFFFF</span><br><span class="line">  权限：内核态可读写，可缓存，domain 0</span><br></pre></td></tr></table></figure>
+
+<p>实际 MMU_MEMFLAGS 的完整拼装（<code>arch/arm/src/armv7-a/mmu.h:610-615</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">mmu.h:<span class="number">610</span><span class="number">-615</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> MMU_MEMFLAGS  (PMD_TYPE_SECT | PMD_SECT_AP_RW1 | PMD_CACHEABLE | \</span></span><br><span class="line"><span class="meta">                       PMD_SECT_DOM(0))</span></span><br><span class="line"><span class="comment">/* 展开: PMD_TYPE_SECT    = (2 &lt;&lt; 0)     Section 描述符</span></span><br><span class="line"><span class="comment"> *       PMD_SECT_AP_RW1  = (1 &lt;&lt; 10)    AP[1:0]=01, PL1 读写, PL0 无访问</span></span><br><span class="line"><span class="comment"> *       PMD_CACHEABLE    = (1 &lt;&lt; 2)|(1&lt;&lt;3)  C=1, B=1, Write-Back 缓存</span></span><br><span class="line"><span class="comment"> *       PMD_SECT_DOM(0)  = (0 &lt;&lt; 5)     Domain 0</span></span><br><span class="line"><span class="comment"> */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>PMD_TYPE_SECT</code>（值为 2）标记这是一个 1MB 段描述符。<code>PMD_SECT_AP_RW1</code> 设置 AP[1:0]&#x3D;01，表示只有 PL1（内核态）可以读写，PL0（用户态）无访问权限——这保证了内核内存不被用户进程访问。</p>
+<h4 id="2-3-4-无效化-TLB-和-Cache"><a href="#2-3-4-无效化-TLB-和-Cache" class="headerlink" title="2.3.4 无效化 TLB 和 Cache"></a>2.3.4 无效化 TLB 和 Cache</h4><p>填写完页表后，必须无效化所有 TLB（转换后备缓冲器），因为 CPU 可能缓存了旧的映射。同时无效化分支预测器和 I-Cache：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:377-389</span><br><span class="line">    mov    r0, #0</span><br><span class="line">    mcr    CP15_TPIDRPRW(r0)           /* 初始化每 CPU 寄存器 */</span><br><span class="line">    mcr    CP15_TLBIALLIS(r0)          /* 无效化所有 TLB (IS: Inner Shareable) */</span><br><span class="line">    mcr    CP15_BPIALLIS(r0)           /* 无效化分支预测器 */</span><br><span class="line">    mcr    CP15_ICIALLUIS(r0)          /* 无效化 I-Cache */</span><br><span class="line">    isb</span><br></pre></td></tr></table></figure>
+
+<p><code>TLBIALLIS</code> 的 <code>IS</code> 后缀表示操作广播到 Inner Shareable 域内的所有 CPU 核心——这在多核（SMP）场景下是必要的。<code>isb</code>（指令同步屏障）保证后续指令能看到 TLB 已清空。接下来就可以安全地配置 MMU 寄存器了。</p>
+<h4 id="2-3-5-配置-MMU-寄存器并开启"><a href="#2-3-5-配置-MMU-寄存器并开启" class="headerlink" title="2.3.5 配置 MMU 寄存器并开启"></a>2.3.5 配置 MMU 寄存器并开启</h4><p>设置完 TLB 后，需要配置一系列 CP15 协处理器寄存器，将页表地址告诉 MMU，然后打开 MMU 和 Cache。以下代码取自 <code>arm_head.S:407-559</code>，展示了 knsh 配置下的有效执行路径（完整源代码中有多个 <code>#ifdef</code> 分支处理 SMP、Cortex-A5、高向量、对齐陷阱、大小端等变体，此处只保留 knsh 实际走的分支）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:407-559</span><br><span class="line">    orr    r1, r5, #(TTBR0_RGN_WBWA | TTBR0_IRGN0)  /* 页表基址 + 缓存属性 */</span><br><span class="line">    mcr    CP15_TTBR0(r1)               /* 设置转换表基址寄存器 0 */</span><br><span class="line">    mcr    CP15_TTBR1(r1)               /* 设置转换表基址寄存器 1 */</span><br><span class="line">    mcr    CP15_TTBCR(r0)               /* TTBCR=0: 使用 TTBR0, 16KB 页表 */</span><br><span class="line"></span><br><span class="line">    ldr    lr, .LCvstart                /* lr = .Lvstart 的虚拟地址 */</span><br><span class="line">    mov    r0, #DACR_CLIENT(0)</span><br><span class="line">    mcr    CP15_DACR(r0)                /* Domain 0 = Client (使用页表权限) */</span><br><span class="line"></span><br><span class="line">    /* 配置 SCTLR: */</span><br><span class="line">    mrc    CP15_SCTLR(r0)</span><br><span class="line">    bic    r0, r0, #(SCTLR_A  | SCTLR_C)</span><br><span class="line">    bic    r0, r0, #(SCTLR_SW | SCTLR_I   | SCTLR_V   | SCTLR_RR | SCTLR_HA)</span><br><span class="line">    bic    r0, r0, #(SCTLR_EE | SCTLR_TRE | SCTLR_AFE | SCTLR_TE)</span><br><span class="line">    orr    r0, r0, #(SCTLR_M)           /* 开启 MMU */</span><br><span class="line">    orr    r0, r0, #(SCTLR_C)           /* 开启 D-Cache */</span><br><span class="line">    orr    r0, r0, #(SCTLR_I)           /* 开启 I-Cache */</span><br><span class="line">    mcr    CP15_SCTLR(r0)                /* 写回 SCTLR → MMU 正式启用！ */</span><br><span class="line">    isb</span><br><span class="line">    .rept  12</span><br><span class="line">    nop                                  /* Cortex-A8 需要等流水线排空 */</span><br><span class="line">    .endr</span><br><span class="line"></span><br><span class="line">    mov    pc, lr                        /* 跳转到 .Lvstart (虚拟地址) */</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键一步</strong>：<code>mov pc, lr</code> 后，CPU 正式在虚拟地址空间中运行。由于我们做了 identity mapping（物理地址 &#x3D; 虚拟地址），代码可以无缝继续执行。</p>
+<h3 id="2-4-Lvstart：准备-C-运行环境"><a href="#2-4-Lvstart：准备-C-运行环境" class="headerlink" title="2.4 .Lvstart：准备 C 运行环境"></a>2.4 .Lvstart：准备 C 运行环境</h3><p>进入 <code>.Lvstart</code>（<code>arm_head.S:660</code>）后，MMU 已开启，我们需要建立栈并初始化数据段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:660-708</span><br><span class="line">.Lvstart:</span><br><span class="line">    /* 设置栈指针和帧指针 */</span><br><span class="line">    ldr    sp, .Lstackpointer            /* sp = IDLE_STACK_TOP */</span><br><span class="line">    bic    sp, sp, #7                    /* 8 字节对齐 */</span><br><span class="line">    mov    fp, #0</span><br><span class="line"></span><br><span class="line">    /* 初始化 .bss (清零) 和 .data (从 ROM 复制初始值) */</span><br><span class="line">    bl     arm_data_initialize</span><br><span class="line"></span><br><span class="line">    /* 平台特定的 C 级初始化 */</span><br><span class="line">    bl     arm_boot</span><br><span class="line"></span><br><span class="line">    /* 跳转到 NuttX 调度器入口 */</span><br><span class="line">    mov    lr, #0</span><br><span class="line">    b      nx_start</span><br></pre></td></tr></table></figure>
+
+<p>栈指针指向 <code>IDLE_STACK_TOP</code>，其定义在 <code>arm_head.S:37-45</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:37-45</span><br><span class="line">#ifndef IDLE_STACK_BASE</span><br><span class="line">  #ifdef CONFIG_BOOT_SDRAM_DATA</span><br><span class="line">    #define IDLE_STACK_BASE IDLE_STACK_VBASE</span><br><span class="line">  #else</span><br><span class="line">    #define IDLE_STACK_BASE _ebss        /* 栈紧接 BSS 段末尾 */</span><br><span class="line">  #endif</span><br><span class="line">#endif</span><br><span class="line"></span><br><span class="line">#define IDLE_STACK_TOP  (IDLE_STACK_BASE + CONFIG_IDLETHREAD_STACKSIZE)</span><br><span class="line">                                     /* = _ebss + 4096 */</span><br></pre></td></tr></table></figure>
+
+<p><code>_ebss</code> 由链接脚本定义（<code>dramboot.ld:115-120</code>），位于 <code>.bss</code> 段的末尾。栈向下增长，栈顶在 <code>_ebss + 4096</code> 处。内核堆从 <code>g_idle_topstack</code>（即 <code>IDLE_STACK_TOP</code>）开始向上延伸。</p>
+<p><strong>实例 — 内存布局计算</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">假设 .text + .rodata 共占用 0x20000 (128KB)</span><br><span class="line">      .data 占用 0x1000 (4KB)</span><br><span class="line">      .bss  占用 0x8000 (32KB)</span><br><span class="line"></span><br><span class="line">_ebss  = CONFIG_RAM_START + 0x20000 + 0x1000 + 0x8000</span><br><span class="line">       = 0x40000000 + 0x29000 = 0x40029000</span><br><span class="line"></span><br><span class="line">IDLE_STACK_TOP = 0x40029000 + 4096 = 0x4002A000</span><br><span class="line">g_idle_topstack = 0x4002A000</span><br><span class="line"></span><br><span class="line">内核堆范围: [0x4002A000, PGTABLE_BASE_PADDR) = [0x4002A000, 0x40FFC000)</span><br><span class="line">            ≈ 0xFD2000 约 15.8MB</span><br></pre></td></tr></table></figure>
+
+<p><code>arm_data_initialize</code> 函数（<code>arm_head.S:719-755</code>）负责清零 <code>.bss</code> 段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">arm_head.S:719-731</span><br><span class="line">arm_data_initialize:</span><br><span class="line">    adr    r0, .Linitparms</span><br><span class="line">    ldmia  r0, &#123;r0, r1&#125;                /* r0=_sbss, r1=_ebss */</span><br><span class="line">    mov    r2, #0</span><br><span class="line">1:  cmp    r0, r1</span><br><span class="line">    strcc  r2, [r0], #4                /* 逐 4 字节写零 */</span><br><span class="line">    bcc    1b</span><br></pre></td></tr></table></figure>
+
+<p>由于 <code>knsh</code> 配置下镜像直接加载到 RAM（不是从 Flash 运行），<code>.data</code> 的初始值已经在加载时被 QEMU 放入正确位置，所以 <code>CONFIG_BOOT_RUNFROMFLASH</code> 为假，不需要复制 <code>.data</code>。</p>
+<p>做完 .bss 清零后，汇编阶段的最后一步是调用 <code>arm_boot()</code> 跳入 C 世界。这标志着从纯粹的手工寄存器操作过渡到结构化的平台初始化代码。</p>
+<hr>
+<h2 id="3-Phase-A-续-—-arm-boot-：平台级-C-初始化"><a href="#3-Phase-A-续-—-arm-boot-：平台级-C-初始化" class="headerlink" title="3. Phase A 续 — arm_boot()：平台级 C 初始化"></a>3. Phase A 续 — arm_boot()：平台级 C 初始化</h2><p><code>__start</code> 在汇编阶段只是”够用就行”地映射了内核代码所在的 1MB 区域。如果要让操作系统正常工作，还需要访问 MMIO 外设寄存器（如 GIC 中断控制器、UART 串口）、配置浮点单元、以及让剩余的所有物理内存区域都变得可访问。这些工作无法全在汇编中完成——C 语言的表达能力远强于汇编，而且 MMU 映射 API (<code>mmu_l1_map_regions</code>) 本身就是 C 函数。</p>
+<p>因此 <code>.Lvstart</code> 调用 <code>arm_boot()</code>（<code>arch/arm/src/qemu/qemu_boot.c:77</code>），把后续的平台初始化交给 C 代码：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">qemu_boot.c:<span class="number">77</span>,<span class="number">88</span><span class="number">-112</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">arm_boot</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    qemu_setupmappings();     <span class="comment">/* 补充 MMU 映射 */</span></span><br><span class="line">    arm_fpuconfig();          <span class="comment">/* 配置 FPU */</span></span><br><span class="line">    arm_psci_init(<span class="string">&quot;hvc&quot;</span>);    <span class="comment">/* PSCI 电源管理 */</span></span><br><span class="line">    fdt_register(<span class="number">0x40000000</span>); <span class="comment">/* 注册设备树 */</span></span><br><span class="line">    arm_earlyserialinit();   <span class="comment">/* 早期串口初始化 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>（完整函数还包含 <code>CONFIG_ARCH_PERF_EVENTS</code>、<code>CONFIG_SMP</code>、<code>CONFIG_BUILD_PROTECTED</code> 等条件编译分支，knsh 配置下均不生效。）</p>
+<p>这五个初始化步骤中，对启动流程最关键的是 <code>qemu_setupmappings()</code>——它把 QEMU virt 平台上的全部物理内存和外设区域映射进 MMU 页表。之后初始化 FPU（否则浮点指令会触发未定义异常）和串口（否则看不到任何输出）。</p>
+<h3 id="3-1-完善-MMU-映射-—-qemu-setupmappings"><a href="#3-1-完善-MMU-映射-—-qemu-setupmappings" class="headerlink" title="3.1 完善 MMU 映射 — qemu_setupmappings()"></a>3.1 完善 MMU 映射 — qemu_setupmappings()</h3><p>QEMU virt 平台的物理内存布局如下（<code>qemu_memorymap.h:43-63</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">0x00000000 ────────────────  Flash (128MB)</span><br><span class="line">0x08000000 ────────────────  I/O (96MB): GIC, UART, RTC 等</span><br><span class="line">0x0E000000 ────────────────  Secure Memory (16MB)</span><br><span class="line">0x10000000 ────────────────  PCIe ECAM (768MB)</span><br><span class="line">0x40000000 ────────────────  DDR RAM (256MB)</span><br><span class="line">0x50000000 ────────────────</span><br></pre></td></tr></table></figure>
+
+<p><code>qemu_setupmappings()</code> 遍历预定义的映射表，为所有区域建立 L1 段映射：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">qemu_memorymap.c:<span class="number">44</span><span class="number">-85</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">section_mapping_s</span> <span class="title">g_section_mapping</span>[] =</span></span><br><span class="line">&#123;</span><br><span class="line">  &#123; VIRT_FLASH_PSECTION, VIRT_FLASH_VSECTION, MMU_MEMFLAGS, _NSECTIONS(<span class="number">128</span>MB) &#125;,</span><br><span class="line">  &#123; VIRT_IO_PSECTION,    VIRT_IO_VSECTION,    MMU_IOFLAGS,  _NSECTIONS(<span class="number">96</span>MB)  &#125;,</span><br><span class="line">  &#123; VIRT_SEC_MEM_PSECTION, ...                   MMU_MEMFLAGS, _NSECTIONS(<span class="number">16</span>MB)  &#125;,</span><br><span class="line">  &#123; VIRT_PCIE_PSECTION,  VIRT_PCIE_VSECTION,  MMU_IOFLAGS,  _NSECTIONS(<span class="number">768</span>MB) &#125;,</span><br><span class="line">  &#123; VIRT_DDR_PSECTION,   VIRT_DDR_VSECTION,   MMU_MEMFLAGS, _NSECTIONS(<span class="number">256</span>MB) &#125;,</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">qemu_setupmappings</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    mmu_l1_map_regions(g_section_mapping, nitems(g_section_mapping));</span><br><span class="line">    <span class="comment">// → mmu_l1_map_region() → mmu_l1_setentry() 循环写页表项</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注意 I&#x2F;O 区域使用 <code>MMU_IOFLAGS</code>（Device 类型，禁止缓存、禁止执行），而内存区域使用 <code>MMU_MEMFLAGS</code>（Write-Back 缓存、允许执行）。所有区域都是 identity mapping（虚拟地址 &#x3D; 物理地址），因为 <code>VIRT_*_VSECTION == VIRT_*_PSECTION</code>。</p>
+<p><strong>为什么 identity mapping？</strong> KERNEL 模式中，内核运行在 PL1 特权级，访问物理地址等同于访问虚拟地址。用户态进程才有独立的虚拟地址空间（0x80000000 起）。这种设计简化了内核驱动编写——内核可以直接使用物理地址访问设备寄存器。</p>
+<p>至此，硬件层面的一切准备就绪：MMU 已开启、所有物理区域已映射、FPU 和串口已配置。接下来，执行流进入 <code>nx_start()</code>，从”平台初始化”切换到”操作系统构建”阶段。</p>
+<hr>
+<h2 id="4-Phase-B-—-nx-start-：OS-内核初始化"><a href="#4-Phase-B-—-nx-start-：OS-内核初始化" class="headerlink" title="4. Phase B — nx_start()：OS 内核初始化"></a>4. Phase B — nx_start()：OS 内核初始化</h2><p><code>nx_start()</code> 是整个 NuttX 内核的入口，位于 <code>sched/init/nx_start.c:502</code>。它是所有初始化步骤的编排器，按照严格的顺序逐层构建 OS 基础设施。</p>
+<h3 id="4-1-初始化状态机"><a href="#4-1-初始化状态机" class="headerlink" title="4.1 初始化状态机"></a>4.1 初始化状态机</h3><p>NuttX 使用 <code>g_nx_initstate</code> 全局变量跟踪初始化进度（<code>include/nuttx/init.h:57-78</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">OSINIT_POWERUP (0)  →  刚上电</span><br><span class="line">OSINIT_BOOT (1)     →  boot 完成，进入 nx_start</span><br><span class="line">OSINIT_TASKLISTS (2)→  任务链表就绪</span><br><span class="line">OSINIT_MEMORY (3)   →  内存管理器可用</span><br><span class="line">OSINIT_HARDWARE (4) →  硬件驱动就绪</span><br><span class="line">OSINIT_OSREADY (5)  →  OS 准备多任务</span><br><span class="line">OSINIT_IDLELOOP (6) →  进入 IDLE 循环</span><br></pre></td></tr></table></figure>
+
+<p>每个阶段的切换都很关键——后续代码可以通过 <code>OSINIT_MM_READY()</code> 等宏检查某个子系统是否已经就绪。</p>
+<h3 id="4-2-创建-IDLE-任务"><a href="#4-2-创建-IDLE-任务" class="headerlink" title="4.2 创建 IDLE 任务"></a>4.2 创建 IDLE 任务</h3><p>IDLE 任务是系统中优先级最低（priority&#x3D;0）且永远不可被阻塞的特殊任务。它有两个功能：</p>
+<ol>
+<li>在系统无其他任务可运行时占位（防止调度器空转）</li>
+<li>作为所有后续任务的”祖先”——子任务继承其环境变量和文件描述符</li>
+</ol>
+<p><code>idle_task_initialize()</code> 在 <code>nx_start.c:328-420</code>。以下展示核心逻辑（完整函数还包含 SMP 多 CPU IDLE 栈分配、名称设置和 per-CPU 寄存器更新，为简洁省略了相关代码路径）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">nx_start.c:<span class="number">328</span>,<span class="number">336</span><span class="number">-347</span>,<span class="number">355</span><span class="number">-366</span>,<span class="number">372</span><span class="number">-387</span>,<span class="number">405</span><span class="number">-413</span></span><br><span class="line"><span class="built_in">memset</span>(g_idletcb, <span class="number">0</span>, <span class="keyword">sizeof</span>(g_idletcb));</span><br><span class="line"><span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; CONFIG_SMP_NCPUS; i++) &#123;</span><br><span class="line">    tcb = &amp;g_idletcb[i];</span><br><span class="line">    tcb-&gt;pid        = i;                      <span class="comment">/* CPU0 IDLE pid=0 */</span></span><br><span class="line">    tcb-&gt;task_state = TSTATE_TASK_RUNNING;</span><br><span class="line">    tcb-&gt;lockcount  = <span class="number">1</span>;                      <span class="comment">/* 初始化期间禁止抢占 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* CPU0 IDLE 的入口是 nx_start 本身 (boot 后从这里开始执行) */</span></span><br><span class="line">    tcb-&gt;start      = nx_start;</span><br><span class="line">    tcb-&gt;entry.main = (<span class="type">main_t</span>)nx_start;</span><br><span class="line"></span><br><span class="line">    tcb-&gt;flags = TCB_FLAG_TTYPE_KERNEL;       <span class="comment">/* 内核线程 */</span></span><br><span class="line">    tcb-&gt;name  = <span class="string">&quot;CPU0 IDLE&quot;</span>;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line">    g_assignedtasks[i] = tcb;                  <span class="comment">/* 分配到此 CPU */</span></span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line">    dq_addfirst((FAR <span class="type">dq_entry_t</span> *)tcb, TLIST_HEAD(tcb));</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    g_running_tasks[i] = tcb;                  <span class="comment">/* 标记为正在运行 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计</strong>：<code>nx_start</code> <strong>就是</strong> CPU0 IDLE 任务的入口函数。这意味着整个 OS 初始化（Phase B）都是在 IDLE 任务的上下文中完成的。这解释了为什么初始化期间是单线程的——IDLE 线程在执行初始化，还没有其他线程存在。</p>
+<h3 id="4-3-内存管理器初始化"><a href="#4-3-内存管理器初始化" class="headerlink" title="4.3 内存管理器初始化"></a>4.3 内存管理器初始化</h3><p>内存初始化是第二步（因为后续所有子系统都需要动态分配内存）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">nx_start.c:<span class="number">540</span><span class="number">-575</span></span><br><span class="line"><span class="comment">/* 1. 用户态堆 (仅在 PROTECTED 模式下) */</span></span><br><span class="line">up_allocate_heap(&amp;heap_start, &amp;heap_size);</span><br><span class="line">kumm_initialize(heap_start, heap_size);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 2. 内核堆 */</span></span><br><span class="line">up_allocate_kheap(&amp;heap_start, &amp;heap_size);</span><br><span class="line">kmm_initialize(heap_start, heap_size);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 3. 页分配器 (KERNEL 模式，用于用户态地址空间的物理页分配) */</span></span><br><span class="line">up_allocate_pgheap(&amp;heap_start, &amp;heap_size);</span><br><span class="line">mm_pginitialize(heap_start, heap_size);</span><br></pre></td></tr></table></figure>
+
+<p>对于 <code>knsh</code> 配置，实际的内存布局由 <code>qemu_allocateheap.c</code> 和 <code>qemu_pgalloc.c</code> 定义：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">0x40000000  ┌───────────────────────────────┐  RAM_START</span><br><span class="line">            │ .vectors, .text, .rodata      │  ROM Region</span><br><span class="line">            ├───────────────────────────────┤</span><br><span class="line">            │ .data, .bss                   │</span><br><span class="line">            ├───────────────────────────────┤  _ebss</span><br><span class="line">            │ IDLE Stack (4096 bytes)       │</span><br><span class="line">            ├───────────────────────────────┤  g_idle_topstack</span><br><span class="line">            │                               │</span><br><span class="line">            │  Kernel Heap (kmm)             │</span><br><span class="line">            │  ~15.8 MB                     │</span><br><span class="line">            │                               │</span><br><span class="line">            ├───────────────────────────────┤  PGPOOL_PBASE = 0x40300000</span><br><span class="line">            │                               │</span><br><span class="line">            │  Page Pool (mm_pginitialize)   │</span><br><span class="line">            │  ~13 MB                       │  For user-space page allocation</span><br><span class="line">            │                               │</span><br><span class="line">            ├───────────────────────────────┤</span><br><span class="line">            │  L1 Page Table (16KB)          │  PGTABLE_BASE_PADDR = 0x40FFC000</span><br><span class="line">            │                               │</span><br><span class="line">0x41000000  └───────────────────────────────┘  RAM_START + RAM_SIZE</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例 — 内核堆的起止地址</strong>（来自 <code>arm_allocateheap.c:155-180</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">arm_allocateheap.c:<span class="number">155</span><span class="number">-180</span></span><br><span class="line"><span class="type">void</span> weak_function <span class="title function_">up_allocate_kheap</span><span class="params">(<span class="type">void</span> **heap_start, <span class="type">size_t</span> *heap_size)</span></span><br><span class="line">&#123;</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_ARCH_PGPOOL_PBASE</span></span><br><span class="line">  <span class="type">uintptr_t</span> base = g_idle_topstack;</span><br><span class="line">  <span class="type">uintptr_t</span> size = CONFIG_ARCH_PGPOOL_PBASE - g_idle_topstack;</span><br><span class="line"></span><br><span class="line">  size -= PGTABLE_SIZE * CONFIG_SMP_NCPUS;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">  *heap_start = (<span class="type">void</span> *)base;</span><br><span class="line">  *heap_size  = size;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>代入 knsh 的实际值：<code>g_idle_topstack</code> 紧跟在 IDLE 栈之后（约 <code>_ebss + 4096</code>），<code>CONFIG_ARCH_PGPOOL_PBASE = 0x40300000</code>，所以内核堆从 IDLE 栈顶一直延伸到页池的起始位置（<code>0x40300000</code>），大小约 2~3 MB。堆的上方是页池，用于为用户态进程分配物理页。</p>
+<h3 id="4-4-OS-子系统初始化链"><a href="#4-4-OS-子系统初始化链" class="headerlink" title="4.4 OS 子系统初始化链"></a>4.4 OS 子系统初始化链</h3><p>内存管理器就绪后，<code>nx_start</code> 按依赖关系依次初始化各子系统：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line">nx_start.c:<span class="number">622</span><span class="number">-666</span></span><br><span class="line"><span class="comment">/* Initialize tasking data structures */</span></span><br><span class="line"></span><br><span class="line">task_initialize();</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Initialize the instrument function */</span></span><br><span class="line"></span><br><span class="line">instrument_initialize();</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Initialize the file system (needed to support device drivers) */</span></span><br><span class="line"></span><br><span class="line">fs_initialize();</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Initialize the interrupt handling subsystem (if included) */</span></span><br><span class="line"></span><br><span class="line">irq_initialize();</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Initialize the POSIX timer facility (if included in the link) */</span></span><br><span class="line"></span><br><span class="line">clock_initialize();</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifndef</span> CONFIG_DISABLE_POSIX_TIMERS</span></span><br><span class="line">timer_initialize();</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* Initialize the signal facility (if in link) */</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_ENABLE_ALL_SIGNALS</span></span><br><span class="line">nxsig_initialize();</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">if</span> !defined(CONFIG_DISABLE_MQUEUE) || !defined(CONFIG_DISABLE_MQUEUE_SYSV)</span></span><br><span class="line"><span class="comment">/* Initialize the named message queue facility (if in link) */</span></span><br><span class="line"></span><br><span class="line">nxmq_initialize();</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_NET</span></span><br><span class="line"><span class="comment">/* Initialize the networking system.  Network initialization is</span></span><br><span class="line"><span class="comment"> * performed early because networking software may have been</span></span><br><span class="line"><span class="comment"> * initialized first.</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"></span><br><span class="line">net_initialize();</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">ifndef</span> CONFIG_BINFMT_DISABLE</span></span><br><span class="line"><span class="comment">/* Initialize the binary format handler */</span></span><br><span class="line"></span><br><span class="line">binfmt_initialize();</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这个顺序？</strong> 信号量必须最先初始化（<code>nxsem_initialize()</code> 在内存初始化前）。因为几乎所有后续子系统内部都依赖信号量进行同步。文件系统必须在设备驱动之前初始化，因为驱动需要向 VFS 注册 <code>/dev/*</code> 节点。</p>
+<h3 id="4-5-up-initialize-：硬件驱动初始化"><a href="#4-5-up-initialize-：硬件驱动初始化" class="headerlink" title="4.5 up_initialize()：硬件驱动初始化"></a>4.5 up_initialize()：硬件驱动初始化</h3><p>软件数据结构准备完毕，开始初始化真实硬件：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">nx_start.c:<span class="number">676</span></span><br><span class="line">up_initialize();   <span class="comment">/* 调用 arch/arm/src/common/arm_initialize.c:62 */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>arm_initialize.c:62-121</code> 实际上是硬件的集中初始化点。展示核心调用（完整函数还包含电源管理、DMA、coredump 等条件编译路径）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">arm_initialize.c:<span class="number">62</span>,<span class="number">67</span>,<span class="number">72</span>,<span class="number">100</span>,<span class="number">105</span>,<span class="number">119</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">up_initialize</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    arm_initialize_stack();      <span class="comment">/* 确认中断栈配置 */</span></span><br><span class="line">    arm_addregion();             <span class="comment">/* 向堆添加额外内存区域 */</span></span><br><span class="line">    arm_serialinit();            <span class="comment">/* 串口驱动 → pl011_serialinit */</span></span><br><span class="line">    arm_netinitialize();         <span class="comment">/* 网络硬件初始化 */</span></span><br><span class="line">    arm_l2ccinitialize();        <span class="comment">/* L2 缓存控制器 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于 qemu-armv7a，关键驱动初始化变为：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">qemu_irq.c:<span class="number">105</span>   up_irqinitialize()     <span class="comment">/* 设置 VBAR, 初始化 GIC, 启用中断 */</span></span><br><span class="line">qemu_timer.c:<span class="number">35</span>   up_timer_initialize()  <span class="comment">/* ARM 架构定时器 (arch timer) */</span></span><br><span class="line">qemu_serial.c:<span class="number">62</span>  arm_serialinit()       <span class="comment">/* PL011 串口 */</span></span><br></pre></td></tr></table></figure>
+
+<p>中断初始化（<code>qemu_irq.c:105</code>）将 GIC 配置好，设置 VBAR（向量基址寄存器）指向异常向量表，然后向 CPU 使能 IRQ。从这一刻起，系统可以响应中断了。</p>
+<h3 id="4-6-状态记录"><a href="#4-6-状态记录" class="headerlink" title="4.6 状态记录"></a>4.6 状态记录</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">g_nx_initstate = OSINIT_HARDWARE;    /* nx_start.c:695, 硬件资源就绪 */</span><br><span class="line">...</span><br><span class="line">g_nx_initstate = OSINIT_OSREADY;     /* nx_start.c:742, 准备多任务 */</span><br></pre></td></tr></table></figure>
+
+<p>OS 基础设施（调度器、内存、文件系统、中断、时钟）已经就绪，但系统中还只有一个 IDLE 线程在运行。下一步 <code>nx_bringup()</code> 负责”激活”这个系统——创建工作队列、启动板级驱动、并创建第一个用户进程。</p>
+<hr>
+<h2 id="5-Phase-B-续-—-nx-bringup-：系统-Bring-Up"><a href="#5-Phase-B-续-—-nx-bringup-：系统-Bring-Up" class="headerlink" title="5. Phase B 续 — nx_bringup()：系统 Bring-Up"></a>5. Phase B 续 — nx_bringup()：系统 Bring-Up</h2><p><code>nx_bringup()</code>（<code>sched/init/nx_bringup.c:496</code>）在 <code>nx_start</code> 末尾被调用，完成从内核初始化到用户程序的最后一步。</p>
+<h3 id="5-1-设置环境变量"><a href="#5-1-设置环境变量" class="headerlink" title="5.1 设置环境变量"></a>5.1 设置环境变量</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">nx_bringup.c:<span class="number">508</span><span class="number">-518</span></span><br><span class="line">setenv(<span class="string">&quot;PWD&quot;</span>,  CONFIG_LIBC_HOMEDIR, <span class="number">1</span>);</span><br><span class="line">setenv(<span class="string">&quot;PATH&quot;</span>, CONFIG_PATH_INITIAL,  <span class="number">1</span>);  <span class="comment">// = &quot;/system/bin&quot;</span></span><br><span class="line">setenv(<span class="string">&quot;LD_LIBRARY_PATH&quot;</span>, CONFIG_LDPATH_INITIAL, <span class="number">1</span>);</span><br></pre></td></tr></table></figure>
+
+<p>这些环境变量被设置为 IDLE 任务的环境，所有后续创建的子任务都会继承。</p>
+<h3 id="5-2-启动内核工作线程"><a href="#5-2-启动内核工作线程" class="headerlink" title="5.2 启动内核工作线程"></a>5.2 启动内核工作线程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">nx_bringup.c:<span class="number">526</span><span class="number">-539</span></span><br><span class="line">nx_pgworker();            <span class="comment">/* 页错误处理线程 (可选) */</span></span><br><span class="line">nx_workqueues();          <span class="comment">/* HP/LP 工作队列: device driver &quot;bottom half&quot; */</span></span><br><span class="line">nx_create_initthread();   <span class="comment">/* 创建应用初始化线程 */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>nx_pgworker</code> 在 <code>CONFIG_LEGACY_PAGING</code> 配置下创建页错误处理的内核线程，knsh 未启用此功能，所以实际被预处理器替换为空操作。<code>nx_workqueues</code> 启动高优先级和低优先级工作队列线程，用于设备驱动”下半部”（bottom half）处理。<code>nx_create_initthread</code> 是接下来创建用户进程的关键步骤。</p>
+<h3 id="5-3-创建应用初始化线程"><a href="#5-3-创建应用初始化线程" class="headerlink" title="5.3 创建应用初始化线程"></a>5.3 创建应用初始化线程</h3><p><code>nx_create_initthread()</code>（<code>nx_bringup.c:436-456</code>）有两个路径：</p>
+<p>**路径 A (knsh 采用)**：配置了 <code>CONFIG_BOARD_LATE_INITIALIZE</code> 时，创建一个独立的内核线程：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">pid = nxthread_create(<span class="string">&quot;AppBringUp&quot;</span>, TCB_FLAG_TTYPE_KERNEL,</span><br><span class="line">                      CONFIG_BOARD_INITTHREAD_PRIORITY,</span><br><span class="line">                      <span class="literal">NULL</span>, CONFIG_BOARD_INITTHREAD_STACKSIZE,</span><br><span class="line">                      nx_start_task, <span class="literal">NULL</span>, environ);</span><br></pre></td></tr></table></figure>
+
+<p><code>nx_start_task</code>（<code>nx_bringup.c:410-416</code>）在独立线程中执行 <code>nx_start_application()</code>。<strong>为什么要独立线程？</strong> IDLE 线程不允许阻塞（等待信号量、等待 I&#x2F;O 等），而 <code>board_late_initialize()</code> 中可能需要挂载文件系统、初始化复杂设备——这些操作可能需要等待。独立线程可以安全地阻塞。</p>
+<h3 id="5-4-nx-start-application-：启动用户程序"><a href="#5-4-nx-start-application-：启动用户程序" class="headerlink" title="5.4 nx_start_application()：启动用户程序"></a>5.4 nx_start_application()：启动用户程序</h3><p><code>nx_start_application()</code>（<code>nx_bringup.c:297-391</code>）是启动流程的核心转折点。以下摘取 knsh 实际执行的关键路径（CONFIG_INIT_FILE 分支），完整函数还包含 <code>/etc</code> ROMFS 挂载、coredump 初始化和 PROTECTED&#x2F;FLAT 模式下的 <code>task_spawn</code> 路径：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">nx_bringup.c:<span class="number">316</span><span class="number">-324</span>,<span class="number">362</span><span class="number">-387</span></span><br><span class="line">board_late_initialize();    <span class="comment">// → qemu_bringup(): 挂载 tmpfs, procfs</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 挂载 hostfs: 开发机文件系统映射到 /system */</span></span><br><span class="line">nx_mount(<span class="string">&quot;&quot;</span>, <span class="string">&quot;/system&quot;</span>, <span class="string">&quot;hostfs&quot;</span>, MS_RDONLY, <span class="string">&quot;fs=../apps&quot;</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* CONFIG_INIT_FILEPATH = &quot;/system/bin/init&quot; */</span></span><br><span class="line">ret = exec_spawn(<span class="string">&quot;/system/bin/init&quot;</span>, argv, <span class="literal">NULL</span>,</span><br><span class="line">                 CONFIG_INIT_SYMTAB, CONFIG_INIT_NEXPORTS, <span class="literal">NULL</span>, &amp;attr);</span><br></pre></td></tr></table></figure>
+
+<p><code>board_late_initialize()</code> → <code>qemu_bringup()</code>（<code>qemu_bringup.c:161-211</code>）挂载必要的文件系统：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">qemu_bringup.c:<span class="number">161</span><span class="number">-184</span></span><br><span class="line">nx_mount(<span class="literal">NULL</span>, CONFIG_LIBC_TMPDIR, <span class="string">&quot;tmpfs&quot;</span>, <span class="number">0</span>, <span class="literal">NULL</span>);   <span class="comment">/* /tmp */</span></span><br><span class="line">nx_mount(<span class="literal">NULL</span>, <span class="string">&quot;/proc&quot;</span>, <span class="string">&quot;procfs&quot;</span>, <span class="number">0</span>, <span class="literal">NULL</span>);              <span class="comment">/* /proc */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>tmpfs</code> 提供内存中的临时文件系统（用于 <code>/tmp</code> 等路径），<code>procfs</code> 提供进程信息伪文件系统（<code>/proc/&lt;pid&gt;/</code>）。这两个挂载点通常在用户程序启动前就绪，因为 NSH 和用户程序可能会用到。文件系统就绪后，最后一步是通过 <code>exec_spawn</code> 创建用户进程。</p>
+<h3 id="5-5-exec-spawn-：KERNEL-模式的进程创建"><a href="#5-5-exec-spawn-：KERNEL-模式的进程创建" class="headerlink" title="5.5 exec_spawn()：KERNEL 模式的进程创建"></a>5.5 exec_spawn()：KERNEL 模式的进程创建</h3><p>在 KERNEL 模式（<code>CONFIG_BUILD_KERNEL=y</code>）下，<code>task_spawn()</code> 整个文件被编译排除（<code>sched/task/task_spawn.c:46</code> 受 <code>#ifndef CONFIG_BUILD_KERNEL</code> 保护）。用户进程只能通过 <code>exec_spawn()</code> 从文件系统加载 ELF 可执行文件来创建。</p>
+<p><code>exec_spawn()</code> 创建了系统中第一个用户态进程后，<code>nx_bringup()</code> 返回，IDLE 线程进入死循环等待被抢占。调度器发现就绪队列中有 init 任务，立即执行上下文切换，CPU 从内核态（PL1）切换到用户态（PL0），跳转到 ELF 文件的入口点。启动流程的接力棒正式从内核交给用户程序。</p>
+<p><code>exec_spawn()</code> 内部的执行路径反映了 binfmt 子系统的工作流程。先从文件系统加载 ELF 映像（<code>load_module</code>，解析 program headers 和 section headers），然后创建进程实例（<code>exec_module</code>）。创建过程中最关键的几步是：先用 <code>addrenv_select</code> 切换到新的用户地址空间，再用 <code>up_addrenv_vheap</code> 在用户虚拟地址上分配堆，最后 <code>nxtask_activate</code> 将任务加入就绪队列——此刻调度器可以在下一个时钟 tick 选择它运行。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">exec_spawn(&quot;/system/bin/init&quot;)           [binfmt/binfmt_exec.c:193]</span><br><span class="line">  → exec_internal()                      [binfmt/binfmt_exec.c:77]</span><br><span class="line">    → load_module()                      Parse ELF sections &amp; resolve symbols</span><br><span class="line">    → exec_module()                      [binfmt/binfmt_execmodule.c:152]</span><br><span class="line">      → addrenv_select(addr_env)         Switch to user addr space</span><br><span class="line">      → up_addrenv_vheap()               Create user virtual heap</span><br><span class="line">      → umm_initialize()                 Init user memory allocator</span><br><span class="line">      → kmm_zalloc(sizeof(tcb_s))        Allocate TCB</span><br><span class="line">      → nxtask_init(tcb, ...)            Init TCB (TCB_FLAG_TTYPE_TASK)</span><br><span class="line">      → addrenv_attach(tcb, addr_env)    Bind addr space to task</span><br><span class="line">      → nxtask_activate(tcb)             Add to ready-to-run list</span><br></pre></td></tr></table></figure>
+
+<p><strong>用户态地址空间布局</strong>（来自 <code>defconfig</code> 中的 <code>CONFIG_ARCH_*</code> 值）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Kernel Space (identity mapped, PL1 access):</span><br><span class="line">  0x40000000 ────────── Kernel Memory</span><br><span class="line"></span><br><span class="line">User Space (PL0 access):</span><br><span class="line">  0x80000000 ────────── .text  Region (256 pages × 4KB = 1MB)  CONFIG_ARCH_TEXT_VBASE</span><br><span class="line">  0x80100000 ────────── .data  Region (256 pages × 4KB = 1MB)  CONFIG_ARCH_DATA_VBASE</span><br><span class="line">  0x80200000 ────────── heap   Region (256 pages × 4KB = 1MB)  CONFIG_ARCH_HEAP_VBASE</span><br></pre></td></tr></table></figure>
+
+<p><strong>与 Linux 的对比</strong>：Linux 用户态从 <code>0x08048000</code>（32-bit）或 <code>0x400000</code>（64-bit）开始，内核态在高地址（<code>0xC0000000</code> 起）。NuttX ARM 的设计相反——内核在低地址做 identity mapping，用户态在高地址拥有独立的虚拟地址空间。这是 ARM MMU 的灵活性：每个进程可以有自己的 TTBR0。</p>
+<h3 id="5-6-用户程序入口"><a href="#5-6-用户程序入口" class="headerlink" title="5.6 用户程序入口"></a>5.6 用户程序入口</h3><p><code>knsh</code> 配置中 <code>CONFIG_INIT_FILEPATH=&quot;/system/bin/init&quot;</code>。这个 <code>init</code> 程序实际上是 NSH (NuttShell)，通过 hostfs 从开发机文件系统映射过来。</p>
+<p>当 <code>exec_module()</code> 完成 TCB 初始化并调用 <code>nxtask_activate()</code> 后，init 任务进入就绪队列。然后 <code>nx_bringup()</code> 返回，<code>nx_start()</code> 的剩余部分继续：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">nx_start.c:<span class="number">751</span><span class="number">-771</span></span><br><span class="line">g_nx_initstate = OSINIT_IDLELOOP;</span><br><span class="line">sched_unlock();               <span class="comment">/* 释放调度锁，允许任务切换 */</span></span><br><span class="line"><span class="keyword">for</span> (;;) up_idle();           <span class="comment">/* IDLE 循环: 执行 WFI 等待中断 */</span></span><br></pre></td></tr></table></figure>
+
+<p><code>sched_unlock()</code> 是关键：整个初始化过程被 <code>lockcount=1</code> 锁住，不允许任务切换。开锁后，调度器会选择就绪队列中优先级最高的任务运行——即刚创建的 init 任务。</p>
+<hr>
+<h2 id="6-Phase-C-—-用户程序：NSH-Shell-启动"><a href="#6-Phase-C-—-用户程序：NSH-Shell-启动" class="headerlink" title="6. Phase C — 用户程序：NSH Shell 启动"></a>6. Phase C — 用户程序：NSH Shell 启动</h2><p>init 任务的入口是 NSH 的 <code>main</code> 函数。在 <code>nxtask_start()</code>（<code>sched/task/task_start.c:68</code>）中，由于任务类型是 <code>TCB_FLAG_TTYPE_TASK</code>（而非 KERNEL），执行路径走 <code>up_task_start()</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">task_start.c:<span class="number">88</span><span class="number">-108</span></span><br><span class="line"><span class="keyword">if</span> (ttype == TCB_FLAG_TTYPE_KERNEL) &#123;</span><br><span class="line">    exitcode = tcb-&gt;entry.main(argc, argv);   <span class="comment">/* 内核线程: 直接调用 */</span></span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    up_task_start(tcb-&gt;entry.main, argc, argv); <span class="comment">/* 用户任务: 切换到 PL0 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>up_task_start()</code> 是架构相关的汇编函数，设置 CPU 从 PL1（内核态）切换到 PL0（用户态），然后跳转到用户空间的入口函数。用户空间运行 <code>nxtask_startup()</code>（<code>libs/libc/sched/task_startup.c:58</code>），它调用 C++ 静态初始化，然后执行 <code>main()</code>。</p>
+<p>NSH 的 <code>main</code> 在 <code>apps/system/nsh/nsh_main.c</code>。启动流程分两步：<code>nsh_initialize()</code> 完成一次性初始化（挂载 <code>/etc</code> ROMFS 并执行 <code>rcS</code> 启动脚本），然后 <code>nsh_consolemain()</code> 进入死循环，不断读取用户输入、解析命令、执行。<code>nsh_consolemain()</code> 不返回，因此 NSH 一旦启动就永远占据控制台。其启动流程如下（参见 <code>nuttx_initialization_sequence.rst:572-651</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">nsh_main()</span><br><span class="line">  → nsh_initialize()          Init NSH lib, execute rcS startup script</span><br><span class="line">  → nsh_consolemain()         Console interactive loop (never returns)</span><br><span class="line">    → Print &quot;nsh&gt; &quot; prompt</span><br><span class="line">    → Wait for user input</span><br></pre></td></tr></table></figure>
+
+<p>这标志着整个启动流程的终点：从 CPU 上电到用户可以输入命令，所有的初始化工作已经完成。</p>
+<hr>
+<h2 id="7-完整调用链总结"><a href="#7-完整调用链总结" class="headerlink" title="7. 完整调用链总结"></a>7. 完整调用链总结</h2><p>下面是 <code>qemu-armv7a:knsh</code> 从硬件复位到 NSH 提示符的完整路径。这个调用链可以按 MMU 状态分为两个大的半场：前半场（<code>__start</code> 到 <code>.Lvstart</code> 的 <code>mov pc, lr</code>）运行在物理地址空间，负责建立页表和启用 MMU；后半场（从 <code>.Lvstart</code> 开始）运行在虚拟地址空间，完成 OS 初始化和用户进程创建。最关键的两个转折点是 <strong>MMU 开启</strong>（地址空间从物理切换到虚拟）和 **<code>exec_spawn</code>**（从内核单线程切换到多任务、从内核空间创建出用户空间的第一个进程）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line">复位向量 (0x00000000)</span><br><span class="line">  │</span><br><span class="line">  ├─ arm_vectortab.S:66        ldr pc, [__start]</span><br><span class="line">  │</span><br><span class="line">  └─ arm_head.S:181            __start</span><br><span class="line">       ├─ SYS 模式, 禁用 MMU/Cache</span><br><span class="line">       ├─ 清零 L1 页表 (16KB @ 0x40FFC000)</span><br><span class="line">       ├─ 映射 .text 区域 (1MB section)</span><br><span class="line">       ├─ TLB/Cache 无效化</span><br><span class="line">       ├─ 配置 TTBR0/TTBR1/TTBCR/DACR</span><br><span class="line">       ├─ 写 SCTLR → MMU 开启</span><br><span class="line">       └─ mov pc, lr → .Lvstart</span><br><span class="line">            │</span><br><span class="line">            ├─ arm_head.S:676  SP = IDLE_STACK_TOP</span><br><span class="line">            ├─ arm_head.S:687  arm_data_initialize (.bss 清零)</span><br><span class="line">            ├─ arm_head.S:694  arm_boot()</span><br><span class="line">            │    ├─ qemu_boot.c:88      qemu_setupmappings() (映射 FLASH/IO/DDR)</span><br><span class="line">            │    ├─ qemu_boot.c:97      arm_fpuconfig()</span><br><span class="line">            │    ├─ qemu_boot.c:100     arm_psci_init(&quot;hvc&quot;)</span><br><span class="line">            │    ├─ qemu_boot.c:104     fdt_register(0x40000000)</span><br><span class="line">            │    └─ qemu_boot.c:112     arm_earlyserialinit()</span><br><span class="line">            │</span><br><span class="line">            └─ arm_head.S:708  b nx_start</span><br><span class="line">                                 │</span><br><span class="line">                                 ├─ nx_start.c:515   tasklist_initialize()</span><br><span class="line">                                 ├─ nx_start.c:519   idle_task_initialize() (CPU0 IDLE tcb)</span><br><span class="line">                                 ├─ nx_start.c:538   nxsem_initialize()</span><br><span class="line">                                 ├─ nx_start.c:562   kmm_initialize() (内核堆)</span><br><span class="line">                                 ├─ nx_start.c:573   mm_pginitialize() (页池)</span><br><span class="line">                                 ├─ nx_start.c:611   idle_group_initialize()</span><br><span class="line">                                 ├─ nx_start.c:622   task_initialize()</span><br><span class="line">                                 ├─ nx_start.c:630   fs_initialize()</span><br><span class="line">                                 ├─ nx_start.c:634   irq_initialize()</span><br><span class="line">                                 ├─ nx_start.c:638   clock_initialize()</span><br><span class="line">                                 ├─ nx_start.c:665   binfmt_initialize()</span><br><span class="line">                                 ├─ nx_start.c:676   up_initialize()</span><br><span class="line">                                 │    ├─ arm_initialize.c:100  arm_serialinit()</span><br><span class="line">                                 │    ├─ qemu_irq.c:105        up_irqinitialize() (GIC)</span><br><span class="line">                                 │    └─ qemu_timer.c:35       up_timer_initialize()</span><br><span class="line">                                 │</span><br><span class="line">                                 ├─ nx_start.c:695   OSINIT_HARDWARE</span><br><span class="line">                                 ├─ nx_start.c:742   OSINIT_OSREADY</span><br><span class="line">                                 ├─ nx_start.c:747   nx_bringup()</span><br><span class="line">                                 │    ├─ nx_bringup.c:513  setenv(&quot;PATH&quot;, &quot;/system/bin&quot;)</span><br><span class="line">                                 │    ├─ nx_bringup.c:532  nx_workqueues()</span><br><span class="line">                                 │    ├─ nx_bringup.c:539  nx_create_initthread()</span><br><span class="line">                                 │    │    └─ &quot;AppBringUp&quot; 内核线程</span><br><span class="line">                                 │    │         └─ nx_start_application()</span><br><span class="line">                                 │    │              ├─ board_late_initialize()</span><br><span class="line">                                 │    │              │    └─ qemu_bringup(): mount tmpfs, procfs</span><br><span class="line">                                 │    │              └─ exec_spawn(&quot;/system/bin/init&quot;)</span><br><span class="line">                                 │    │                   └─ exec_module()</span><br><span class="line">                                 │    │                        ├─ addrenv_select()</span><br><span class="line">                                 │    │                        ├─ up_addrenv_vheap()</span><br><span class="line">                                 │    │                        └─ nxtask_activate()</span><br><span class="line">                                 │    │</span><br><span class="line">                                 │    └─ return</span><br><span class="line">                                 │</span><br><span class="line">                                 ├─ nx_start.c:751   OSINIT_IDLELOOP</span><br><span class="line">                                 ├─ nx_start.c:757   sched_unlock()</span><br><span class="line">                                 └─ nx_start.c:765   up_idle() 死循环 (WFI)</span><br><span class="line">                                                       │</span><br><span class="line">                                                       │ (调度器选择 init 任务运行)</span><br><span class="line">                                                       │</span><br><span class="line">                                                        └─ NSH shell 提示符</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>理解了完整的调用链之后，我们来剖析几个贯穿整个启动流程的关键设计决策——这些决策决定了 NuttX KERNEL 模式与 FLAT 模式、乃至与 Linux 的本质区别。</p>
+<h2 id="8-关键设计决策解析"><a href="#8-关键设计决策解析" class="headerlink" title="8. 关键设计决策解析"></a>8. 关键设计决策解析</h2><h3 id="8-1-KERNEL-vs-FLAT-模式的本质区别"><a href="#8-1-KERNEL-vs-FLAT-模式的本质区别" class="headerlink" title="8.1 KERNEL vs FLAT 模式的本质区别"></a>8.1 KERNEL vs FLAT 模式的本质区别</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>FLAT 模式</th>
+<th>KERNEL 模式 (knsh)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>用户程序格式</td>
+<td>与内核链接在一起</td>
+<td>独立 ELF 文件</td>
+</tr>
+<tr>
+<td>地址空间</td>
+<td>共享同一个物理空间</td>
+<td>用户态独立虚拟空间</td>
+</tr>
+<tr>
+<td>进程创建</td>
+<td><code>task_spawn()</code></td>
+<td><code>exec_spawn()</code></td>
+</tr>
+<tr>
+<td>内核保护</td>
+<td>无 (单地址空间)</td>
+<td>MMU 隔离</td>
+</tr>
+<tr>
+<td>用户堆</td>
+<td>全局堆的一部分</td>
+<td><code>up_addrenv_vheap()</code> 分配</td>
+</tr>
+</tbody></table>
+<p>在 FLAT 模式下，所有”任务”都共享同一个地址空间，类似于 FreeRTOS 的任务模型。在 KERNEL 模式下，每个用户进程拥有完整的独立地址空间，更像 Linux 的进程模型。</p>
+<h3 id="8-2-Identity-Mapping-的妙用"><a href="#8-2-Identity-Mapping-的妙用" class="headerlink" title="8.2 Identity Mapping 的妙用"></a>8.2 Identity Mapping 的妙用</h3><p>NuttX KERNEL 模式对内核地址空间采用 identity mapping（虚拟地址 &#x3D; 物理地址）。这个设计有两个好处：</p>
+<ol>
+<li>内核驱动可以直接使用物理地址访问 MMIO 寄存器，不需要 ioremap</li>
+<li>MMU 使能&#x2F;禁用的过渡更平滑——代码在 MMU 开启前后看到的地址相同</li>
+</ol>
+<p>代价是内核物理内存被限制在低地址范围，用户空间被挤到高地址（0x80000000 起）。</p>
+<h3 id="8-3-IDLE-线程即初始化线程"><a href="#8-3-IDLE-线程即初始化线程" class="headerlink" title="8.3 IDLE 线程即初始化线程"></a>8.3 IDLE 线程即初始化线程</h3><p><code>nx_start</code> 就是 CPU0 IDLE 线程的入口。这个设计避免了创建单独的”启动线程”，节省了内存和上下文切换开销。代价是 IDLE 线程在初始化期间不能做 IDLE 该做的事（清理延迟释放的内存等），但在初始化完成前系统也没有其他内存分配需要清理。</p>
+<p>以上分析了整个启动流程中三个最核心的设计决策。下面给出本文涉及的所有源文件索引，方便读者按图索骥地深入源码。</p>
+<h2 id="9-参考"><a href="#9-参考" class="headerlink" title="9. 参考"></a>9. 参考</h2><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>关键内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>arch/arm/src/armv7-a/arm_vectortab.S:60-73</code></td>
+<td>异常向量表，复位向量 → <code>__start</code></td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_head.S:37-45</code></td>
+<td><code>IDLE_STACK_BASE</code> &#x2F; <code>IDLE_STACK_TOP</code> 宏定义</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_head.S:181-248</code></td>
+<td><code>__start</code>: SYS 模式进入、MMU&#x2F;Cache 禁用、L1 页表清零</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_head.S:285-321</code></td>
+<td><code>.text</code> 区域 L1 段映射 (1MB section entries)</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_head.S:377-389</code></td>
+<td>TLB&#x2F;分支预测器&#x2F;I-Cache 无效化</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_head.S:407-559</code></td>
+<td>TTBR0&#x2F;TTBCR&#x2F;DACR&#x2F;SCTLR 配置，MMU 开启</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_head.S:660-708</code></td>
+<td><code>.Lvstart</code>: 栈设置，arm_boot() 调用，跳转 nx_start</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_head.S:719-755</code></td>
+<td><code>arm_data_initialize</code>: .bss 清零</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/qemu/chip.h:44-49</code></td>
+<td>页表基址&#x2F;大小宏定义</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/qemu/qemu_boot.c:77</code></td>
+<td><code>arm_boot()</code>: 平台 C 级初始化</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/qemu/qemu_memorymap.c:44-85</code></td>
+<td>MMU 区域映射表</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/qemu/qemu_memorymap.h:43-63</code></td>
+<td>QEMU virt 物理&#x2F;虚拟内存布局</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/mmu.h:606-621</code></td>
+<td>MMU 标志宏定义（MEMFLAGS, IOFLAGS）</td>
+</tr>
+<tr>
+<td><code>boards/arm/qemu/qemu-armv7a/scripts/dramboot.ld:26-137</code></td>
+<td>链接脚本，MEMORY 和 SECTIONS 布局</td>
+</tr>
+<tr>
+<td><code>boards/arm/qemu/qemu-armv7a/src/qemu_boardinit.c:66-115</code></td>
+<td>板级初始化函数 (qemu_board_initialize, board_late_initialize)</td>
+</tr>
+<tr>
+<td><code>boards/arm/qemu/qemu-armv7a/src/qemu_bringup.c:161-211</code></td>
+<td>板级 bringup（tmpfs&#x2F;procfs 挂载，FDT 设备注册）</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_start.c:95-198</code></td>
+<td>全局调度器数据结构 (g_readytorun, g_idletcb[], g_nx_initstate)</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_start.c:328-420</code></td>
+<td><code>idle_task_initialize()</code>: 为每个 CPU 创建 IDLE TCB</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_start.c:430-480</code></td>
+<td><code>idle_group_initialize()</code>: IDLE 组初始化</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_start.c:502-772</code></td>
+<td><code>nx_start()</code>: OS 全部初始化编排（完整函数）</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_bringup.c:297-391</code></td>
+<td><code>nx_start_application()</code>: 板级后期初始化 + 启动用户程序</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_bringup.c:436-456</code></td>
+<td><code>nx_create_initthread()</code>: 创建 AppBringUp 初始化线程</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_bringup.c:496-552</code></td>
+<td><code>nx_bringup()</code>: 系统 bring-up 完整函数</td>
+</tr>
+<tr>
+<td><code>sched/task/task_start.c:68-108</code></td>
+<td><code>nxtask_start()</code>: 内核线程直接调用 vs 用户任务 up_task_start 分派</td>
+</tr>
+<tr>
+<td><code>sched/task/task_spawn.c:46</code></td>
+<td><code>task_spawn()</code> 编译排除 (CONFIG_BUILD_KERNEL 下不可用)</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_exec.c:193</code></td>
+<td><code>exec_spawn()</code>: 用户进程创建入口</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_execmodule.c:152</code></td>
+<td><code>exec_module()</code>: ELF 加载 + 地址空间创建 + TCB 初始化</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/common/arm_initialize.c:62-121</code></td>
+<td><code>up_initialize()</code>: 硬件驱动初始化编排</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/common/arm_allocateheap.c:155-180</code></td>
+<td><code>up_allocate_kheap()</code>: 内核堆边界计算</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/qemu/qemu_irq.c:105</code></td>
+<td><code>up_irqinitialize()</code>: GIC 中断控制器初始化</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/qemu/qemu_timer.c:35</code></td>
+<td><code>up_timer_initialize()</code>: ARM 架构定时器初始化</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/qemu/qemu_serial.c:45-62</code></td>
+<td><code>arm_earlyserialinit()</code> &#x2F; <code>arm_serialinit()</code>: PL011 串口</td>
+</tr>
+<tr>
+<td><code>libs/libc/sched/task_startup.c:58</code></td>
+<td><code>nxtask_startup()</code>: 用户空间任务入口 (C++ 初始化 + main)</td>
+</tr>
+<tr>
+<td><code>apps/system/nsh/nsh_main.c</code></td>
+<td>NSH shell 的 <code>main</code> 函数入口</td>
+</tr>
+</tbody></table>
+<h2 id="10-完整启动流程图"><a href="#10-完整启动流程图" class="headerlink" title="10. 完整启动流程图"></a>10. 完整启动流程图</h2><p><img src="/2026/06/14/Nuttx-Boot-Flow/boot_flow.png" alt="boot_flow"></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/14/Nuttx-Address-Translation/" rel="prev" title="Nuttx - Address Translation">
+                  <i class="fa fa-angle-left"></i> Nuttx - Address Translation
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/14/Nuttx-Task-Scheduling/" rel="next" title="Nuttx - Task Scheduling">
+                  Nuttx - Task Scheduling <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

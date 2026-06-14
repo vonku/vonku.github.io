@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文的主要内容是介绍文件系统基础概念。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ChChorOS-9-Filesystem">
+<meta property="og:url" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文的主要内容是介绍文件系统基础概念。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs2.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/dentry.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/FAT.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fat-dir.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fat2.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/dir.png">
+<meta property="article:published_time" content="2023-04-23T10:10:59.000Z">
+<meta property="article:modified_time" content="2026-06-14T09:10:14.534Z">
+<meta property="article:author" content="Vonku">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/fs2.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/","path":"2023/04/23/ChChorOS-9-Filesystem/","title":"ChChorOS-9-Filesystem"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ChChorOS-9-Filesystem | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%9F%BA%E4%BA%8Einode%E7%9A%84%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F"><span class="nav-text">1 基于inode的文件系统</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-inode%E4%B8%8E%E6%96%87%E4%BB%B6"><span class="nav-text">1.1 inode与文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E5%A4%9A%E7%BA%A7inode"><span class="nav-text">1.2 多级inode</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E6%96%87%E4%BB%B6%E5%90%8D%E4%B8%8E%E7%9B%AE%E5%BD%95"><span class="nav-text">1.3 文件名与目录</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-%E7%A1%AC%E9%93%BE%E6%8E%A5"><span class="nav-text">1.4 硬链接</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-5-%E8%BD%AF%E9%93%BE%E6%8E%A5"><span class="nav-text">1.5 软链接</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%9F%BA%E4%BA%8E%E8%A1%A8%E7%9A%84%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F"><span class="nav-text">2 基于表的文件系统</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%AD%98%E5%82%A8%E5%B8%83%E5%B1%80"><span class="nav-text">2.1 存储布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E7%9B%AE%E5%BD%95%E9%A1%B9%E6%A0%BC%E5%BC%8F"><span class="nav-text">2.2 目录项格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-FAT%E5%92%8C%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F"><span class="nav-text">2.3 FAT和文件格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-FAT%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%B0%8F%E7%BB%93"><span class="nav-text">2.4 FAT文件系统小结</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-FatFS%E4%BB%A3%E7%A0%81%E5%AF%BC%E8%AF%BB"><span class="nav-text">3 FatFS代码导读</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#f-mkdir"><span class="nav-text">f_mkdir</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#mount-volume"><span class="nav-text">mount_volume</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#follow-path"><span class="nav-text">follow_path</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#create-chain"><span class="nav-text">create_chain</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%9B%AE%E5%BD%95%E9%A1%B9%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">目录项初始化</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-VFS"><span class="nav-text">4 VFS</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/04/23/ChChorOS-9-Filesystem/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ChChorOS-9-Filesystem | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ChChorOS-9-Filesystem
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2023-04-23 18:10:59" itemprop="dateCreated datePublished" datetime="2023-04-23T18:10:59+08:00">2023-04-23</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/OS/" itemprop="url" rel="index"><span itemprop="name">OS</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文的主要内容是介绍文件系统基础概念。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-基于inode的文件系统"><a href="#1-基于inode的文件系统" class="headerlink" title="1 基于inode的文件系统"></a>1 基于inode的文件系统</h2><p><img src="/2023/04/23/ChChorOS-9-Filesystem/fs2.png" alt="fs2"></p>
+<h3 id="1-1-inode与文件"><a href="#1-1-inode与文件" class="headerlink" title="1.1 inode与文件"></a>1.1 inode与文件</h3><p>inode，即index node，用于记录一个文件的数据所在的存储块号、文件大小以及其他更多的文件属性（包括权限、修改时间、访问时间等），这些属性称为文件的<strong>元数据</strong>。</p>
+<p>inode文件系统的存储布局可以分成几个组成部分：</p>
+<ol>
+<li><strong>超级块</strong>：指示各个区域的起始块号和大小等信息，文件系统开始的第一个块就是超级块</li>
+<li><strong>存储块分配信息</strong>：记录哪些磁盘块正在被使用，哪些块处于空闲状态</li>
+<li><strong>inode分配信息表</strong>：记录哪些inode正在被使用，哪些inode是空闲的</li>
+<li><strong>inode表</strong>：以数组的方式保存的inode的数组，inode和文件是一一对应的</li>
+<li><strong>文件数据区</strong>：用来存储实际文件的内容</li>
+</ol>
+<h3 id="1-2-多级inode"><a href="#1-2-多级inode" class="headerlink" title="1.2 多级inode"></a>1.2 多级inode</h3><p>每个文件的大小是不一样的，可以从1KB到几GB，如果一个文件所有的存储块号顺序地保存在inode中，就得为所有的inode分配相同的大小，造成空间极大的浪费。</p>
+<p>为了解决这个问题，借鉴虚拟内存页表管理的思想，可以采用多级inode的方式进行管理。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/fs.png" alt="fs"></p>
+<p>假设一个数据块的大小是4KB。一个索引块也是4KB，其中保存512个直接指针，那么一个间接指针能够管理512个4KB的数据块，共2MB数据。</p>
+<p>相应的，一个二级索引就可以间接管理1GB的数据。</p>
+<p>inode的结构就决定了文件系统能够支持的最大文件的大小。</p>
+<h3 id="1-3-文件名与目录"><a href="#1-3-文件名与目录" class="headerlink" title="1.3 文件名与目录"></a>1.3 文件名与目录</h3><p>一个文件对应一个inode，文件需要有文件名，那么文件名放在哪里保存呢？</p>
+<p>在inode文件系统中，文件名并不作为inode的一部分，文件名由目录文件进行管理。</p>
+<p>目录也是一个文件，只是它是一种特殊的由文件系统定义的文件。目录文件里面的数据，就是一条条从文件名到inode号的映射，每条映射成为一个<strong>目录项（Directory Entry，dentry）</strong>。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/dentry.png" alt="dentry"></p>
+<p>以<strong>文件路径</strong>确定一个文件的过程，就是从根目录开始，一级一级找到每一个目录的dentry，最后找到文件的inode的过程。</p>
+<h3 id="1-4-硬链接"><a href="#1-4-硬链接" class="headerlink" title="1.4 硬链接"></a>1.4 硬链接</h3><p>用dentry管理inode和文件名的方式，带来一个新的功能：链接。</p>
+<p>如果已经存在一个文件和目录项，又有另外一个目录项的文件名和该文件的inode建立了映射，那么我们称这种新的文件名映射为<strong>链接</strong>。</p>
+<p>为了管理这种链接，我们需要给inode增加一个<strong>引用计数器</strong>，也称<strong>链接数</strong>。</p>
+<p>限制：只能用于同一个文件系统。</p>
+<h3 id="1-5-软链接"><a href="#1-5-软链接" class="headerlink" title="1.5 软链接"></a>1.5 软链接</h3><p>如果是不同文件系统，我们要怎么链接呢？答案是使用<strong>符号链接</strong>，也叫<strong>软链接</strong>。</p>
+<p>软链接可以理解成：它就是一个独立的文件，只是这个文件里面存的是<strong>目标文件的路径</strong>。</p>
+<p>通常符号链接文件里面的内容就是路径字符串，因此我们可以不为它分配数据区，而是直接保存在inode中。</p>
+<h2 id="2-基于表的文件系统"><a href="#2-基于表的文件系统" class="headerlink" title="2 基于表的文件系统"></a>2 基于表的文件系统</h2><p>FAT 文件系统，是基于<strong>文件分配表（File Allocation Table）</strong>的文件系统。</p>
+<h3 id="2-1-存储布局"><a href="#2-1-存储布局" class="headerlink" title="2.1 存储布局"></a>2.1 存储布局</h3><p>FAT文件系统的基本存储布局如下图所示。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/FAT.png" alt="FAT"></p>
+<ul>
+<li>引导记录：作用与超级块类似，其中记录了文件系统的元数据以及后续各个区域的位置。若此分区是可启动分区，还包含了引导整个操作系统启动所需要的代码。</li>
+<li>FAT表：通常由两份，互为备份。</li>
+</ul>
+<p>FAT文件系统以<strong>簇（Cluster）</strong>为逻辑存储单元，每个簇对应物理存储上的一个或多个连续的存储<strong>扇区（Sector）</strong>。</p>
+<h3 id="2-2-目录项格式"><a href="#2-2-目录项格式" class="headerlink" title="2.2 目录项格式"></a>2.2 目录项格式</h3><p>与基于inode文件系统不同，FAT中每个目录项的大小固定是32字节。</p>
+<ul>
+<li><p><strong>8.3格式的文件名（11字节）</strong></p>
+</li>
+<li><p><strong>属性（1字节）</strong></p>
+</li>
+<li><p>创建时间（3字节）</p>
+</li>
+<li><p>创建日期（2字节）</p>
+</li>
+<li><p>最后访问日期（2字节）</p>
+</li>
+<li><p>最后修改时间（2字节）</p>
+</li>
+<li><p>最后修改日期（2字节）</p>
+</li>
+<li><p>数据的起始簇号（2字节）</p>
+</li>
+<li><p>文件大小（4字节）</p>
+</li>
+<li><p>保留字节（3字节）</p>
+</li>
+</ul>
+<p>属性。用来表示该目录项的种类和状态。如果是长文件名，则属性字段固定是0x0F。</p>
+<p>短文件名。采用8.3格式，前8字节是文件名，3字节为扩展名。固定用大写存储。</p>
+<p>长文件名。在短文件名签名添加一个长文件名。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/fat-dir.png" alt="fat-dir"></p>
+<ul>
+<li>文件系统会自动为”OSBook File System.tex”这个文件生成短文件名。</li>
+<li>长文件名构建目录项保存在短文件名目录项之前。</li>
+<li>使用2字节的Unicode编码。</li>
+</ul>
+<h3 id="2-3-FAT和文件格式"><a href="#2-3-FAT和文件格式" class="headerlink" title="2.3 FAT和文件格式"></a>2.3 FAT和文件格式</h3><p>FAT实际上是一个由簇号组成的数组。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/fat2.png" alt="fat2"></p>
+<h3 id="2-4-FAT文件系统小结"><a href="#2-4-FAT文件系统小结" class="headerlink" title="2.4 FAT文件系统小结"></a>2.4 FAT文件系统小结</h3><p>FAT是FAT文件系统的核心。本质上，一个文件的多个数据簇以链表的形式进行索引。</p>
+<p>相比与基于inode的文件系统，这种方式更加简单直接。</p>
+<p>但是使用链表的结构在查找时并不高效。如果要访问一个文件的中间部分，FAT文件系统不得不逐个簇进行查找，使得大文件的访存变得尤为缓慢。</p>
+<h2 id="3-FatFS代码导读"><a href="#3-FatFS代码导读" class="headerlink" title="3 FatFS代码导读"></a>3 FatFS代码导读</h2><p>本节通过阅读FatFS的核心API，以加深对FAT文件系统的理解。</p>
+<h3 id="f-mkdir"><a href="#f-mkdir" class="headerlink" title="f_mkdir"></a>f_mkdir</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line">FRESULT <span class="title function_">f_mkdir</span> <span class="params">(</span></span><br><span class="line"><span class="params">    <span class="type">const</span> TCHAR* path       <span class="comment">/* Pointer to the directory path */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// ..</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 1. 先确认已经mount</span></span><br><span class="line">    res = mount_volume(&amp;path, &amp;fs, FA_WRITE);   <span class="comment">/* Get logical drive */</span></span><br><span class="line">    <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">        dj.obj.fs = fs;</span><br><span class="line">        INIT_NAMBUF(fs);</span><br><span class="line">        <span class="comment">// 2. 找到最后的路径</span></span><br><span class="line">        res = follow_path(&amp;dj, path);           <span class="comment">/* Follow the file path */</span></span><br><span class="line">        <span class="keyword">if</span> (res == FR_OK) res = FR_EXIST;       <span class="comment">/* Name collision? */</span></span><br><span class="line">        <span class="comment">// ...</span></span><br><span class="line">        <span class="keyword">if</span> (res == FR_NO_FILE) &#123;                <span class="comment">/* It is clear to create a new directory */</span></span><br><span class="line">            sobj.fs = fs;                       <span class="comment">/* New object id to create a new chain */</span></span><br><span class="line">            <span class="comment">// 3. 创建一个新的簇，用来放这个新的目录文件</span></span><br><span class="line">            dcl = create_chain(&amp;sobj, <span class="number">0</span>);       <span class="comment">/* Allocate a cluster for the new directory */</span></span><br><span class="line">            res = FR_OK;</span><br><span class="line">            <span class="keyword">if</span> (dcl == <span class="number">0</span>) res = FR_DENIED;      <span class="comment">/* No space to allocate a new cluster? */</span></span><br><span class="line">            <span class="keyword">if</span> (dcl == <span class="number">1</span>) res = FR_INT_ERR;     <span class="comment">/* Any insanity? */</span></span><br><span class="line">            <span class="keyword">if</span> (dcl == <span class="number">0xFFFFFFFF</span>) res = FR_DISK_ERR;   <span class="comment">/* Disk error? */</span></span><br><span class="line">            tm = GET_FATTIME();</span><br><span class="line">            <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">                <span class="comment">// 4. 初始化目录项</span></span><br><span class="line">                res = dir_clear(fs, dcl);       <span class="comment">/* Clean up the new table */</span></span><br><span class="line">                <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">                    <span class="keyword">if</span> (!FF_FS_EXFAT || fs-&gt;fs_type != FS_EXFAT) &#123;  <span class="comment">/* Create dot entries (FAT only) */</span></span><br><span class="line">                        <span class="built_in">memset</span>(fs-&gt;win + DIR_Name, <span class="string">&#x27; &#x27;</span>, <span class="number">11</span>);    <span class="comment">/* Create &quot;.&quot; entry */</span></span><br><span class="line">                        fs-&gt;win[DIR_Name] = <span class="string">&#x27;.&#x27;</span>;</span><br><span class="line">                        fs-&gt;win[DIR_Attr] = AM_DIR;</span><br><span class="line">                        st_dword(fs-&gt;win + DIR_ModTime, tm);</span><br><span class="line">                        st_clust(fs, fs-&gt;win, dcl);</span><br><span class="line">                        <span class="built_in">memcpy</span>(fs-&gt;win + SZDIRE, fs-&gt;win, SZDIRE);  <span class="comment">/* Create &quot;..&quot; entry */</span></span><br><span class="line">                        fs-&gt;win[SZDIRE + <span class="number">1</span>] = <span class="string">&#x27;.&#x27;</span>; pcl = dj.obj.sclust;</span><br><span class="line">                        st_clust(fs, fs-&gt;win + SZDIRE, pcl);</span><br><span class="line">                        fs-&gt;wflag = <span class="number">1</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                    res = dir_register(&amp;dj);    <span class="comment">/* Register the object to the parent directoy */</span></span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 5. 保存到文件系统</span></span><br><span class="line">            <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">                &#123;</span><br><span class="line">                    st_dword(dj.dir + DIR_ModTime, tm); <span class="comment">/* Created time */</span></span><br><span class="line">                    st_clust(fs, dj.dir, dcl);          <span class="comment">/* Table start cluster */</span></span><br><span class="line">                    dj.dir[DIR_Attr] = AM_DIR;          <span class="comment">/* Attribute */</span></span><br><span class="line">                    fs-&gt;wflag = <span class="number">1</span>;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">                    res = sync_fs(fs);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                remove_chain(&amp;sobj, dcl, <span class="number">0</span>);        <span class="comment">/* Could not register, remove the allocated cluster */</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        FREE_NAMBUF();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    LEAVE_FF(fs, res);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>创建目录总共可以分为四步。</p>
+<h4 id="mount-volume"><a href="#mount-volume" class="headerlink" title="mount_volume"></a>mount_volume</h4><p>确认该路径是已经mount过了。</p>
+<h4 id="follow-path"><a href="#follow-path" class="headerlink" title="follow_path"></a>follow_path</h4><p>假设我们新建的目录是 <code>&quot;/a/b/c&quot;</code>，那么我们需要从根目录开始，逐级找到<code>/a</code>和<code>&quot;/a/b&quot;</code>，然后返回<code>&quot;/a/b&quot;</code>这个父级目录项。这就是<code>follow_path</code>要做的事情。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> FRESULT <span class="title function_">follow_path</span> <span class="params">(    <span class="comment">/* FR_OK(0): successful, !=0: error code */</span></span></span><br><span class="line"><span class="params">    DIR* dp,                    <span class="comment">/* Directory object to return last directory and found object */</span></span></span><br><span class="line"><span class="params">    <span class="type">const</span> TCHAR* path           <span class="comment">/* Full-path string to find a file or directory */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    FRESULT res;</span><br><span class="line">    BYTE ns;</span><br><span class="line">    FATFS *fs = dp-&gt;obj.fs;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 1. 跳过分隔符</span></span><br><span class="line">    &#123;                                       <span class="comment">/* With heading separator */</span></span><br><span class="line">        <span class="keyword">while</span> (IsSeparator(*path)) path++;  <span class="comment">/* Strip separators */</span></span><br><span class="line">        dp-&gt;obj.sclust = <span class="number">0</span>;                 <span class="comment">/* Start from the root directory */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 这里主要是处理根目录的场景</span></span><br><span class="line">    <span class="keyword">if</span> ((UINT)*path &lt; <span class="string">&#x27; &#x27;</span>) &#123;                <span class="comment">/* Null path name is the origin directory itself */</span></span><br><span class="line">        dp-&gt;fn[NSFLAG] = NS_NONAME;</span><br><span class="line">        res = dir_sdi(dp, <span class="number">0</span>);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;                                <span class="comment">/* Follow path */</span></span><br><span class="line">        <span class="comment">// 3. 逐级目录进行处理</span></span><br><span class="line">        <span class="keyword">for</span> (;;) &#123;</span><br><span class="line">            <span class="comment">// 3.1. 找到top的目录的名字，保存在dp-&gt;fn中，如 /a/b/c，先得到A，下一次进来再得到B（会转为大写）</span></span><br><span class="line">            res = create_name(dp, &amp;path);   <span class="comment">/* Get a segment name of the path */</span></span><br><span class="line">            <span class="keyword">if</span> (res != FR_OK) <span class="keyword">break</span>;</span><br><span class="line">            <span class="comment">// 3.2 找到目录项</span></span><br><span class="line">            res = dir_find(dp);             <span class="comment">/* Find an object with the segment name */</span></span><br><span class="line">            ns = dp-&gt;fn[NSFLAG];</span><br><span class="line">            <span class="comment">// 3.2 如果没有找到</span></span><br><span class="line">            <span class="keyword">if</span> (res != FR_OK) &#123;             <span class="comment">/* Failed to find the object */</span></span><br><span class="line">                <span class="keyword">if</span> (res == FR_NO_FILE) &#123;    <span class="comment">/* Object is not found */</span></span><br><span class="line">                    <span class="keyword">if</span> (FF_FS_RPATH &amp;&amp; (ns &amp; NS_DOT)) &#123; <span class="comment">/* If dot entry is not exist, stay there */</span></span><br><span class="line">                        <span class="keyword">if</span> (!(ns &amp; NS_LAST)) <span class="keyword">continue</span>;  <span class="comment">/* Continue to follow if not last segment */</span></span><br><span class="line">                        dp-&gt;fn[NSFLAG] = NS_NONAME;</span><br><span class="line">                        res = FR_OK;</span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;                            <span class="comment">/* Could not find the object */</span></span><br><span class="line">                        <span class="keyword">if</span> (!(ns &amp; NS_LAST)) res = FR_NO_PATH;  <span class="comment">/* Adjust error code if not last segment */</span></span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125; </span><br><span class="line">            <span class="comment">// 如果找到了，并且follow_path已经到了最后，那么退出</span></span><br><span class="line">            <span class="keyword">if</span> (ns &amp; NS_LAST) <span class="keyword">break</span>;        <span class="comment">/* Last segment matched. Function completed. */</span></span><br><span class="line">            <span class="comment">// 如果找到了，但是它并不是一个目录（如/a/b 并不是一个目录项，那么它是不能follow的）</span></span><br><span class="line">            <span class="keyword">if</span> (!(dp-&gt;obj.attr &amp; AM_DIR)) &#123; <span class="comment">/* It is not a sub-directory and cannot follow */</span></span><br><span class="line">                res = FR_NO_PATH; <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 如果都符合，那么找到了对应这一级的目录项，更新sclust为这个目录项起始的簇（也可以理解为进入子目录）</span></span><br><span class="line">            &#123;</span><br><span class="line">                dp-&gt;obj.sclust = ld_clust(fs, fs-&gt;win + dp-&gt;dptr % SS(fs)); <span class="comment">/* Open next directory */</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>follow_path</code>这个函数稍微有点复杂，不过理解了这个函数，我们就能知道FAT是如何进行目录管理的了。</p>
+<p>首先一开始，dp-&gt;obj.sclust 默认为0，也就是被理解为 root 目录（起始root目录的起始簇并不是0，但可以理解成它指示从根目录开始查找）。</p>
+<p>我们的path是<code>/a/b/c</code>，首先我们要从根目录里面找到<code>/a</code>这个目录项。具体是怎么做的呢：</p>
+<p>(a) <code>create_name(dp, &amp;path)</code>，把 <code>&quot;a&quot;</code> 保存在 <code>dp-&gt;fn</code> 中，然后path 变成<code>/b/c</code></p>
+<p>(b) <code>dir_find(dp)</code>，从根目录里面查找 <code>a</code> 这个目录项</p>
+<p>(c) 更新目录项的起始簇（有也可以理解成进入子目录）</p>
+<p>这里我们对 <code>dir_find()</code>这个函数做进一步的分析。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> FRESULT <span class="title function_">dir_find</span> <span class="params">(   <span class="comment">/* FR_OK(0):succeeded, !=0:error */</span></span></span><br><span class="line"><span class="params">    DIR* dp                 <span class="comment">/* Pointer to the directory object with the file name */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    FRESULT res;</span><br><span class="line">    FATFS *fs = dp-&gt;obj.fs;</span><br><span class="line">    BYTE c;</span><br><span class="line"><span class="meta">#<span class="keyword">if</span> FF_USE_LFN</span></span><br><span class="line">    BYTE a, ord, sum;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">    <span class="comment">// 从父目录的头开始查找，set index 为0</span></span><br><span class="line">    res = dir_sdi(dp, <span class="number">0</span>);           <span class="comment">/* Rewind directory object */</span></span><br><span class="line">    <span class="keyword">if</span> (res != FR_OK) <span class="keyword">return</span> res;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        <span class="comment">// 不断地更新窗口</span></span><br><span class="line">        res = move_window(fs, dp-&gt;sect);</span><br><span class="line">        <span class="keyword">if</span> (res != FR_OK) <span class="keyword">break</span>;</span><br><span class="line">        c = dp-&gt;dir[DIR_Name];</span><br><span class="line">        <span class="keyword">if</span> (c == <span class="number">0</span>) &#123; res = FR_NO_FILE; <span class="keyword">break</span>; &#125;    <span class="comment">/* Reached to end of table */</span></span><br><span class="line"></span><br><span class="line">        dp-&gt;obj.attr = dp-&gt;dir[DIR_Attr] &amp; AM_MASK;</span><br><span class="line">        <span class="comment">// 比较目录项的名字，如果相同，就是找到了</span></span><br><span class="line">        <span class="keyword">if</span> (!(dp-&gt;dir[DIR_Attr] &amp; AM_VOL) &amp;&amp; !<span class="built_in">memcmp</span>(dp-&gt;dir, dp-&gt;fn, <span class="number">11</span>)) <span class="keyword">break</span>;   <span class="comment">/* Is it a valid entry? */</span></span><br><span class="line">        <span class="comment">// 否则，继续找下一个目录项</span></span><br><span class="line">        res = dir_next(dp, <span class="number">0</span>);  <span class="comment">/* Next entry */</span></span><br><span class="line">    &#125; <span class="keyword">while</span> (res == FR_OK);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里面涉及到<code>dir_sdi()</code>和<code>move_window()</code>以及<code>dir_next()</code>这几个函数。我们不妨继续展开说说。</p>
+<p><code>dir_sdi</code>这个函数是根据<code>offset</code>更新<code>dp-&gt;clust</code>和<code>dp-&gt;sect</code>。这个函数里面体现了FAT表、数据簇和扇区的关系，代码分析贴在注释中：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> FRESULT <span class="title function_">dir_sdi</span> <span class="params">(    <span class="comment">/* FR_OK(0):succeeded, !=0:error */</span></span></span><br><span class="line"><span class="params">    DIR* dp,        <span class="comment">/* Pointer to directory object */</span></span></span><br><span class="line"><span class="params">    DWORD ofs       <span class="comment">/* Offset of directory table */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    DWORD csz, clst;</span><br><span class="line">    FATFS *fs = dp-&gt;obj.fs;</span><br><span class="line"></span><br><span class="line">    dp-&gt;dptr = ofs;             <span class="comment">/* Set current offset */</span></span><br><span class="line">    <span class="comment">// clst 现在指向 这个目录的起始簇</span></span><br><span class="line">    clst = dp-&gt;obj.sclust;      <span class="comment">/* Table start cluster (0:root) */</span></span><br><span class="line">    <span class="comment">// 如果clst是0，那么用 root 簇来代替</span></span><br><span class="line">    <span class="keyword">if</span> (clst == <span class="number">0</span> &amp;&amp; fs-&gt;fs_type &gt;= FS_FAT32) &#123; <span class="comment">/* Replace cluster# 0 with root cluster# */</span></span><br><span class="line">        clst = (DWORD)fs-&gt;dirbase;</span><br><span class="line">        <span class="keyword">if</span> (FF_FS_EXFAT) dp-&gt;obj.stat = <span class="number">0</span>;  <span class="comment">/* exFAT: Root dir has an FAT chain */</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 继续是 root 目录的特殊处理</span></span><br><span class="line">    <span class="keyword">if</span> (clst == <span class="number">0</span>) &#123;    <span class="comment">/* Static table (root-directory on the FAT volume) */</span></span><br><span class="line">        <span class="keyword">if</span> (ofs / SZDIRE &gt;= fs-&gt;n_rootdir) <span class="keyword">return</span> FR_INT_ERR;   <span class="comment">/* Is index out of range? */</span></span><br><span class="line">        dp-&gt;sect = fs-&gt;dirbase;</span><br><span class="line"></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;            <span class="comment">/* Dynamic table (sub-directory or root-directory on the FAT32/exFAT volume) */</span></span><br><span class="line">        <span class="comment">// 如果不是根目录，那么我们就需要计算 offset 位于哪一个簇，哪一个扇区了</span></span><br><span class="line">        csz = (DWORD)fs-&gt;csize * SS(fs);    <span class="comment">/* Bytes per cluster */</span></span><br><span class="line">        <span class="keyword">while</span> (ofs &gt;= csz) &#123;                <span class="comment">/* Follow cluster chain */</span></span><br><span class="line">            <span class="comment">// 如果超过了一个簇，那么就根据FAT表找到它的下一个簇</span></span><br><span class="line">            clst = get_fat(&amp;dp-&gt;obj, clst);             <span class="comment">/* Get next cluster */</span></span><br><span class="line">            <span class="keyword">if</span> (clst == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> FR_DISK_ERR; <span class="comment">/* Disk error */</span></span><br><span class="line">            <span class="keyword">if</span> (clst &lt; <span class="number">2</span> || clst &gt;= fs-&gt;n_fatent) <span class="keyword">return</span> FR_INT_ERR;    <span class="comment">/* Reached to end of table or internal error */</span></span><br><span class="line">            ofs -= csz;</span><br><span class="line">        &#125;</span><br><span class="line">        dp-&gt;sect = clst2sect(fs, clst);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 最后就是把 clst 和 sect 写到 dp 中</span></span><br><span class="line">    dp-&gt;clust = clst;                   <span class="comment">/* Current cluster# */</span></span><br><span class="line">    <span class="keyword">if</span> (dp-&gt;sect == <span class="number">0</span>) <span class="keyword">return</span> FR_INT_ERR;</span><br><span class="line">    dp-&gt;sect += ofs / SS(fs);           <span class="comment">/* Sector# of the directory entry */</span></span><br><span class="line">    dp-&gt;dir = fs-&gt;win + (ofs % SS(fs)); <span class="comment">/* Pointer to the entry in the win[] */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> FR_OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>move_window()</code>这个函数体现了，FAT是怎么缓存扇区内容的——它在<code>fs-&gt;win</code>中缓存了一个扇区的内容。<code>move_window()</code>就是把一个扇区的数据更新到<code>fs-&gt;win</code>中。如果之前<code>fs-&gt;win</code>的数据是dirty了，那么先提前sync到物理存储中。（这几乎就是FAT文件系统最主要的缓存机制了 &#x3D; &#x3D;！）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> FRESULT <span class="title function_">move_window</span> <span class="params">(    <span class="comment">/* Returns FR_OK or FR_DISK_ERR */</span></span></span><br><span class="line"><span class="params">    FATFS* fs,      <span class="comment">/* Filesystem object */</span></span></span><br><span class="line"><span class="params">    LBA_t sect      <span class="comment">/* Sector LBA to make appearance in the fs-&gt;win[] */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    FRESULT res = FR_OK;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (sect != fs-&gt;winsect) &#123;  <span class="comment">/* Window offset changed? */</span></span><br><span class="line"><span class="meta">#<span class="keyword">if</span> !FF_FS_READONLY</span></span><br><span class="line">        res = sync_window(fs);      <span class="comment">/* Flush the window */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">        <span class="keyword">if</span> (res == FR_OK) &#123;         <span class="comment">/* Fill sector window with new data */</span></span><br><span class="line">            <span class="keyword">if</span> (disk_read(fs-&gt;pdrv, fs-&gt;win, sect, <span class="number">1</span>) != RES_OK) &#123;</span><br><span class="line">                sect = (LBA_t)<span class="number">0</span> - <span class="number">1</span>;    <span class="comment">/* Invalidate window if read data is not valid */</span></span><br><span class="line">                res = FR_DISK_ERR;</span><br><span class="line">            &#125;</span><br><span class="line">            fs-&gt;winsect = sect;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>了解了<code>dir_sdi()</code>的机制，也就很容易理解<code>dir_next()</code>所作的事情了。它要做的就是要到下一个目录项。这个函数的要点：</p>
+<ul>
+<li>当前目录的指针是<code>dp-&gt;dptr</code>，每一个目录项的长度是SZDIRE，也就是32个字节</li>
+<li>如果到达sector边界，那么就更新sector</li>
+<li>如果到达clust边界，那么就通过 <code>get_fat()</code> 获取下一个簇</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> FRESULT <span class="title function_">dir_next</span> <span class="params">(   <span class="comment">/* FR_OK(0):succeeded, FR_NO_FILE:End of table, FR_DENIED:Could not stretch */</span></span></span><br><span class="line"><span class="params">    DIR* dp,                <span class="comment">/* Pointer to the directory object */</span></span></span><br><span class="line"><span class="params">    <span class="type">int</span> stretch             <span class="comment">/* 0: Do not stretch table, 1: Stretch table if needed */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    DWORD ofs, clst;</span><br><span class="line">    FATFS *fs = dp-&gt;obj.fs;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    ofs = dp-&gt;dptr + SZDIRE;    <span class="comment">/* Next entry */</span></span><br><span class="line">    <span class="keyword">if</span> (ofs &gt;= (DWORD)((FF_FS_EXFAT &amp;&amp; fs-&gt;fs_type == FS_EXFAT) ? MAX_DIR_EX : MAX_DIR)) dp-&gt;sect = <span class="number">0</span>;  <span class="comment">/* Disable it if the offset reached the max value */</span></span><br><span class="line">    <span class="keyword">if</span> (dp-&gt;sect == <span class="number">0</span>) <span class="keyword">return</span> FR_NO_FILE;   <span class="comment">/* Report EOT if it has been disabled */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (ofs % SS(fs) == <span class="number">0</span>) &#123;    <span class="comment">/* Sector changed? */</span></span><br><span class="line">        dp-&gt;sect++;             <span class="comment">/* Next sector */</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (dp-&gt;clust == <span class="number">0</span>) &#123;   <span class="comment">/* Static table */</span></span><br><span class="line">            <span class="keyword">if</span> (ofs / SZDIRE &gt;= fs-&gt;n_rootdir) &#123;    <span class="comment">/* Report EOT if it reached end of static table */</span></span><br><span class="line">                dp-&gt;sect = <span class="number">0</span>; <span class="keyword">return</span> FR_NO_FILE;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">else</span> &#123;                  <span class="comment">/* Dynamic table */</span></span><br><span class="line">            <span class="keyword">if</span> ((ofs / SS(fs) &amp; (fs-&gt;csize - <span class="number">1</span>)) == <span class="number">0</span>) &#123;    <span class="comment">/* Cluster changed? */</span></span><br><span class="line">                clst = get_fat(&amp;dp-&gt;obj, dp-&gt;clust);        <span class="comment">/* Get next cluster */</span></span><br><span class="line">                <span class="keyword">if</span> (clst &lt;= <span class="number">1</span>) <span class="keyword">return</span> FR_INT_ERR;           <span class="comment">/* Internal error */</span></span><br><span class="line">                <span class="keyword">if</span> (clst == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> FR_DISK_ERR; <span class="comment">/* Disk error */</span></span><br><span class="line">                <span class="keyword">if</span> (clst &gt;= fs-&gt;n_fatent) &#123;                 <span class="comment">/* It reached end of dynamic table */</span></span><br><span class="line"><span class="meta">#<span class="keyword">if</span> !FF_FS_READONLY</span></span><br><span class="line">                    <span class="keyword">if</span> (!stretch) &#123;                             <span class="comment">/* If no stretch, report EOT */</span></span><br><span class="line">                        dp-&gt;sect = <span class="number">0</span>; <span class="keyword">return</span> FR_NO_FILE;</span><br><span class="line">                    &#125;</span><br><span class="line">                    clst = create_chain(&amp;dp-&gt;obj, dp-&gt;clust);   <span class="comment">/* Allocate a cluster */</span></span><br><span class="line">                    <span class="keyword">if</span> (clst == <span class="number">0</span>) <span class="keyword">return</span> FR_DENIED;            <span class="comment">/* No free cluster */</span></span><br><span class="line">                    <span class="keyword">if</span> (clst == <span class="number">1</span>) <span class="keyword">return</span> FR_INT_ERR;           <span class="comment">/* Internal error */</span></span><br><span class="line">                    <span class="keyword">if</span> (clst == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> FR_DISK_ERR; <span class="comment">/* Disk error */</span></span><br><span class="line">                    <span class="keyword">if</span> (dir_clear(fs, clst) != FR_OK) <span class="keyword">return</span> FR_DISK_ERR;   <span class="comment">/* Clean up the stretched table */</span></span><br><span class="line">                    <span class="keyword">if</span> (FF_FS_EXFAT) dp-&gt;obj.stat |= <span class="number">4</span>;         <span class="comment">/* exFAT: The directory has been stretched */</span></span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line">                    <span class="keyword">if</span> (!stretch) dp-&gt;sect = <span class="number">0</span>;                 <span class="comment">/* (this line is to suppress compiler warning) */</span></span><br><span class="line">                    dp-&gt;sect = <span class="number">0</span>; <span class="keyword">return</span> FR_NO_FILE;            <span class="comment">/* Report EOT */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">                &#125;</span><br><span class="line">                dp-&gt;clust = clst;       <span class="comment">/* Initialize data for new cluster */</span></span><br><span class="line">                dp-&gt;sect = clst2sect(fs, clst);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    dp-&gt;dptr = ofs;                     <span class="comment">/* Current entry */</span></span><br><span class="line">    dp-&gt;dir = fs-&gt;win + ofs % SS(fs);   <span class="comment">/* Pointer to the entry in the win[] */</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> FR_OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>理解了这三个子函数，我们也就能知道 <code>dir_find()</code>的原理了。它不过是要逐个找到目录项，然后比较目录项的名字，和当前要找的目录项是否匹配。</p>
+<p>目录项的存储结构示意图如下，<strong>请仔细理解这个图，因为它是理解FAT文件系统目录和文件管理机制的关键</strong>。</p>
+<p><img src="/2023/04/23/ChChorOS-9-Filesystem/dir.png" alt="dir"></p>
+<p>再回到 <code>follow_path(&amp;dj, path)</code>，我们要新建的是<code>/a/b/c</code> 这个目录，假设<code>/a/b</code>已经存在，那么最终，<code>/a/b/c</code>这个目录肯定是找不到的，因为还没有创建。而<code>/a/b</code>可以找到，它保存在 <code>dj</code>中。</p>
+<h4 id="create-chain"><a href="#create-chain" class="headerlink" title="create_chain"></a>create_chain</h4><p>创建一个新的簇，用来存放即将要添加的新的目录。</p>
+<p>这个函数主要是FAT表的管理。这里列出一些该函数的要点：</p>
+<ul>
+<li><code>fs-&gt;last_clst</code> 中保存了上次分配的簇，也即当前建议开始查找的簇</li>
+<li><code>fs-&gt;free_clst</code> 中保存了剩余的空闲簇</li>
+<li><code>get_fat()</code>就是根据簇号找到FAT表对应的FAT entry，它是4字节长度的数据</li>
+<li>为0表示空闲的簇</li>
+<li>分配完成之后，这个簇就是簇链最后的簇，因此给它的FAT entry赋值为0xFFFFFFFF</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> DWORD <span class="title function_">create_chain</span> <span class="params">( <span class="comment">/* 0:No free cluster, 1:Internal error, 0xFFFFFFFF:Disk error, &gt;=2:New cluster# */</span></span></span><br><span class="line"><span class="params">    FFOBJID* obj,       <span class="comment">/* Corresponding object */</span></span></span><br><span class="line"><span class="params">    DWORD clst          <span class="comment">/* Cluster# to stretch, 0:Create a new chain */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    DWORD cs, ncl, scl;</span><br><span class="line">    FRESULT res;</span><br><span class="line">    FATFS *fs = obj-&gt;fs;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 我们要新建一个chain，因此 clst传入的是0, 如果不是0，表示在原先的簇链上再添加一个簇。</span></span><br><span class="line">    <span class="keyword">if</span> (clst == <span class="number">0</span>) &#123;    <span class="comment">/* Create a new chain */</span></span><br><span class="line">        scl = fs-&gt;last_clst;                <span class="comment">/* Suggested cluster to start to find */</span></span><br><span class="line">        <span class="keyword">if</span> (scl == <span class="number">0</span> || scl &gt;= fs-&gt;n_fatent) scl = <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">else</span> &#123;              <span class="comment">/* Stretch a chain */</span></span><br><span class="line">        cs = get_fat(obj, clst);            <span class="comment">/* Check the cluster status */</span></span><br><span class="line">        <span class="keyword">if</span> (cs &lt; <span class="number">2</span>) <span class="keyword">return</span> <span class="number">1</span>;               <span class="comment">/* Test for insanity */</span></span><br><span class="line">        <span class="keyword">if</span> (cs == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> cs;    <span class="comment">/* Test for disk error */</span></span><br><span class="line">        <span class="keyword">if</span> (cs &lt; fs-&gt;n_fatent) <span class="keyword">return</span> cs;   <span class="comment">/* It is already followed by next cluster */</span></span><br><span class="line">        scl = clst;                         <span class="comment">/* Cluster to start to find */</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (fs-&gt;free_clst == <span class="number">0</span>) <span class="keyword">return</span> <span class="number">0</span>;       <span class="comment">/* No free cluster */</span></span><br><span class="line"></span><br><span class="line">    &#123;   <span class="comment">/* On the FAT/FAT32 volume */</span></span><br><span class="line">        ncl = <span class="number">0</span>;</span><br><span class="line">        <span class="keyword">if</span> (scl == clst) &#123;                      <span class="comment">/* Stretching an existing chain? */</span></span><br><span class="line">            ncl = scl + <span class="number">1</span>;                      <span class="comment">/* Test if next cluster is free */</span></span><br><span class="line">            <span class="keyword">if</span> (ncl &gt;= fs-&gt;n_fatent) ncl = <span class="number">2</span>;</span><br><span class="line">            cs = get_fat(obj, ncl);             <span class="comment">/* Get next cluster status */</span></span><br><span class="line">            <span class="keyword">if</span> (cs == <span class="number">1</span> || cs == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> cs; <span class="comment">/* Test for error */</span></span><br><span class="line">            <span class="keyword">if</span> (cs != <span class="number">0</span>) &#123;                      <span class="comment">/* Not free? */</span></span><br><span class="line">                cs = fs-&gt;last_clst;             <span class="comment">/* Start at suggested cluster if it is valid */</span></span><br><span class="line">                <span class="keyword">if</span> (cs &gt;= <span class="number">2</span> &amp;&amp; cs &lt; fs-&gt;n_fatent) scl = cs;</span><br><span class="line">                ncl = <span class="number">0</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> (ncl == <span class="number">0</span>) &#123; <span class="comment">/* The new cluster cannot be contiguous and find another fragment */</span></span><br><span class="line">            ncl = scl;  <span class="comment">/* Start cluster */</span></span><br><span class="line">            <span class="keyword">for</span> (;;) &#123;</span><br><span class="line">                ncl++;                          <span class="comment">/* Next cluster */</span></span><br><span class="line">                <span class="keyword">if</span> (ncl &gt;= fs-&gt;n_fatent) &#123;      <span class="comment">/* Check wrap-around */</span></span><br><span class="line">                    ncl = <span class="number">2</span>;</span><br><span class="line">                    <span class="keyword">if</span> (ncl &gt; scl) <span class="keyword">return</span> <span class="number">0</span>;    <span class="comment">/* No free cluster found? */</span></span><br><span class="line">                &#125;</span><br><span class="line">                cs = get_fat(obj, ncl);         <span class="comment">/* Get the cluster status */</span></span><br><span class="line">                <span class="keyword">if</span> (cs == <span class="number">0</span>) <span class="keyword">break</span>;             <span class="comment">/* Found a free cluster? */</span></span><br><span class="line">                <span class="keyword">if</span> (cs == <span class="number">1</span> || cs == <span class="number">0xFFFFFFFF</span>) <span class="keyword">return</span> cs; <span class="comment">/* Test for error */</span></span><br><span class="line">                <span class="keyword">if</span> (ncl == scl) <span class="keyword">return</span> <span class="number">0</span>;       <span class="comment">/* No free cluster found? */</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        res = put_fat(fs, ncl, <span class="number">0xFFFFFFFF</span>);     <span class="comment">/* Mark the new cluster &#x27;EOC&#x27; */</span></span><br><span class="line">        <span class="keyword">if</span> (res == FR_OK &amp;&amp; clst != <span class="number">0</span>) &#123;</span><br><span class="line">            res = put_fat(fs, clst, ncl);       <span class="comment">/* Link it from the previous one if needed */</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (res == FR_OK) &#123;         <span class="comment">/* Update FSINFO if function succeeded. */</span></span><br><span class="line">        fs-&gt;last_clst = ncl;</span><br><span class="line">        <span class="keyword">if</span> (fs-&gt;free_clst &lt;= fs-&gt;n_fatent - <span class="number">2</span>) fs-&gt;free_clst--;</span><br><span class="line">        fs-&gt;fsi_flag |= <span class="number">1</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        ncl = (res == FR_DISK_ERR) ? <span class="number">0xFFFFFFFF</span> : <span class="number">1</span>;    <span class="comment">/* Failed. Generate error status */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ncl;     <span class="comment">/* Return new cluster number or error status */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="目录项初始化"><a href="#目录项初始化" class="headerlink" title="目录项初始化"></a>目录项初始化</h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">    <span class="comment">// 清除目录</span></span><br><span class="line">    res = dir_clear(fs, dcl);       <span class="comment">/* Clean up the new table */</span></span><br><span class="line">    <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">        <span class="comment">// 创建 &quot;.&quot; 和 &quot;..&quot; 这两个目录项</span></span><br><span class="line">        <span class="keyword">if</span> (!FF_FS_EXFAT || fs-&gt;fs_type != FS_EXFAT) &#123;  <span class="comment">/* Create dot entries (FAT only) */</span></span><br><span class="line">            <span class="built_in">memset</span>(fs-&gt;win + DIR_Name, <span class="string">&#x27; &#x27;</span>, <span class="number">11</span>);    <span class="comment">/* Create &quot;.&quot; entry */</span></span><br><span class="line">            fs-&gt;win[DIR_Name] = <span class="string">&#x27;.&#x27;</span>;</span><br><span class="line">            fs-&gt;win[DIR_Attr] = AM_DIR;</span><br><span class="line">            st_dword(fs-&gt;win + DIR_ModTime, tm);</span><br><span class="line">            st_clust(fs, fs-&gt;win, dcl);</span><br><span class="line">            <span class="built_in">memcpy</span>(fs-&gt;win + SZDIRE, fs-&gt;win, SZDIRE);  <span class="comment">/* Create &quot;..&quot; entry */</span></span><br><span class="line">            fs-&gt;win[SZDIRE + <span class="number">1</span>] = <span class="string">&#x27;.&#x27;</span>; pcl = dj.obj.sclust;</span><br><span class="line">            st_clust(fs, fs-&gt;win + SZDIRE, pcl);</span><br><span class="line">            fs-&gt;wflag = <span class="number">1</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// 把该目录项注册到父级目录中（添加dir entry）,之前就是从父级目录分配的，只是还没有保存 子目录项的 起始簇号等信息</span></span><br><span class="line">        res = dir_register(&amp;dj);    <span class="comment">/* Register the object to the parent directoy */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// 为该目录项更新起始簇号和其他属性信息</span></span><br><span class="line">        st_dword(dj.dir + DIR_ModTime, tm); <span class="comment">/* Created time */</span></span><br><span class="line">        st_clust(fs, dj.dir, dcl);          <span class="comment">/* Table start cluster */</span></span><br><span class="line">        dj.dir[DIR_Attr] = AM_DIR;          <span class="comment">/* Attribute */</span></span><br><span class="line">        fs-&gt;wflag = <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 刷新到驱动中</span></span><br><span class="line">    <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">        res = sync_fs(fs);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>清空目录</li>
+<li>创建 <code>.</code> 和 <code>..</code> 这两个目录项</li>
+<li><code>dir_register</code>注册到父级目录中</li>
+<li>更新起始簇号和其他属性信息</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> FRESULT <span class="title function_">dir_register</span> <span class="params">(   <span class="comment">/* FR_OK:succeeded, FR_DENIED:no free entry or too many SFN collision, FR_DISK_ERR:disk error */</span></span></span><br><span class="line"><span class="params">    DIR* dp                     <span class="comment">/* Target directory with object name to be created */</span></span></span><br><span class="line"><span class="params">)</span></span><br><span class="line">&#123;</span><br><span class="line">    FRESULT res;</span><br><span class="line">    FATFS *fs = dp-&gt;obj.fs;</span><br><span class="line"></span><br><span class="line">    res = dir_alloc(dp, <span class="number">1</span>);     <span class="comment">// 分配一个目录项</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Set SFN entry */</span></span><br><span class="line">    <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">        res = move_window(fs, dp-&gt;sect);</span><br><span class="line">        <span class="keyword">if</span> (res == FR_OK) &#123;</span><br><span class="line">            <span class="built_in">memset</span>(dp-&gt;dir, <span class="number">0</span>, SZDIRE); <span class="comment">/* Clean the entry */</span></span><br><span class="line">            <span class="comment">// 保存名字</span></span><br><span class="line">            <span class="built_in">memcpy</span>(dp-&gt;dir + DIR_Name, dp-&gt;fn, <span class="number">11</span>); <span class="comment">/* Put SFN */</span></span><br><span class="line"></span><br><span class="line">            fs-&gt;wflag = <span class="number">1</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> res;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这样，就完成了一个目录项的创建。</p>
+<p>通过分析这样的一个函数，我们可以一窥FAT文件系统对目录、文件的管理。</p>
+<p>目录是一种特殊类型的文件，区别在于，目录文件的数据区存储的是一个个的目录项，而普通的文件的数据区中存储的是文件数据的内容。</p>
+<p><strong>参考资料</strong></p>
+<ol>
+<li><em><a target="_blank" rel="noopener" href="https://en.wikipedia.org/wiki/File_Allocation_Table#External_links">https://en.wikipedia.org/wiki/File_Allocation_Table#External_links</a></em></li>
+<li><em><a target="_blank" rel="noopener" href="http://elm-chan.org/fsw/ff/00index_e.html">http://elm-chan.org/fsw/ff/00index_e.html</a></em></li>
+<li><em><a target="_blank" rel="noopener" href="http://elm-chan.org/docs/fat_e.html">http://elm-chan.org/docs/fat_e.html</a></em></li>
+<li><em><a target="_blank" rel="noopener" href="http://www.c-jump.com/CIS24/Slides/FAT/lecture.html">http://www.c-jump.com/CIS24/Slides/FAT/lecture.html</a></em></li>
+</ol>
+<h2 id="4-VFS"><a href="#4-VFS" class="headerlink" title="4 VFS"></a>4 VFS</h2><p>计算机系统中可能同时存在多个文件系统。在操作系统中，<strong>虚拟文件系统（Virtual File System）</strong>对多种文件系统进行管理和协调，允许它们在同一个操作系统上共同工作。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2023/04/22/ChChorOS-8-IPC/" rel="prev" title="ChChorOS-8-IPC">
+                  <i class="fa fa-angle-left"></i> ChChorOS-8-IPC
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2023/04/26/Security-in-Bluetooth-Low-Energy/" rel="next" title="Security in Bluetooth Low Energy">
+                  Security in Bluetooth Low Energy <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

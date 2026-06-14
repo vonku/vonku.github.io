@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文的主要内容是介绍文件系统的崩溃一致性。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ChChorOS-9-2-Filesystem Crash Consistensy">
+<meta property="og:url" content="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文的主要内容是介绍文件系统的崩溃一致性。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/create_file.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/%E6%97%A5%E5%BF%971.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/%E5%86%99%E6%97%B6%E6%8B%B7%E8%B4%9D.png">
+<meta property="og:image" content="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/%E5%86%99%E6%97%B6%E6%8B%B7%E8%B4%9D%E5%9C%A8%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%B8%AD%E7%9A%84%E5%BA%94%E7%94%A8.png">
+<meta property="article:published_time" content="2023-04-29T11:23:01.000Z">
+<meta property="article:modified_time" content="2026-06-14T09:10:14.518Z">
+<meta property="article:author" content="Vonku">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/create_file.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/","path":"2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/","title":"ChChorOS-9-2-Filesystem Crash Consistensy"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ChChorOS-9-2-Filesystem Crash Consistensy | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%B4%A9%E6%BA%83%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-text">1 崩溃一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%89%80%E8%A6%81%E6%B1%82%E7%9A%84%E4%B8%89%E4%B8%AA%E5%B1%9E%E6%80%A7"><span class="nav-text">1.1 文件系统所要求的三个属性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%90%8C%E6%AD%A5%E5%86%99%E5%85%A5"><span class="nav-text">2 同步写入</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%B4%A9%E6%BA%83%E4%B8%80%E8%87%B4%E6%80%A7%E4%BF%9D%E9%9A%9C%E6%96%B9%E6%B3%95"><span class="nav-text">3 崩溃一致性保障方法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%97%A5%E5%BF%97"><span class="nav-text">4 日志</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E6%97%A5%E5%BF%97%E6%9C%BA%E5%88%B6%E7%9A%84%E5%8E%9F%E7%90%86"><span class="nav-text">4.1 日志机制的原理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#4-1-1-%E6%97%A5%E5%BF%97%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-text">4.1.1 日志的生命周期</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#4-1-2-%E6%97%A5%E5%BF%97%E7%9A%84%E7%B1%BB%E5%9E%8B"><span class="nav-text">4.1.2 日志的类型</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%97%A5%E5%BF%97%E4%BC%98%E5%8C%96"><span class="nav-text">4.2 日志优化</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#4-2-1-%E9%A1%B5%E7%BC%93%E5%AD%98"><span class="nav-text">4.2.1 页缓存</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#4-2-2-%E6%89%B9%E9%87%8F%E5%A4%84%E7%90%86%E6%97%A5%E5%BF%97%E4%BB%A5%E5%87%8F%E5%B0%91%E7%A3%81%E7%9B%98%E5%86%99"><span class="nav-text">4.2.2 批量处理日志以减少磁盘写</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%86%99%E6%97%B6%E6%8B%B7%E8%B4%9D"><span class="nav-text">5 写时拷贝</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%9B%B4%E6%96%B0%E4%BC%A0%E9%80%92"><span class="nav-text">5.1 更新传递</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%86%99%E6%94%BE%E5%A4%A7"><span class="nav-text">5.2 写放大</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E5%86%99%E6%97%B6%E6%8B%B7%E8%B4%9D%E5%9C%A8%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%B8%AD%E7%9A%84%E5%BA%94%E7%94%A8"><span class="nav-text">5.3 写时拷贝在文件系统中的应用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E5%B0%8F%E7%BB%93"><span class="nav-text">5.4 小结</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ChChorOS-9-2-Filesystem Crash Consistensy | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ChChorOS-9-2-Filesystem Crash Consistensy
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2023-04-29 19:23:01" itemprop="dateCreated datePublished" datetime="2023-04-29T19:23:01+08:00">2023-04-29</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/OS/" itemprop="url" rel="index"><span itemprop="name">OS</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文的主要内容是介绍文件系统的崩溃一致性。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-崩溃一致性"><a href="#1-崩溃一致性" class="headerlink" title="1 崩溃一致性"></a>1 崩溃一致性</h2><p>每个文件系统接口的背后，文件系统需要做大量的工作，如空间分配、数据拷贝、元数据更改和数据结构修改等。如果这些修改的过程中发生掉电或崩溃，那么可能导致存储设备所保存的数据之间的一些内在关系遭到破坏。这种问题叫做<strong>奔溃一致性（Crash Consistency）</strong>问题。</p>
+<p>以基于inode的文件系统为例，介绍创建文件涉及的文件系统崩溃一致性问题。</p>
+<p>创建文件可以分为三步：</p>
+<ol>
+<li>分配inode。在inode分配信息中查找空闲的inode，并标记为1。</li>
+<li>初始化inode。把新文件的信息保存在inode结构之中。</li>
+<li>增加目录项。在父目录中添加新的目录项，保存新的文件名和inode号。<br><img src="/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/create_file.png" alt="create_file"></li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>崩溃发生时的情况</th>
+<th>inode位图</th>
+<th>inode结构</th>
+<th>目录项</th>
+<th>是否影响使用</th>
+<th>典型问题</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>持久</td>
+<td>未持久</td>
+<td>未持久</td>
+<td>否</td>
+<td>资源泄露</td>
+</tr>
+<tr>
+<td>2</td>
+<td>未持久</td>
+<td>持久</td>
+<td>未持久</td>
+<td>否</td>
+<td>无</td>
+</tr>
+<tr>
+<td>3</td>
+<td>未持久</td>
+<td>未持久</td>
+<td>持久</td>
+<td>是</td>
+<td>信息错乱</td>
+</tr>
+<tr>
+<td>4</td>
+<td>未持久</td>
+<td>持久</td>
+<td>持久</td>
+<td>是</td>
+<td>信息错乱</td>
+</tr>
+<tr>
+<td>5</td>
+<td>持久</td>
+<td>未持久</td>
+<td>持久</td>
+<td>是</td>
+<td>信息错乱</td>
+</tr>
+<tr>
+<td>6</td>
+<td>持久</td>
+<td>持久</td>
+<td>未持久</td>
+<td>否</td>
+<td>资源泄露</td>
+</tr>
+</tbody></table>
+<p>如果已经写入到目录项中，那么该文件就是可以被发现的。这种情况下，如果inode位图或inode结构没有被正确持久化，就会出现信息错乱，从而影响使用。</p>
+<h3 id="1-1-文件系统所要求的三个属性"><a href="#1-1-文件系统所要求的三个属性" class="headerlink" title="1.1 文件系统所要求的三个属性"></a>1.1 文件系统所要求的三个属性</h3><p>没有具备绝对一致性的文件系统。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">create(<span class="string">&quot;a&quot;</span>); fd = create(<span class="string">&quot;b&quot;</span>); write(fd, ...); crash</span><br></pre></td></tr></table></figure>
+
+<p><strong>持久化</strong>：那些操作可见 - a和b都可见</p>
+<p><strong>原子性</strong>：要么所有操作都可见，要么都不可见 - 要么a和b都可见，要么都不可见</p>
+<p><strong>有序性</strong>：按照前缀序的方式可见 - 如果b可见，那么a也可见</p>
+<h2 id="2-同步写入"><a href="#2-同步写入" class="headerlink" title="2 同步写入"></a>2 同步写入</h2><p><strong>同步写入</strong>要求文件系统按照一定的顺序执行其中的各个步骤。</p>
+<p>但这样会导致频繁写入存储设备，让存储设备成为性能瓶颈。</p>
+<h2 id="3-崩溃一致性保障方法"><a href="#3-崩溃一致性保障方法" class="headerlink" title="3 崩溃一致性保障方法"></a>3 崩溃一致性保障方法</h2><ul>
+<li><p>原子更新技术</p>
+<ul>
+<li>日志</li>
+<li>写时复制</li>
+</ul>
+</li>
+<li><p>Soft Update</p>
+</li>
+</ul>
+<h2 id="4-日志"><a href="#4-日志" class="headerlink" title="4 日志"></a>4 日志</h2><h3 id="4-1-日志机制的原理"><a href="#4-1-日志机制的原理" class="headerlink" title="4.1 日志机制的原理"></a>4.1 日志机制的原理</h3><p>在进行修改之前，先在日志中记录修改的内容，以便在发生崩溃等情况时通过日志进行数据恢复，保证多个修改的原子性。</p>
+<h4 id="4-1-1-日志的生命周期"><a href="#4-1-1-日志的生命周期" class="headerlink" title="4.1.1 日志的生命周期"></a>4.1.1 日志的生命周期</h4><ul>
+<li>创建：为日志分配内存和存储空间，并初始化维护日志所需要的元数据。</li>
+<li>写入：将要进行的操作或操作影响的数据及其所在的位置写入日志中。<strong>在进行恢复时，处于写入阶段的日志会被直接丢弃。</strong></li>
+<li>提交：文件系统将此前在日志中记录的操作原子地标记为有效。</li>
+<li>完成：完成阶段，文件系统可以将实际的修改写回存储设备中。若此阶段发生崩溃，可以用日志中的内容进行恢复。</li>
+<li>无效：完成所有的修改，且持久化完成之后，可以把日志标记为无效。</li>
+<li>销毁：删除日志。</li>
+</ul>
+<h4 id="4-1-2-日志的类型"><a href="#4-1-2-日志的类型" class="headerlink" title="4.1.2 日志的类型"></a>4.1.2 日志的类型</h4><p>按照日志中保存的内容和恢复时进行的操作，可以分为<strong>重写日志</strong>和<strong>撤销日志</strong>。</p>
+<ul>
+<li>重写日志：将数据位置和此位置上即将被写入的新数据保存在日志中。后续可以用它来重做。</li>
+<li>撤销日志：在日志中记录数据位置和位置上原本保存的数据。后面可以撤销修改，可以理解成备份（还原点）</li>
+</ul>
+<h3 id="4-2-日志优化"><a href="#4-2-日志优化" class="headerlink" title="4.2 日志优化"></a>4.2 日志优化</h3><p>如果所有的修改都直接记录到日志，并且日志直接保存到磁盘上，会存在以下问题：</p>
+<ol>
+<li>每个操作都要写磁盘，内存缓存的优势被抵消</li>
+<li>每个修改都要拷贝新数据到日志</li>
+<li>相同块的多个修改被记录多次</li>
+</ol>
+<h4 id="4-2-1-页缓存"><a href="#4-2-1-页缓存" class="headerlink" title="4.2.1 页缓存"></a>4.2.1 页缓存</h4><p>利用内存中的页缓存，异步地将数据从内存写回存储设备中</p>
+<p><img src="/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/%E6%97%A5%E5%BF%971.png" alt="日志1"></p>
+<p>缺点：依然要写两次磁盘</p>
+<h4 id="4-2-2-批量处理日志以减少磁盘写"><a href="#4-2-2-批量处理日志以减少磁盘写" class="headerlink" title="4.2.2 批量处理日志以减少磁盘写"></a>4.2.2 批量处理日志以减少磁盘写</h4><p>把日志内容进行合并。并且在特定时间触发提交日志。</p>
+<ul>
+<li><p>定期触发</p>
+<ul>
+<li>每一段时间（如5s）触发一次</li>
+<li>日志达到一定量（如500MB）时触发一次</li>
+</ul>
+</li>
+<li><p>用户触发</p>
+<ul>
+<li>例如，应用调用fsync()时触发</li>
+</ul>
+</li>
+</ul>
+<h2 id="5-写时拷贝"><a href="#5-写时拷贝" class="headerlink" title="5 写时拷贝"></a>5 写时拷贝</h2><h3 id="5-1-更新传递"><a href="#5-1-更新传递" class="headerlink" title="5.1 更新传递"></a>5.1 更新传递</h3><p><img src="/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/%E5%86%99%E6%97%B6%E6%8B%B7%E8%B4%9D.png" alt="写时拷贝"></p>
+<p>在树形数据结构中，写时拷贝往往需要更新到根节点才会停止。我们修改节点C 和E 后，需要继续修改节点B、D 和A（根节点）。这种修改一些节点后，还需要进一步修改数据结构中其他节点以保证原子更新的问题，便称为更新传递问题。</p>
+<p><strong>解决</strong>：</p>
+<p>解决更新传递问题，一种常见的方法是提前进行原子更新。对于树形数据结构来说，并非只有指向树根的指针才可以被原子更新；在上述例子中，原子更新的粒度为一个节点。若在更新传递的过程中，所有要进行的修改被一个原子更新粒度所覆盖，则可以直接原地进行修改，无需继续传递更新。例如在图13.3中，在节点A 中保存了指向节点B 和D 的指针。由于节点A 可以被原子更新，我们可以通过一次原地更新操作，原子地修改A 中指向节点B 和D的指针，让它们指向节点B’和D’，从而避免继续使用写时拷贝技术，停止更新传递。</p>
+<h3 id="5-2-写放大"><a href="#5-2-写放大" class="headerlink" title="5.2 写放大"></a>5.2 写放大</h3><p>写放大问题是指实际修改数据量大于用户要修改的数据量的情况。如在进行以4KB 内存页为粒度的写时拷贝技术时，若想要修改某个页中的1 个字节，我们不得不拷贝整个4KB 内存页中的所有数据，因此修改量从1 个字节被放大到4KB。写时拷贝技术中的更新传递，会使写放大问题更加严重。</p>
+<p><strong>解决</strong>：<br>当要修改的数据覆盖了完整的原子更新粒度时，可以无需拷贝原有数据，直接写入新的数据，从而在一定程度上缓解写放大问题。例如在图13.3中，由于原子更新粒度为一个节点，且E 节点中所有的数据均需要被修改，在分配E’后，即使我们将E 中的数据拷贝到E’，这些数据也会被新数据全部覆盖掉。因此，在这种情况下，可以省略写时拷贝中的拷贝操作，从而减少写入操作。</p>
+<h3 id="5-3-写时拷贝在文件系统中的应用"><a href="#5-3-写时拷贝在文件系统中的应用" class="headerlink" title="5.3 写时拷贝在文件系统中的应用"></a>5.3 写时拷贝在文件系统中的应用</h3><p><img src="/2023/04/29/ChChorOS-9-2-Filesystem-Crash-Consistensy/%E5%86%99%E6%97%B6%E6%8B%B7%E8%B4%9D%E5%9C%A8%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%B8%AD%E7%9A%84%E5%BA%94%E7%94%A8.png" alt="写时拷贝在文件系统中的应用"></p>
+<p>我们会将数据块C 和数据块D进行拷贝，并在拷贝副本上进行修改。由于指向数据块C 的指针保存在inode中，而指向数据块D 的指针保存在索引块中，我们需要继续对索引块进行写时拷贝。最终，需要修改的指向数据块C 的指针和指向索引块的指针均保存在inode 结构中。由于inode 结构通常小于存储设备的块大小，通过原子更新inode 结构，我们可以原子地持久化文件数据块C 和数据块D 上的数据修改。由于所有文件数据访问均从inode 结构出发，因此一个文件中的任何位置上的修改，均可以通过写时拷贝技术进行原子更新和持久化。</p>
+<h3 id="5-4-小结"><a href="#5-4-小结" class="headerlink" title="5.4 小结"></a>5.4 小结</h3><p>写时拷贝技术对数据结构有一定的要求，当所有的修改最终能够变成一个原子修改时，才可以使用写时拷贝技术。此外，写时拷贝技术的使用与原子更新粒度有关。当修改的数据量远大于原子更新粒度时，往往只有数据头部和尾部需要真正进行拷贝操作，而中间部分可以根据前文提到的方法省略拷贝操作，直接使用新数据写入新分配出来的节点。这种情况下，写时拷贝技术产生的写放大相对较小。而当数据修改量小于原子更新粒度时，写时拷贝技术造成的写放大会非常严重，即使每次仅修改一个字节，也需要按照原子更新粒度进行数据拷贝。因此，是否适合使用写时拷贝，需要结合<u>原子更新粒度</u>和<u>数据修改量</u>综合考虑。</p>
+<p>本文的内容属于基础理论概念。后续我们需要对带掉电保护的文件系统进行代码阅读分析，才能加深对文件系统崩溃一致性的理解。</p>
+<p><strong>推荐阅读项目：</strong></p>
+<ol>
+<li><em><a target="_blank" rel="noopener" href="https://github.com/azure-rtos/levelx">https://github.com/azure-rtos/levelx</a></em></li>
+<li><em><a target="_blank" rel="noopener" href="https://github.com/azure-rtos/filex">https://github.com/azure-rtos/filex</a></em></li>
+<li><em><a target="_blank" rel="noopener" href="https://github.com/littlefs-project/littlefs">https://github.com/littlefs-project/littlefs</a></em></li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2023/04/28/%E8%93%9D%E7%89%99%E7%BD%91%E7%BB%9C-%E5%8E%9F%E7%90%86%E4%B8%8E%E5%BA%94%E7%94%A8/" rel="prev" title="蓝牙网络：原理与应用">
+                  <i class="fa fa-angle-left"></i> 蓝牙网络：原理与应用
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2023/04/29/%E5%9F%BA%E4%BA%8EuECC%E7%9A%84mbedTLS%E5%8A%A0%E9%80%9F%E6%96%B9%E6%B3%95/" rel="next" title="基于uECC的mbedTLS加速方法">
+                  基于uECC的mbedTLS加速方法 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。 本文介绍ARM Cortex-m设备的异常模型。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cortex-m exception handling">
+<meta property="og:url" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。 本文介绍ARM Cortex-m设备的异常模型。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/exception-numbers.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/icsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/aircr.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/shcsr.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/ictr.png">
+<meta property="article:published_time" content="2023-05-03T05:30:01.000Z">
+<meta property="article:modified_time" content="2026-06-14T09:10:14.563Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="debug">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/exception-numbers.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2023/05/03/Cortex-m-exception-handling/","path":"2023/05/03/Cortex-m-exception-handling/","title":"Cortex-m exception handling"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Cortex-m exception handling | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#ARM-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B%E6%A6%82%E8%BF%B0"><span class="nav-text">ARM 异常模型概述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%86%85%E7%BD%AE%E5%BC%82%E5%B8%B8"><span class="nav-text">内置异常</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%A4%96%E9%83%A8%E4%B8%AD%E6%96%AD"><span class="nav-text">外部中断</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%BC%82%E5%B8%B8%E7%9B%B8%E5%85%B3%E4%B8%AD%E6%96%AD%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">异常相关中断寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Interrupt-Control-and-State-Register-ICSR-0xE000ED04"><span class="nav-text">Interrupt Control and State Register (ICSR) - 0xE000ED04</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C"><span class="nav-text">Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20"><span class="nav-text">System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#System-Handler-Control-and-State-Register-SHCSR-0xE000ED24"><span class="nav-text">System Handler Control and State Register (SHCSR) - 0xE000ED24</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Interrupt-Controller-Type-Register-ICTR-0xE000E004"><span class="nav-text">Interrupt Controller Type Register (ICTR) - 0xE000E004</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#NVIC-Registers"><span class="nav-text">NVIC Registers</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers"><span class="nav-text">Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers"><span class="nav-text">Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Active-Bit-Registers-NVIC-IABR"><span class="nav-text">Interrupt Active Bit Registers (NVIC_IABR)</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Interrupt-Priority-Registers-NVIC-IPR"><span class="nav-text">Interrupt Priority Registers (NVIC_IPR)</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Software-Triggered-Interrupt-Register-STIR-0xE000EF00"><span class="nav-text">Software Triggered Interrupt Register (STIR) - 0xE000EF00</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%AB%98%E7%BA%A7%E5%BC%82%E5%B8%B8%E4%B8%BB%E9%A2%98"><span class="nav-text">高级异常主题</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%82%E5%B8%B8%E8%BF%9B%E5%85%A5%E4%B8%8E%E9%80%80%E5%87%BA"><span class="nav-text">异常进入与退出</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Tail-Chaining-%E5%B0%BE%E9%93%BE"><span class="nav-text">Tail-Chaining 尾链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Late-arriving-Preemption-%E8%BF%9F%E5%88%B0%E6%8A%A2%E5%8D%A0"><span class="nav-text">Late-arriving Preemption 迟到抢占</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Lazy-State-Preservation-%E5%BB%B6%E8%BF%9F%E7%8A%B6%E6%80%81%E4%BF%9D%E5%AD%98"><span class="nav-text">Lazy State Preservation 延迟状态保存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E4%BC%98%E5%85%88%E7%BA%A7%E5%92%8C%E4%BC%98%E5%85%88%E7%BA%A7%E6%8F%90%E5%8D%87"><span class="nav-text">执行优先级和优先级提升</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8F%AF%E4%B8%AD%E6%96%AD%E6%89%A7%E8%A1%8C%E7%9A%84%E6%8C%87%E4%BB%A4"><span class="nav-text">可中断执行的指令</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#FreeRTOS%E4%B8%AD%E7%9A%84%E4%B8%AD%E6%96%AD%E5%92%8C%E4%B8%B4%E7%95%8C%E5%8C%BA"><span class="nav-text">FreeRTOS中的中断和临界区</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Systick-%E5%92%8C-Pendsv"><span class="nav-text">Systick 和 Pendsv</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%B4%E7%95%8C%E5%8C%BA%E4%BF%9D%E6%8A%A4"><span class="nav-text">临界区保护</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%A1%A5%E5%85%85%E9%97%AE%E9%A2%98"><span class="nav-text">补充问题</span></a></li></ol></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/05/03/Cortex-m-exception-handling/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Cortex-m exception handling | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Cortex-m exception handling
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2023-05-03 13:30:01" itemprop="dateCreated datePublished" datetime="2023-05-03T13:30:01+08:00">2023-05-03</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>几乎所有的嵌入式设备都依赖异步事件的能力来完成系统的工作。</p>
+<p>本文介绍ARM Cortex-m设备的异常模型。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="ARM-异常模型概述"><a href="#ARM-异常模型概述" class="headerlink" title="ARM 异常模型概述"></a>ARM 异常模型概述</h2><p>异常的定义：改变程序正常控制流程的一种条件。</p>
+<p>中断和异常的差异：“中断”是用来描述“异常”的。异常由以下几个部分组成：</p>
+<ul>
+<li><p><strong>Exception Number 异常编号</strong></p>
+<p>异常编号是用来唯一指示一个特定异常的数字（从1开始）。这个数字也作为<strong>中断向量表</strong>的索引，用来定位一个异常处理函数（<strong>Exception handler</strong>），通常也称为中断服务程序（<strong>Interrupt Service Routine</strong>）。当异常触发的时候，ARM硬件会自动查找中断向量表并开始执行相应的代码。</p>
+</li>
+<li><p><strong>Priority Level 中断优先级</strong></p>
+<p>每个异常都有它自己的优先级。大多数异常的优先级是可以配置的。数字越小，优先级越高。</p>
+<p>如果两个异常由相同的优先级，那么，Exception Number 异常编号小的先执行。</p>
+</li>
+<li><p><strong>Synchronous or Asynchronous 同步或异步</strong></p>
+<p>SVCall 这类的异常，是同步异常，相应的指令执行后会立刻触发异常。其他的叫做异步异常。</p>
+</li>
+</ul>
+<p>异常可以处于下面几种状态中的一种：</p>
+<ul>
+<li><p><strong>Pending</strong></p>
+<p>MCU检测到异常但是还没有开始执行异常处理函数</p>
+</li>
+<li><p><strong>Active</strong></p>
+<p>开始执行异常处理函数，但是还没有结束。这种情况下可以被更高优先级的中断抢占</p>
+</li>
+<li><p><strong>Pending &amp; Active</strong></p>
+<p>只在异步异常的时候发生。一般是正在处理异常时，再次触发了相同的异常</p>
+</li>
+<li><p><strong>Inactive</strong></p>
+<p>既不是pending也不是active</p>
+</li>
+</ul>
+<blockquote>
+<p>即使中断被禁用了，它还是可以变成 <strong>pending</strong> 状态的。一旦使能它，就会变成 <strong>active</strong>。因此，在使能中断的时候，最好先清除pending。</p>
+</blockquote>
+<h3 id="内置异常"><a href="#内置异常" class="headerlink" title="内置异常"></a>内置异常</h3><p>Cortex-M 保留 1-15 异常编号，这些异常被称为<strong>内置异常</strong>。</p>
+<blockquote>
+<p>异常编号同样是中断向量表的偏移。向量表的0号索引保存的是 msp 的复位值。剩余的1到15号，保存的是异常处理函数的指针。</p>
+</blockquote>
+<p>这六个异常默认是都支持的：</p>
+<ul>
+<li><strong>Reset</strong> - 复位</li>
+<li><strong>NMI</strong> - 不可屏蔽中断，如果在异常处理函数中再发生错误，就会触发NMI异常</li>
+<li><strong>HardFault</strong> - 各种可能的系统故障的统括，包括内存非法访问、处理错误和非对齐访问等</li>
+<li><strong>SVCall</strong> - 当执行svc指令时触发的异常</li>
+<li><strong>PendSV &amp; SysTick</strong> - 软件触发的系统层级的中断。RTOS系统常用它来管理系统调度和上下文切换</li>
+</ul>
+<h3 id="外部中断"><a href="#外部中断" class="headerlink" title="外部中断"></a>外部中断</h3><p>如DMA，GPIO等核外中断被称为外部中断。它们都是通过 <strong>Nested Vectored Interrupt Controller （NVIC）</strong> 来管理的。</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/exception-numbers.png" alt="img"></p>
+<h2 id="异常相关中断寄存器"><a href="#异常相关中断寄存器" class="headerlink" title="异常相关中断寄存器"></a>异常相关中断寄存器</h2><p>异常是通过 <strong>System Control Space (SCS)</strong> 的一组寄存器来进行配置的。</p>
+<h3 id="Interrupt-Control-and-State-Register-ICSR-0xE000ED04"><a href="#Interrupt-Control-and-State-Register-ICSR-0xE000ED04" class="headerlink" title="Interrupt Control and State Register (ICSR) - 0xE000ED04"></a>Interrupt Control and State Register (ICSR) - 0xE000ED04</h3><p><strong>中断控制和状态寄存器</strong></p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/icsr.png" alt="img"></p>
+<p>该寄存器控制NMI、PendSV和SysTick异常，并且指示系统当前中断的状态。</p>
+<p>其中，</p>
+<ul>
+<li><strong>VECTACTIVE</strong> - 当前正在运行的中断异常编号（没有时是0）。这个值同样保存在xPSR的IPSR位。</li>
+<li><strong>RETTOBASE</strong> - 如果为0，表示除了当前执行的中断外，还有另外的中断是active的。</li>
+<li><strong>VECTPENDING</strong> - 未完成的 pending 中断中级别最高（值最小）的异常编号。</li>
+</ul>
+<h3 id="Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C"><a href="#Application-Interrupt-and-Reset-Control-Register-AIRCR-0xE000ED0C" class="headerlink" title="Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C"></a>Application Interrupt and Reset Control Register (AIRCR) - 0xE000ED0C</h3><p><strong>应用中断和复位控制寄存器</strong></p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/aircr.png" alt="img"></p>
+<p>其中，</p>
+<ul>
+<li><strong>SYSRESETREQ</strong>  - 写1将触发系统复位</li>
+<li><strong>PRIGROUP</strong> - 优先级组。该字段允许我们将异常优先级分为两部分（组优先级和子优先级）。这个值表示的是子优先级由多少位组成。组优先级用来控制哪些中断可以互相抢占。子优先级控制处理同一组中异常的顺序。（不同组可抢占，同组的没有抢占只有先后）</li>
+</ul>
+<blockquote>
+<p>要写这个寄存器，必须将VECTKEY字段设置为0x05FA。</p>
+</blockquote>
+<h3 id="System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20"><a href="#System-Handler-Priority-Register-SHPR1-SHPR3-0xE000ED18-0xE000ED20" class="headerlink" title="System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20"></a>System Handler Priority Register (SHPR1-SHPR3) - 0xE000ED18 - 0xE000ED20</h3><p><strong>系统处理程序（Built in）优先级寄存器</strong></p>
+<p>8个字节为一组。之所以从1开始，是因为最开始的异常编号是不可以配置的（Reset，NMI，HardFault）。</p>
+<p>编号4~7对应的是SHPR1寄存器，以此类推。</p>
+<p>默认这些系统异常的优先级都是0，也就是最高优先级。一般是不需要配置的。</p>
+<h3 id="System-Handler-Control-and-State-Register-SHCSR-0xE000ED24"><a href="#System-Handler-Control-and-State-Register-SHCSR-0xE000ED24" class="headerlink" title="System Handler Control and State Register (SHCSR) - 0xE000ED24"></a>System Handler Control and State Register (SHCSR) - 0xE000ED24</h3><p><strong>系统处理函数控制和状态寄存器</strong></p>
+<p>该寄存器用来指示系统（内置）异常的状态，或者使能（激活）系统异常。</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/shcsr.png" alt="img"></p>
+<h3 id="Interrupt-Controller-Type-Register-ICTR-0xE000E004"><a href="#Interrupt-Controller-Type-Register-ICTR-0xE000E004" class="headerlink" title="Interrupt Controller Type Register (ICTR) - 0xE000E004"></a>Interrupt Controller Type Register (ICTR) - 0xE000E004</h3><p><strong>中断控制类型寄存器</strong></p>
+<p>该寄存器允许我们决定支持多少外部中断。Cortex-M系列最多是496。</p>
+<p><img src="/2023/05/03/Cortex-m-exception-handling/ictr.png" alt="img"></p>
+<p>支持的中断数为：32 * (INTLINESNUM + 1)</p>
+<h3 id="NVIC-Registers"><a href="#NVIC-Registers" class="headerlink" title="NVIC Registers"></a>NVIC Registers</h3><p>NVIC有一组用来配置外部中断的寄存器。</p>
+<p>外部中断是从16开始的，因此外部中断N的异常编号是 16 + N。</p>
+<h4 id="Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers"><a href="#Interrupt-Set-Enable-NVIC-ISER-and-Clear-Enable-NVIC-ICER-Registers" class="headerlink" title="Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers"></a>Interrupt Set-Enable (NVIC_ISER) and Clear-Enable (NVIC_ICER) Registers</h4><p><strong>中断使能和清除寄存器</strong></p>
+<ul>
+<li><code>NVIC_ISER0</code>-<code>NVIC_ISER15</code>: <code>0xE000E100</code>-<code>0xE000E13C</code></li>
+<li><code>NVIC_ICER0</code>-<code>NVIC_ICER15</code>: <code>0xE000E180</code>-<code>0xE000E1BC</code></li>
+</ul>
+<p>写1到对应的bit，可以使能和清除对应的中断。如果中断已经使能，那么读回来的值是1。</p>
+<h4 id="Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers"><a href="#Interrupt-Set-Pending-NVIC-ISPR-and-Clear-Pending-NVIC-ICPR-Registers" class="headerlink" title="Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers"></a>Interrupt Set-Pending (NVIC_ISPR) and Clear-Pending (NVIC_ICPR) Registers</h4><p><strong>中断pending使能和清除寄存器</strong></p>
+<ul>
+<li><code>NVIC_ISPR0</code>-<code>NVIC_ISPR15</code>: <code>0xE000E200</code>-<code>0xE000E23C</code></li>
+<li><code>NVIC_ICPR0</code>-<code>NVIC_ICPR15</code>: <code>0xE000E280</code>-<code>0xE000E2BC</code></li>
+</ul>
+<p>写1可以设置或清除中断的pending状态。</p>
+<h4 id="Interrupt-Active-Bit-Registers-NVIC-IABR"><a href="#Interrupt-Active-Bit-Registers-NVIC-IABR" class="headerlink" title="Interrupt Active Bit Registers (NVIC_IABR)"></a>Interrupt Active Bit Registers (NVIC_IABR)</h4><p><strong>中断激活位寄存器</strong></p>
+<ul>
+<li><code>NVIC_IABR0</code>-<code>NVIC_IABR15</code>: <code>0xE000E300</code>-<code>0xE000E33C</code></li>
+</ul>
+<p>只读的，如果中断已经激活，那么读回来的值是1。</p>
+<h4 id="Interrupt-Priority-Registers-NVIC-IPR"><a href="#Interrupt-Priority-Registers-NVIC-IPR" class="headerlink" title="Interrupt Priority Registers (NVIC_IPR)"></a>Interrupt Priority Registers (NVIC_IPR)</h4><p><strong>中断优先级寄存器</strong></p>
+<ul>
+<li><code>NVIC_IPR0</code>-<code>NVIC_IPR123</code>: <code>0xE000E400</code>-<code>0xE000E5EC</code></li>
+</ul>
+<p>设置中断的优先级。每个中断8位。只允许配置为4~256。</p>
+<p>它是用的高位，如，只用了2 bits 时，它的有效值为：</p>
+<p><strong>0b000.0000</strong> (<strong>0x0</strong>), <strong>0b0100.0000</strong> (<strong>0x40</strong>), <strong>0b1000.0000</strong> (<strong>0x80</strong>) and <strong>0b1100.0000</strong> (<strong>0xC0</strong>).</p>
+<h3 id="Software-Triggered-Interrupt-Register-STIR-0xE000EF00"><a href="#Software-Triggered-Interrupt-Register-STIR-0xE000EF00" class="headerlink" title="Software Triggered Interrupt Register (STIR) - 0xE000EF00"></a>Software Triggered Interrupt Register (STIR) - 0xE000EF00</h3><p><strong>软件触发中断寄存器</strong></p>
+<p>跟设置NVIC_ISPR是一样的。</p>
+<p>这里设置到寄存器的值为 <strong>外部中断号（中断编号 - 16）</strong>，而不是按 bit 设置的。</p>
+<h2 id="高级异常主题"><a href="#高级异常主题" class="headerlink" title="高级异常主题"></a>高级异常主题</h2><h3 id="异常进入与退出"><a href="#异常进入与退出" class="headerlink" title="异常进入与退出"></a>异常进入与退出</h3><p>异常发生时，会自动保存一些寄存器（<strong>caller-save</strong>）。至少保存8个寄存器：x0, x1, x2, x3, x12, lr, pc, xpsr。如果使能了FPU，可能还会保存 17个FPU寄存器。</p>
+<p>异常退出时，会自动出栈这些 caller-save 的寄存器。</p>
+<h3 id="Tail-Chaining-尾链"><a href="#Tail-Chaining-尾链" class="headerlink" title="Tail-Chaining 尾链"></a>Tail-Chaining 尾链</h3><p>退出异常的时候，硬件需要自动pop和restore最少8个caller-save的寄存器。</p>
+<p>但如果退出ISR的时候，新的异常已经pended了，那么就可以不需要pop和push这些寄存器，因为pop和push的是完全相同的寄存器。这个优化叫做 “Tail-Chaining（尾链）”。</p>
+<p>这个优化可以提升我们中断响应的速度。</p>
+<h3 id="Late-arriving-Preemption-迟到抢占"><a href="#Late-arriving-Preemption-迟到抢占" class="headerlink" title="Late-arriving Preemption 迟到抢占"></a>Late-arriving Preemption 迟到抢占</h3><p>ARM核可以在中断进入阶段（保存寄存器和取出ISR例程执行）检测更高优先级的中断。</p>
+<p>这种情况下，高优先级的ISR可以直接执行，而不再做已经做过的寄存器保存动作。这个优化可以提高高优先级中断响应的速度。</p>
+<p>高优先级中断执行完之后，可以直接 tail-chain 到之前的异常来执行。</p>
+<h3 id="Lazy-State-Preservation-延迟状态保存"><a href="#Lazy-State-Preservation-延迟状态保存" class="headerlink" title="Lazy State Preservation 延迟状态保存"></a>Lazy State Preservation 延迟状态保存</h3><p>ARMv7 和 ARMv8 设备可选地支持FPU。</p>
+<p>支持FPU需要额外增加33个寄存器（s0-s31 &amp; fpscr）。其中17个是 caller-save 的。</p>
+<p>如果每次发生异常都自动保存这17个寄存器，会带来额外的开销。</p>
+<p>一般ISR中是很少用到FPU的。因此，一种优化是在ISR中检测到FPU指令的时候，才保存这些FPU寄存器，这个优化叫做 <strong>“lazy context save”</strong>。</p>
+<h3 id="执行优先级和优先级提升"><a href="#执行优先级和优先级提升" class="headerlink" title="执行优先级和优先级提升"></a>执行优先级和优先级提升</h3><p><strong>执行优先级</strong>：当没有异常激活时，当前系统的执行优先级可以被认为是 “最大可配置优先级” + 1。这意味着，任何异常发生，都将会打断当前的流程。</p>
+<p>软件上有几种可以修改“执行优先级”的方法，使其高于线程模式的默认优先级或高于一些激活的异常来执行。这种操作叫做<strong>”优先级提升“</strong>。在RTOS上经常用来处理一些不能被中断打断的代码，如上下文切换。</p>
+<p>优先级提升的方法：</p>
+<ul>
+<li><strong>PRIMASK</strong>：对应CMSIS的 <code>__disable_irq()</code> 和 <code>__enable_irq()</code>，或者<code>cpsid i</code> 和 <code>cpsie i</code>。这会禁用所有<strong>可配置优先级</strong>的异常。（只有 NMI，HardFault 和 Reset 可以触发）</li>
+<li><strong>FAULTMASK</strong>：对应CMSIS的 <code>__disable_fault_irq()</code> 和 <code>__enable_fault_irq()</code>，或者<code>cpsid f</code> 和 <code>cpsie f</code>。这会禁用所有<strong>除了 NMI 以外</strong>的异常。</li>
+<li><strong>BASEPRI</strong>：CMSIS <code>__set_BASEPRI()</code>。屏蔽低于特定优先级的异常。</li>
+</ul>
+<h3 id="可中断执行的指令"><a href="#可中断执行的指令" class="headerlink" title="可中断执行的指令"></a>可中断执行的指令</h3><p>很多ARM的指令是原子执行的。例如32位的内存访问就是一个原子操作。</p>
+<p>然而为了降低中断延迟，在异常发生时，一些多周期的指令会被丢弃，并在异常处理结束之后重新执行。如除法指令（udiv 和 sdiv）和双字加载&#x2F;保存指令（ldrd &amp; strd）。</p>
+<p>另外，一些指令是“可中断-继续”的，也就是说这些指令可以被中断打断，中断结束后继续执行。如多寄存器的加载&#x2F;保存指令（ldm和stm）。</p>
+<blockquote>
+<p>最好不要对重复读写会出问题的内存使用 ldm 和 stm 指令，或者通过关部分中断来保护这些临界段的访问。</p>
+</blockquote>
+<h2 id="FreeRTOS中的中断和临界区"><a href="#FreeRTOS中的中断和临界区" class="headerlink" title="FreeRTOS中的中断和临界区"></a>FreeRTOS中的中断和临界区</h2><h3 id="Systick-和-Pendsv"><a href="#Systick-和-Pendsv" class="headerlink" title="Systick 和 Pendsv"></a>Systick 和 Pendsv</h3><p>（1）什么是 PendSV？</p>
+<blockquote>
+<p>PendSV（可悬起的系统调用），它是一种CPU系统级别的异常，它可以像普通外设中断一样被悬起，而不会像SVC服务那样，因为没有及时响应处理，而触发Fault。</p>
+</blockquote>
+<p>要点是可以缓期执行。</p>
+<p>（2）Systick 优先级高于外部中断可不可以？</p>
+<p>可以，但有问题。如果外部中断的ISR执行过程中，Systick 打断外部中断处理函数的执行，那么 Systick 中做任务切换，尝试再中断活跃时企图回到线程状态。则会触发Fault。为了解决这个问题，早期的OS会检测是否有中断活跃，只有无任何中断时才响应 Systick 中断。</p>
+<p>（3）Systick 优先级设置为最低可不可以？</p>
+<p>可以。实际现在FreeRTOS也是把 Systick 和 PendSV 的优先级设置为最低。</p>
+<p>但是呢，一般OS会在任务调度时，关闭中断，也就是进入临界区，而OS任务调度是比较耗时的，这会导致任务调度期间，无法快速响应外部IRQ。</p>
+<p>（4）Systick 优先级调低，避免了触发 Fault 的问题，但是又会影响外部中断IRQ的处理速度。那如何处理呢？</p>
+<p>使用 PendSV。1. Systick 制作调度前的判断工作，不做任务切换（降低延时）；2. 触发 PendSV。如果此时有外部IRQ请求，则先处理外部IRQ，最后再执行PendSV做任务调度。</p>
+<p>（5）能不能把Systick设置成最高优先级，PendSV设置成最低优先级？</p>
+<p>也会有问题。因为Systick的优先级最高，而且又是周期性地触发，因此会经常抢占外部IRQ，这就导致外部IRQ变慢。</p>
+<p><strong>小结：</strong></p>
+<ul>
+<li>因此在实际项目中，我们把 Systick 和 PendSV 都设置成最低优先级。外部中断的优先级是比 Sytick 和 PendSV 都高的。</li>
+</ul>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 定义成最低优先级</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portMIN_INTERRUPT_PRIORITY            ( 255UL )</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portNVIC_PENDSV_PRI                   ( portMIN_INTERRUPT_PRIORITY &lt;&lt; 16UL )</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portNVIC_SYSTICK_PRI                  ( portMIN_INTERRUPT_PRIORITY &lt;&lt; 24UL )</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 这里可以看到是设置是Ssystem Handler Priority Register，参考前面章节的内容</span></span><br><span class="line">BaseType_t <span class="title function_">xPortStartScheduler</span><span class="params">( <span class="type">void</span> )</span> <span class="comment">/* PRIVILEGED_FUNCTION */</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">/* Make PendSV, CallSV and SysTick the same priority as the kernel. */</span></span><br><span class="line">    portNVIC_SHPR3_REG |= portNVIC_PENDSV_PRI;</span><br><span class="line">    portNVIC_SHPR3_REG |= portNVIC_SYSTICK_PRI;</span><br><span class="line">    </span><br><span class="line">    ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="临界区保护"><a href="#临界区保护" class="headerlink" title="临界区保护"></a>临界区保护</h3><ul>
+<li>taskENTER_CRITICAL() 和 taskEXIT_CRITICAL()</li>
+</ul>
+<p>这是通过设置BASEPRI来屏蔽部分中断来达到临界区的目的，它屏蔽的中断为 <code>configMAX_SYSCALL_INTERRUPT_PRIORITY</code>，优先级低于该值（数值大）的中断都被屏蔽。另外它是带计数的。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> taskENTER_CRITICAL() portENTER_CRITICAL()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> taskEXIT_CRITICAL() portEXIT_CRITICAL()</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portENTER_CRITICAL() vPortEnterCritical()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portEXIT_CRITICAL() vPortExitCritical()</span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">vPortEnterCritical</span><span class="params">( <span class="type">void</span> )</span></span><br><span class="line">&#123;</span><br><span class="line">    portDISABLE_INTERRUPTS();</span><br><span class="line">    uxCriticalNesting++;</span><br><span class="line">    <span class="keyword">if</span>( uxCriticalNesting == <span class="number">1</span> )</span><br><span class="line">    &#123;</span><br><span class="line">        configASSERT( ( portNVIC_INT_CTRL_REG &amp; portVECTACTIVE_MASK ) == <span class="number">0</span> );</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">vPortExitCritical</span><span class="params">( <span class="type">void</span> )</span></span><br><span class="line">&#123;</span><br><span class="line">    configASSERT( uxCriticalNesting );</span><br><span class="line">    uxCriticalNesting--;</span><br><span class="line">    <span class="keyword">if</span>( uxCriticalNesting == <span class="number">0</span> )</span><br><span class="line">    &#123;</span><br><span class="line">        portENABLE_INTERRUPTS();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portDISABLE_INTERRUPTS() vPortRaiseBASEPRI()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portENABLE_INTERRUPTS() vPortSetBASEPRI( 0 )</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> portFORCE_INLINE <span class="type">void</span> <span class="title function_">vPortSetBASEPRI</span><span class="params">( <span class="type">uint32_t</span> ulBASEPRI )</span></span><br><span class="line">&#123;</span><br><span class="line">    __asm</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">/* Barrier instructions are not used as this function is only used to lower the BASEPRI value. */</span></span><br><span class="line">        msr basepri, ulBASEPRI</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> portFORCE_INLINE <span class="type">void</span> <span class="title function_">vPortRaiseBASEPRI</span><span class="params">( <span class="type">void</span> )</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">uint32_t</span> ulNewBASEPRI = configMAX_SYSCALL_INTERRUPT_PRIORITY;</span><br><span class="line">    __asm</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">/* Set BASEPRI to the max syscall priority to effect a critical section. */</span></span><br><span class="line">        msr basepri, ulNewBASEPRI</span><br><span class="line">        dsb</span><br><span class="line">        isb</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>taskENTER_CRITICAL_FROM_ISR()和taskEXIT_CRITICAL_FROM_ISR()</li>
+</ul>
+<p>可以在中断中调用，且这个中断的优先级一定要低于configMAX_SYSCALL_INTERRUPT_PRIORITY</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> taskENTER_CRITICAL_FROM_ISR() portSET_INTERRUPT_MASK_FROM_ISR()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> taskEXIT_CRITICAL_FROM_ISR( x ) portCLEAR_INTERRUPT_MASK_FROM_ISR( x )</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portSET_INTERRUPT_MASK_FROM_ISR()        ulPortRaiseBASEPRI()</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> portCLEAR_INTERRUPT_MASK_FROM_ISR(x)     vPortSetBASEPRI(x)</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> portFORCE_INLINE <span class="type">uint32_t</span> <span class="title function_">ulPortRaiseBASEPRI</span><span class="params">( <span class="type">void</span> )</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">uint32_t</span> ulReturn, ulNewBASEPRI = configMAX_SYSCALL_INTERRUPT_PRIORITY;</span><br><span class="line">    __asm</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">/* Set BASEPRI to the max syscall priority to effect a critical section. */</span></span><br><span class="line">        mrs ulReturn, basepri       <span class="comment">// 读出BASEPRI的值，保存在ulReturn中</span></span><br><span class="line">        msr basepri, ulNewBASEPRI   <span class="comment">// 将configMAX_SYSCALL_INTERRUPT_PRIORITY写入到寄存器BASEPRI中。</span></span><br><span class="line">        dsb</span><br><span class="line">        isb</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> ulReturn;                <span class="comment">// 返回ulReturn，退出临界区代码保护时要用此值！</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>它通过记录并恢复之前的BASEPRI返回值，来达到支持嵌套调用的目的。</p>
+<ul>
+<li>vTaskSuspendAllvTaskSuspendAll() 和 xTaskResumeAllxTaskResumeAll()</li>
+</ul>
+<p>单纯关调度器，不能屏蔽中断。</p>
+<h4 id="补充问题"><a href="#补充问题" class="headerlink" title="补充问题"></a><strong>补充问题</strong></h4><ul>
+<li>vPortEnterCritical() 能不能屏蔽外部中断？</li>
+</ul>
+<p>答案是取决于我们项目的配置。如果我们设置 configMAX_SYSCALL_INTERRUPT_PRIORITY 为 4&lt;&lt;5 也就是128，那么只能屏蔽<strong>低于 IRQ_PRIORITY_ABOVENORMAL</strong> 级别的中断（同级别的IRQ_PRIORITY_ABOVENORMAL级别的中断只会有先后，没有抢占）。一般如 GPIO 等使用IRQ_PRIORITY_NORMAL 之类的中断，还是可以屏蔽的。</p>
+<p>FreeRTOS 中 configMAX_SYSCALL_INTERRUPT_PRIORITY 的默认值是16，这种情况下几乎所有外部中断都可以屏蔽（因为 1&lt;&lt; 5 &#x3D; 32，就已经比16要大了）。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 我们使用最高的3 bits 来描述中断优先级。</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> configKERNEL_INTERRUPT_PRIORITY         	(0x7 &lt;&lt; 5)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> configMAX_SYSCALL_INTERRUPT_PRIORITY    	(0x4 &lt;&lt; 5)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NVIC_configKERNEL_INTERRUPT_PRIORITY        (0x7)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> NVIC_configMAX_SYSCALL_INTERRUPT_PRIORITY   (0x4)</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_REALTIME               0</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_HIGHPLUSPLUS           1</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_HIGHPLUS               2</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_HIGH                   3</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_ABOVENORMAL            4</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_NORMAL                 5</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_BELOWNORMAL            6</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> IRQ_PRIORITY_LOW                    7</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>为什么不允许优先级高于configMAX_SYSCALL_INTERRUPT_PRIORITY的中断调用FreeRTOS的API?</li>
+</ul>
+<p>优先级高于configMAX_SYSCALL_INTERRUPT_PRIORITY的中断，FreeRTOS的临界区是保护不了的。因此就会存在竞态问题。</p>
+<ul>
+<li>为什么中断中一定要调用_FROM_ISR的API？</li>
+</ul>
+<p>这两组API的主要区别是，普通API里面会直接yield，但是_FROM_ISR的API是返回是否需要yield，然后再调用portYIELD_FROM_ISR(pxHigherPriorityTaskWoken)根据情况yield。</p>
+<p>有的硬件对中断中切换上下文是有不同实现要求的，如有的只能在中断最后yield。所以要求中断中统一使用_FROM_ISR的API。</p>
+<p>另外，在我们项目中，这两个yield其实是一样的，没有什么区别。portYIELD_FROM_ISR 也是触发PendSV中断，而PendSV中断是最低优先级，也得等到当前中断执行结束之后才进入PendSV中断执行任务切换。</p>
+<p><strong>参考资料：</strong></p>
+<ol>
+<li><em><a target="_blank" rel="noopener" href="https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic">https://interrupt.memfault.com/blog/arm-cortex-m-exceptions-and-nvic</a></em></li>
+<li><em>Cortex -M4 Devices Generic User Guide</em></li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/debug/" rel="tag"># debug</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/" rel="prev" title="Bluedroid Study Notes - Pairing on BR&#x2F;EDR">
+                  <i class="fa fa-angle-left"></i> Bluedroid Study Notes - Pairing on BR/EDR
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2023/05/04/Cortex-m-context-switching/" rel="next" title="Cortex-m context switching">
+                  Cortex-m context switching <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

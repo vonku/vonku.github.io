@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文介绍Bluedroid 在BR&#x2F;EDR上连接配对与在LE上连接配对的差异。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Bluedroid Study Notes - Pairing on BR&#x2F;EDR">
+<meta property="og:url" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍Bluedroid 在BR&#x2F;EDR上连接配对与在LE上连接配对的差异。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/5.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/2.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/4.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/6.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/7.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/1.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/8.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/10.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/9.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/11.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/12.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/15.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/16.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/13.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/14.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/17.png">
+<meta property="og:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/3.png">
+<meta property="article:published_time" content="2023-05-03T02:28:19.000Z">
+<meta property="article:modified_time" content="2026-06-14T09:10:14.382Z">
+<meta property="article:author" content="Vonku">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/5.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/","path":"2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/","title":"Bluedroid Study Notes - Pairing on BR/EDR"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Bluedroid Study Notes - Pairing on BR/EDR | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5"><span class="nav-text">基本概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Representation-of-Bluetooth-Parameters"><span class="nav-text">Representation of Bluetooth Parameters</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%93%9D%E7%89%99%E8%AE%BE%E5%A4%87%E5%9C%B0%E5%9D%80"><span class="nav-text">蓝牙设备地址</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%BE%E5%A4%87%E5%90%8D%E5%AD%97"><span class="nav-text">设备名字</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%93%9D%E7%89%99PIN"><span class="nav-text">蓝牙PIN</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%BE%E5%A4%87%E7%B1%BB%E5%9E%8B%EF%BC%88Class-of-Device%EF%BC%89"><span class="nav-text">设备类型（Class of Device）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Apprearance-Characteristic"><span class="nav-text">Apprearance Characteristic</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Modes"><span class="nav-text">Modes</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%91%E7%8E%B0%E6%A8%A1%E5%BC%8F"><span class="nav-text">发现模式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5%E6%A8%A1%E5%BC%8F"><span class="nav-text">连接模式</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Inquiry-and-Page"><span class="nav-text">Inquiry and Page</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Inquiry"><span class="nav-text">Inquiry</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Inquiry-scan"><span class="nav-text">Inquiry scan</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Page"><span class="nav-text">Page</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Page-scan"><span class="nav-text">Page scan</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%85%8D%E5%AF%B9%E6%B5%81%E7%A8%8B"><span class="nav-text">配对流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%BF%9E%E6%8E%A5%E5%BB%BA%E7%AB%8B"><span class="nav-text">连接建立</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Secure-Simple-Pairing"><span class="nav-text">Secure Simple Pairing</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#IO%E8%83%BD%E5%8A%9B%E4%BA%A4%E6%8D%A2"><span class="nav-text">IO能力交换</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%BA%A4%E6%8D%A2public-key"><span class="nav-text">交换public key</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%A4%E8%AF%81%E9%98%B6%E6%AE%B51"><span class="nav-text">认证阶段1</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%AE%A4%E8%AF%81%E9%98%B6%E6%AE%B52"><span class="nav-text">认证阶段2</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Cross-Transport-Key-Derivation"><span class="nav-text">Cross-Transport Key Derivation</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Bluedroid Study Notes - Pairing on BR&#x2F;EDR | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Bluedroid Study Notes - Pairing on BR/EDR
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2023-05-03 10:28:19" itemprop="dateCreated datePublished" datetime="2023-05-03T10:28:19+08:00">2023-05-03</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Bluetooth/" itemprop="url" rel="index"><span itemprop="name">Bluetooth</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文介绍Bluedroid 在BR&#x2F;EDR上连接配对与在LE上连接配对的差异。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="基本概念"><a href="#基本概念" class="headerlink" title="基本概念"></a>基本概念</h2><h3 id="Representation-of-Bluetooth-Parameters"><a href="#Representation-of-Bluetooth-Parameters" class="headerlink" title="Representation of Bluetooth Parameters"></a>Representation of Bluetooth Parameters</h3><h4 id="蓝牙设备地址"><a href="#蓝牙设备地址" class="headerlink" title="蓝牙设备地址"></a>蓝牙设备地址</h4><p>BD_ADDR，分为Public地址和Random地址，在设备发现的过程中，从对端设备接收到的设备地址。</p>
+<h4 id="设备名字"><a href="#设备名字" class="headerlink" title="设备名字"></a>设备名字</h4><p>用户友好的设备名称，在LMP_NAME_RES中返回。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/5.png" alt="5"></p>
+<h4 id="蓝牙PIN"><a href="#蓝牙PIN" class="headerlink" title="蓝牙PIN"></a>蓝牙PIN</h4><p>在配对过程中，用来认证两个设备的一串数字。</p>
+<h4 id="设备类型（Class-of-Device）"><a href="#设备类型（Class-of-Device）" class="headerlink" title="设备类型（Class of Device）"></a>设备类型（Class of Device）</h4><p>在设备发现过程中传输的参数。CoD的定义见Assigned Numbers。</p>
+<h4 id="Apprearance-Characteristic"><a href="#Apprearance-Characteristic" class="headerlink" title="Apprearance Characteristic"></a>Apprearance Characteristic</h4><p>一个16-bit的数字，可以映射成一个icon或string，描述设备的物理外观。Appearance的定义见Assigned NumbersMode</p>
+<h3 id="Modes"><a href="#Modes" class="headerlink" title="Modes"></a>Modes</h3><h4 id="发现模式"><a href="#发现模式" class="headerlink" title="发现模式"></a>发现模式</h4><ul>
+<li>Non-discoverable mode</li>
+<li>Discoverable mode</li>
+</ul>
+<p>可发现模式又分为Limited discoverable mode和General discoverable mode。</p>
+<p>Limited discoverable mode：只能在一段时间内被发现。</p>
+<p>General discoverable mode：可以一直被发现。</p>
+<p>如果对端使用了Limited inquiry的话，是发现不了General discoverable mode的设备的。</p>
+<h4 id="连接模式"><a href="#连接模式" class="headerlink" title="连接模式"></a>连接模式</h4><ul>
+<li>Non-connectable mode</li>
+</ul>
+<p>不会进PAGE_SCAN</p>
+<ul>
+<li>Connectable mode</li>
+</ul>
+<p>会周期地进入PAGE_SCAN</p>
+<h3 id="Inquiry-and-Page"><a href="#Inquiry-and-Page" class="headerlink" title="Inquiry and Page"></a>Inquiry and Page</h3><h4 id="Inquiry"><a href="#Inquiry" class="headerlink" title="Inquiry"></a>Inquiry</h4><p>让蓝牙芯片进入发现周围蓝牙设备地模式。</p>
+<p>它的返回值是周围蓝牙设备的信号。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/2.png" alt="2"></p>
+<p>Inquiry_Length表示inquiry的事件：</p>
+<ul>
+<li>Range: 0x01 ~ 0x30</li>
+<li>Time: N * 1.28s</li>
+<li>Range: 1.28s ~ 61.44s</li>
+</ul>
+<h4 id="Inquiry-scan"><a href="#Inquiry-scan" class="headerlink" title="Inquiry scan"></a>Inquiry scan</h4><p>蓝牙设备开启inquiry scan 模式，才能够被别的蓝牙设备搜索到。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/4.png" alt="4"></p>
+<p>Inquiry_Scan_Interval：</p>
+<ul>
+<li>T &#x3D; N * 0.625 ms</li>
+<li>Range: 11.25ms ~ 2560ms</li>
+</ul>
+<p>Inquiry_Scan_Window：</p>
+<ul>
+<li>T &#x3D; N * 0.625 ms</li>
+<li>Range: 10.625ms ~ 2560ms</li>
+</ul>
+<h4 id="Page"><a href="#Page" class="headerlink" title="Page"></a>Page</h4><p>发起连接的蓝牙设备向被连接的蓝牙设备发起连接请求或认证，请求即是一次page动作。</p>
+<p>超时时间：0.625ms ~ 40.9s</p>
+<h4 id="Page-scan"><a href="#Page-scan" class="headerlink" title="Page scan"></a>Page scan</h4><p>蓝牙设备开启page scan模式，才能够响应其他蓝牙设备的连接请求。例如蓝牙耳机只有处于page scan才允许其他设备来连接。</p>
+<p>Page Scan Interval (寻呼扫描间隔)</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/6.png" alt="6"></p>
+<p>Page Scan Window（寻呼扫描窗口）</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/7.png" alt="7"></p>
+<h2 id="配对流程"><a href="#配对流程" class="headerlink" title="配对流程"></a>配对流程</h2><h3 id="连接建立"><a href="#连接建立" class="headerlink" title="连接建立"></a>连接建立</h3><p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/1.png" alt="1"></p>
+<p>对应air log：</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/8.png" alt="8"></p>
+<ol>
+<li>主机Page设备，设备Page scan响应之后，两个设备开始LMP连接</li>
+<li>连接前交换版本号，支持的feature等信息</li>
+<li>最终LMP Setup Complete，数据可以在BR&#x2F;EDR的ACL逻辑链路上传输</li>
+</ol>
+<h3 id="Secure-Simple-Pairing"><a href="#Secure-Simple-Pairing" class="headerlink" title="Secure Simple Pairing"></a>Secure Simple Pairing</h3><h4 id="IO能力交换"><a href="#IO能力交换" class="headerlink" title="IO能力交换"></a>IO能力交换</h4><p>第一步，交换IO能力，选择配对方式。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/10.png" alt="10"></p>
+<blockquote>
+<p>这里请求io能力交换的时候，涉及和host的交互，因为配对方式和io能力是由host控制的，对应slave侧的HCI：</p>
+</blockquote>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/9.png" alt="9"></p>
+<h4 id="交换public-key"><a href="#交换public-key" class="headerlink" title="交换public key"></a>交换public key</h4><p>第二步，交换公钥。</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/11.png" alt="11"></p>
+<h4 id="认证阶段1"><a href="#认证阶段1" class="headerlink" title="认证阶段1"></a>认证阶段1</h4><p>第三步，根据IO能力决定要使用何种配对方式，并确认Pin Code。</p>
+<p>可以是：numeric comparation，passkey entry，OOB。</p>
+<p>这里选择数字比较方式：</p>
+<p><strong>典型流程：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/12.png" alt="12"></p>
+<p><strong>空口：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/15.png" alt="15"></p>
+<blockquote>
+<p>这一步涉及用户确认PIN Code，因此会把comfirm code传给host，并由上层显示 PIN Code，让用户确认。</p>
+</blockquote>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/16.png" alt="16"></p>
+<h4 id="认证阶段2"><a href="#认证阶段2" class="headerlink" title="认证阶段2"></a>认证阶段2</h4><p>DHKey check，完成身份认证，并启动对链路的加密。</p>
+<p><strong>典型流程：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/13.png" alt="13"></p>
+<p><strong>空口：</strong></p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/14.png" alt="14"></p>
+<p>DHKey Check完成后，controller向host上报ssp完成事件，然后上报link key，再启动对链路的加密。</p>
+<p>对应slave侧的HCI：</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/17.png" alt="17"></p>
+<h2 id="Cross-Transport-Key-Derivation"><a href="#Cross-Transport-Key-Derivation" class="headerlink" title="Cross-Transport Key Derivation"></a>Cross-Transport Key Derivation</h2><p>蓝牙CTKD是蓝牙4.2版本后引入的一种交叉传输密钥派生的安全机制。主要用在蓝牙双模设备上，它可以跨越BLE和BT的边界，通过将BLE配对生成的LTK转化成BT配对的Link Key。当然，也可以通过BT配对生成的Link Key转化成BLE的LTK来实现。目前我们主要用的是前者，</p>
+<p>通过CTKD可以通过一次配对将BT和BLE两个链路都配对上，从而提升蓝牙双模设备的配对体验。</p>
+<p>LTK生成Link Key的方法：</p>
+<p><img src="/2023/05/03/Bluedroid-Study-Notes-Pairing-on-BR-EDR/3.png" alt="3"></p>
+<p>更多内容参考 CoreSpec v5.3, Vol 3, Part H, Section 2.4.2.4等章节。</p>
+<blockquote>
+<p>目前发现如果使能从BT到BLE的crosskey，也就是在第一次在BR&#x2F;EDR上配对，通过Link Key生成BLE的LTK，会出现问题。</p>
+<p>具体问题是，手机在第一次连接时，把设备的public address (type 0)加到白名单；而断链重连后，则把设备的public address当做random address (type 1)加入白名单。-&gt; 即手机会把设备的地址类型搞错。这种情况将导致设备的BLE连接失败。</p>
+<p>一般建议：BT和BLE不使用同一个public address（如果同时存在的话）。如果同时存在，建议BLE使用static random地址。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2023/05/03/Bluedroid-Study-Notes-HFClient/" rel="prev" title="Bluedroid Study Notes - HFClient">
+                  <i class="fa fa-angle-left"></i> Bluedroid Study Notes - HFClient
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2023/05/03/Cortex-m-exception-handling/" rel="next" title="Cortex-m exception handling">
+                  Cortex-m exception handling <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

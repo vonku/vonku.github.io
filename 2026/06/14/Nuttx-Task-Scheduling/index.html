@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="基于 ARMv7-A MMU，从进程地址空间隔离、系统调用陷入、双栈切换到调度器核心算法，完整解析 NuttX KERNEL 构建模式下的任务生命周期管理。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - Task Scheduling">
+<meta property="og:url" content="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="基于 ARMv7-A MMU，从进程地址空间隔离、系统调用陷入、双栈切换到调度器核心算法，完整解析 NuttX KERNEL 构建模式下的任务生命周期管理。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/create_task.png">
+<meta property="og:image" content="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/syscall.png">
+<meta property="og:image" content="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/context_switch.png">
+<meta property="og:image" content="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/prio_inheri.png">
+<meta property="article:published_time" content="2026-06-14T08:41:34.000Z">
+<meta property="article:modified_time" content="2026-06-14T09:10:14.657Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/create_task.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/","path":"2026/06/14/Nuttx-Task-Scheduling/","title":"Nuttx - Task Scheduling"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - Task Scheduling | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%80%E7%AF%87%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-KERNEL-%E6%9E%84%E5%BB%BA%E6%A8%A1%E5%BC%8F%EF%BC%9F"><span class="nav-text">1. 开篇：为什么需要 KERNEL 构建模式？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E8%BF%9B%E7%A8%8B%E6%A8%A1%E5%9E%8B%EF%BC%9AKERNEL-%E6%A8%A1%E5%BC%8F%E4%B8%8B%E7%9A%84-Task%E3%80%81Pthread-%E4%B8%8E-Kthread"><span class="nav-text">2. 进程模型：KERNEL 模式下的 Task、Pthread 与 Kthread</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%B8%BA%E4%BB%80%E4%B9%88-task-create-%E5%9C%A8-KERNEL-%E6%A8%A1%E5%BC%8F%E4%B8%8B%E8%A2%AB%E7%A6%81%E7%94%A8%EF%BC%9F"><span class="nav-text">2.1 为什么 task_create() 在 KERNEL 模式下被禁用？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E4%B8%89%E7%A7%8D%E7%BA%BF%E7%A8%8B%E7%B1%BB%E5%9E%8B%E7%9A%84%E6%9C%AC%E8%B4%A8%E5%8C%BA%E5%88%AB"><span class="nav-text">2.2 三种线程类型的本质区别</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-TCB-%E4%B8%AD%E7%9A%84-KERNEL-%E6%A8%A1%E5%BC%8F%E5%85%B3%E9%94%AE%E5%AD%97%E6%AE%B5"><span class="nav-text">2.3 TCB 中的 KERNEL 模式关键字段</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%EF%BC%88Address-Environment%EF%BC%89%EF%BC%9A%E6%AF%8F%E8%BF%9B%E7%A8%8B%E9%A1%B5%E8%A1%A8%E6%9E%B6%E6%9E%84"><span class="nav-text">3. 地址环境（Address Environment）：每进程页表架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E6%AF%8F%E8%BF%9B%E7%A8%8B%E4%B8%80%E4%BB%BD-L1-%E9%A1%B5%E8%A1%A8%EF%BC%9F"><span class="nav-text">3.1 为什么需要每进程一份 L1 页表？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">3.2 数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E5%B8%83%E5%B1%80%EF%BC%88armv7a-qemu%EF%BC%89"><span class="nav-text">3.3 虚拟地址空间布局（armv7a-qemu）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%E5%88%9B%E5%BB%BA%EF%BC%9Aup-addrenv-create"><span class="nav-text">3.4 地址环境创建：up_addrenv_create()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%E5%88%87%E6%8D%A2%EF%BC%9A%E6%94%B9%E5%86%99-TTBR0"><span class="nav-text">3.5 地址环境切换：改写 TTBR0</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E8%BF%9B%E7%A8%8B%E5%88%9B%E5%BB%BA%E5%85%A8%E6%B5%81%E7%A8%8B%EF%BC%9Aposix-spawn-%E5%88%B0%E9%A6%96%E6%AC%A1%E8%BF%90%E8%A1%8C"><span class="nav-text">4. 进程创建全流程：posix_spawn() 到首次运行</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%9B%E7%A8%8B%E5%88%9B%E5%BB%BA%E6%AF%94-FLAT-%E6%A8%A1%E5%BC%8F%E5%A4%8D%E6%9D%82%E5%BE%97%E5%A4%9A%EF%BC%9F"><span class="nav-text">4.1 为什么进程创建比 FLAT 模式复杂得多？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%AE%8C%E6%95%B4%E8%B0%83%E7%94%A8%E9%93%BE"><span class="nav-text">4.2 完整调用链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-ELF-%E5%8A%A0%E8%BD%BD%E4%B8%8E%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%E5%88%86%E9%85%8D"><span class="nav-text">4.3 ELF 加载与地址环境分配</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E7%94%A8%E6%88%B7%E5%A0%86%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">4.4 用户堆初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E5%86%85%E6%A0%B8%E6%A0%88%E5%88%86%E9%85%8D"><span class="nav-text">4.5 内核栈分配</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E9%A6%96%E6%AC%A1%E8%BF%90%E8%A1%8C%EF%BC%9A%E4%BB%8E%E5%86%85%E6%A0%B8%E6%80%81%E9%99%8D%E7%BA%A7%E5%88%B0%E7%94%A8%E6%88%B7%E6%80%81"><span class="nav-text">4.6 首次运行：从内核态降级到用户态</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E6%9C%BA%E5%88%B6%EF%BC%9A%E7%94%A8%E6%88%B7%E6%80%81%E5%88%B0%E5%86%85%E6%A0%B8%E6%80%81%E7%9A%84%E6%A1%A5%E6%A2%81"><span class="nav-text">5. 系统调用机制：用户态到内核态的桥梁</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%EF%BC%9F"><span class="nav-text">5.1 为什么需要系统调用？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Proxy-Stub-%E6%9E%B6%E6%9E%84"><span class="nav-text">5.2 Proxy&#x2F;Stub 架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-SVC-%E5%85%A5%E5%8F%A3%EF%BC%88%E6%B1%87%E7%BC%96%EF%BC%89"><span class="nav-text">5.3 SVC 入口（汇编）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8-C-%E5%88%86%E5%8F%91%EF%BC%9Aarm-syscall"><span class="nav-text">5.4 系统调用 C 分发：arm_syscall()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-arm-syscall-%E5%A4%84%E7%90%86%E5%BA%93-syscall-%E7%9A%84%E5%AE%8C%E6%95%B4%E9%80%BB%E8%BE%91%EF%BC%88default-case%EF%BC%89"><span class="nav-text">5.5 arm_syscall() 处理库 syscall 的完整逻辑（default case）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-arm-syscall-%E5%A4%84%E7%90%86-SYS-syscall-return%EF%BC%88%E8%BF%94%E5%9B%9E%E7%94%A8%E6%88%B7%E6%80%81%EF%BC%89"><span class="nav-text">5.6 arm_syscall() 处理 SYS_syscall_return（返回用户态）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-7-dispatch-syscall%EF%BC%9A%E8%A3%B8%E5%87%BD%E6%95%B0%E8%B7%B3%E6%9D%BF"><span class="nav-text">5.7 dispatch_syscall：裸函数跳板</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E8%B0%83%E5%BA%A6%E7%AE%97%E6%B3%95%EF%BC%9A%E4%BC%98%E5%85%88%E7%BA%A7%E6%9C%89%E5%BA%8F%E9%93%BE%E8%A1%A8"><span class="nav-text">6. 调度算法：优先级有序链表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E8%B0%83%E5%BA%A6%E7%AE%97%E6%B3%95%E5%9C%A8-KERNEL-%E6%A8%A1%E5%BC%8F%E4%B8%8B%E6%9C%89%E4%BD%95%E4%B8%8D%E5%90%8C%EF%BC%9F"><span class="nav-text">6.1 调度算法在 KERNEL 模式下有何不同？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%9A%E4%BC%98%E5%85%88%E7%BA%A7%E6%9C%89%E5%BA%8F%E5%8F%8C%E5%90%91%E9%93%BE%E8%A1%A8"><span class="nav-text">6.2 核心数据结构：优先级有序双向链表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E4%BC%98%E5%85%88%E7%BA%A7%E6%9C%89%E5%BA%8F%E6%8F%92%E5%85%A5"><span class="nav-text">6.3 优先级有序插入</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E5%8A%A0%E5%85%A5%E5%B0%B1%E7%BB%AA%E9%98%9F%E5%88%97"><span class="nav-text">6.4 加入就绪队列</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%EF%BC%9A%E5%AF%84%E5%AD%98%E5%99%A8-%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%E5%8F%8C%E5%88%87%E6%8D%A2"><span class="nav-text">7. 上下文切换：寄存器 + 地址环境双切换</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-KERNEL-%E6%A8%A1%E5%BC%8F%E4%B8%8B%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E7%9A%84%E9%A2%9D%E5%A4%96%E5%BC%80%E9%94%80"><span class="nav-text">7.1 KERNEL 模式下上下文切换的额外开销</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-addrenv-switch-%EF%BC%9A%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%E5%88%87%E6%8D%A2%E7%9A%84%E6%A0%B8%E5%BF%83"><span class="nav-text">7.2 addrenv_switch()：地址环境切换的核心</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E8%B0%83%E7%94%A8%E7%82%B9"><span class="nav-text">7.3 上下文切换调用点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E5%AE%8C%E6%95%B4%E7%9A%84%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E6%97%B6%E5%BA%8F"><span class="nav-text">7.4 完整的上下文切换时序</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E6%97%B6%E9%97%B4%E7%89%87%E8%BD%AE%E8%BD%AC%EF%BC%9ASCHED-RR"><span class="nav-text">8. 时间片轮转：SCHED_RR</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-text">8.1 工作原理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E4%BC%98%E5%85%88%E7%BA%A7%E7%BB%A7%E6%89%BF%EF%BC%9A%E8%A7%A3%E5%86%B3%E4%BC%98%E5%85%88%E7%BA%A7%E5%8F%8D%E8%BD%AC"><span class="nav-text">9. 优先级继承：解决优先级反转</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-%E9%97%AE%E9%A2%98%E4%B8%8E%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-text">9.1 问题与解决方案</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E6%8F%90%E5%8D%87%E9%80%BB%E8%BE%91"><span class="nav-text">9.2 提升逻辑</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-3-%E6%81%A2%E5%A4%8D%E9%80%BB%E8%BE%91"><span class="nav-text">9.3 恢复逻辑</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E6%8A%A2%E5%8D%A0%E6%8E%A7%E5%88%B6%EF%BC%9Asched-lock-unlock"><span class="nav-text">10. 抢占控制：sched_lock&#x2F;unlock</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-%E4%B8%BA%E4%BB%80%E4%B9%88-sched-lock-%E5%9C%A8-KERNEL-%E6%A8%A1%E5%BC%8F%E4%B8%8B%E4%BB%8D%E7%84%B6%E9%87%8D%E8%A6%81%EF%BC%9F"><span class="nav-text">10.1 为什么 sched_lock 在 KERNEL 模式下仍然重要？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-2-%E6%9C%BA%E5%88%B6%E8%AF%A6%E8%A7%A3%EF%BC%9Alockcount-%E5%A6%82%E4%BD%95%E9%98%BB%E6%AD%A2%E6%8A%A2%E5%8D%A0%EF%BC%88%E9%80%89%E8%AF%BB%EF%BC%89"><span class="nav-text">10.2 机制详解：lockcount 如何阻止抢占（选读）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%AF%B9%E6%AF%94%EF%BC%9AKERNEL-%E6%A8%A1%E5%BC%8F-vs-FLAT-%E6%A8%A1%E5%BC%8F-vs-Linux"><span class="nav-text">11. 对比：KERNEL 模式 vs FLAT 模式 vs Linux</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#12-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">12. 关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#13-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6%E7%B4%A2%E5%BC%95"><span class="nav-text">13. 参考文件索引</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">38</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/14/Nuttx-Task-Scheduling/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - Task Scheduling | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - Task Scheduling
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-14 16:41:34" itemprop="dateCreated datePublished" datetime="2026-06-14T16:41:34+08:00">2026-06-14</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>基于 ARMv7-A MMU，从进程地址空间隔离、系统调用陷入、双栈切换到调度器核心算法，完整解析 NuttX KERNEL 构建模式下的任务生命周期管理。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>本文回答以下问题：NuttX KERNEL 模式下进程和线程的本质区别是什么？每个进程的独立地址空间在硬件层面如何实现（L1&#x2F;L2 页表）？用户进程如何通过系统调用安全地访问内核服务？调度器在切换进程时如何同时完成寄存器保存和地址空间切换？</p>
+<p>读完后，你将能够从源码级别理解 armv7a-qemu 上一个用户进程从 ELF 加载到获得 CPU 的完整路径，并具备独立分析调度延迟、syscall 开销和地址空间故障的能力。</p>
+<hr>
+<h2 id="1-开篇：为什么需要-KERNEL-构建模式？"><a href="#1-开篇：为什么需要-KERNEL-构建模式？" class="headerlink" title="1. 开篇：为什么需要 KERNEL 构建模式？"></a>1. 开篇：为什么需要 KERNEL 构建模式？</h2><p>在资源受限的 MCU 上，NuttX 通常以 FLAT 模式运行——所有任务共享同一地址空间，任何任务的野指针都可能破坏整个系统。这对安全性要求高的场景（航空电子、医疗设备、汽车 ECU）是不可接受的。</p>
+<p><strong>KERNEL 构建模式</strong>（<code>CONFIG_BUILD_KERNEL</code>）利用 ARMv7-A 的 MMU（Memory Management Unit）实现：</p>
+<ul>
+<li><strong>进程地址空间隔离</strong>：每个用户进程拥有独立的虚拟地址空间（独立的 L1 页表）</li>
+<li><strong>特权级分离</strong>：用户代码运行在 USR 模式（无法访问内核内存），内核代码运行在 SYS&#x2F;SVC 模式</li>
+<li><strong>系统调用边界</strong>：用户进程只能通过 SVC 指令陷入内核，访问受控的 API</li>
+</ul>
+<p>NuttX 官方文档（<code>Documentation/implementation/processes_vs_tasks.rst</code>）描述：</p>
+<blockquote>
+<p>“The kernel build, selected with CONFIG_BUILD_KERNEL, uses the MCU’s Memory Management Unit (MMU) to implement processes very similar to Linux processes.”</p>
+</blockquote>
+<p>本文基于 ARMv7-A 架构，完整剖析 KERNEL 模式下的：</p>
+<ol>
+<li><strong>进程模型</strong>——Task&#x2F;Pthread&#x2F;Kthread 在 KERNEL 模式下的本质区别</li>
+<li><strong>地址环境</strong>——每进程 L1 页表的创建、切换与销毁</li>
+<li><strong>进程创建</strong>——从 <code>posix_spawn()</code> 到 ELF 加载再到首次获得 CPU</li>
+<li><strong>系统调用</strong>——SVC 陷入、Proxy&#x2F;Stub 机制、内核栈切换</li>
+<li><strong>调度算法</strong>——优先级有序链表与抢占控制</li>
+<li><strong>上下文切换</strong>——寄存器保存 + TTBR0 页表切换的完整时序</li>
+<li><strong>时间片轮转与优先级继承</strong></li>
+</ol>
+<hr>
+<h2 id="2-进程模型：KERNEL-模式下的-Task、Pthread-与-Kthread"><a href="#2-进程模型：KERNEL-模式下的-Task、Pthread-与-Kthread" class="headerlink" title="2. 进程模型：KERNEL 模式下的 Task、Pthread 与 Kthread"></a>2. 进程模型：KERNEL 模式下的 Task、Pthread 与 Kthread</h2><h3 id="2-1-为什么-task-create-在-KERNEL-模式下被禁用？"><a href="#2-1-为什么-task-create-在-KERNEL-模式下被禁用？" class="headerlink" title="2.1 为什么 task_create() 在 KERNEL 模式下被禁用？"></a>2.1 为什么 task_create() 在 KERNEL 模式下被禁用？</h3><p>在 FLAT 模式下，<code>task_create()</code> 直接从内存中的函数指针启动新任务。但在 KERNEL 模式下，每个用户进程有自己的虚拟地址空间——父进程的函数地址在子进程中无意义。因此：</p>
+<p>文件：<code>sched/task/task_create.c:200</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">ifndef</span> CONFIG_BUILD_KERNEL</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">task_create_with_stack</span><span class="params">(...)</span> &#123; ... &#125;</span><br><span class="line"><span class="type">int</span> <span class="title function_">task_create</span><span class="params">(...)</span> &#123; ... &#125;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>**KERNEL 模式下创建用户进程的唯一方式是 <code>posix_spawn()</code> &#x2F; <code>exec()</code>**——通过 binfmt 层从文件系统加载 ELF 可执行文件，为其分配独立的地址空间。</p>
+<h3 id="2-2-三种线程类型的本质区别"><a href="#2-2-三种线程类型的本质区别" class="headerlink" title="2.2 三种线程类型的本质区别"></a>2.2 三种线程类型的本质区别</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>用户进程（User Task）</th>
+<th>用户线程（Pthread）</th>
+<th>内核线程（Kthread）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>创建方式</td>
+<td><code>posix_spawn()</code> &#x2F; <code>exec()</code></td>
+<td><code>pthread_create()</code></td>
+<td><code>kthread_create()</code></td>
+</tr>
+<tr>
+<td>地址空间</td>
+<td>独立 L1 页表</td>
+<td>共享父进程 L1 页表</td>
+<td>使用内核全局页表</td>
+</tr>
+<tr>
+<td>运行模式</td>
+<td>USR 模式（非特权）</td>
+<td>USR 模式（非特权）</td>
+<td>SYS 模式（特权）</td>
+</tr>
+<tr>
+<td>内核栈</td>
+<td>有（<code>xcp.kstack</code>）</td>
+<td>有</td>
+<td>无（直接用分配的栈）</td>
+</tr>
+<tr>
+<td>用户栈</td>
+<td>在用户地址空间</td>
+<td>在用户地址空间</td>
+<td>在内核地址空间</td>
+</tr>
+<tr>
+<td>task_group</td>
+<td>独立（新建）</td>
+<td>共享父进程的</td>
+<td>共享 <code>g_kthread_group</code></td>
+</tr>
+<tr>
+<td><code>addrenv_own</code></td>
+<td>指向独立 addrenv</td>
+<td>指向父进程 addrenv（引用计数+1）</td>
+<td>NULL</td>
+</tr>
+</tbody></table>
+<p><strong>实例：系统中有一个用户进程 “myapp”（pid&#x3D;3）和它创建的一个 pthread（pid&#x3D;4）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">TCB(pid=3): flags=0x08 (TASK|SCHED_RR), addrenv_own=0x8F100000 (refs=2)</span><br><span class="line">TCB(pid=4): flags=0x09 (PTHREAD|SCHED_RR), addrenv_own=0x8F100000 (same, refs=2)</span><br><span class="line">TCB(pid=1): flags=0x02 (KERNEL), addrenv_own=NULL (uses kernel global L1)</span><br></pre></td></tr></table></figure>
+
+<p>pid&#x3D;3 和 pid&#x3D;4 共享同一个 <code>addrenv_s</code>，引用计数为 2。当其中一个退出，引用减到 1；最后一个退出时引用减到 0，触发地址环境销毁。</p>
+<h3 id="2-3-TCB-中的-KERNEL-模式关键字段"><a href="#2-3-TCB-中的-KERNEL-模式关键字段" class="headerlink" title="2.3 TCB 中的 KERNEL 模式关键字段"></a>2.3 TCB 中的 KERNEL 模式关键字段</h3><p>文件：<code>include/nuttx/sched.h:593-598</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_ARCH_ADDRENV</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">addrenv_s</span> *<span class="title">addrenv_own</span>;</span>     <span class="comment">/* 本任务组拥有的地址环境 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">addrenv_s</span> *<span class="title">addrenv_curr</span>;</span>    <span class="comment">/* 当前激活的地址环境 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>arch/arm/include/armv7-a/irq.h:328-331</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">uint32_t</span> *ustkptr;   <span class="comment">/* 保存的用户栈指针（syscall 进入时保存）*/</span></span><br><span class="line"><span class="type">uint32_t</span> *kstack;    <span class="comment">/* 内核栈基地址（kmm_memalign 分配）*/</span></span><br><span class="line"><span class="type">uint32_t</span> *kstkptr;   <span class="comment">/* 保存的内核栈指针（嵌套 syscall 用）*/</span></span><br></pre></td></tr></table></figure>
+
+<p>每个用户进程的 TCB 同时持有<strong>用户栈指针</strong>和<strong>内核栈指针</strong>——系统调用时从用户栈切到内核栈，返回时切回。</p>
+<p>理解了进程模型后，下一个问题是：每个进程的”独立地址空间”在硬件层面如何实现？这就是地址环境的职责。</p>
+<hr>
+<h2 id="3-地址环境（Address-Environment）：每进程页表架构"><a href="#3-地址环境（Address-Environment）：每进程页表架构" class="headerlink" title="3. 地址环境（Address Environment）：每进程页表架构"></a>3. 地址环境（Address Environment）：每进程页表架构</h2><h3 id="3-1-为什么需要每进程一份-L1-页表？"><a href="#3-1-为什么需要每进程一份-L1-页表？" class="headerlink" title="3.1 为什么需要每进程一份 L1 页表？"></a>3.1 为什么需要每进程一份 L1 页表？</h3><p>ARMv7-A 的 MMU 通过 TTBR0（Translation Table Base Register 0）寄存器指向当前进程的 L1 页表。切换进程就是切换 TTBR0 指向不同的 L1 页表——不同页表映射不同的物理页，从而实现地址空间隔离。</p>
+<h3 id="3-2-数据结构"><a href="#3-2-数据结构" class="headerlink" title="3.2 数据结构"></a>3.2 数据结构</h3><p>文件：<code>arch/arm/include/arch.h:134-159</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">arch_addrenv_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">uintptr_t</span> *l1table;      <span class="comment">/* 完整的 L1 页表（16KB, 4096 entries x 4 bytes）*/</span></span><br><span class="line">  <span class="type">uintptr_t</span> textvbase;     <span class="comment">/* .text 段虚拟基地址 */</span></span><br><span class="line">  <span class="type">uintptr_t</span> datavbase;     <span class="comment">/* .data/.bss 段虚拟基地址 */</span></span><br><span class="line">  <span class="type">uintptr_t</span> heapvbase;     <span class="comment">/* 堆虚拟基地址 */</span></span><br><span class="line">  <span class="type">size_t</span> heapsize;         <span class="comment">/* 初始堆大小 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>include/nuttx/addrenv.h:268-275</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">addrenv_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">arch_addrenv_s</span> <span class="title">addrenv</span>;</span>  <span class="comment">/* 架构相关的页表数据 */</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">work_s</span>         <span class="title">work</span>;</span>     <span class="comment">/* 延迟释放用的工作队列条目 */</span></span><br><span class="line">  <span class="type">atomic_t</span>              refs;     <span class="comment">/* 引用计数（支持多线程共享）*/</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：armv7a-qemu 上一个用户进程的地址环境字段值</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">l1table      = 0x40300000  (从 Page Pool 分配，16KB 对齐)</span><br><span class="line">textvbase    = 0x80000000  (CONFIG_ARCH_TEXT_VBASE)</span><br><span class="line">datavbase    = 0x80100000  (CONFIG_ARCH_DATA_VBASE)</span><br><span class="line">heapvbase    = 0x80200000  (CONFIG_ARCH_HEAP_VBASE)</span><br><span class="line">heapsize     = 65536  (初始堆 64KB)</span><br><span class="line">refs         = 2  (主线程 + 一个 pthread)</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-虚拟地址空间布局（armv7a-qemu）"><a href="#3-3-虚拟地址空间布局（armv7a-qemu）" class="headerlink" title="3.3 虚拟地址空间布局（armv7a-qemu）"></a>3.3 虚拟地址空间布局（armv7a-qemu）</h3><p>NuttX KERNEL 模式在 armv7a-qemu 上的实际内存布局如下。<strong>内核使用恒等映射</strong>（PA &#x3D;&#x3D; VA，L1 section entries）占据低地址；<strong>用户空间使用纯虚拟映射</strong>（通过 L2 page table）占据高地址：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">Physical (PA == VA identity mapped)            Virtual (VA only, per-process L2)</span><br><span class="line">         ─────────────────────────────────────          ─────────────────</span><br><span class="line">0x00000000 ┌──────────────────────────────┐</span><br><span class="line">           │  FLASH  1MB                  │  kernel .text + .rodata</span><br><span class="line">           │  MMU_MEMFLAGS, L1 sections   │</span><br><span class="line">0x00100000 ├──────────────────────────────┤</span><br><span class="line">           │  (reserved / unused)         │</span><br><span class="line">0x08000000 ├──────────────────────────────┤</span><br><span class="line">           │  IO/Peripherals  96MB        │  UART, GIC, timers,</span><br><span class="line">           │  MMU_IOFLAGS, XN             │  all MMIO registers</span><br><span class="line">0x0E000000 ├──────────────────────────────┤</span><br><span class="line">           │  Secure Memory  16MB         │</span><br><span class="line">0x0F000000 ├──────────────────────────────┤</span><br><span class="line">           │  PCIE ECAM/MMIO  768MB       │</span><br><span class="line">           │  MMU_IOFLAGS, XN             │</span><br><span class="line">0x40000000 ├──────────────────────────────┤  ── kernel/user boundary (L1 index 0x800) ──</span><br><span class="line">           │                              │              ┌──────────────────────────────┐</span><br><span class="line">           │  DDR (kernel heap, stacks,   │  0x80000000  │ User .text  (1MB, 256 pages) │</span><br><span class="line">           │  TCBs, free pages...)        │              │ MMU_L2_UTEXTFLAGS (RO+exec)  │</span><br><span class="line">           │  MMU_MEMFLAGS, L1 sections   │              │ each process -&gt; different PA │</span><br><span class="line">0x40300000 │  ┌────────────────────────┐  │  0x80100000  ├──────────────────────────────┤</span><br><span class="line">           │  │ Page Pool  ~13MB       │  │              │ User .data/.bss (1MB)        │</span><br><span class="line">           │  │ (L2 tables, user       │  │              │ MMU_L2_UDATAFLAGS (RW)       │</span><br><span class="line">           │  │  text/data/heap pages) │  │              │ [+ARCH_DATA_RESERVE 4KB]     │</span><br><span class="line">0x40FFC000 │  ├────────────────────────┤  │  0x80200000  ├──────────────────────────────┤</span><br><span class="line">           │  │ Kernel L1 Page Table   │  │              │ User heap     (1MB, 256 pgs) │</span><br><span class="line">           │  │ 16KB (4096 entries)    │  │              │ grows via sbrk -&gt; pgalloc()  │</span><br><span class="line">           │  │ PGTABLE_BASE_VADDR     │  │  0x80300000  ├──────────────────────────────┤</span><br><span class="line">0x41000000 │  └────────────────────────┘  │              │ User stack (if dynamic)      │</span><br><span class="line">0x50000000 └──────────────────────────────┘              └──────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计要点：</strong></p>
+<ul>
+<li><strong>内核区域</strong>（0x00000000-0x50000000）使用 L1 section entries（每条覆盖 1MB），PA &#x3D;&#x3D; VA 恒等映射。无需 L2 页表，访问效率最高。</li>
+<li><strong>用户区域</strong>从 L1 index 0x800（VA 0x80000000）开始，使用 L2 coarse page table entries（每条覆盖 4KB）。不同进程映射到 Page Pool 中的不同物理页，实现地址隔离。</li>
+<li><strong>Page Pool</strong>（DDR 中 0x40300000-0x40FFC000，约 13MB）是所有用户物理页的来源：L2 页表本身、用户 .text&#x2F;.data、堆和栈页面都从这里分配。</li>
+<li><strong>Kernel L1 Page Table</strong> 固定在 0x40FFC000（<code>PGTABLE_BASE_VADDR</code>），是所有进程 L1 页表的”模板”——新进程的 L1 页表从这里 <code>memcpy</code> 而来。</li>
+</ul>
+<p><strong>实例：armv7a-qemu 上进程 “myapp” 的虚拟地址映射</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">CONFIG_ARCH_TEXT_VBASE  = 0x80000000</span><br><span class="line">CONFIG_ARCH_DATA_VBASE  = 0x80100000</span><br><span class="line">CONFIG_ARCH_HEAP_VBASE  = 0x80200000</span><br><span class="line">CONFIG_ARCH_STACK_VBASE = 0x80300000</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>.text</code> 加载到 VA 0x80000000-0x8000FFFF（64KB ELF 代码，物理页来自 Page Pool）</li>
+<li><code>.data</code> 加载到 VA 0x80100000-0x80103FFF（16KB，前 4KB 为 ARCH_DATA_RESERVE）</li>
+<li>用户堆从 VA 0x80200000 开始，初始 64KB，可通过 <code>pgalloc()</code> 动态扩展</li>
+<li>用户栈在 VA 0x80300000，默认 2048 bytes</li>
+</ul>
+<h3 id="3-4-地址环境创建：up-addrenv-create"><a href="#3-4-地址环境创建：up-addrenv-create" class="headerlink" title="3.4 地址环境创建：up_addrenv_create()"></a>3.4 地址环境创建：up_addrenv_create()</h3><p>文件：<code>arch/arm/src/armv7-a/arm_addrenv.c:167-256</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">up_addrenv_create</span><span class="params">(<span class="type">size_t</span> textsize, <span class="type">size_t</span> datasize, <span class="type">size_t</span> heapsize,</span></span><br><span class="line"><span class="params">                      <span class="type">arch_addrenv_t</span> *addrenv)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* Step 1: 分配 16KB L1 页表（4 个物理页）*/</span></span><br><span class="line">  addrenv-&gt;l1table = (<span class="type">uintptr_t</span> *)mm_pgalloc_align(npage, npage);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 2: 从内核主页表复制——继承所有内核映射 */</span></span><br><span class="line">  <span class="built_in">memcpy</span>(addrenv-&gt;l1table, (<span class="type">void</span> *)PGTABLE_BASE_VADDR, PGTABLE_SIZE);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 3: 为 .text 创建 L2 页表和物理页 */</span></span><br><span class="line">  arm_addrenv_create_region(addrenv-&gt;l1table, ...,</span><br><span class="line">                            CONFIG_ARCH_TEXT_VBASE, textsize, MMU_L2_UTEXTFLAGS);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 4: 为 .data/.bss 创建 L2 页表和物理页 */</span></span><br><span class="line">  arm_addrenv_create_region(addrenv-&gt;l1table, ...,</span><br><span class="line">                            CONFIG_ARCH_DATA_VBASE, datasize + ARCH_DATA_RESERVE_SIZE,</span><br><span class="line">                            MMU_L2_UDATAFLAGS);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 5: 为堆创建 L2 页表和物理页 */</span></span><br><span class="line">  arm_addrenv_create_region(addrenv-&gt;l1table, ...,</span><br><span class="line">                            CONFIG_ARCH_HEAP_VBASE, heapsize, MMU_L2_UDATAFLAGS);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 记录虚拟基地址 */</span></span><br><span class="line">  addrenv-&gt;textvbase = CONFIG_ARCH_TEXT_VBASE;</span><br><span class="line">  addrenv-&gt;datavbase = CONFIG_ARCH_DATA_VBASE;</span><br><span class="line">  addrenv-&gt;heapvbase = CONFIG_ARCH_HEAP_VBASE;</span><br><span class="line">  addrenv-&gt;heapsize  = heapsize;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>arm_addrenv_create_region()</code>（文件：<code>arch/arm/src/armv7-a/arm_addrenv_utils.c:60-151</code>）对每个 1MB section：</p>
+<ol>
+<li>分配一个物理页作为 L2 页表（256 entries x 4 bytes &#x3D; 1KB，放在 4KB 页中）</li>
+<li>将 L2 页表物理地址写入 L1 页表对应条目</li>
+<li>为该 1MB 内的每个 4KB 页分配物理页</li>
+<li>将物理页地址 + MMU flags 写入 L2 页表条目</li>
+</ol>
+<h3 id="3-5-地址环境切换：改写-TTBR0"><a href="#3-5-地址环境切换：改写-TTBR0" class="headerlink" title="3.5 地址环境切换：改写 TTBR0"></a>3.5 地址环境切换：改写 TTBR0</h3><p>文件：<code>arch/arm/src/armv7-a/arm_addrenv.c:453-460</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">up_addrenv_select</span><span class="params">(<span class="type">const</span> <span class="type">arch_addrenv_t</span> *addrenv)</span></span><br><span class="line">&#123;</span><br><span class="line">  mmu_l1_setpgtable(addrenv-&gt;l1table);</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>arch/arm/src/armv7-a/mmu.h:1408-1411</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">mmu_l1_setpgtable</span><span class="params">(<span class="type">uintptr_t</span> *ttb)</span></span><br><span class="line">&#123;</span><br><span class="line">  cp15_wrttb((<span class="type">uint32_t</span>)ttb | TTBR0_RGN_WBWA | TTBR0_IRGN0);</span><br><span class="line">  cp15_invalidate_tlbs();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>整个地址空间切换就是两条 CP15 指令：写 TTBR0 + 无效化 TLB。之后所有用户态内存访问都通过新的 L1 页表翻译。</p>
+<p><strong>对比 Linux</strong>：Linux 在 ARMv7-A 上使用 ASID（Address Space ID）来避免每次切换都无效化整个 TLB。NuttX 当前不使用 ASID，每次切换都做完整的 TLB 无效化——对嵌入式场景（进程数少）可接受。</p>
+<p>有了地址环境的基础设施，接下来看一个完整的用户进程是如何从 ELF 文件被加载、初始化并最终运行起来的。</p>
+<hr>
+<h2 id="4-进程创建全流程：posix-spawn-到首次运行"><a href="#4-进程创建全流程：posix-spawn-到首次运行" class="headerlink" title="4. 进程创建全流程：posix_spawn() 到首次运行"></a>4. 进程创建全流程：posix_spawn() 到首次运行</h2><h3 id="4-1-为什么进程创建比-FLAT-模式复杂得多？"><a href="#4-1-为什么进程创建比-FLAT-模式复杂得多？" class="headerlink" title="4.1 为什么进程创建比 FLAT 模式复杂得多？"></a>4.1 为什么进程创建比 FLAT 模式复杂得多？</h3><p>在 KERNEL 模式下创建进程需要解决 FLAT 模式不存在的问题：</p>
+<ul>
+<li>从 ELF 文件加载代码到<strong>新的虚拟地址空间</strong>中</li>
+<li>在新地址空间中初始化<strong>用户堆</strong></li>
+<li>将 argv&#x2F;envp 从父进程地址空间<strong>复制到内核堆</strong>（因为子进程无法访问父进程的用户内存）</li>
+<li>分配<strong>双栈</strong>（用户栈在用户地址空间，内核栈在内核地址空间）</li>
+<li>设置 TCB 使首次上下文切换后以 <strong>USR 模式</strong>运行</li>
+</ul>
+<h3 id="4-2-完整调用链"><a href="#4-2-完整调用链" class="headerlink" title="4.2 完整调用链"></a>4.2 完整调用链</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">posix_spawn(path, file_actions, attr, argv, envp)</span><br><span class="line">  sched/task/task_posixspawn.c:218</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">nxposix_spawn_exec() -&gt; exec_spawn() -&gt; exec_internal()</span><br><span class="line">  binfmt/binfmt_exec.c:77</span><br><span class="line">    |</span><br><span class="line">    +---&gt; load_module() -&gt; elf_loadbinary()</span><br><span class="line">    |       binfmt/elf.c:93</span><br><span class="line">    |       |</span><br><span class="line">    |       +-&gt; libelf_load_with_addrenv()</span><br><span class="line">    |             libs/libc/elf/elf_load.c:701</span><br><span class="line">    |             |</span><br><span class="line">    |             +-&gt; libelf_addrenv_alloc()     -- 创建地址环境（L1+L2页表+物理页）</span><br><span class="line">    |             +-&gt; libelf_addrenv_select()    -- 切换到新地址空间（写TTBR0）</span><br><span class="line">    |             +-&gt; libelf_loadfile()          -- 将 ELF 段加载到新虚拟地址</span><br><span class="line">    |             +-&gt; libelf_addrenv_restore()   -- 切回父进程地址空间</span><br><span class="line">    |</span><br><span class="line">    +---&gt; exec_module()</span><br><span class="line">            binfmt/binfmt_execmodule.c:152</span><br><span class="line">            |</span><br><span class="line">            +-&gt; binfmt_copyargv()       -- 将 argv 从父地址空间复制到内核堆</span><br><span class="line">            +-&gt; addrenv_select()        -- 切换到子进程地址空间</span><br><span class="line">            +-&gt; umm_initialize()        -- 在子进程虚拟堆地址初始化用户堆</span><br><span class="line">            +-&gt; nxtask_init()           -- 初始化 TCB（含内核栈分配）</span><br><span class="line">            +-&gt; addrenv_attach()        -- 将地址环境绑定到 TCB</span><br><span class="line">            +-&gt; addrenv_restore()       -- 切回父进程地址空间</span><br><span class="line">            +-&gt; nxtask_activate()       -- 放入就绪队列</span><br></pre></td></tr></table></figure>
+
+<p>上述流程分为三个阶段：首先 ELF 加载器创建新的地址环境并将代码&#x2F;数据写入新虚拟空间（此时临时切换 MMU）；然后 <code>exec_module()</code> 在新地址空间中初始化用户堆、分配内核栈和用户栈；最后通过 <code>nxtask_activate()</code> 将新 TCB 放入就绪队列。整个过程中父进程的地址环境在每次临时切换后都会被恢复。</p>
+<p><img src="/2026/06/14/Nuttx-Task-Scheduling/create_task.png" alt="create_task"></p>
+<h3 id="4-3-ELF-加载与地址环境分配"><a href="#4-3-ELF-加载与地址环境分配" class="headerlink" title="4.3 ELF 加载与地址环境分配"></a>4.3 ELF 加载与地址环境分配</h3><p>文件：<code>libs/libc/elf/elf_addrenv.c:83-143</code>（<code>libelf_addrenv_alloc()</code>）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* Step 1: 分配 addrenv_s 结构（含引用计数）*/</span></span><br><span class="line">loadinfo-&gt;addrenv = addrenv_allocate();</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Step 2: 创建架构相关的地址环境（L1 页表 + 物理页）*/</span></span><br><span class="line">ret = up_addrenv_create(loadinfo-&gt;textsize,</span><br><span class="line">                        loadinfo-&gt;datasize,</span><br><span class="line">                        CONFIG_ELF_STACKSIZE,  <span class="comment">/* 初始堆大小 */</span></span><br><span class="line">                        &amp;loadinfo-&gt;addrenv-&gt;addrenv);</span><br></pre></td></tr></table></figure>
+
+<p>之后 <code>libelf_addrenv_select()</code> 切换 MMU 到新地址空间，<code>libelf_loadfile()</code> 就可以直接用虚拟地址将 ELF 段内容写入新分配的物理页（因为 MMU 已经映射好了）。</p>
+<h3 id="4-4-用户堆初始化"><a href="#4-4-用户堆初始化" class="headerlink" title="4.4 用户堆初始化"></a>4.4 用户堆初始化</h3><p>文件：<code>binfmt/binfmt_execmodule.c:213-241</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 切换到子进程地址空间 */</span></span><br><span class="line">ret = addrenv_select(binp-&gt;addrenv, &amp;binp-&gt;oldenv);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 获取堆的虚拟地址 */</span></span><br><span class="line">ret = up_addrenv_vheap(addrenv, &amp;vheap);  <span class="comment">/* 返回 CONFIG_ARCH_HEAP_VBASE */</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 初始化用户堆 */</span></span><br><span class="line">umm_initialize(vheap, up_addrenv_heapsize(addrenv));</span><br></pre></td></tr></table></figure>
+
+<p><code>umm_initialize()</code> 在子进程的虚拟堆地址处初始化堆管理结构。此时 MMU 指向子进程的 L1 页表，所以写入操作实际修改了子进程的物理堆页。</p>
+<h3 id="4-5-内核栈分配"><a href="#4-5-内核栈分配" class="headerlink" title="4.5 内核栈分配"></a>4.5 内核栈分配</h3><p>文件：<code>sched/task/task_init.c:167-178</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">if</span> defined(CONFIG_ARCH_ADDRENV) &amp;&amp; defined(CONFIG_ARCH_KERNEL_STACK)</span></span><br><span class="line">  <span class="keyword">if</span> (ttype != TCB_FLAG_TTYPE_KERNEL)</span><br><span class="line">    &#123;</span><br><span class="line">      ret = up_addrenv_kstackalloc(tcb);</span><br><span class="line">    &#125;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>arch/arm/src/armv7-a/arm_addrenv_kstack.c:133-149</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">up_addrenv_kstackalloc</span><span class="params">(<span class="keyword">struct</span> tcb_s *tcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  tcb-&gt;xcp.kstack = kmm_memalign(<span class="number">8</span>, ARCH_KERNEL_STACKSIZE);</span><br><span class="line">  <span class="keyword">if</span> (!tcb-&gt;xcp.kstack)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> -ENOMEM;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么用户进程需要内核栈？</strong> 源码注释（<code>arm_addrenv_kstack.c:74-81</code>）解释：</p>
+<blockquote>
+<p>“When we instantiate and initialize the address environment of the new user process, we will temporarily lose the address environment of the old user process, including its stack contents. The kernel C logic will crash immediately with no valid stack in place.”</p>
+</blockquote>
+<p>内核栈从 <code>kmm_memalign()</code> 分配，位于内核虚拟地址空间——该空间在所有进程的 L1 页表中共享映射，因此切换地址环境不会影响内核栈的可访问性。</p>
+<h3 id="4-6-首次运行：从内核态降级到用户态"><a href="#4-6-首次运行：从内核态降级到用户态" class="headerlink" title="4.6 首次运行：从内核态降级到用户态"></a>4.6 首次运行：从内核态降级到用户态</h3><p>当新进程首次被调度运行时，它从 <code>nxtask_start()</code> 开始（内核态）：</p>
+<p>文件：<code>sched/task/task_start.c:97-107</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (ttype == TCB_FLAG_TTYPE_KERNEL)</span><br><span class="line">  &#123;</span><br><span class="line">    exitcode = tcb-&gt;entry.main(argc, argv);</span><br><span class="line">  &#125;</span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">  &#123;</span><br><span class="line">    <span class="comment">/* KERNEL 构建：通过 syscall 降级到用户态 */</span></span><br><span class="line">    up_task_start(tcb-&gt;entry.main, argc, argv);</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>arch/arm/src/common/arm_task_start.c:67-74</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">up_task_start</span><span class="params">(<span class="type">main_t</span> taskentry, <span class="type">int</span> argc, <span class="type">char</span> *argv[])</span></span><br><span class="line">&#123;</span><br><span class="line">  sys_call3(SYS_task_start, (<span class="type">uintptr_t</span>)taskentry, (<span class="type">uintptr_t</span>)argc, (<span class="type">uintptr_t</span>)argv);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这触发 SVC，在 <code>arm_syscall()</code> 中处理（文件：<code>arch/arm/src/armv7-a/arm_syscall.c:312-331</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> SYS_task_start:</span><br><span class="line">  regs[REG_PC]   = regs[REG_R1];    <span class="comment">/* PC = 用户入口点 */</span></span><br><span class="line">  regs[REG_R0]   = regs[REG_R2];    <span class="comment">/* R0 = argc */</span></span><br><span class="line">  regs[REG_R1]   = regs[REG_R3];    <span class="comment">/* R1 = argv */</span></span><br><span class="line">  cpsr           = regs[REG_CPSR] &amp; ~PSR_MODE_MASK;</span><br><span class="line">  regs[REG_CPSR] = cpsr | PSR_MODE_USR;  <span class="comment">/* 关键：切换到 USR 模式！ */</span></span><br></pre></td></tr></table></figure>
+
+<p>当 SVC 异常返回（<code>RFEIA</code>）时，CPU 加载被修改的 CPSR——其中 mode 位已是 USR，于是 CPU 以非特权模式从用户入口点开始执行。</p>
+<p>用户进程启动后，它如何与内核通信？所有内核服务都通过系统调用暴露。下面深入分析 SVC 机制的完整路径。</p>
+<hr>
+<h2 id="5-系统调用机制：用户态到内核态的桥梁"><a href="#5-系统调用机制：用户态到内核态的桥梁" class="headerlink" title="5. 系统调用机制：用户态到内核态的桥梁"></a>5. 系统调用机制：用户态到内核态的桥梁</h2><h3 id="5-1-为什么需要系统调用？"><a href="#5-1-为什么需要系统调用？" class="headerlink" title="5.1 为什么需要系统调用？"></a>5.1 为什么需要系统调用？</h3><p>用户进程运行在 USR 模式，无法直接访问内核内存、执行特权指令或操作硬件。所有内核服务（文件 I&#x2F;O、信号、信号量等）都必须通过<strong>系统调用</strong>——用户代码触发 SVC 异常，CPU 自动切换到 SVC 模式（特权态），内核代码执行请求后返回结果。</p>
+<h3 id="5-2-Proxy-Stub-架构"><a href="#5-2-Proxy-Stub-架构" class="headerlink" title="5.2 Proxy&#x2F;Stub 架构"></a>5.2 Proxy&#x2F;Stub 架构</h3><p>NuttX 的系统调用分为三层：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">User space:  write(fd, buf, n)         [app code]</span><br><span class="line">               |</span><br><span class="line">               v</span><br><span class="line">           PROXY_write()               [auto-generated proxy in libc]</span><br><span class="line">               |  sys_call3(SYS_write, fd, buf, n)</span><br><span class="line">               |  -&gt; SVC #0x00</span><br><span class="line">               v</span><br><span class="line">  ═══════════════════════════════════   [privilege boundary]</span><br><span class="line">               |</span><br><span class="line">Kernel space:  arm_syscall()           [SVC exception handler]</span><br><span class="line">               |  dispatch_syscall()</span><br><span class="line">               v</span><br><span class="line">           STUB_write()                [auto-generated stub]</span><br><span class="line">               |</span><br><span class="line">               v</span><br><span class="line">           nx_write(fd, buf, n)        [real kernel implementation]</span><br></pre></td></tr></table></figure>
+
+<p>上图展示了系统调用的三层结构：用户空间的 Proxy 负责将普通函数调用打包为 SVC 指令；内核空间的 Stub 负责将 SVC 参数解包并调用真正的内核函数。两者之间通过 ARM 的 SVC 异常机制跨越特权级边界。</p>
+<p><strong>Proxy</strong>（代理）在用户空间运行，将函数调用转换为 SVC 指令。<strong>Stub</strong>（桩函数）在内核空间运行，将 SVC 参数还原为函数调用。两者都从 <code>syscall/syscall.csv</code> 自动生成。</p>
+<h3 id="5-3-SVC-入口（汇编）"><a href="#5-3-SVC-入口（汇编）" class="headerlink" title="5.3 SVC 入口（汇编）"></a>5.3 SVC 入口（汇编）</h3><p>文件：<code>arch/arm/src/armv7-a/arm_vectors.S:294-386</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">arm_vectorsvc:</span><br><span class="line">    srsdb   sp!, #PSR_MODE_SYS           /* 保存 LR_svc 和 SPSR_svc 到 SYS 栈 */</span><br><span class="line">    cpsid   if, #PSR_MODE_SYS            /* 切换到 SYS 模式，禁用 IRQ/FIQ */</span><br><span class="line">    stmdb   sp!, &#123;r0-r12&#125;               /* 保存 r0-r12 到 SYS 栈 */</span><br><span class="line">    add     r1, sp, #(XCPTCONTEXT_SIZE - 4*REG_R0)  /* r1 = 用户原始 SP（修正值）*/</span><br><span class="line">    stmdb   sp!, &#123;r1, r14&#125;              /* 保存用户 SP(r1) 和 LR(r14) */</span><br><span class="line"></span><br><span class="line">    /* ... FPU 保存, 中断栈切换 ... */</span><br><span class="line"></span><br><span class="line">    mov     r0, sp                       /* R0 = 保存的寄存器帧指针 */</span><br><span class="line">    bl      arm_syscall                  /* 调用 C 处理函数 */</span><br><span class="line"></span><br><span class="line">    /* 返回路径 */</span><br><span class="line">    cps     #PSR_MODE_SVC                /* 切回 SVC 模式 */</span><br><span class="line">    ldmia   r0, &#123;r13, r14&#125;^             /* 恢复用户 r13, r14（^ 表示用户态寄存器）*/</span><br><span class="line">    ldmia   r14!, &#123;r0-r12&#125;              /* 恢复 r0-r12 */</span><br><span class="line">    rfeia   r14                          /* 异常返回：恢复 PC 和 CPSR */</span><br></pre></td></tr></table></figure>
+
+<p><code>add r1, sp, #(XCPTCONTEXT_SIZE - 4*REG_R0)</code> 这行是关键：此时 sp 已经被 <code>srsdb</code>（-8 字节）和 <code>stmdb &#123;r0-r12&#125;</code>（-52 字节）向下推过了，不再是用户的原始栈顶。这条 add 指令通过加上已压入的偏移量，反算出用户异常前的真实 SP，暂存到 r1 中。随后 <code>stmdb sp!, &#123;r1, r14&#125;</code> 将这个修正值和 SYS 模式的 lr（&#x3D; 用户 LR，因为 SYS 和 USR 共享 lr）一起压入栈帧。</p>
+<p><code>RFEIA</code>（Return From Exception, Increment After）从内存加载 PC 和 CPSR，CPU 根据 CPSR 中的 mode 位自动切换回用户态。</p>
+<p><strong>栈帧变化示意图（选读）：</strong></p>
+<p>以下展示 SVC 入口（压栈）和出口（出栈）时 SYS 模式栈的变化过程。SYS 模式与 USR 模式共享 sp&#x2F;lr，因此保存的就是用户任务的执行现场。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br></pre></td><td class="code"><pre><span class="line">===============================================================</span><br><span class="line">  SVC ENTRY: push registers (high addr -&gt; low addr)</span><br><span class="line">===============================================================</span><br><span class="line"></span><br><span class="line">(0) 初始状态：用户任务在 USR 模式运行，SYS/USR sp 指向用户栈顶</span><br><span class="line"></span><br><span class="line">    SYS sp --&gt; +--------------------+</span><br><span class="line">               |   ... user data ...|</span><br><span class="line">               +--------------------+</span><br><span class="line"></span><br><span class="line">---------------------------------------------------------------</span><br><span class="line">(1) SVC #0 触发 → CPU 自动切换到 SVC 模式</span><br><span class="line">    硬件自动完成：LR_svc = 返回地址(PC+4), SPSR_svc = 用户 CPSR</span><br><span class="line"></span><br><span class="line">(2) srsdb sp!, #PSR_MODE_SYS</span><br><span class="line">    将 LR_svc 和 SPSR_svc 压入 SYS 模式栈</span><br><span class="line"></span><br><span class="line">    SYS sp --&gt; +--------------------+</span><br><span class="line">               |  PC  (from LR_svc) |  &lt;- 用户返回地址</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  CPSR (SPSR_svc)   |  &lt;- 用户 CPSR（含 USR mode 位）</span><br><span class="line">               +--------------------+</span><br><span class="line">               |   ... user data ...|</span><br><span class="line">               +--------------------+</span><br><span class="line"></span><br><span class="line">---------------------------------------------------------------</span><br><span class="line">(3) cpsid if, #PSR_MODE_SYS</span><br><span class="line">    切换到 SYS 模式（现在 sp = SYS sp，与上面同一个栈）</span><br><span class="line"></span><br><span class="line">(4) stmdb sp!, &#123;r0-r12&#125;</span><br><span class="line">    保存 r0-r12（13 个寄存器）</span><br><span class="line"></span><br><span class="line">    SYS sp --&gt; +--------------------+</span><br><span class="line">               |  R0  (syscall nr)  |</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  R1  (arg1)        |</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  R2  (arg2)        |</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  R3  (arg3)        |</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  R4 ~ R12          |  (9 registers)</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  PC  (LR_svc)      |</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  CPSR (SPSR_svc)   |</span><br><span class="line">               +--------------------+</span><br><span class="line">               |   ... user data ...|</span><br><span class="line">               +--------------------+</span><br><span class="line"></span><br><span class="line">---------------------------------------------------------------</span><br><span class="line">(5) stmdb sp!, &#123;r1, r14&#125;</span><br><span class="line">    保存修正后的用户 SP（放在 r1 中）和用户 LR（r14）</span><br><span class="line"></span><br><span class="line">    SYS sp --&gt; +--------------------+  &lt;- regs 指针传给 arm_syscall()</span><br><span class="line">               |  SP  (user)        |  [regs+0x00] REG_SP</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  LR  (user r14)    |  [regs+0x04] REG_LR</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  R0                |  [regs+0x08] REG_R0</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  R1                |  [regs+0x0C] REG_R1</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  R2 ~ R12          |  [regs+0x10 ~ 0x38]</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  PC  (return addr) |  [regs+0x3C] REG_PC</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  CPSR (user mode)  |  [regs+0x40] REG_CPSR</span><br><span class="line">               +--------------------+</span><br><span class="line">               |   ... user data ...|</span><br><span class="line">               +--------------------+</span><br><span class="line"></span><br><span class="line">    此时 sp 作为 regs 传给 arm_syscall()，C 代码通过</span><br><span class="line">    regs[REG_R0]、regs[REG_PC] 等下标访问各字段。</span><br><span class="line"></span><br><span class="line">===============================================================</span><br><span class="line">  SVC EXIT: pop registers, return to user mode</span><br><span class="line">===============================================================</span><br><span class="line"></span><br><span class="line">arm_syscall() 可能修改 regs[]（如 SYS_task_start 修改</span><br><span class="line">REG_PC 和 REG_CPSR），然后返回 regs 指针到 r0。</span><br><span class="line"></span><br><span class="line">---------------------------------------------------------------</span><br><span class="line">(6) cps #PSR_MODE_SVC</span><br><span class="line">    切回 SVC 模式（异常返回需要在 SVC 模式下执行）</span><br><span class="line"></span><br><span class="line">(7) ldmia r0, &#123;r13, r14&#125;^</span><br><span class="line">    从 regs[0..1] 恢复用户 SP 和 LR（^ 表示写入 USR 模式寄存器）</span><br><span class="line"></span><br><span class="line">    r0 --&gt;     +--------------------+</span><br><span class="line">               |  SP  (user) -------|--&gt; restored to USR_sp</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  LR  (user) -------|--&gt; restored to USR_lr</span><br><span class="line">               +--------------------+</span><br><span class="line">    r14 --&gt;    |  R0  (return val)  |</span><br><span class="line">               |  ...               |</span><br><span class="line"></span><br><span class="line">---------------------------------------------------------------</span><br><span class="line">(8) ldmia r14!, &#123;r0-r12&#125;</span><br><span class="line">    从 regs[2..14] 恢复 r0-r12</span><br><span class="line"></span><br><span class="line">    r14 --&gt;    +--------------------+</span><br><span class="line">               |  PC  (return addr) |</span><br><span class="line">               +--------------------+</span><br><span class="line">               |  CPSR (USR mode)   |</span><br><span class="line">               +--------------------+</span><br><span class="line"></span><br><span class="line">---------------------------------------------------------------</span><br><span class="line">(9) rfeia r14</span><br><span class="line">    从 r14 指向的内存加载 PC 和 CPSR：</span><br><span class="line">    - PC   = 用户代码返回地址（SVC 之后的下一条指令）</span><br><span class="line">    - CPSR = PSR_MODE_USR</span><br><span class="line"></span><br><span class="line">    CPU 自动切换到 USR 模式，跳转到 PC</span><br><span class="line">    → 用户任务继续执行，r0 中携带系统调用返回值</span><br></pre></td></tr></table></figure>
+
+<p>整个过程中，寄存器帧在 SYS&#x2F;USR 栈上形成一个固定布局的结构体，C 代码通过 <code>regs[REG_R0]</code>、<code>regs[REG_PC]</code> 等宏下标直接读写。如果 <code>arm_syscall()</code> 将 <code>regs</code> 指针换成另一个 TCB 的 <code>xcp.regs</code>，出栈时就恢复到另一个任务的上下文——上下文切换就此完成。</p>
+<h3 id="5-4-系统调用-C-分发：arm-syscall"><a href="#5-4-系统调用-C-分发：arm-syscall" class="headerlink" title="5.4 系统调用 C 分发：arm_syscall()"></a>5.4 系统调用 C 分发：arm_syscall()</h3><p>文件：<code>arch/arm/src/armv7-a/arm_syscall.c:162-579</code></p>
+<p><code>arm_syscall(regs)</code> 是所有 SVC 的统一 C 入口。它从 <code>regs[REG_R0]</code> 读取系统调用号（即用户放在 R0 中的值），然后用 switch-case 分发处理。NuttX 定义了两类 syscall 号：</p>
+<ul>
+<li><strong>内部 syscall</strong>（编号 1-7）：内核自用，不暴露给用户空间，用于上下文切换、任务启动等</li>
+<li><strong>库 syscall</strong>（编号 &gt;&#x3D; <code>CONFIG_SYS_RESERVED</code>，通常 &gt;&#x3D; 8）：对应 POSIX API（<code>open</code>、<code>write</code>、<code>sem_wait</code> 等）</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>系统调用号</th>
+<th>用途</th>
+<th>关键操作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SYS_restore_context</code> (1)</td>
+<td>恢复上下文</td>
+<td>切换地址环境 + 加载新寄存器</td>
+</tr>
+<tr>
+<td><code>SYS_switch_context</code> (2)</td>
+<td>上下文切换</td>
+<td>调用 <code>nxsched_switch_context()</code></td>
+</tr>
+<tr>
+<td><code>SYS_syscall_return</code> (3)</td>
+<td>系统调用返回</td>
+<td>恢复用户态 CPSR + 用户栈</td>
+</tr>
+<tr>
+<td><code>SYS_task_start</code> (4)</td>
+<td>启动用户任务</td>
+<td>设置 CPSR &#x3D; USR 模式</td>
+</tr>
+<tr>
+<td><code>SYS_pthread_start</code> (5)</td>
+<td>启动 pthread</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>&gt;&#x3D; <code>CONFIG_SYS_RESERVED</code> (8+)</td>
+<td>库系统调用</td>
+<td>保存现场 + 内核栈切换 + 转发到 dispatch_syscall</td>
+</tr>
+</tbody></table>
+<p>下图展示了一次库系统调用（以 <code>write()</code> 为例）的完整时序，包括两次 SVC、内核栈切换的生效时机、以及各阶段运行在哪个栈上：</p>
+<p><img src="/2026/06/14/Nuttx-Task-Scheduling/syscall.png" alt="syscall"></p>
+<h3 id="5-5-arm-syscall-处理库-syscall-的完整逻辑（default-case）"><a href="#5-5-arm-syscall-处理库-syscall-的完整逻辑（default-case）" class="headerlink" title="5.5 arm_syscall() 处理库 syscall 的完整逻辑（default case）"></a>5.5 arm_syscall() 处理库 syscall 的完整逻辑（default case）</h3><p>当用户调用 <code>write()</code>、<code>sem_wait()</code> 等库函数时，走的是 <code>default:</code> 分支。这是最常见的路径，也是最复杂的——它需要做 5 件事才能安全地从用户态进入内核执行真正的服务。</p>
+<p>文件：<code>arch/arm/src/armv7-a/arm_syscall.c:493-556</code>（以下为关键行摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">default</span>:  <span class="comment">/* cmd &gt;= CONFIG_SYS_RESERVED, 库 syscall */</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> index = rtcb-&gt;xcp.nsyscalls;      <span class="comment">/* 当前嵌套层数（通常为 0）*/</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- Step 1: 保存用户态返回信息到 TCB --- */</span></span><br><span class="line">    rtcb-&gt;xcp.syscall[index].sysreturn = regs[REG_PC];   <span class="comment">/* 保存用户返回地址 */</span></span><br><span class="line">    rtcb-&gt;xcp.syscall[index].cpsr      = regs[REG_CPSR]; <span class="comment">/* 保存用户 CPSR（USR mode）*/</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- Step 2: 修改 regs 帧，让 SVC 返回时跳到 dispatch_syscall --- */</span></span><br><span class="line">    regs[REG_PC]   = (<span class="type">uint32_t</span>)dispatch_syscall;  <span class="comment">/* PC 改为内核跳板函数 */</span></span><br><span class="line">    cpsr           = regs[REG_CPSR] &amp; ~PSR_MODE_MASK;</span><br><span class="line">    regs[REG_CPSR] = cpsr | PSR_MODE_SYS;         <span class="comment">/* CPSR 改为 SYS mode（保持特权）*/</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- Step 3: 计算 stub 表索引，放入 R0 供 dispatch_syscall 使用 --- */</span></span><br><span class="line">    regs[REG_R0]  -= CONFIG_SYS_RESERVED;  <span class="comment">/* R0: SYS_write(0x23) → 表索引(0x1B) */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- Step 4: 切换到内核栈 --- */</span></span><br><span class="line">    <span class="keyword">if</span> (index == <span class="number">0</span> &amp;&amp; rtcb-&gt;xcp.kstack != <span class="literal">NULL</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        rtcb-&gt;xcp.ustkptr = (<span class="type">uint32_t</span> *)regs[REG_SP]; <span class="comment">/* 备份用户 SP 到 TCB */</span></span><br><span class="line">        <span class="keyword">if</span> (rtcb-&gt;xcp.kstkptr != <span class="literal">NULL</span>)</span><br><span class="line">          regs[REG_SP] = (<span class="type">uint32_t</span>)rtcb-&gt;xcp.kstkptr; <span class="comment">/* 恢复之前保存的内核 SP */</span></span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">          regs[REG_SP] = (<span class="type">uint32_t</span>)rtcb-&gt;xcp.kstack</span><br><span class="line">                       + ARCH_KERNEL_STACKSIZE;        <span class="comment">/* 首次：用内核栈顶 */</span></span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- Step 5: 嵌套计数 +1 --- */</span></span><br><span class="line">    rtcb-&gt;xcp.nsyscalls++;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>逐步解释：</strong></p>
+<ul>
+<li><strong>Step 1</strong>：将用户代码的返回地址和 CPSR 存到 <code>tcb-&gt;xcp.syscall[]</code> 数组中。这些信息在第二次 SVC（<code>SYS_syscall_return</code>）时用来恢复——让 CPU 回到用户代码的正确位置和模式。</li>
+<li><strong>Step 2</strong>：把帧中的 PC 改成 <code>dispatch_syscall</code> 的地址、CPSR 改成 SYS 模式。这样当 <code>arm_vectorsvc</code> 汇编恢复寄存器并 <code>rfeia</code> 返回时，CPU 会跳到 <code>dispatch_syscall</code> 并以<strong>特权模式</strong>运行。</li>
+<li><strong>Step 3</strong>：把 R0 从原始 syscall 号减去保留数，变成 <code>g_stublookup[]</code> 表的索引。<code>dispatch_syscall</code> 会用这个索引查表。</li>
+<li><strong>Step 4</strong>：把帧中的 SP 从用户栈改为内核栈。效果同 Step 2——不是立即切换，而是等汇编 <code>ldmia</code> 恢复寄存器时生效。用户原始 SP 备份到 <code>ustkptr</code>，日后恢复用。</li>
+<li><strong>Step 5</strong>：<code>nsyscalls++</code> 支持嵌套（虽然极少出现）。<code>index == 0</code> 表示是最外层 syscall，只有最外层才做栈切换。</li>
+</ul>
+<p><strong>arm_syscall() 返回后发生了什么？</strong></p>
+<p><code>arm_syscall()</code> 返回 <code>regs</code> 指针给汇编代码。汇编执行：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ldmia r0, &#123;r13, r14&#125;^    → USR_sp = regs[REG_SP] = 内核栈顶</span><br><span class="line">                          → USR_lr = regs[REG_LR]</span><br><span class="line">ldmia r14!, &#123;r0-r12&#125;     → R0 = regs[REG_R0] = stub 表索引</span><br><span class="line">rfeia r14                 → PC = dispatch_syscall, CPSR = SYS mode</span><br></pre></td></tr></table></figure>
+
+<p>此时 CPU 以 SYS 模式、内核栈，跳转到 <code>dispatch_syscall</code> 执行。</p>
+<h3 id="5-6-arm-syscall-处理-SYS-syscall-return（返回用户态）"><a href="#5-6-arm-syscall-处理-SYS-syscall-return（返回用户态）" class="headerlink" title="5.6 arm_syscall() 处理 SYS_syscall_return（返回用户态）"></a>5.6 arm_syscall() 处理 SYS_syscall_return（返回用户态）</h3><p><code>dispatch_syscall</code> 执行完桩函数后，触发第二次 SVC（<code>SYS_syscall_return</code>），再次进入 <code>arm_syscall()</code>：</p>
+<p>文件：<code>arch/arm/src/armv7-a/arm_syscall.c:218-267</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> SYS_syscall_return:</span><br><span class="line">&#123;</span><br><span class="line">    <span class="type">int</span> index = rtcb-&gt;xcp.nsyscalls - <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- 恢复用户返回地址和 CPSR --- */</span></span><br><span class="line">    regs[REG_PC]   = rtcb-&gt;xcp.syscall[index].sysreturn;  <span class="comment">/* PC = 用户代码返回点 */</span></span><br><span class="line">    regs[REG_CPSR] = rtcb-&gt;xcp.syscall[index].cpsr;       <span class="comment">/* CPSR = USR mode */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- 传递返回值：dispatch_syscall 把返回值放在 R2 --- */</span></span><br><span class="line">    regs[REG_R0]   = regs[REG_R2];  <span class="comment">/* R0 = 函数返回值（用户看到的返回值在 R0）*/</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- 切回用户栈 --- */</span></span><br><span class="line">    <span class="keyword">if</span> (index == <span class="number">0</span> &amp;&amp; rtcb-&gt;xcp.ustkptr != <span class="literal">NULL</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        regs[REG_SP] = (<span class="type">uint32_t</span>)rtcb-&gt;xcp.ustkptr;  <span class="comment">/* SP 改回用户栈 */</span></span><br><span class="line">        rtcb-&gt;xcp.ustkptr = <span class="literal">NULL</span>;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* --- 嵌套计数 -1 --- */</span></span><br><span class="line">    rtcb-&gt;xcp.nsyscalls = index;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>之后汇编再次恢复寄存器并 <code>rfeia</code>——这次 CPSR 是 USR mode，PC 是用户代码地址，SP 是用户栈。CPU 以非特权模式回到用户代码，R0 携带返回值。</p>
+<h3 id="5-7-dispatch-syscall：裸函数跳板"><a href="#5-7-dispatch-syscall：裸函数跳板" class="headerlink" title="5.7 dispatch_syscall：裸函数跳板"></a>5.7 dispatch_syscall：裸函数跳板</h3><p>经过 5.5 节的 default case 处理后，SVC 返回时 CPU 以 SYS 模式、内核栈、R0&#x3D;表索引，跳转到这个裸函数（naked function，无栈帧开销）：</p>
+<p>文件：<code>arch/arm/src/armv7-a/arm_syscall.c:125-144</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">dispatch_syscall:</span><br><span class="line">    ldr   ip, =g_stublookup             /* ip = 桩函数查找表基地址 */</span><br><span class="line">    ldr   ip, [ip, r0, lsl #2]          /* ip = g_stublookup[syscall_index] */</span><br><span class="line">    blx   ip                             /* 调用桩函数（如 STUB_write）*/</span><br><span class="line">    mov   r2, r0                         /* 保存返回值到 r2 */</span><br><span class="line">    mov   r0, #SYS_syscall_return        /* 准备&quot;系统调用返回&quot;请求 */</span><br><span class="line">    svc   #SYS_syscall                   /* 再次触发 SVC，回到用户态 */</span><br></pre></td></tr></table></figure>
+
+<p><strong>完整的 syscall 路径涉及两次 SVC</strong>：</p>
+<ol>
+<li>第一次 SVC：用户态 -&gt; 内核态，设置内核栈，跳转到 <code>dispatch_syscall</code></li>
+<li><code>dispatch_syscall</code> 调用桩函数，执行真正的内核逻辑</li>
+<li>第二次 SVC（<code>SYS_syscall_return</code>）：恢复用户态 CPSR 和用户栈，返回用户代码</li>
+</ol>
+<p><strong>实例：write(1, “hello”, 5) 的完整 syscall 路径</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">用户态 PROXY_write():</span><br><span class="line">  r0 = SYS_write (假设值 = 0x23)</span><br><span class="line">  r1 = 1 (fd)</span><br><span class="line">  r2 = 0x80100100 (buf, 用户虚拟地址)</span><br><span class="line">  r3 = 5 (count)</span><br><span class="line">  SVC #0x00</span><br><span class="line">    |</span><br><span class="line">    v [CPU: USR-&gt;SVC模式, 向量到 arm_vectorsvc]</span><br><span class="line">arm_syscall():</span><br><span class="line">  cmd = 0x23 &gt;= CONFIG_SYS_RESERVED(8)</span><br><span class="line">  保存 regs[REG_PC] 到 syscall[0].sysreturn</span><br><span class="line">  保存 regs[REG_CPSR] 到 syscall[0].cpsr</span><br><span class="line">  regs[REG_PC] = dispatch_syscall</span><br><span class="line">  regs[REG_CPSR] = PSR_MODE_SYS (保持特权)</span><br><span class="line">  regs[REG_SP] = kstack + ARCH_KERNEL_STACKSIZE (切换内核栈)</span><br><span class="line">  regs[REG_R0] = 0x23 - 8 = 0x1B (表索引)</span><br><span class="line">  nsyscalls = 1</span><br><span class="line">    |</span><br><span class="line">    v [RFEIA 返回到 dispatch_syscall, SYS 模式, 内核栈]</span><br><span class="line">dispatch_syscall:</span><br><span class="line">  g_stublookup[0x1B] = STUB_write 地址</span><br><span class="line">  BLX STUB_write</span><br><span class="line">    |</span><br><span class="line">    v</span><br><span class="line">STUB_write(nbr, fd=1, buf=0x80100100, count=5):</span><br><span class="line">  调用 nx_write(1, 0x80100100, 5)  [真正的内核 write 实现]</span><br><span class="line">  返回 5 (写入字节数)</span><br><span class="line">    |</span><br><span class="line">    v [回到 dispatch_syscall]</span><br><span class="line">  r2 = 5, r0 = SYS_syscall_return</span><br><span class="line">  SVC #0x00</span><br><span class="line">    |</span><br><span class="line">    v [第二次 SVC]</span><br><span class="line">arm_syscall():</span><br><span class="line">  cmd = SYS_syscall_return</span><br><span class="line">  regs[REG_PC] = syscall[0].sysreturn (用户代码返回地址)</span><br><span class="line">  regs[REG_CPSR] = syscall[0].cpsr (USR 模式)</span><br><span class="line">  regs[REG_R0] = regs[REG_R2] = 5 (返回值)</span><br><span class="line">  regs[REG_SP] = ustkptr (恢复用户栈)</span><br><span class="line">  nsyscalls = 0</span><br><span class="line">    |</span><br><span class="line">    v [RFEIA 返回到用户代码, USR 模式]</span><br><span class="line">用户态收到返回值 5</span><br></pre></td></tr></table></figure>
+
+<p>系统调用机制解决了用户进程与内核之间的通信问题。而当多个进程都准备好运行时，调度器决定谁先获得 CPU。</p>
+<hr>
+<h2 id="6-调度算法：优先级有序链表"><a href="#6-调度算法：优先级有序链表" class="headerlink" title="6. 调度算法：优先级有序链表"></a>6. 调度算法：优先级有序链表</h2><h3 id="6-1-调度算法在-KERNEL-模式下有何不同？"><a href="#6-1-调度算法在-KERNEL-模式下有何不同？" class="headerlink" title="6.1 调度算法在 KERNEL 模式下有何不同？"></a>6.1 调度算法在 KERNEL 模式下有何不同？</h3><p>调度算法的<strong>核心逻辑</strong>在所有构建模式下完全相同——优先级最高的就绪任务运行。差异在于调度决策的<strong>执行路径</strong>：在 KERNEL 模式下，每次上下文切换除了保存&#x2F;恢复寄存器，还需要切换地址环境（TTBR0）。</p>
+<h3 id="6-2-核心数据结构：优先级有序双向链表"><a href="#6-2-核心数据结构：优先级有序双向链表" class="headerlink" title="6.2 核心数据结构：优先级有序双向链表"></a>6.2 核心数据结构：优先级有序双向链表</h3><p>文件：<code>sched/sched/sched.h:168</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">extern</span> <span class="type">dq_queue_t</span> g_readytorun;          <span class="comment">/* 就绪队列（按优先级降序）*/</span></span><br></pre></td></tr></table></figure>
+
+<p>链表头 &#x3D; 当前最高优先级任务 &#x3D; 当前运行的任务。所有调度决策归结为：<strong>谁在链表头</strong>。</p>
+<h3 id="6-3-优先级有序插入"><a href="#6-3-优先级有序插入" class="headerlink" title="6.3 优先级有序插入"></a>6.3 优先级有序插入</h3><p>文件：<code>sched/sched/sched.h:456-533</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> inline_function <span class="type">bool</span> <span class="title function_">nxsched_add_prioritized</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *tcb,</span></span><br><span class="line"><span class="params">                                                    DSEG <span class="type">dq_queue_t</span> *<span class="built_in">list</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">next</span>;</span></span><br><span class="line">  <span class="type">uint8_t</span> sched_priority = tcb-&gt;sched_priority;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 从头遍历，找到第一个优先级严格小于新任务的节点 */</span></span><br><span class="line">  <span class="keyword">for</span> (next = (FAR <span class="keyword">struct</span> tcb_s *)<span class="built_in">list</span>-&gt;head;</span><br><span class="line">       (next &amp;&amp; sched_priority &lt;= next-&gt;sched_priority);</span><br><span class="line">       next = next-&gt;flink);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 插入到该节点之前（保持降序）*/</span></span><br><span class="line">  <span class="keyword">if</span> (next == <span class="literal">NULL</span>)</span><br><span class="line">    &#123; <span class="comment">/* 插入尾部 */</span> &#125;</span><br><span class="line">  <span class="keyword">else</span> <span class="keyword">if</span> (next-&gt;blink == <span class="literal">NULL</span>)</span><br><span class="line">    &#123; <span class="comment">/* 插入头部——新任务优先级最高！返回 true */</span> &#125;</span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    &#123; <span class="comment">/* 插入中间 */</span> &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> ret;  <span class="comment">/* true = 链表头改变，需要上下文切换 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>循环条件 <code>sched_priority &lt;= next-&gt;sched_priority</code> 确保相同优先级的新任务插入到同优先级组<strong>末尾</strong>——这是 SCHED_RR 轮转的基础。</p>
+<h3 id="6-4-加入就绪队列"><a href="#6-4-加入就绪队列" class="headerlink" title="6.4 加入就绪队列"></a>6.4 加入就绪队列</h3><p>文件：<code>sched/sched/sched_addreadytorun.c:69-121</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">bool</span> <span class="title function_">nxsched_add_readytorun</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *btcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (nxsched_islocked_tcb(rtcb) &amp;&amp;</span><br><span class="line">      rtcb-&gt;sched_priority &lt; btcb-&gt;sched_priority)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 抢占被锁定——新高优先级任务暂存到 pending 列表 */</span></span><br><span class="line">      nxsched_add_prioritized(btcb, list_pendingtasks());</span><br><span class="line">      btcb-&gt;task_state = TSTATE_TASK_PENDING;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span> <span class="keyword">if</span> (nxsched_add_prioritized(btcb, list_readytorun()))</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 新任务成为链表头——立即抢占！ */</span></span><br><span class="line">      btcb-&gt;task_state = TSTATE_TASK_RUNNING;</span><br><span class="line">      btcb-&gt;flink-&gt;task_state = TSTATE_TASK_READYTORUN;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    &#123;</span><br><span class="line">      btcb-&gt;task_state = TSTATE_TASK_READYTORUN;</span><br><span class="line">      <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回 <code>true</code> 时，调用者执行 <code>up_switch_context()</code> 触发上下文切换。</p>
+<p>调度器做出了”切换到谁”的决策后，<code>up_switch_context()</code> 负责实际执行切换。在 KERNEL 模式下，这不仅涉及寄存器保存&#x2F;恢复，还需要切换整个地址空间。</p>
+<hr>
+<h2 id="7-上下文切换：寄存器-地址环境双切换"><a href="#7-上下文切换：寄存器-地址环境双切换" class="headerlink" title="7. 上下文切换：寄存器 + 地址环境双切换"></a>7. 上下文切换：寄存器 + 地址环境双切换</h2><h3 id="7-1-KERNEL-模式下上下文切换的额外开销"><a href="#7-1-KERNEL-模式下上下文切换的额外开销" class="headerlink" title="7.1 KERNEL 模式下上下文切换的额外开销"></a>7.1 KERNEL 模式下上下文切换的额外开销</h3><p>在 FLAT 模式下，上下文切换只需保存&#x2F;恢复寄存器。在 KERNEL 模式下，还需要：</p>
+<ol>
+<li><strong>刷新 D-Cache + 无效化 I-Cache</strong>（确保旧进程的脏数据可见、旧指令不残留）</li>
+<li><strong>写 TTBR0</strong>（切换到新进程的 L1 页表）</li>
+<li><strong>无效化 TLB</strong>（旧地址翻译条目不再有效）</li>
+</ol>
+<h3 id="7-2-addrenv-switch-：地址环境切换的核心"><a href="#7-2-addrenv-switch-：地址环境切换的核心" class="headerlink" title="7.2 addrenv_switch()：地址环境切换的核心"></a>7.2 addrenv_switch()：地址环境切换的核心</h3><p>文件：<code>sched/addrenv/addrenv.c:125-196</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">addrenv_switch</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *tcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">addrenv_s</span> *<span class="title">next</span> =</span> tcb-&gt;addrenv_curr;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 内核线程无地址环境，不切换 */</span></span><br><span class="line">  <span class="keyword">if</span> (next == <span class="literal">NULL</span>)</span><br><span class="line">    <span class="keyword">return</span> OK;</span><br><span class="line"></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">addrenv_s</span> *<span class="title">curr</span> =</span> g_addrenv[this_cpu()];</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (curr != next)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 刷新缓存确保一致性 */</span></span><br><span class="line">      up_addrenv_coherent(&amp;curr-&gt;addrenv);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 增加新环境引用计数 */</span></span><br><span class="line">      addrenv_take(next);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 切换 MMU 页表（写 TTBR0 + 无效化 TLB）*/</span></span><br><span class="line">      up_addrenv_select(&amp;next-&gt;addrenv);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 延迟释放旧环境（通过工作队列，避免在中断上下文做重量操作）*/</span></span><br><span class="line">      addrenv_drop(curr, <span class="literal">true</span>);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 更新 per-CPU 记录 */</span></span><br><span class="line">      g_addrenv[this_cpu()] = next;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>addrenv_switch()</code> 的核心逻辑：首先检查目标任务是否是内核线程（<code>next == NULL</code> 则无需切换）；如果当前 CPU 上激活的地址环境与目标不同，则刷新 Cache、写 TTBR0 切换页表、无效化 TLB。旧环境的引用计数通过工作队列延迟减少——避免在中断&#x2F;SVC 上下文中执行可能阻塞的物理页释放操作。</p>
+<h3 id="7-3-上下文切换调用点"><a href="#7-3-上下文切换调用点" class="headerlink" title="7.3 上下文切换调用点"></a>7.3 上下文切换调用点</h3><p>文件：<code>arch/arm/src/armv7-a/arm_syscall.c:269-296</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> SYS_switch_context:</span><br><span class="line">    nxsched_switch_context(*running_task, tcb);</span><br><span class="line">    <span class="comment">/* fall through */</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> SYS_restore_context:</span><br><span class="line">    addrenv_switch(tcb);          <span class="comment">/* 切换地址环境 */</span></span><br><span class="line">    *running_task = tcb;</span><br><span class="line">    restore_critical_section(tcb, cpu);</span><br><span class="line">    regs = tcb-&gt;xcp.regs;         <span class="comment">/* 指向新任务的寄存器帧 */</span></span><br><span class="line">    <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>arch/arm/src/armv7-a/arm_doirq.c:89-101</code>（中断返回路径）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (regs != tcb-&gt;xcp.regs)       <span class="comment">/* 检测到上下文切换 */</span></span><br><span class="line">  &#123;</span><br><span class="line">    addrenv_switch(tcb);          <span class="comment">/* 切换地址环境 */</span></span><br><span class="line">    nxsched_switch_context(*running_task, tcb);</span><br><span class="line">    *running_task = tcb;</span><br><span class="line">    regs = tcb-&gt;xcp.regs;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-完整的上下文切换时序"><a href="#7-4-完整的上下文切换时序" class="headerlink" title="7.4 完整的上下文切换时序"></a>7.4 完整的上下文切换时序</h3><p><img src="/2026/06/14/Nuttx-Task-Scheduling/context_switch.png" alt="context_switch"></p>
+<p><strong>场景：TaskA（prio&#x3D;100, 用户进程）释放信号量，唤醒 TaskB（prio&#x3D;200, 另一个用户进程）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">TaskA 在内核态执行 nxsem_post()（通过 syscall 进入内核）</span><br><span class="line">  |</span><br><span class="line">  v</span><br><span class="line">nxsched_add_readytorun(TaskB) -&gt; TaskB 成为 g_readytorun 头部 -&gt; 返回 true</span><br><span class="line">  |</span><br><span class="line">  v</span><br><span class="line">up_switch_context(TaskB, TaskA) -&gt; sys_call0(SYS_switch_context) -&gt; SVC #0</span><br><span class="line">  |</span><br><span class="line">  v [进入 arm_vectorsvc]</span><br><span class="line">arm_syscall(regs):</span><br><span class="line">  case SYS_switch_context:</span><br><span class="line">    (1) nxsched_switch_context(TaskA, TaskB)   -- 更新调度器状态</span><br><span class="line">    (2) addrenv_switch(TaskB)                  -- 写 TTBR0 = TaskB 的 L1 页表</span><br><span class="line">        up_addrenv_coherent()                  -- 刷 D-Cache, 无效 I-Cache</span><br><span class="line">        up_addrenv_select()                    -- cp15_wrttb(TaskB-&gt;l1table)</span><br><span class="line">                                               -- cp15_invalidate_tlbs()</span><br><span class="line">    (3) regs = TaskB-&gt;xcp.regs                -- 指向 TaskB 的寄存器保存帧</span><br><span class="line">  |</span><br><span class="line">  v [arm_vectorsvc 恢复 TaskB 的寄存器，RFEIA 返回]</span><br><span class="line">TaskB 继续执行（如果是首次运行：从 nxtask_start -&gt; up_task_start -&gt; USR 模式入口）</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键时序约束</strong>：<code>addrenv_switch()</code> 必须在加载新任务的寄存器之前完成——否则新任务的用户栈地址在旧的页表下可能无效。</p>
+<p>上下文切换解决了”运行哪个任务”的问题。但如果多个任务具有相同优先级，谁先运行？这就是时间片轮转要解决的公平性问题。</p>
+<hr>
+<h2 id="8-时间片轮转：SCHED-RR"><a href="#8-时间片轮转：SCHED-RR" class="headerlink" title="8. 时间片轮转：SCHED_RR"></a>8. 时间片轮转：SCHED_RR</h2><h3 id="8-1-工作原理"><a href="#8-1-工作原理" class="headerlink" title="8.1 工作原理"></a>8.1 工作原理</h3><p>SCHED_RR 在 KERNEL 模式下与 FLAT 模式完全相同——调度算法不区分构建模式。每个 tick 中断递减当前任务的 <code>timeslice</code>，到期时将任务移到同优先级组末尾。</p>
+<p>文件：<code>sched/sched/sched_roundrobin.c:127-230</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">clock_t</span> <span class="title function_">nxsched_process_roundrobin</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *tcb, <span class="type">clock_t</span> ticks,</span></span><br><span class="line"><span class="params">                                   <span class="type">bool</span> noswitches)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 递减时间片 */</span></span><br><span class="line">  tcb-&gt;timeslice -= MIN(tcb-&gt;timeslice, ticks);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (tcb-&gt;timeslice &lt;= <span class="number">0</span> &amp;&amp; !nxsched_islocked_tcb(tcb))</span><br><span class="line">    &#123;</span><br><span class="line">      tcb-&gt;timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);  <span class="comment">/* 重置 */</span></span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 检查同优先级的下一个任务 */</span></span><br><span class="line">      <span class="keyword">if</span> (tcb-&gt;flink &amp;&amp; tcb-&gt;flink-&gt;sched_priority &gt;= tcb-&gt;sched_priority)</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="comment">/* 将当前任务移到同优先级组末尾 */</span></span><br><span class="line">          nxsched_reprioritize_rtr(tcb, tcb-&gt;sched_priority);</span><br><span class="line">          up_switch_context(this_task(), rtcb);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>轮转的实现技巧</strong>：<code>nxsched_reprioritize_rtr(tcb, same_priority)</code> 先移除再重新插入——由于插入逻辑将相同优先级的新节点放在组末尾，效果就是当前任务让位给了下一个同优先级任务。</p>
+<p>时间片保证了同优先级任务间的公平，但如果低优先级任务持有高优先级任务需要的资源，还需要优先级继承来避免反转。</p>
+<hr>
+<h2 id="9-优先级继承：解决优先级反转"><a href="#9-优先级继承：解决优先级反转" class="headerlink" title="9. 优先级继承：解决优先级反转"></a>9. 优先级继承：解决优先级反转</h2><h3 id="9-1-问题与解决方案"><a href="#9-1-问题与解决方案" class="headerlink" title="9.1 问题与解决方案"></a>9.1 问题与解决方案</h3><p>优先级反转：低优先级任务 L 持有信号量，高优先级任务 H 等待，中优先级任务 M 抢占 L——H 被 M 间接阻塞。</p>
+<p>NuttX 的解决方案：当 H 阻塞在 L 持有的信号量上时，将 L 的优先级临时提升到 H 的级别。</p>
+<p><img src="/2026/06/14/Nuttx-Task-Scheduling/prio_inheri.png" alt="prio_inheri"></p>
+<h3 id="9-2-提升逻辑"><a href="#9-2-提升逻辑" class="headerlink" title="9.2 提升逻辑"></a>9.2 提升逻辑</h3><p>文件：<code>sched/semaphore/sem_holder.c:315-338</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">nxsem_boostholderprio</span><span class="params">(FAR <span class="keyword">struct</span> semholder_s *pholder,</span></span><br><span class="line"><span class="params">                                 FAR <span class="type">sem_t</span> *sem, FAR <span class="type">void</span> *arg)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">htcb</span> =</span> pholder-&gt;htcb;  <span class="comment">/* 信号量持有者 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> (FAR <span class="keyword">struct</span> tcb_s *)arg;  <span class="comment">/* 等待者 */</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (rtcb &amp;&amp; htcb &amp;&amp; rtcb-&gt;sched_priority &gt; htcb-&gt;sched_priority)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 提升持有者优先级到等待者级别 */</span></span><br><span class="line">      nxsched_set_priority(htcb, rtcb-&gt;sched_priority);</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="9-3-恢复逻辑"><a href="#9-3-恢复逻辑" class="headerlink" title="9.3 恢复逻辑"></a>9.3 恢复逻辑</h3><p>文件：<code>sched/semaphore/sem_holder.c:391-434</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">nxsem_restore_priority</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *htcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> hpriority = htcb-&gt;boost_priority &gt; htcb-&gt;base_priority ?</span><br><span class="line">                  htcb-&gt;boost_priority : htcb-&gt;base_priority;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 遍历该任务持有的所有信号量，找到最高的等待者优先级 */</span></span><br><span class="line">  <span class="keyword">for</span> (pholder = htcb-&gt;holdsem; pholder != <span class="literal">NULL</span>; pholder = pholder-&gt;tlink)</span><br><span class="line">    &#123;</span><br><span class="line">      FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">stcb</span> =</span> (FAR <span class="keyword">struct</span> tcb_s *)dq_peek(SEM_WAITLIST(pholder-&gt;sem));</span><br><span class="line">      <span class="keyword">if</span> (stcb != <span class="literal">NULL</span> &amp;&amp; stcb-&gt;sched_priority &gt; hpriority)</span><br><span class="line">        &#123;</span><br><span class="line">          hpriority = stcb-&gt;sched_priority;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 设置为所有仍持有信号量中最高的等待者优先级 */</span></span><br><span class="line">  nxsched_set_priority(htcb, hpriority);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>恢复时不能简单回到 <code>base_priority</code>——任务可能同时持有多个信号量。必须找到所有仍在等待的最高优先级作为新的运行优先级。</p>
+<p>优先级继承解决了资源竞争导致的优先级反转问题。而 <code>sched_lock()</code> 则提供了一种更轻量的方式来保护内核内部的短临界区。</p>
+<hr>
+<h2 id="10-抢占控制：sched-lock-unlock"><a href="#10-抢占控制：sched-lock-unlock" class="headerlink" title="10. 抢占控制：sched_lock&#x2F;unlock"></a>10. 抢占控制：sched_lock&#x2F;unlock</h2><h3 id="10-1-为什么-sched-lock-在-KERNEL-模式下仍然重要？"><a href="#10-1-为什么-sched-lock-在-KERNEL-模式下仍然重要？" class="headerlink" title="10.1 为什么 sched_lock 在 KERNEL 模式下仍然重要？"></a>10.1 为什么 sched_lock 在 KERNEL 模式下仍然重要？</h3><p>即使有 MMU 保护，内核内部的临界区仍然需要防止任务切换。例如，修改链表指针的中间状态不能被中断。<code>sched_lock()</code> 是比关中断更轻量的选择——它允许中断响应但禁止任务切换。</p>
+<p>文件：<code>sched/sched/sched_lock.c:67-99</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">sched_lock</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (!up_interrupt_context())</span><br><span class="line">    &#123;</span><br><span class="line">      FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line">      rtcb-&gt;lockcount++;    <span class="comment">/* 可嵌套的计数器 */</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>sched/sched/sched_unlock.c:57-180</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">sched_unlock</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (rtcb-&gt;lockcount == <span class="number">1</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      rtcb-&gt;lockcount = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 将 pending 任务合并回就绪队列 */</span></span><br><span class="line">      ptcb = (FAR <span class="keyword">struct</span> tcb_s *)dq_peek(list_pendingtasks());</span><br><span class="line">      <span class="keyword">if</span> (ptcb &amp;&amp; nxsched_merge_pending())</span><br><span class="line">        &#123;</span><br><span class="line">          up_switch_context(this_task(), rtcb);  <span class="comment">/* 可能立即切换 */</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    rtcb-&gt;lockcount--;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>sched_lock()</code> 期间，高优先级新就绪任务被暂存到 <code>g_pendingtasks</code>。<code>sched_unlock()</code> 时统一合并，确保延迟最小化。</p>
+<h3 id="10-2-机制详解：lockcount-如何阻止抢占（选读）"><a href="#10-2-机制详解：lockcount-如何阻止抢占（选读）" class="headerlink" title="10.2 机制详解：lockcount 如何阻止抢占（选读）"></a>10.2 机制详解：lockcount 如何阻止抢占（选读）</h3><p><code>sched_lock/unlock</code> 不涉及任何硬件操作，它是调度器内部的一个<strong>软件约定</strong>：TCB 中的 <code>lockcount</code> 字段充当”请勿打扰”标志。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">lockcount == 0  →  调度器正常工作，高优先级任务可以随时抢占</span><br><span class="line">lockcount &gt; 0   →  调度器承诺：即使有更高优先级任务就绪，也不切走当前任务</span><br></pre></td></tr></table></figure>
+
+<p>“锁”的生效点不在 <code>sched_lock()</code> 本身（它只是递增计数器），而在 <code>nxsched_add_readytorun()</code>——调度器每次将新任务放入就绪队列时，都会检查当前任务的 <code>lockcount</code>：</p>
+<p>文件：<code>sched/sched/sched_addreadytorun.c:80-89</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (nxsched_islocked_tcb(rtcb) &amp;&amp;</span><br><span class="line">    rtcb-&gt;sched_priority &lt; btcb-&gt;sched_priority)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="comment">/* 抢占被锁定，新高优先级任务暂存到 pending 列表而非立即抢占 */</span></span><br><span class="line">    nxsched_add_prioritized(btcb, list_pendingtasks());</span><br><span class="line">    btcb-&gt;task_state = TSTATE_TASK_PENDING;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;  <span class="comment">/* 不触发上下文切换 */</span></span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>场景演示：TaskA（prio&#x3D;100）在 lock 保护下修改内核链表</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">时刻 T0: TaskA 调用 sched_lock()</span><br><span class="line">         → lockcount = 1</span><br><span class="line">         → 中断仍然正常响应（与关中断不同）</span><br><span class="line"></span><br><span class="line">时刻 T1: 某中断触发，在中断处理中 sem_post() 唤醒 TaskB(prio=200)</span><br><span class="line">         → nxsched_add_readytorun(TaskB) 被调用</span><br><span class="line">         → 检测到 lockcount &gt; 0 且 TaskB 优先级更高</span><br><span class="line">         → TaskB 被放入 g_pendingtasks（不是 g_readytorun）</span><br><span class="line">         → 返回 false，不做上下文切换</span><br><span class="line">         → 中断返回，TaskA 继续执行（链表操作未被打断）</span><br><span class="line"></span><br><span class="line">时刻 T2: TaskA 完成链表操作，调用 sched_unlock()</span><br><span class="line">         → lockcount 从 1 减到 0</span><br><span class="line">         → 检查 g_pendingtasks：TaskB 在里面</span><br><span class="line">         → nxsched_merge_pending() 将 TaskB 移入 g_readytorun 头部</span><br><span class="line">         → up_switch_context() → 立即切换到 TaskB</span><br></pre></td></tr></table></figure>
+
+<p><strong>与关中断（disable_irq）的对比：</strong></p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>sched_lock()</th>
+<th>enter_critical_section()</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>中断响应</td>
+<td>正常响应</td>
+<td>被屏蔽</td>
+</tr>
+<tr>
+<td>保护范围</td>
+<td>仅防止被抢占</td>
+<td>防止中断 + 防止抢占</td>
+</tr>
+<tr>
+<td>对实时性的影响</td>
+<td>中断延迟不受影响</td>
+<td>增加中断响应延迟</td>
+</tr>
+<tr>
+<td>可嵌套</td>
+<td>是（计数器）</td>
+<td>是（BASEPRI 保存&#x2F;恢复）</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>内核链表操作等短临界区</td>
+<td>必须保证原子性的硬件操作</td>
+</tr>
+</tbody></table>
+<p>需要注意：<code>sched_lock()</code> 只防止<strong>被动抢占</strong>（别人抢占我），不防止<strong>主动让出</strong>——如果在 lock 期间调用了 <code>sem_wait()</code> 等阻塞操作，当前任务仍然会被切走。</p>
+<hr>
+<h2 id="11-对比：KERNEL-模式-vs-FLAT-模式-vs-Linux"><a href="#11-对比：KERNEL-模式-vs-FLAT-模式-vs-Linux" class="headerlink" title="11. 对比：KERNEL 模式 vs FLAT 模式 vs Linux"></a>11. 对比：KERNEL 模式 vs FLAT 模式 vs Linux</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NuttX FLAT</th>
+<th>NuttX KERNEL</th>
+<th>Linux</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>地址空间</td>
+<td>全局共享</td>
+<td>每进程独立 L1 页表</td>
+<td>每进程独立 pgd</td>
+</tr>
+<tr>
+<td>进程创建</td>
+<td><code>task_create()</code></td>
+<td><code>posix_spawn()</code> &#x2F; <code>exec()</code></td>
+<td><code>fork()</code> + <code>exec()</code></td>
+</tr>
+<tr>
+<td>特权级</td>
+<td>全部 SYS 模式</td>
+<td>用户 USR &#x2F; 内核 SYS</td>
+<td>用户 Ring3 &#x2F; 内核 Ring0</td>
+</tr>
+<tr>
+<td>系统调用</td>
+<td>直接函数调用</td>
+<td>SVC + Proxy&#x2F;Stub</td>
+<td><code>SWI</code>&#x2F;<code>SVC</code> + syscall table</td>
+</tr>
+<tr>
+<td>内核栈</td>
+<td>不需要</td>
+<td>每用户进程一个</td>
+<td>每线程一个（8KB&#x2F;16KB）</td>
+</tr>
+<tr>
+<td>TLB 管理</td>
+<td>无</td>
+<td>切换时全无效化</td>
+<td>ASID 避免全无效化</td>
+</tr>
+<tr>
+<td>页表大小</td>
+<td>无</td>
+<td>16KB L1 + L2 pages</td>
+<td>多级（PGD&#x2F;PUD&#x2F;PMD&#x2F;PTE）</td>
+</tr>
+<tr>
+<td>堆管理</td>
+<td>全局内核堆</td>
+<td>每进程用户堆 + 内核堆</td>
+<td>每进程用户堆 + SLAB</td>
+</tr>
+<tr>
+<td>内存保护</td>
+<td>无</td>
+<td>MMU 硬件强制</td>
+<td>MMU 硬件强制</td>
+</tr>
+<tr>
+<td>上下文切换开销</td>
+<td>寄存器保存&#x2F;恢复</td>
+<td>+ Cache flush + TTBR0 写 + TLB 无效化</td>
+<td>+ ASID 切换（轻量）</td>
+</tr>
+</tbody></table>
+<p>**NuttX KERNEL 模式是 Linux 进程模型的”精简版”**——保留了核心的地址空间隔离和特权级分离，但省略了 Copy-on-Write、demand paging、ASID 等优化。适合对安全性有要求但资源仍然有限的 ARMv7-A SoC（如 SAMA5D、i.MX6UL）。</p>
+<hr>
+<h2 id="12-关键要点"><a href="#12-关键要点" class="headerlink" title="12. 关键要点"></a>12. 关键要点</h2><ol>
+<li><p><strong>KERNEL 模式下 <code>task_create()</code> 被禁用</strong>——用户进程只能通过 <code>posix_spawn()</code>&#x2F;<code>exec()</code> 从 ELF 文件创建，因为每个进程需要独立的虚拟地址空间。</p>
+</li>
+<li><p><strong>每个用户进程拥有完整的 16KB L1 页表</strong>，从内核主页表复制而来（继承内核映射），然后叠加 .text&#x2F;.data&#x2F;heap&#x2F;stack 的 L2 页表条目。</p>
+</li>
+<li><p><strong>地址环境切换 &#x3D; 写 TTBR0 + 无效化 TLB</strong>——两条 CP15 指令完成整个虚拟地址空间的切换。</p>
+</li>
+<li><p><strong>用户进程有双栈</strong>：用户栈（在用户地址空间，进程间隔离）+ 内核栈（在内核地址空间，syscall 期间使用）。</p>
+</li>
+<li><p><strong>系统调用经历两次 SVC</strong>：第一次从用户态进入内核态执行服务；第二次（<code>SYS_syscall_return</code>）从内核态返回用户态。</p>
+</li>
+<li><p><strong>首次运行用户进程通过 <code>SYS_task_start</code></strong> 将 CPSR mode 位从 SYS 改为 USR，异常返回时 CPU 自动降级到非特权模式。</p>
+</li>
+<li><p><strong>调度算法本身不区分构建模式</strong>——优先级有序链表、抢占控制、时间片轮转、优先级继承的实现完全相同。差异仅在上下文切换的”最后一公里”（地址环境切换）。</p>
+</li>
+<li><p><strong>引用计数保护地址环境生命周期</strong>——pthread 共享父进程的 addrenv，最后一个线程退出时通过工作队列延迟释放物理页。</p>
+</li>
+</ol>
+<hr>
+<h2 id="13-参考文件索引"><a href="#13-参考文件索引" class="headerlink" title="13. 参考文件索引"></a>13. 参考文件索引</h2><table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>关键内容</th>
+<th>引用行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>include/nuttx/sched.h</code></td>
+<td>TCB 结构体、addrenv 字段、flags</td>
+<td>91-112, 593-598</td>
+</tr>
+<tr>
+<td><code>include/nuttx/addrenv.h</code></td>
+<td>addrenv_s 结构体、虚拟布局宏</td>
+<td>268-275, 56-253</td>
+</tr>
+<tr>
+<td><code>arch/arm/include/arch.h</code></td>
+<td>arch_addrenv_s（L1 页表指针）</td>
+<td>134-159</td>
+</tr>
+<tr>
+<td><code>arch/arm/include/armv7-a/irq.h</code></td>
+<td>xcptcontext（kstack&#x2F;ustkptr）</td>
+<td>328-331</td>
+</tr>
+<tr>
+<td><code>arch/arm/include/syscall.h</code></td>
+<td>sys_call0-6 宏（SVC 内联汇编）</td>
+<td>156-421</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_addrenv.c</code></td>
+<td>up_addrenv_create&#x2F;select&#x2F;destroy</td>
+<td>167-256, 453-460, 274-314</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_addrenv_utils.c</code></td>
+<td>arm_addrenv_create_region</td>
+<td>60-151</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_addrenv_kstack.c</code></td>
+<td>内核栈分配</td>
+<td>133-149</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_addrenv_ustack.c</code></td>
+<td>用户栈分配</td>
+<td>130-158</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_syscall.c</code></td>
+<td>SVC C 处理器、dispatch_syscall</td>
+<td>125-579</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_vectors.S</code></td>
+<td>SVC 汇编入口 arm_vectorsvc</td>
+<td>294-386</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_doirq.c</code></td>
+<td>中断返回路径（含 addrenv_switch）</td>
+<td>89-101</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_initialstate.c</code></td>
+<td>初始 CPSR 设置</td>
+<td>55-161</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/mmu.h</code></td>
+<td>mmu_l1_setpgtable（写 TTBR0）</td>
+<td>1408-1411</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/common/arm_task_start.c</code></td>
+<td>up_task_start（降级到 USR）</td>
+<td>67-74</td>
+</tr>
+<tr>
+<td><code>sched/addrenv/addrenv.c</code></td>
+<td>addrenv_switch（OS 层切换）</td>
+<td>125-196</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_addreadytorun.c</code></td>
+<td>加入就绪队列</td>
+<td>69-121</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched.h</code></td>
+<td>nxsched_add_prioritized 内联函数</td>
+<td>456-533</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_roundrobin.c</code></td>
+<td>SCHED_RR 时间片处理</td>
+<td>127-230</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_lock.c</code> &#x2F; <code>sched_unlock.c</code></td>
+<td>抢占控制</td>
+<td>67-99 &#x2F; 57-180</td>
+</tr>
+<tr>
+<td><code>sched/semaphore/sem_holder.c</code></td>
+<td>优先级继承</td>
+<td>315-338, 391-434</td>
+</tr>
+<tr>
+<td><code>sched/task/task_create.c</code></td>
+<td>task_create 禁用（KERNEL 模式）</td>
+<td>200</td>
+</tr>
+<tr>
+<td><code>sched/task/task_start.c</code></td>
+<td>nxtask_start（分发到 up_task_start）</td>
+<td>68-113</td>
+</tr>
+<tr>
+<td><code>sched/task/task_init.c</code></td>
+<td>内核栈分配条件</td>
+<td>167-178</td>
+</tr>
+<tr>
+<td><code>sched/task/task_posixspawn.c</code></td>
+<td>posix_spawn 入口</td>
+<td>218-226</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_exec.c</code></td>
+<td>exec_internal &#x2F; exec_spawn</td>
+<td>77-156</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_execmodule.c</code></td>
+<td>exec_module（进程启动核心）</td>
+<td>152-381</td>
+</tr>
+<tr>
+<td><code>binfmt/elf.c</code></td>
+<td>ELF 加载入口</td>
+<td>93-238</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_load.c</code></td>
+<td>libelf_load_with_addrenv</td>
+<td>701-776</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_addrenv.c</code></td>
+<td>libelf_addrenv_alloc</td>
+<td>83-143</td>
+</tr>
+<tr>
+<td><code>syscall/syscall_stublookup.c</code></td>
+<td>桩函数查找表</td>
+<td>88-95</td>
+</tr>
+<tr>
+<td><code>Documentation/implementation/processes_vs_tasks.rst</code></td>
+<td>官方进程模型文档</td>
+<td>全文</td>
+</tr>
+</tbody></table>
+<hr>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/14/Nuttx-Boot-Flow/" rel="prev" title="Nuttx - Boot Flow">
+                  <i class="fa fa-angle-left"></i> Nuttx - Boot Flow
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
