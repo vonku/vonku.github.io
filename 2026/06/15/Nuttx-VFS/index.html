@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从伪文件系统 inode 树到设备驱动注册、从 open() 路径查找到 mount() 文件系统接入，完整解析 NuttX 虚拟文件系统的统一 I&#x2F;O 抽象机制。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - VFS">
+<meta property="og:url" content="http://yoursite.com/2026/06/15/Nuttx-VFS/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从伪文件系统 inode 树到设备驱动注册、从 open() 路径查找到 mount() 文件系统接入，完整解析 NuttX 虚拟文件系统的统一 I&#x2F;O 抽象机制。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ng">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/g">
+<meta property="article:published_time" content="2026-06-15T14:01:30.000Z">
+<meta property="article:modified_time" content="2026-06-15T14:12:14.337Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ng">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/15/Nuttx-VFS/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/15/Nuttx-VFS/","path":"2026/06/15/Nuttx-VFS/","title":"Nuttx - VFS"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - VFS | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%80%E7%AF%87%EF%BC%9AVFS-%E8%A7%A3%E5%86%B3%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="nav-text">1. 开篇：VFS 解决什么问题？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%BC%AA%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E4%B8%8E-inode-%E6%A0%91"><span class="nav-text">2. 伪文件系统与 inode 树</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-inode-%E6%A0%91%E7%9A%84%E4%B8%89%E6%8C%87%E9%92%88%E7%BB%93%E6%9E%84"><span class="nav-text">2.1 inode 树的三指针结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-inode-%E7%B1%BB%E5%9E%8B"><span class="nav-text">2.2 inode 类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E8%B7%AF%E5%BE%84%E6%9F%A5%E6%89%BE%EF%BC%9Ainode-search"><span class="nav-text">2.3 路径查找：inode_search()</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">3. 核心数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-struct-file-operations%EF%BC%9A%E9%A9%B1%E5%8A%A8%E7%9A%84%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%E8%A1%A8"><span class="nav-text">3.1 struct file_operations：驱动的操作函数表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-struct-mountpt-operations%EF%BC%9A%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E7%9A%84%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%E8%A1%A8"><span class="nav-text">3.2 struct mountpt_operations：文件系统的操作函数表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-struct-file%EF%BC%9A%E6%89%93%E5%BC%80%E7%9A%84%E6%96%87%E4%BB%B6"><span class="nav-text">3.3 struct file：打开的文件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-union-inode-ops-u%EF%BC%9A%E6%93%8D%E4%BD%9C%E6%8C%87%E9%92%88%E8%81%94%E5%90%88%E4%BD%93"><span class="nav-text">3.4 union inode_ops_u：操作指针联合体</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E8%AE%BE%E5%A4%87%E9%A9%B1%E5%8A%A8%E6%B3%A8%E5%86%8C%EF%BC%9Aregister-driver"><span class="nav-text">4. 设备驱动注册：register_driver()</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E6%B3%A8%E5%86%8C%E6%B5%81%E7%A8%8B"><span class="nav-text">4.1 注册流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-open-%E5%AE%8C%E6%95%B4%E8%B0%83%E7%94%A8%E9%93%BE"><span class="nav-text">5. open() 完整调用链</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E8%B0%83%E7%94%A8%E9%93%BE%E6%A6%82%E8%A7%88"><span class="nav-text">5.1 调用链概览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-file-vopen-%EF%BC%9A%E6%A0%B8%E5%BF%83%E5%88%86%E5%8F%91%E9%80%BB%E8%BE%91"><span class="nav-text">5.2 file_vopen()：核心分发逻辑</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6%E5%88%86%E9%85%8D"><span class="nav-text">5.3 文件描述符分配</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-read-write-%E5%88%86%E5%8F%91%E6%9C%BA%E5%88%B6"><span class="nav-text">6. read()&#x2F;write() 分发机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-read-%E8%B0%83%E7%94%A8%E9%93%BE"><span class="nav-text">6.1 read() 调用链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E5%88%86%E5%8F%91%E8%B7%AF%E5%BE%84%E5%9B%BE"><span class="nav-text">6.2 分发路径图</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-mount-%E6%9C%BA%E5%88%B6%EF%BC%9A%E7%9C%9F%E5%AE%9E%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E7%9A%84%E6%8E%A5%E5%85%A5"><span class="nav-text">7. mount() 机制：真实文件系统的接入</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E6%B3%A8%E5%86%8C%E8%A1%A8"><span class="nav-text">7.1 文件系统注册表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-mount-%E6%B5%81%E7%A8%8B"><span class="nav-text">7.2 mount() 流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E6%8C%82%E8%BD%BD%E7%82%B9%E5%A6%82%E4%BD%95%E2%80%9D%E6%88%AA%E6%96%AD%E2%80%9D%E8%B7%AF%E5%BE%84%E6%90%9C%E7%B4%A2"><span class="nav-text">7.3 挂载点如何”截断”路径搜索</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6%E7%AE%A1%E7%90%86"><span class="nav-text">8. 文件描述符管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-stdin-stdout-stderr-%E4%B8%8E-dev-console"><span class="nav-text">8.1 stdin&#x2F;stdout&#x2F;stderr 与 &#x2F;dev&#x2F;console</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-I-O-%E9%87%8D%E5%AE%9A%E5%90%91"><span class="nav-text">8.2 I&#x2F;O 重定向</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%AF%B9%E6%AF%94%E5%88%86%E6%9E%90"><span class="nav-text">9. 对比分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">10. 关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6%E7%B4%A2%E5%BC%95"><span class="nav-text">11. 参考文件索引</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">41</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/15/Nuttx-VFS/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - VFS | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - VFS
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-15 22:01:30" itemprop="dateCreated datePublished" datetime="2026-06-15T22:01:30+08:00">2026-06-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从伪文件系统 inode 树到设备驱动注册、从 open() 路径查找到 mount() 文件系统接入，完整解析 NuttX 虚拟文件系统的统一 I&#x2F;O 抽象机制。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>本文回答以下问题：NuttX 如何用同一套 open&#x2F;read&#x2F;write&#x2F;close 接口统一访问设备驱动和真实文件系统？伪文件系统的 inode 树是如何组织和查找的？一个 <code>open(&quot;/dev/console&quot;, O_RDWR)</code> 调用经历了哪些步骤？mount 如何将真实文件系统”嫁接”到伪文件系统上？读完后，你将能够从源码级别追踪任何文件操作的完整路径，并理解如何为 NuttX 编写自己的设备驱动或文件系统。</p>
+<hr>
+<h2 id="1-开篇：VFS-解决什么问题？"><a href="#1-开篇：VFS-解决什么问题？" class="headerlink" title="1. 开篇：VFS 解决什么问题？"></a>1. 开篇：VFS 解决什么问题？</h2><p>嵌入式系统中有多种 I&#x2F;O 资源：串口、SPI 设备、LED、Flash 文件系统、网络 socket、&#x2F;proc 状态信息。如果每种资源用不同的 API 访问，应用代码将充斥条件分支和平台耦合。</p>
+<p>VFS（Virtual File System）的核心思想是：<strong>一切皆文件</strong>——所有 I&#x2F;O 资源都通过统一的 <code>open()</code>&#x2F;<code>read()</code>&#x2F;<code>write()</code>&#x2F;<code>close()</code> 接口访问，用路径名（如 <code>/dev/ttyS0</code>、<code>/mnt/sd/config.txt</code>）区分不同资源。</p>
+<p>NuttX 的 VFS 有一个独特设计：<strong>根文件系统永远是伪文件系统（pseudo filesystem）</strong>。与 Linux 必须有物理块设备作为根不同，NuttX 的根是一棵内存中的 inode 树，不需要任何存储介质。设备驱动和真实文件系统都挂载到这棵树上。</p>
+<p>NuttX 官方文档（<code>Documentation/implementation/nuttx_tasking.rst:269-307</code>）对此有描述：</p>
+<blockquote>
+<p>“The NuttX root file system is always a pseudo-file system… Then you can mount real filesystem in the pseudo-filesystem.”</p>
+</blockquote>
+<p>这种设计使得 NuttX 在没有任何存储设备的系统上也能正常启动和运行——所有设备驱动都注册为 <code>/dev/xxx</code> 节点，无需真实文件系统支持。</p>
+<p>接下来看这棵伪文件系统树的具体结构。</p>
+<hr>
+<h2 id="2-伪文件系统与-inode-树"><a href="#2-伪文件系统与-inode-树" class="headerlink" title="2. 伪文件系统与 inode 树"></a>2. 伪文件系统与 inode 树</h2><p>路径具有天然的层级结构（<code>/dev/ttyS0</code> &#x3D; 根 → <code>dev</code> → <code>ttyS0</code>）。用树结构表示可以：</p>
+<ul>
+<li>自然支持路径逐段查找</li>
+<li>中间节点自动充当目录（如 <code>/dev</code> 是一个伪目录）</li>
+<li>支持在任意节点挂载真实文件系统（mount point）</li>
+</ul>
+<h3 id="2-1-inode-树的三指针结构"><a href="#2-1-inode-树的三指针结构" class="headerlink" title="2.1 inode 树的三指针结构"></a>2.1 inode 树的三指针结构</h3><p>文件：<code>include/nuttx/fs/fs.h:401-421</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">inode</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">i_parent</span>;</span>   <span class="comment">/* 指向上一层（父目录）*/</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">i_peer</span>;</span>     <span class="comment">/* 指向同层下一个兄弟（按名字排序）*/</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">i_child</span>;</span>    <span class="comment">/* 指向下一层第一个子节点 */</span></span><br><span class="line">  <span class="type">atomic_t</span>          i_crefs;    <span class="comment">/* 引用计数 */</span></span><br><span class="line">  <span class="type">uint16_t</span>          i_flags;    <span class="comment">/* 节点类型标志 */</span></span><br><span class="line">  <span class="class"><span class="keyword">union</span> <span class="title">inode_ops_u</span> <span class="title">u</span>;</span>          <span class="comment">/* 操作函数表（driver/fs/block）*/</span></span><br><span class="line">  FAR <span class="type">void</span>         *i_private;  <span class="comment">/* 驱动私有数据 */</span></span><br><span class="line">  <span class="type">char</span>              i_name[<span class="number">1</span>];  <span class="comment">/* 节点名称（变长，分配时确定）*/</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个 inode 通过 <code>i_parent</code>&#x2F;<code>i_peer</code>&#x2F;<code>i_child</code> 三个指针形成一棵<strong>排序多叉树</strong>：同层兄弟按名字字母序通过 <code>i_peer</code> 串联，子节点通过 <code>i_child</code> 连接。</p>
+<p><strong>实例：启动后典型的 inode 树</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">g_root_inode</span><br><span class="line">     |</span><br><span class="line">     v</span><br><span class="line">   &quot;dev&quot; (PSEUDODIR)</span><br><span class="line">     |</span><br><span class="line">     +--i_child--&gt; &quot;console&quot; (DRIVER, i_ops=&amp;g_serialops)</span><br><span class="line">     |                 |</span><br><span class="line">     |                 +--i_peer--&gt; &quot;null&quot; (DRIVER, i_ops=&amp;g_nullops)</span><br><span class="line">     |                                 |</span><br><span class="line">     |                                 +--i_peer--&gt; &quot;ttyS0&quot; (DRIVER)</span><br><span class="line">     |</span><br><span class="line">     +--i_peer--&gt; &quot;proc&quot; (MOUNTPT, i_mops=&amp;procfs_operations)</span><br><span class="line">     |</span><br><span class="line">     +--i_peer--&gt; &quot;tmp&quot; (MOUNTPT, i_mops=&amp;tmpfs_operations)</span><br></pre></td></tr></table></figure>
+
+<p>下图展示了典型的 inode 树结构，绿色箭头表示 <code>i_child</code>（进入子层），蓝色箭头表示 <code>i_peer</code>（同层兄弟）：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ng" alt="inode"></p>
+<p>全局根节点：</p>
+<p>文件：<code>fs/inode/fs_inodesearch.c:57</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">g_root_inode</span> =</span> <span class="literal">NULL</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>g_root_inode</code> 在 <code>fs_initialize()</code> 时被初始化为 <code>/</code> 节点。树的访问受读写信号量 <code>g_inode_lock</code> 保护（读操作并发，写操作互斥）。</p>
+<h3 id="2-2-inode-类型"><a href="#2-2-inode-类型" class="headerlink" title="2.2 inode 类型"></a>2.2 inode 类型</h3><p>文件：<code>include/nuttx/fs/fs.h:118-130</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_PSEUDODIR   0x00   <span class="comment">/* 伪目录（默认）*/</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_DRIVER      0x01   <span class="comment">/* 字符设备驱动 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_BLOCK       0x02   <span class="comment">/* 块设备驱动 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_MOUNTPT     0x03   <span class="comment">/* 挂载点 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_NAMEDSEM    0x04   <span class="comment">/* 命名信号量 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_MQUEUE      0x05   <span class="comment">/* 消息队列 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_SHM         0x06   <span class="comment">/* 共享内存 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_MTD         0x07   <span class="comment">/* MTD 设备 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_SOFTLINK    0x08   <span class="comment">/* 软链接 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_SOCKET      0x09   <span class="comment">/* Socket */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> FSNODEFLAG_TYPE_PIPE        0x0a   <span class="comment">/* 管道 */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>类型决定了 VFS 在 <code>open()</code>&#x2F;<code>read()</code>&#x2F;<code>write()</code> 时走哪条分发路径。</p>
+<h3 id="2-3-路径查找：inode-search"><a href="#2-3-路径查找：inode-search" class="headerlink" title="2.3 路径查找：inode_search()"></a>2.3 路径查找：inode_search()</h3><p>文件：<code>fs/inode/fs_inodesearch.c:217-392</code>（<code>_inode_search()</code> 内部函数）</p>
+<p>路径查找是 VFS 最频繁的操作。算法核心是<strong>逐段匹配</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> _inode_search(FAR <span class="keyword">struct</span> inode_search_s *desc)</span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="type">const</span> <span class="type">char</span>   *name  = desc-&gt;path;     <span class="comment">/* 例如 &quot;/dev/console&quot; */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> g_root_inode;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">while</span> (inode != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="type">int</span> result = _inode_compare(name, inode);  <span class="comment">/* 比较当前路径段与节点名 */</span></span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (result &lt; <span class="number">0</span>)       <span class="comment">/* 名字小于当前节点——不存在 */</span></span><br><span class="line">        &#123; <span class="keyword">break</span>; &#125;</span><br><span class="line">      <span class="keyword">else</span> <span class="keyword">if</span> (result &gt; <span class="number">0</span>)  <span class="comment">/* 名字大于当前节点——继续查找兄弟 */</span></span><br><span class="line">        &#123; inode = inode-&gt;i_peer; &#125;</span><br><span class="line">      <span class="keyword">else</span>                  <span class="comment">/* 匹配！ */</span></span><br><span class="line">        &#123;</span><br><span class="line">          name = inode_nextname(name);  <span class="comment">/* 前进到下一段（跳过 &#x27;/&#x27;）*/</span></span><br><span class="line"></span><br><span class="line">          <span class="keyword">if</span> (*name == <span class="string">&#x27;\0&#x27;</span> || INODE_IS_MOUNTPT(inode))</span><br><span class="line">            &#123;</span><br><span class="line">              <span class="comment">/* 路径结束 或 遇到挂载点——停止搜索 */</span></span><br><span class="line">              desc-&gt;relpath = name;</span><br><span class="line">              <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">          <span class="comment">/* 还有更多路径段，进入子节点继续 */</span></span><br><span class="line">          inode = inode-&gt;i_child;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：查找 <code>/dev/console</code> 的过程</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Step 1: name = &quot;dev/console&quot; (跳过前导 &#x27;/&#x27;)</span><br><span class="line">        比较 &quot;dev&quot; vs g_root_inode-&gt;i_child 的各 peer</span><br><span class="line">        匹配 &quot;dev&quot; 节点</span><br><span class="line">Step 2: name = &quot;console&quot; (inode_nextname 跳过 &quot;dev/&quot;)</span><br><span class="line">        进入 dev-&gt;i_child</span><br><span class="line">        比较 &quot;console&quot; vs dev 的子节点</span><br><span class="line">        匹配 &quot;console&quot; 节点</span><br><span class="line">Step 3: name = &quot;&quot; (到达路径末尾)</span><br><span class="line">        返回 desc-&gt;node = console inode</span><br></pre></td></tr></table></figure>
+
+<p><strong>遇到挂载点时</strong>：如果路径是 <code>/mnt/sd/dir/file.txt</code>，搜索到 <code>/mnt/sd</code>（MOUNTPT 类型）时停止，<code>desc-&gt;relpath = &quot;dir/file.txt&quot;</code> 保存剩余路径。后续由挂载的文件系统（如 FAT）处理相对路径。</p>
+<p>理解了 inode 树和路径查找，下面看核心数据结构如何将树节点与实际 I&#x2F;O 操作连接起来。</p>
+<hr>
+<h2 id="3-核心数据结构"><a href="#3-核心数据结构" class="headerlink" title="3. 核心数据结构"></a>3. 核心数据结构</h2><h3 id="3-1-struct-file-operations：驱动的操作函数表"><a href="#3-1-struct-file-operations：驱动的操作函数表" class="headerlink" title="3.1 struct file_operations：驱动的操作函数表"></a>3.1 struct file_operations：驱动的操作函数表</h3><p>文件：<code>include/nuttx/fs/fs.h:218-250</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*open)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*close)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep)</span>;</span><br><span class="line">  CODE <span class="title function_">ssize_t</span> <span class="params">(*read)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="type">char</span> *buffer, <span class="type">size_t</span> buflen)</span>;</span><br><span class="line">  CODE <span class="title function_">ssize_t</span> <span class="params">(*write)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="type">const</span> <span class="type">char</span> *buffer, <span class="type">size_t</span> buflen)</span>;</span><br><span class="line">  CODE <span class="title function_">off_t</span>   <span class="params">(*seek)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, <span class="type">off_t</span> offset, <span class="type">int</span> whence)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*ioctl)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, <span class="type">int</span> cmd, <span class="type">unsigned</span> <span class="type">long</span> arg)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*mmap)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="keyword">struct</span> mm_map_entry_s *<span class="built_in">map</span>)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*truncate)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, <span class="type">off_t</span> length)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*poll)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="keyword">struct</span> pollfd *fds, <span class="type">bool</span> setup)</span>;</span><br><span class="line">  CODE <span class="title function_">ssize_t</span> <span class="params">(*readv)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="keyword">struct</span> uio *uio)</span>;</span><br><span class="line">  CODE <span class="title function_">ssize_t</span> <span class="params">(*writev)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="keyword">struct</span> uio *uio)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*unlink)</span><span class="params">(FAR <span class="keyword">struct</span> inode *inode)</span>;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个设备驱动注册时提供这样一个函数指针表。VFS 通过 <code>inode-&gt;u.i_ops</code> 指针调用对应方法。</p>
+<h3 id="3-2-struct-mountpt-operations：文件系统的操作函数表"><a href="#3-2-struct-mountpt-operations：文件系统的操作函数表" class="headerlink" title="3.2 struct mountpt_operations：文件系统的操作函数表"></a>3.2 struct mountpt_operations：文件系统的操作函数表</h3><p>文件：<code>include/nuttx/fs/fs.h:285-363</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mountpt_operations</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="comment">/* open 的签名与 driver 不同：多了 relpath 和 mode 参数 */</span></span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*open)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="type">const</span> <span class="type">char</span> *relpath,</span></span><br><span class="line"><span class="params">                       <span class="type">int</span> oflags, <span class="type">mode_t</span> mode)</span>;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* close/read/write/seek/ioctl/poll 签名与 file_operations 完全相同！ */</span></span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*close)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep)</span>;</span><br><span class="line">  CODE <span class="title function_">ssize_t</span> <span class="params">(*read)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="type">char</span> *buffer, <span class="type">size_t</span> buflen)</span>;</span><br><span class="line">  CODE <span class="title function_">ssize_t</span> <span class="params">(*write)</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="type">const</span> <span class="type">char</span> *buffer, <span class="type">size_t</span> buflen)</span>;</span><br><span class="line">  <span class="comment">/* ... */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 文件系统特有操作 */</span></span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*bind)</span><span class="params">(FAR <span class="keyword">struct</span> inode *blkdriver, FAR <span class="type">const</span> <span class="type">void</span> *data,</span></span><br><span class="line"><span class="params">                       FAR <span class="type">void</span> **handle)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*unbind)</span><span class="params">(FAR <span class="type">void</span> *handle, FAR <span class="keyword">struct</span> inode **blkdriver,</span></span><br><span class="line"><span class="params">                         <span class="type">unsigned</span> <span class="type">int</span> flags)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*statfs)</span><span class="params">(FAR <span class="keyword">struct</span> inode *mountpt, FAR <span class="keyword">struct</span> statfs *buf)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*mkdir)</span><span class="params">(FAR <span class="keyword">struct</span> inode *mountpt, FAR <span class="type">const</span> <span class="type">char</span> *relpath, <span class="type">mode_t</span> mode)</span>;</span><br><span class="line">  CODE <span class="title function_">int</span>     <span class="params">(*unlink)</span><span class="params">(FAR <span class="keyword">struct</span> inode *mountpt, FAR <span class="type">const</span> <span class="type">char</span> *relpath)</span>;</span><br><span class="line">  <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键设计</strong>：<code>file_operations</code> 和 <code>mountpt_operations</code> 的 <code>close</code>&#x2F;<code>read</code>&#x2F;<code>write</code>&#x2F;<code>seek</code>&#x2F;<code>ioctl</code>&#x2F;<code>poll</code> 方法<strong>签名和位置完全相同</strong>。VFS 在打开文件后统一通过 <code>inode-&gt;u.i_ops-&gt;read()</code> 调用——无论底层是设备驱动还是文件系统。区别只在 <code>open()</code> 时：驱动收到 <code>open(filep)</code>，文件系统收到 <code>open(filep, relpath, oflags, mode)</code>。</p>
+<h3 id="3-3-struct-file：打开的文件"><a href="#3-3-struct-file：打开的文件" class="headerlink" title="3.3 struct file：打开的文件"></a>3.3 struct file：打开的文件</h3><p>文件：<code>include/nuttx/fs/fs.h:457-467</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">file</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">int</span>               f_oflags;   <span class="comment">/* open 时的标志（O_RDONLY 等）*/</span></span><br><span class="line">  <span class="type">atomic_t</span>          f_refs;     <span class="comment">/* 引用计数 */</span></span><br><span class="line">  <span class="type">off_t</span>             f_pos;      <span class="comment">/* 当前读写位置 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">f_inode</span>;</span>    <span class="comment">/* 关联的 inode（指向驱动或文件系统）*/</span></span><br><span class="line">  FAR <span class="type">void</span>         *f_priv;     <span class="comment">/* 驱动/文件系统的私有数据 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每次成功 <code>open()</code> 都创建一个 <code>struct file</code>，它绑定到对应的 inode。后续 <code>read()</code>&#x2F;<code>write()</code> 通过 <code>file-&gt;f_inode-&gt;u.i_ops</code> 分发到正确的驱动或文件系统。</p>
+<h3 id="3-4-union-inode-ops-u：操作指针联合体"><a href="#3-4-union-inode-ops-u：操作指针联合体" class="headerlink" title="3.4 union inode_ops_u：操作指针联合体"></a>3.4 union inode_ops_u：操作指针联合体</h3><p>文件：<code>include/nuttx/fs/fs.h:380-397</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">union</span> <span class="title">inode_ops_u</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  FAR <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span>     *<span class="title">i_ops</span>;</span>    <span class="comment">/* 字符驱动操作 */</span></span><br><span class="line">  FAR <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">block_operations</span>    *<span class="title">i_bops</span>;</span>   <span class="comment">/* 块驱动操作 */</span></span><br><span class="line">  FAR <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">mountpt_operations</span>  *<span class="title">i_mops</span>;</span>   <span class="comment">/* 文件系统操作 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mtd_dev_s</span>                 *<span class="title">i_mtd</span>;</span>    <span class="comment">/* MTD 设备 */</span></span><br><span class="line">  FAR <span class="type">char</span>                             *i_link;   <span class="comment">/* 软链接目标路径 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>同一个 inode 根据类型使用不同的联合体成员。VFS 根据 <code>i_flags</code> 判断类型后选择正确的成员访问。</p>
+<p>数据结构建立了”谁是谁”的关系。接下来看设备驱动如何将自己注册到 inode 树中。</p>
+<hr>
+<h2 id="4-设备驱动注册：register-driver"><a href="#4-设备驱动注册：register-driver" class="headerlink" title="4. 设备驱动注册：register_driver()"></a>4. 设备驱动注册：register_driver()</h2><p>设备驱动必须出现在 inode 树中，用户代码才能通过路径名找到它。<code>register_driver()</code> 的职责是：在 inode 树的指定路径创建一个 DRIVER 类型的节点，并将操作函数表关联上去。</p>
+<h3 id="4-1-注册流程"><a href="#4-1-注册流程" class="headerlink" title="4.1 注册流程"></a>4.1 注册流程</h3><p>文件：<code>fs/driver/fs_registerdriver.c:67-134</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">register_driver_with_size</span><span class="params">(FAR <span class="type">const</span> <span class="type">char</span> *path,</span></span><br><span class="line"><span class="params">                              FAR <span class="type">const</span> <span class="keyword">struct</span> file_operations *fops,</span></span><br><span class="line"><span class="params">                              <span class="type">mode_t</span> mode, FAR <span class="type">void</span> *priv, <span class="type">size_t</span> size)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">node</span>;</span></span><br><span class="line">  <span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">  inode_lock();                           <span class="comment">/* 获取写锁 */</span></span><br><span class="line">  ret = inode_reserve(path, mode, &amp;node); <span class="comment">/* 在树中创建节点 */</span></span><br><span class="line">  <span class="keyword">if</span> (ret &gt;= <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      INODE_SET_DRIVER(node);             <span class="comment">/* 设置类型 = DRIVER */</span></span><br><span class="line">      node-&gt;u.i_ops   = fops;            <span class="comment">/* 绑定操作函数表 */</span></span><br><span class="line">      node-&gt;i_private = priv;            <span class="comment">/* 绑定驱动私有数据 */</span></span><br><span class="line">      node-&gt;i_size    = size;</span><br><span class="line">    &#125;</span><br><span class="line">  inode_unlock();                         <span class="comment">/* 释放写锁 */</span></span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>inode_reserve()</code>（文件：<code>fs/inode/fs_inodereserve.c:176</code>）负责：</p>
+<ol>
+<li>调用 <code>inode_search()</code> 找到插入位置</li>
+<li>为路径中不存在的中间目录创建 PSEUDODIR 节点（如 <code>/dev</code> 不存在则自动创建）</li>
+<li>为最终节点分配内存（<code>fs_heap_zalloc(FSNODE_SIZE(namelen))</code>）</li>
+<li>按字母序插入到 <code>i_peer</code> 链表中</li>
+</ol>
+<p><strong>实例：<code>register_driver(&quot;/dev/ttyS0&quot;, &amp;uart_ops, 0666, dev)</code> 的效果</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Before:</span><br><span class="line">  g_root_inode -&gt; &quot;dev&quot; (PSEUDODIR) -&gt; i_child -&gt; &quot;console&quot; (DRIVER)</span><br><span class="line"></span><br><span class="line">After:</span><br><span class="line">  g_root_inode -&gt; &quot;dev&quot; (PSEUDODIR) -&gt; i_child -&gt; &quot;console&quot; -&gt; i_peer -&gt; &quot;ttyS0&quot; (DRIVER, NEW)</span><br><span class="line">                                                                          u.i_ops = &amp;uart_ops</span><br><span class="line">                                                                          i_private = dev</span><br></pre></td></tr></table></figure>
+
+<p>设备注册完成后，用户代码就可以通过 <code>open(&quot;/dev/ttyS0&quot;, ...)</code> 找到这个节点。接下来看 open() 的完整路径。</p>
+<hr>
+<h2 id="5-open-完整调用链"><a href="#5-open-完整调用链" class="headerlink" title="5. open() 完整调用链"></a>5. open() 完整调用链</h2><p><code>open()</code> 需要完成多件事：路径解析（可能跨越伪文件系统和真实文件系统）、权限检查、文件描述符分配、驱动&#x2F;文件系统的初始化回调。这是整个 VFS 唯一需要区分”驱动”和”文件系统”的地方——之后 read&#x2F;write&#x2F;close 走统一路径。</p>
+<h3 id="5-1-调用链概览"><a href="#5-1-调用链概览" class="headerlink" title="5.1 调用链概览"></a>5.1 调用链概览</h3><p>下图展示了 <code>open(&quot;/dev/console&quot;, O_RDWR)</code> 从路径查找到驱动调用的完整时序：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/g" alt="open"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">User: open(&quot;/dev/console&quot;, O_RDWR)</span><br><span class="line">  |</span><br><span class="line">  v [KERNEL 模式: syscall 进入内核]</span><br><span class="line">open()                                 fs/vfs/fs_open.c:430</span><br><span class="line">  |</span><br><span class="line">  +-&gt; nx_vopen(fdlist, path, oflags)   fs/vfs/fs_open.c:270</span><br><span class="line">       |</span><br><span class="line">       +-&gt; file_allocate()             分配 struct file</span><br><span class="line">       |</span><br><span class="line">       +-&gt; file_vopen(filep, path)     fs/vfs/fs_open.c:74</span><br><span class="line">       |    |</span><br><span class="line">       |    +-&gt; inode_find(&amp;desc)      加锁 + 路径搜索 + 引用计数++</span><br><span class="line">       |    |    +-&gt; inode_search()    走 inode 树</span><br><span class="line">       |    |</span><br><span class="line">       |    +-&gt; [DRIVER?]  inode-&gt;u.i_ops-&gt;open(filep)</span><br><span class="line">       |    +-&gt; [MOUNTPT?] inode-&gt;u.i_mops-&gt;open(filep, relpath, oflags, mode)</span><br><span class="line">       |</span><br><span class="line">       +-&gt; fdlist_dupfile(list, filep)  分配 fd 编号</span><br><span class="line">            返回 int fd</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-file-vopen-：核心分发逻辑"><a href="#5-2-file-vopen-：核心分发逻辑" class="headerlink" title="5.2 file_vopen()：核心分发逻辑"></a>5.2 file_vopen()：核心分发逻辑</h3><p>文件：<code>fs/vfs/fs_open.c:74-246</code>（关键摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">file_vopen</span><span class="params">(FAR <span class="keyword">struct</span> file *filep, FAR <span class="type">const</span> <span class="type">char</span> *path,</span></span><br><span class="line"><span class="params">                      <span class="type">int</span> oflags, <span class="type">mode_t</span> umask, va_list ap)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">inode_search_s</span> <span class="title">desc</span>;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span>;</span></span><br><span class="line"></span><br><span class="line">  SETUP_SEARCH(&amp;desc, path, (oflags &amp; O_NOFOLLOW) != <span class="number">0</span>);</span><br><span class="line">  ret = inode_find(&amp;desc);          <span class="comment">/* 路径查找 + 加引用 */</span></span><br><span class="line">  inode = desc.node;</span><br><span class="line"></span><br><span class="line">  filep-&gt;f_oflags = oflags;</span><br><span class="line">  filep-&gt;f_inode  = inode;          <span class="comment">/* 绑定 inode 到 file */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 根据 inode 类型分发 */</span></span><br><span class="line">  <span class="keyword">if</span> (INODE_IS_MOUNTPT(inode))</span><br><span class="line">    &#123;</span><br><span class="line">      ret = inode-&gt;u.i_mops-&gt;open(filep, desc.relpath, oflags, mode);</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span> <span class="keyword">if</span> (INODE_IS_DRIVER(inode))</span><br><span class="line">    &#123;</span><br><span class="line">      ret = inode-&gt;u.i_ops-&gt;open(filep);</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    &#123;</span><br><span class="line">      ret = -ENXIO;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>分发逻辑的关键</strong>：对于驱动节点（如 <code>/dev/console</code>），直接调用 <code>i_ops-&gt;open(filep)</code>。对于挂载点（如 <code>/mnt/sd/file.txt</code>），调用 <code>i_mops-&gt;open(filep, &quot;file.txt&quot;, oflags, mode)</code>——将挂载点以下的相对路径传给文件系统处理。</p>
+<h3 id="5-3-文件描述符分配"><a href="#5-3-文件描述符分配" class="headerlink" title="5.3 文件描述符分配"></a>5.3 文件描述符分配</h3><p>文件：<code>fs/inode/fs_files.c:566-633</code></p>
+<p>NuttX 的文件描述符表（<code>struct fdlist</code>）是一个<strong>二维数组</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">fdlist</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">uint8_t</span>          fl_rows;     <span class="comment">/* 行数 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">fd</span>  **<span class="title">fl_fds</span>;</span>      <span class="comment">/* 二维数组指针 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>fd 值映射为：<code>row = fd / BLOCK_SIZE</code>，<code>col = fd % BLOCK_SIZE</code>（<code>BLOCK_SIZE = CONFIG_NFILE_DESCRIPTORS_PER_BLOCK</code>）。</p>
+<p>分配时线性扫描找第一个空位（<code>fl_fds[i][j].f_file == NULL</code>），将 <code>struct file</code> 指针存入该位置，返回 <code>i * BLOCK_SIZE + j</code> 作为 fd。</p>
+<p>open() 完成后，后续的 read&#x2F;write&#x2F;close 都通过 fd → file → inode → ops 的路径分发。下面看 read&#x2F;write 如何工作。</p>
+<hr>
+<h2 id="6-read-write-分发机制"><a href="#6-read-write-分发机制" class="headerlink" title="6. read()&#x2F;write() 分发机制"></a>6. read()&#x2F;write() 分发机制</h2><p>因为 <code>open()</code> 时已经将 inode 绑定到 <code>struct file</code>，而 <code>file_operations</code> 和 <code>mountpt_operations</code> 的 <code>read</code>&#x2F;<code>write</code> 方法签名完全相同、位于结构体的相同偏移。VFS 只需要 <code>file-&gt;f_inode-&gt;u.i_ops-&gt;read(filep, buf, len)</code>——无论底层是什么。</p>
+<h3 id="6-1-read-调用链"><a href="#6-1-read-调用链" class="headerlink" title="6.1 read() 调用链"></a>6.1 read() 调用链</h3><p>文件：<code>fs/vfs/fs_read.c:158</code>（<code>file_readv()</code> 核心）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> <span class="title function_">file_readv</span><span class="params">(FAR <span class="keyword">struct</span> file *filep,</span></span><br><span class="line"><span class="params">                          FAR <span class="keyword">struct</span> uio *uio)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span> =</span> filep-&gt;f_inode;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (inode-&gt;u.i_ops-&gt;readv != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> inode-&gt;u.i_ops-&gt;readv(filep, uio);</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span> <span class="keyword">if</span> (inode-&gt;u.i_ops-&gt;read != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 兼容路径：逐 iov 段调用 read() */</span></span><br><span class="line">      <span class="keyword">return</span> file_readv_compat(filep, uio);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> -ENOSYS;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>完整路径：<code>read(fd, buf, n)</code> → <code>file_get(fd)</code> 获取 <code>struct file *</code> → <code>file_readv()</code> → <code>i_ops-&gt;read(filep, buf, n)</code>。</p>
+<h3 id="6-2-分发路径图"><a href="#6-2-分发路径图" class="headerlink" title="6.2 分发路径图"></a>6.2 分发路径图</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">fd (int)</span><br><span class="line">  |  file_get(fd)</span><br><span class="line">  v</span><br><span class="line">struct fdlist [row][col]</span><br><span class="line">  |  .f_file</span><br><span class="line">  v</span><br><span class="line">struct file</span><br><span class="line">  |  .f_inode</span><br><span class="line">  v</span><br><span class="line">struct inode</span><br><span class="line">  |  .u.i_ops (= file_operations* OR mountpt_operations*)</span><br><span class="line">  v</span><br><span class="line">i_ops-&gt;read(filep, buf, len)    &lt;- driver or filesystem, same signature!</span><br></pre></td></tr></table></figure>
+
+<p><strong>对比 Linux</strong>：Linux VFS 中 read&#x2F;write 还经过 page cache 层（<code>generic_file_read_iter</code>），而 NuttX 是<strong>直通式</strong>——没有 page cache，数据直接在驱动&#x2F;文件系统和用户缓冲区之间传递。这使得 NuttX VFS 延迟更低、更可预测，但不支持 mmap 文件映射（需要 page cache）。</p>
+<p>read&#x2F;write 的简洁性源于 open() 时已完成了所有”类型判断”工作。接下来看更复杂的 mount() 如何将真实文件系统接入 inode 树。</p>
+<hr>
+<h2 id="7-mount-机制：真实文件系统的接入"><a href="#7-mount-机制：真实文件系统的接入" class="headerlink" title="7. mount() 机制：真实文件系统的接入"></a>7. mount() 机制：真实文件系统的接入</h2><p>伪文件系统只能存放设备驱动节点，不能存储持久化数据。要访问 SD 卡、Flash 上的文件，需要将真实文件系统”嫁接”到伪文件系统的某个节点上。mount 就是建立这个嫁接关系的操作。</p>
+<h3 id="7-1-文件系统注册表"><a href="#7-1-文件系统注册表" class="headerlink" title="7.1 文件系统注册表"></a>7.1 文件系统注册表</h3><p>文件：<code>fs/mount/fs_mount.c:109-195</code></p>
+<p>NuttX 在编译时通过静态数组注册所有支持的文件系统：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 基于块设备的文件系统 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">fsmap_t</span> <span class="title">g_bdfsmap</span>[] =</span> &#123;</span><br><span class="line">  &#123; <span class="string">&quot;vfat&quot;</span>,    &amp;fat_operations &#125;,</span><br><span class="line">  &#123; <span class="string">&quot;romfs&quot;</span>,   &amp;romfs_operations &#125;,</span><br><span class="line">  &#123; <span class="string">&quot;smartfs&quot;</span>,  &amp;smartfs_operations &#125;,</span><br><span class="line">  &#123; <span class="string">&quot;littlefs&quot;</span>, &amp;littlefs_operations &#125;,</span><br><span class="line">  &#123; <span class="literal">NULL</span>, <span class="literal">NULL</span> &#125;</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 基于 MTD 的文件系统 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">fsmap_t</span> <span class="title">g_mdfsmap</span>[] =</span> &#123; ... &#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 无需驱动的文件系统 */</span></span><br><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">fsmap_t</span> <span class="title">g_nonbdfsmap</span>[] =</span> &#123;</span><br><span class="line">  &#123; <span class="string">&quot;tmpfs&quot;</span>,   &amp;tmpfs_operations &#125;,</span><br><span class="line">  &#123; <span class="string">&quot;procfs&quot;</span>,  &amp;procfs_operations &#125;,</span><br><span class="line">  &#123; <span class="string">&quot;nfs&quot;</span>,     &amp;nfs_operations &#125;,</span><br><span class="line">  &#123; <span class="string">&quot;binfs&quot;</span>,   &amp;binfs_operations &#125;,</span><br><span class="line">  &#123; <span class="literal">NULL</span>, <span class="literal">NULL</span> &#125;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>mount()</code> 调用时，内核遍历上述三个数组匹配 <code>filesystemtype</code> 字符串（如 <code>&quot;vfat&quot;</code>），找到对应的 <code>mountpt_operations</code> 函数表。如果没有匹配的文件系统类型，返回 <code>-ENODEV</code>。</p>
+<h3 id="7-2-mount-流程"><a href="#7-2-mount-流程" class="headerlink" title="7.2 mount() 流程"></a>7.2 mount() 流程</h3><p>文件：<code>fs/mount/fs_mount.c:286-570</code>（<code>nx_mount()</code> 核心，以下为关键步骤摘录）</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">mount(&quot;/dev/mmcsd0&quot;, &quot;/mnt/sd&quot;, &quot;vfat&quot;, 0, NULL):</span><br><span class="line"></span><br><span class="line">Step 1: 根据 source 找到块设备 inode</span><br><span class="line">        find_blockdriver(&quot;/dev/mmcsd0&quot;) → 得到块设备 inode</span><br><span class="line"></span><br><span class="line">Step 2: 在注册表中查找文件系统类型</span><br><span class="line">        遍历 g_bdfsmap[] 找到 &quot;vfat&quot; → 得到 &amp;fat_operations</span><br><span class="line"></span><br><span class="line">Step 3: 检查目标路径是否存在且为伪目录</span><br><span class="line">        inode_find(&quot;/mnt/sd&quot;) → 必须是 PSEUDODIR</span><br><span class="line"></span><br><span class="line">Step 4: 调用文件系统的 bind() 初始化</span><br><span class="line">        fat_operations-&gt;bind(blk_inode, data, &amp;fshandle)</span><br><span class="line">        → FAT 读取超级块、初始化内部状态</span><br><span class="line"></span><br><span class="line">Step 5: 将目标 inode 转换为挂载点</span><br><span class="line">        inode_reserve(&quot;/mnt/sd&quot;, 0777, &amp;mountpt_inode)</span><br><span class="line">        INODE_SET_MOUNTPT(mountpt_inode)</span><br><span class="line">        mountpt_inode-&gt;u.i_mops = &amp;fat_operations</span><br><span class="line">        mountpt_inode-&gt;i_private = fshandle</span><br></pre></td></tr></table></figure>
+
+<p>mount 完成后，inode 树中 <code>/mnt/sd</code> 节点的类型从 PSEUDODIR 变为 MOUNTPT。后续对 <code>/mnt/sd/xxx</code> 的 <code>open()</code> 会在路径搜索时被该挂载点”截断”，剩余路径交给 FAT 文件系统处理。</p>
+<h3 id="7-3-挂载点如何”截断”路径搜索"><a href="#7-3-挂载点如何”截断”路径搜索" class="headerlink" title="7.3 挂载点如何”截断”路径搜索"></a>7.3 挂载点如何”截断”路径搜索</h3><p>回忆 <code>_inode_search()</code> 中的关键判断：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (*name == <span class="string">&#x27;\0&#x27;</span> || INODE_IS_MOUNTPT(inode))</span><br><span class="line">  &#123;</span><br><span class="line">    desc-&gt;relpath = name;  <span class="comment">/* 剩余路径传给文件系统 */</span></span><br><span class="line">    <span class="keyword">break</span>;                 <span class="comment">/* 停止在伪文件系统中搜索 */</span></span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>例如 <code>open(&quot;/mnt/sd/photos/img.jpg&quot;)</code>：</p>
+<ul>
+<li>搜索到 <code>/mnt/sd</code> 时发现是 MOUNTPT，停止</li>
+<li><code>desc-&gt;relpath = &quot;photos/img.jpg&quot;</code></li>
+<li><code>file_vopen()</code> 调用 <code>fat_operations-&gt;open(filep, &quot;photos/img.jpg&quot;, oflags, mode)</code></li>
+<li>FAT 文件系统在自己的目录结构中解析 <code>photos/img.jpg</code></li>
+</ul>
+<p>这就是 NuttX 伪文件系统与真实文件系统的”交接”机制。</p>
+<hr>
+<h2 id="8-文件描述符管理"><a href="#8-文件描述符管理" class="headerlink" title="8. 文件描述符管理"></a>8. 文件描述符管理</h2><p>POSIX 要求每个进程有独立的文件描述符空间。在 NuttX 中，<code>struct fdlist</code> 存储在 <code>task_group_s</code> 中——同一任务组（进程）的所有线程共享文件描述符表。</p>
+<h3 id="8-1-stdin-stdout-stderr-与-dev-console"><a href="#8-1-stdin-stdout-stderr-与-dev-console" class="headerlink" title="8.1 stdin&#x2F;stdout&#x2F;stderr 与 &#x2F;dev&#x2F;console"></a>8.1 stdin&#x2F;stdout&#x2F;stderr 与 &#x2F;dev&#x2F;console</h3><p>启动时第一个任务（IDLE）打开 <code>/dev/console</code> 三次，获得 fd 0、1、2：</p>
+<p>文件：<code>sched/init/nx_start.c:540-545</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">nx_open(<span class="string">&quot;/dev/console&quot;</span>, O_RDWR);   <span class="comment">/* fd 0 = stdin */</span></span><br><span class="line">nx_open(<span class="string">&quot;/dev/console&quot;</span>, O_RDWR);   <span class="comment">/* fd 1 = stdout */</span></span><br><span class="line">nx_open(<span class="string">&quot;/dev/console&quot;</span>, O_RDWR);   <span class="comment">/* fd 2 = stderr */</span></span><br></pre></td></tr></table></figure>
+
+<p>后续通过 <code>task_create()</code> 或 <code>posix_spawn()</code> 创建的子任务&#x2F;进程会继承父任务的文件描述符表（<code>group_setuptaskfiles()</code> 中完成）。所有任务默认共享对 <code>/dev/console</code> 的 stdin&#x2F;stdout&#x2F;stderr。</p>
+<h3 id="8-2-I-O-重定向"><a href="#8-2-I-O-重定向" class="headerlink" title="8.2 I&#x2F;O 重定向"></a>8.2 I&#x2F;O 重定向</h3><p>如果一个任务关闭 fd 1 然后打开一个新文件，新文件会获得 fd 1（因为分配时取最小空闲 fd）。之后该任务的所有 <code>printf()</code>（内部写 stdout &#x3D; fd 1）就输出到了新文件——这就是 I&#x2F;O 重定向的原理。NuttX 的 telnet 服务器就是这样实现的：将 &#x2F;dev&#x2F;telnet 设备重定向为子任务的 stdin&#x2F;stdout。</p>
+<hr>
+<h2 id="9-对比分析"><a href="#9-对比分析" class="headerlink" title="9. 对比分析"></a>9. 对比分析</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NuttX VFS</th>
+<th>Linux VFS</th>
+<th>FreeRTOS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>根文件系统</td>
+<td>伪文件系统（内存树）</td>
+<td>必须是物理块设备</td>
+<td>无 VFS 概念</td>
+</tr>
+<tr>
+<td>inode 结构</td>
+<td>树（parent&#x2F;peer&#x2F;child）</td>
+<td>哈希表 + dentry cache</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Page Cache</td>
+<td>无</td>
+<td>有（read&#x2F;write 经过 page cache）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>文件描述符</td>
+<td>per-task_group 二维数组</td>
+<td>per-process fd_table</td>
+<td>per-task 链表（+FAT 扩展）</td>
+</tr>
+<tr>
+<td>设备访问</td>
+<td>open(“&#x2F;dev&#x2F;xxx”)</td>
+<td>open(“&#x2F;dev&#x2F;xxx”)</td>
+<td>直接调用驱动 API</td>
+</tr>
+<tr>
+<td>挂载点</td>
+<td>inode 类型&#x3D;MOUNTPT</td>
+<td>vfsmount + super_block</td>
+<td>ff_mount (FatFs only)</td>
+</tr>
+<tr>
+<td>支持的 FS</td>
+<td>FAT, ROMFS, LittleFS, TMPFS, PROCFS, NFS…</td>
+<td>ext4, btrfs, XFS, NFS…</td>
+<td>FatFs (通常只有一个)</td>
+</tr>
+<tr>
+<td>路径缓存</td>
+<td>无（每次全路径搜索）</td>
+<td>dentry cache（O(1) 热路径）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>统一 I&#x2F;O</td>
+<td>open&#x2F;read&#x2F;write&#x2F;close&#x2F;ioctl</td>
+<td>同</td>
+<td>无统一接口</td>
+</tr>
+</tbody></table>
+<p><strong>NuttX VFS 的设计取舍</strong>：</p>
+<ul>
+<li><strong>无 dentry cache</strong>——每次 <code>open()</code> 都要走完整的树搜索。对嵌入式系统可接受（inode 树通常很浅，几十个节点），但对大型文件系统性能不如 Linux。</li>
+<li><strong>无 page cache</strong>——read&#x2F;write 直通驱动，延迟低、内存占用小，但无法利用缓存加速重复读取。</li>
+<li><strong>伪文件系统根</strong>——不需要任何存储设备就能启动，特别适合 MCU + 外设的场景。</li>
+</ul>
+<hr>
+<h2 id="10-关键要点"><a href="#10-关键要点" class="headerlink" title="10. 关键要点"></a>10. 关键要点</h2><ol>
+<li><p><strong>NuttX 的根永远是伪文件系统</strong>——一棵内存中的 inode 树，设备驱动和真实文件系统都挂载其上。</p>
+</li>
+<li><p><strong>inode 树使用 parent&#x2F;peer&#x2F;child 三指针结构</strong>——同层兄弟按名字字母序排列，路径查找逐段匹配。</p>
+</li>
+<li><p><strong>file_operations 和 mountpt_operations 共享 read&#x2F;write&#x2F;close 签名</strong>——open() 之后，VFS 对驱动和文件系统的分发完全统一。</p>
+</li>
+<li><p><strong>register_driver() 在 inode 树中创建 DRIVER 节点</strong>，绑定操作函数表和私有数据。</p>
+</li>
+<li><p><strong>open() 是 VFS 唯一需要区分类型的地方</strong>——驱动收到 <code>open(filep)</code>，文件系统收到 <code>open(filep, relpath, oflags, mode)</code>。</p>
+</li>
+<li><p><strong>mount() 将伪目录节点转换为 MOUNTPT</strong>，后续路径搜索在该节点”截断”，剩余路径交给文件系统。</p>
+</li>
+<li><p><strong>文件描述符是 per-task_group 的二维数组</strong>，子任务继承父任务的 fd 表（包括 stdin&#x2F;stdout&#x2F;stderr）。</p>
+</li>
+<li><p><strong>NuttX VFS 是直通式（无 page cache）</strong>——延迟低、确定性好，适合实时系统。</p>
+</li>
+</ol>
+<hr>
+<h2 id="11-参考文件索引"><a href="#11-参考文件索引" class="headerlink" title="11. 参考文件索引"></a>11. 参考文件索引</h2><table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>关键内容</th>
+<th>引用行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>include/nuttx/fs/fs.h</code></td>
+<td>inode, file, file_operations, mountpt_operations, fdlist</td>
+<td>118-505</td>
+</tr>
+<tr>
+<td><code>fs/inode/inode.h</code></td>
+<td>inode_search_s, SETUP_SEARCH 宏</td>
+<td>50-143</td>
+</tr>
+<tr>
+<td><code>fs/inode/fs_inodesearch.c</code></td>
+<td>g_root_inode, inode_search(), _inode_search(), _inode_compare()</td>
+<td>57-573</td>
+</tr>
+<tr>
+<td><code>fs/inode/fs_inodereserve.c</code></td>
+<td>inode_reserve(), inode_alloc(), inode_insert()</td>
+<td>176-264</td>
+</tr>
+<tr>
+<td><code>fs/inode/fs_inodefind.c</code></td>
+<td>inode_find()（加锁 + 搜索 + 引用计数）</td>
+<td>52-76</td>
+</tr>
+<tr>
+<td><code>fs/inode/fs_inode.c</code></td>
+<td>g_inode_lock, inode_lock&#x2F;unlock, inode_checkperm()</td>
+<td>49-153</td>
+</tr>
+<tr>
+<td><code>fs/inode/fs_files.c</code></td>
+<td>fdlist_dupfile(), file_allocate(), file_get()</td>
+<td>566-982</td>
+</tr>
+<tr>
+<td><code>fs/driver/fs_registerdriver.c</code></td>
+<td>register_driver(), register_driver_with_size()</td>
+<td>67-134</td>
+</tr>
+<tr>
+<td><code>fs/vfs/fs_open.c</code></td>
+<td>open(), nx_vopen(), file_vopen()</td>
+<td>74-455</td>
+</tr>
+<tr>
+<td><code>fs/vfs/fs_read.c</code></td>
+<td>read(), file_readv()</td>
+<td>158-413</td>
+</tr>
+<tr>
+<td><code>fs/vfs/fs_write.c</code></td>
+<td>write(), file_writev()</td>
+<td>148-467</td>
+</tr>
+<tr>
+<td><code>fs/mount/fs_mount.c</code></td>
+<td>mount(), nx_mount(), g_bdfsmap&#x2F;g_nonbdfsmap</td>
+<td>109-585</td>
+</tr>
+<tr>
+<td><code>fs/fs_initialize.c</code></td>
+<td>fs_initialize() 启动初始化</td>
+<td>全文</td>
+</tr>
+<tr>
+<td><code>drivers/serial/serial.c</code></td>
+<td>uart_register(), uart_open(), g_serialops</td>
+<td>139-713</td>
+</tr>
+<tr>
+<td><code>Documentation/implementation/nuttx_tasking.rst</code></td>
+<td>官方 VFS 设计描述</td>
+<td>269-307</td>
+</tr>
+</tbody></table>
+<hr>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/15/Nuttx-Interrupt/" rel="prev" title="Nuttx - Interrupt">
+                  <i class="fa fa-angle-left"></i> Nuttx - Interrupt
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

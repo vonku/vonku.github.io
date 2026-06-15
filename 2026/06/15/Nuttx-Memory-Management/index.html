@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从用户 malloc() 到物理页分配再到 L2 页表写入，完整解析 CONFIG_BUILD_KERNEL 模式下 NuttX 四层内存分配器的协作机制。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - Memory Management">
+<meta property="og:url" content="http://yoursite.com/2026/06/15/Nuttx-Memory-Management/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从用户 malloc() 到物理页分配再到 L2 页表写入，完整解析 CONFIG_BUILD_KERNEL 模式下 NuttX 四层内存分配器的协作机制。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/gement/%E5%9B%9B%E5%B1%82%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B.jpg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/gement/mm_heap.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/gement/malloc%E5%AE%8C%E6%95%B4%E8%B7%AF%E5%BE%84.png">
+<meta property="article:published_time" content="2026-06-15T14:00:59.000Z">
+<meta property="article:modified_time" content="2026-06-15T14:11:39.409Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/gement/%E5%9B%9B%E5%B1%82%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B.jpg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/15/Nuttx-Memory-Management/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/15/Nuttx-Memory-Management/","path":"2026/06/15/Nuttx-Memory-Management/","title":"Nuttx - Memory Management"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - Memory Management | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%80%E7%AF%87%EF%BC%9AKERNEL-%E6%A8%A1%E5%BC%8F%E4%B8%8B%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E8%A6%81%E8%A7%A3%E5%86%B3%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="nav-text">1. 开篇：KERNEL 模式下内存管理要解决什么问题？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%89%A9%E7%90%86%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80%EF%BC%88qemu-armv7a%EF%BC%89"><span class="nav-text">2. 物理内存布局（qemu-armv7a）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-qemu-armv7a-%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84"><span class="nav-text">2.1 qemu-armv7a 内存映射</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%9B%9B%E5%B1%82%E5%88%86%E9%85%8D%E5%99%A8%E6%9E%B6%E6%9E%84%E6%80%BB%E8%A7%88"><span class="nav-text">3. 四层分配器架构总览</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Layer-1%EF%BC%9A%E7%89%A9%E7%90%86%E9%A1%B5%E5%88%86%E9%85%8D%E5%99%A8%EF%BC%88mm-pgalloc-%E7%B2%92%E5%BA%A6%E5%88%86%E9%85%8D%E5%99%A8%EF%BC%89"><span class="nav-text">4. Layer 1：物理页分配器（mm_pgalloc + 粒度分配器）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%88%9D%E5%A7%8B%E5%8C%96%EF%BC%9Amm-pginitialize"><span class="nav-text">4.1 初始化：mm_pginitialize()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%88%86%E9%85%8D%EF%BC%9Amm-pgalloc"><span class="nav-text">4.2 分配：mm_pgalloc()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E7%B2%92%E5%BA%A6%E5%88%86%E9%85%8D%E5%99%A8%E7%9A%84-bitmap-%E7%AE%97%E6%B3%95"><span class="nav-text">4.3 粒度分配器的 bitmap 算法</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Layer-2%EF%BC%9A%E5%A0%86%E6%89%A9%E5%B1%95%EF%BC%88sbrk-%E2%86%92-pgalloc-%E2%86%92-L2-%E9%A1%B5%E8%A1%A8%EF%BC%89"><span class="nav-text">5. Layer 2：堆扩展（sbrk → pgalloc → L2 页表）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-sbrk-%E5%AE%9E%E7%8E%B0"><span class="nav-text">5.1 sbrk() 实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-pgalloc-%EF%BC%9A%E7%89%A9%E7%90%86%E9%A1%B5%E5%88%86%E9%85%8D-MMU-%E6%98%A0%E5%B0%84%E7%9A%84%E6%A1%A5%E6%A2%81"><span class="nav-text">5.2 pgalloc()：物理页分配 + MMU 映射的桥梁</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-Layer-3%EF%BC%9A%E6%A0%B8%E5%BF%83%E5%A0%86%E7%AE%A1%E7%90%86%E5%99%A8%EF%BC%88mm-heap%EF%BC%89"><span class="nav-text">6. Layer 3：核心堆管理器（mm_heap）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E6%A0%B8%E5%BF%83%E7%AE%97%E6%B3%95%E5%8E%9F%E7%90%86%EF%BC%88%E9%80%89%E8%AF%BB%EF%BC%89"><span class="nav-text">6.1 核心算法原理（选读）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">6.2 数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E5%88%86%E6%A1%B6%E7%A9%BA%E9%97%B2%E9%93%BE%E8%A1%A8"><span class="nav-text">6.3 分桶空闲链表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-mm-malloc-%E7%AE%97%E6%B3%95"><span class="nav-text">6.4 mm_malloc() 算法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-mm-free-%E7%AE%97%E6%B3%95%EF%BC%9A%E5%90%88%E5%B9%B6%E7%9B%B8%E9%82%BB%E7%A9%BA%E9%97%B2%E5%9D%97"><span class="nav-text">6.5 mm_free() 算法：合并相邻空闲块</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-Layer-4%EF%BC%9A%E7%94%A8%E6%88%B7%E5%A0%86%E4%B8%8E%E5%86%85%E6%A0%B8%E5%A0%86"><span class="nav-text">7. Layer 4：用户堆与内核堆</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E5%86%85%E6%A0%B8%E5%A0%86%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">7.1 内核堆初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E7%94%A8%E6%88%B7%E5%A0%86%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">7.2 用户堆初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E6%83%B0%E6%80%A7%E5%88%9D%E5%A7%8B%E5%8C%96%EF%BC%9Aumm-try-initialize"><span class="nav-text">7.3 惰性初始化：umm_try_initialize()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-malloc-%E5%88%B0-sbrk-%E7%9A%84%E8%A7%A6%E5%8F%91%E8%B7%AF%E5%BE%84"><span class="nav-text">7.4 malloc() 到 sbrk() 的触发路径</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%86%85%E5%AD%98%E9%87%8A%E6%94%BE%E4%B8%8E%E8%BF%9B%E7%A8%8B%E9%80%80%E5%87%BA"><span class="nav-text">8. 内存释放与进程退出</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-free-%E8%B7%AF%E5%BE%84"><span class="nav-text">8.1 free() 路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E5%BB%B6%E8%BF%9F%E9%87%8A%E6%94%BE%EF%BC%88mm-delaylist%EF%BC%89"><span class="nav-text">8.2 延迟释放（mm_delaylist）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E8%BF%9B%E7%A8%8B%E9%80%80%E5%87%BA%E6%97%B6%E7%9A%84%E6%95%B4%E4%BD%93%E5%9B%9E%E6%94%B6"><span class="nav-text">8.3 进程退出时的整体回收</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%AF%B9%E6%AF%94%E5%88%86%E6%9E%90"><span class="nav-text">9. 对比分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">10. 关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6%E7%B4%A2%E5%BC%95"><span class="nav-text">11. 参考文件索引</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">41</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/15/Nuttx-Memory-Management/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - Memory Management | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - Memory Management
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-15 22:00:59" itemprop="dateCreated datePublished" datetime="2026-06-15T22:00:59+08:00">2026-06-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从用户 malloc() 到物理页分配再到 L2 页表写入，完整解析 CONFIG_BUILD_KERNEL 模式下 NuttX 四层内存分配器的协作机制。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>本文回答以下问题：用户进程调用 <code>malloc()</code> 时，内存从哪里来？堆空间不够时如何动态扩展？物理页是怎样被分配并映射到用户虚拟地址的？内核堆和用户堆有什么区别？读完后，你将能够从源码级别追踪一次 <code>malloc()</code> 从用户空间穿透到 MMU 页表的完整路径，并理解 NuttX 四层分配器各自的职责与边界。</p>
+<hr>
+<h2 id="1-开篇：KERNEL-模式下内存管理要解决什么问题？"><a href="#1-开篇：KERNEL-模式下内存管理要解决什么问题？" class="headerlink" title="1. 开篇：KERNEL 模式下内存管理要解决什么问题？"></a>1. 开篇：KERNEL 模式下内存管理要解决什么问题？</h2><p>在 FLAT 模式下，所有任务共享一个全局堆——<code>malloc()</code> 直接从这个堆中分配，简单直接。但在 KERNEL 模式下，每个用户进程拥有独立的虚拟地址空间，这引入了三个 FLAT 模式不存在的问题：</p>
+<ol>
+<li><strong>隔离</strong>：进程 A 的堆内存不能被进程 B 访问，需要 MMU 页表保证</li>
+<li><strong>映射</strong>：用户虚拟地址必须映射到物理页才能使用，但物理页的分配和映射是内核特权操作</li>
+<li><strong>扩展</strong>：用户堆初始只有很小的空间，<code>malloc()</code> 超出时需要动态申请新物理页并更新页表</li>
+</ol>
+<p>这三个问题导致 KERNEL 模式需要一个<strong>多层分配器架构</strong>——用户态的 <code>malloc()</code> 最终要穿透多层才能拿到可用内存。</p>
+<p>NuttX 官方文档 <code>Documentation/implementation/memory_configurations.rst</code>（第 508-537 行）对此有明确描述：物理页分配器（page allocator）是 KERNEL 模式下 <code>malloc()</code> 的底层支撑，用户堆通过 <code>sbrk()</code> 接口按需扩展。本文将沿着这条路径逐层深入。</p>
+<p>接下来先看 qemu-armv7a 上的物理内存布局，这是所有分配器的”原材料”。</p>
+<hr>
+<h2 id="2-物理内存布局（qemu-armv7a）"><a href="#2-物理内存布局（qemu-armv7a）" class="headerlink" title="2. 物理内存布局（qemu-armv7a）"></a>2. 物理内存布局（qemu-armv7a）</h2><p>所有虚拟地址最终映射到物理内存。理解物理内存的分区方式，才能理解各层分配器的”地盘”在哪里。</p>
+<h3 id="2-1-qemu-armv7a-内存映射"><a href="#2-1-qemu-armv7a-内存映射" class="headerlink" title="2.1 qemu-armv7a 内存映射"></a>2.1 qemu-armv7a 内存映射</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">Physical Address         Usage                          Size</span><br><span class="line">================         =====                          ====</span><br><span class="line">0x00000000-0x000FFFFF    FLASH (kernel .text/.rodata)   1MB</span><br><span class="line">0x08000000-0x0DFFFFFF    IO/Peripherals (UART,GIC...)   96MB</span><br><span class="line">0x40000000-0x4FFFFFFF    DDR                            256MB</span><br><span class="line">  +-- 0x40000000         Kernel .data/.bss + stacks</span><br><span class="line">  |     ...</span><br><span class="line">  +-- g_idle_topstack    Kernel Heap start</span><br><span class="line">  |     ...              (kmm_malloc allocates here)</span><br><span class="line">  +-- 0x40300000         Page Pool start                ~13MB</span><br><span class="line">  |     ...              (mm_pgalloc allocates here)</span><br><span class="line">  +-- 0x40FFC000         Kernel L1 Page Table           16KB</span><br><span class="line">  +-- 0x41000000         Page Pool end / DDR continues</span><br></pre></td></tr></table></figure>
+
+<p><strong>三个关键区域：</strong></p>
+<table>
+<thead>
+<tr>
+<th>区域</th>
+<th>作用</th>
+<th>分配器</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Kernel Heap</td>
+<td>内核数据结构（TCB、task_group、内核栈等）</td>
+<td><code>kmm_malloc()</code></td>
+</tr>
+<tr>
+<td>Page Pool</td>
+<td>用户进程的物理页（.text、.data、heap、stack、L2 页表）</td>
+<td><code>mm_pgalloc()</code></td>
+</tr>
+<tr>
+<td>Kernel L1 Page Table</td>
+<td>所有进程 L1 页表的模板</td>
+<td>固定，不分配</td>
+</tr>
+</tbody></table>
+<p>Page Pool 是用户进程物理内存的唯一来源——所有用户 <code>.text</code>、<code>.data</code>、堆页、栈页，以及 L2 页表本身，都从这里分配。</p>
+<p>有了物理布局的全貌，下面看 NuttX 如何用四层分配器将物理页面转化为用户可用的虚拟内存。</p>
+<hr>
+<h2 id="3-四层分配器架构总览"><a href="#3-四层分配器架构总览" class="headerlink" title="3. 四层分配器架构总览"></a>3. 四层分配器架构总览</h2><p>单层分配器无法同时满足：字节级精细分配（用户 malloc 16 字节）、页级物理内存管理（4KB 粒度）、MMU 映射操作（写 L2 页表）。NuttX 将这些职责分层，每层只关注一个粒度：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">Layer 4 (top)     malloc(size) / free(ptr)         User API</span><br><span class="line">                       |                            (bytes)</span><br><span class="line">                       v</span><br><span class="line">Layer 3           mm_malloc(USR_HEAP, size)         Core heap manager</span><br><span class="line">                       |                            (chunks, free-list)</span><br><span class="line">                  [heap space exhausted?]</span><br><span class="line">                       | yes</span><br><span class="line">                       v</span><br><span class="line">Layer 2           sbrk(incr) -&gt; pgalloc()           Heap expansion</span><br><span class="line">                       |                            (pages, 4KB)</span><br><span class="line">                       v</span><br><span class="line">Layer 1 (bottom)  mm_pgalloc(npages)                Physical page allocator</span><br><span class="line">                       |                            (bitmap/granule)</span><br><span class="line">                       v</span><br><span class="line">                  L2 PTE write + cache flush         MMU mapping</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>层</th>
+<th>组件</th>
+<th>粒度</th>
+<th>关键文件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>4</td>
+<td><code>malloc()</code>&#x2F;<code>free()</code></td>
+<td>字节</td>
+<td><code>mm/umm_heap/umm_malloc.c</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>mm_malloc()</code>&#x2F;<code>mm_free()</code></td>
+<td>块（chunk）</td>
+<td><code>mm/mm_heap/mm_malloc.c</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>sbrk()</code> → <code>pgalloc()</code></td>
+<td>页（4KB）</td>
+<td><code>mm/umm_heap/umm_sbrk.c</code>, <code>arch/arm/src/armv7-a/arm_pgalloc.c</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>mm_pgalloc()</code> → <code>gran_alloc()</code></td>
+<td>页（4KB）</td>
+<td><code>mm/mm_gran/mm_pgalloc.c</code>, <code>mm/mm_gran/mm_granalloc.c</code></td>
+</tr>
+</tbody></table>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/gement/%E5%9B%9B%E5%B1%82%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B.jpg" alt="四层分配模型"></p>
+<p><strong>实例：<code>malloc(100)</code> 穿透四层的具体地址</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Layer 4: malloc(100) 由用户进程在 VA 0x80201008 处获得 100 字节</span><br><span class="line">Layer 3: mm_malloc() 从堆空闲链表中切出 112 字节 chunk (at VA 0x80201000)</span><br><span class="line">Layer 2: sbrk()/pgalloc() 此前已将 VA 0x80201000 映射到 PA 0x40322000</span><br><span class="line">Layer 1: mm_pgalloc(1) 从 Page Pool bitmap 中分配了 PA 0x40322000</span><br><span class="line">Hardware: L2 PTE l2table[1] = 0x40322000 | 0xFFE (user RW, small page, WB cache)</span><br></pre></td></tr></table></figure>
+
+<p>接下来从底层往上逐层剖析。先从最底层的物理页分配器开始——因为上层最终都依赖它。</p>
+<hr>
+<h2 id="4-Layer-1：物理页分配器（mm-pgalloc-粒度分配器）"><a href="#4-Layer-1：物理页分配器（mm-pgalloc-粒度分配器）" class="headerlink" title="4. Layer 1：物理页分配器（mm_pgalloc + 粒度分配器）"></a>4. Layer 1：物理页分配器（mm_pgalloc + 粒度分配器）</h2><p>用户进程的每个虚拟页（4KB）背后必须有一个物理页支撑。当用户堆扩展、新进程加载 ELF 段、或分配用户栈时，都需要从 Page Pool 中分配物理页。物理页分配器的职责就是管理 Page Pool 中哪些页是空闲的、哪些已被使用。</p>
+<h3 id="4-1-初始化：mm-pginitialize"><a href="#4-1-初始化：mm-pginitialize" class="headerlink" title="4.1 初始化：mm_pginitialize()"></a>4.1 初始化：mm_pginitialize()</h3><p>文件：<code>mm/mm_gran/mm_pgalloc.c:99-103</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">mm_pginitialize</span><span class="params">(FAR <span class="type">void</span> *heap_start, <span class="type">size_t</span> heap_size)</span></span><br><span class="line">&#123;</span><br><span class="line">  g_pgalloc = gran_initialize(heap_start, heap_size, MM_PGSHIFT, MM_PGSHIFT);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>nx_start()</code> 启动时调用：<code>up_allocate_pgheap(&amp;start, &amp;size)</code> 获取 Page Pool 的物理地址和大小，然后 <code>mm_pginitialize()</code> 初始化粒度分配器。<code>MM_PGSHIFT = 12</code>（即 4KB &#x3D; 2^12），粒度和对齐都是一个页。</p>
+<h3 id="4-2-分配：mm-pgalloc"><a href="#4-2-分配：mm-pgalloc" class="headerlink" title="4.2 分配：mm_pgalloc()"></a>4.2 分配：mm_pgalloc()</h3><p>文件：<code>mm/mm_gran/mm_pgalloc.c:148-151</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">uintptr_t</span> <span class="title function_">mm_pgalloc</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> npages)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">return</span> (<span class="type">uintptr_t</span>)gran_alloc(g_pgalloc, (<span class="type">size_t</span>)npages &lt;&lt; MM_PGSHIFT);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回值是<strong>物理地址</strong>——这块内存还没有被映射到任何虚拟地址，不能直接使用。调用者（<code>pgalloc()</code>）负责将其映射到用户虚拟地址空间。</p>
+<h3 id="4-3-粒度分配器的-bitmap-算法"><a href="#4-3-粒度分配器的-bitmap-算法" class="headerlink" title="4.3 粒度分配器的 bitmap 算法"></a>4.3 粒度分配器的 bitmap 算法</h3><p>文件：<code>mm/mm_gran/mm_gran.h:68-81</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">gran_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">uint8_t</span>    log2gran;   <span class="comment">/* log2(granule size) = 12 */</span></span><br><span class="line">  <span class="type">uint16_t</span>   ngranules;  <span class="comment">/* Page Pool 中的总页数 */</span></span><br><span class="line">  <span class="type">uintptr_t</span>  heapstart;  <span class="comment">/* Page Pool 起始物理地址 */</span></span><br><span class="line">  <span class="type">uint32_t</span>   gat[<span class="number">1</span>];     <span class="comment">/* Granule Allocation Table (bitmap) */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>GAT（Granule Allocation Table）</strong> 是一个位图，每个 bit 对应一个 4KB 页：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">Page Pool: 13MB ÷ 4KB = 3328 pages → 3328 bits → 104 个 uint32_t</span><br><span class="line"></span><br><span class="line">gat[0]  = 0b11111111_11111111_11111111_11110000  (前28页已用，后4页空闲)</span><br><span class="line">gat[1]  = 0b00000000_00000000_00000000_00000000  (全部空闲)</span><br><span class="line">...</span><br><span class="line">gat[103]= 0b00000000_00000000_00000000_00000011  (最后2页已用：L1页表)</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：分配 1 页的过程</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">gran_alloc(g_pgalloc, 4096):</span><br><span class="line">  ngran = 4096 &gt;&gt; 12 = 1 (需要 1 个连续粒度)</span><br><span class="line">  gran_search(g_pgalloc, 1):</span><br><span class="line">    扫描 gat[] 位图，找到第一个值为 0 的 bit</span><br><span class="line">    假设找到 gat[1] 的 bit 0 → 对应物理页 index = 32</span><br><span class="line">  gran_set(g_pgalloc, 32, 1):</span><br><span class="line">    gat[1] |= (1 &lt;&lt; 0)  → 标记为已分配</span><br><span class="line">  返回物理地址 = heapstart + 32 * 4096 = 0x40300000 + 0x20000 = 0x40320000</span><br></pre></td></tr></table></figure>
+
+<p><strong>对比 Linux buddy system</strong>：Linux 使用 buddy allocator（O(1) 分配、支持多种 order），而 NuttX 用线性扫描位图（O(n) 最坏情况）。为什么？因为嵌入式系统的 Page Pool 通常很小（几千页），线性扫描足够快，且位图实现极简、内存开销最低（每页仅 1 bit）。</p>
+<p>物理页分配器解决了”从哪里拿物理页”的问题。下一步是把这些物理页映射到用户虚拟地址——这是 Layer 2 的职责。</p>
+<hr>
+<h2 id="5-Layer-2：堆扩展（sbrk-→-pgalloc-→-L2-页表）"><a href="#5-Layer-2：堆扩展（sbrk-→-pgalloc-→-L2-页表）" class="headerlink" title="5. Layer 2：堆扩展（sbrk → pgalloc → L2 页表）"></a>5. Layer 2：堆扩展（sbrk → pgalloc → L2 页表）</h2><p>用户堆初始只有很小的空间（甚至可能是 0）。当 <code>mm_malloc()</code> 发现空闲链表中没有足够大的块时，它需要向操作系统请求更多内存。在 Unix&#x2F;Linux 中这是 <code>sbrk()</code> 或 <code>mmap()</code> 的职责。NuttX KERNEL 模式实现了 <code>sbrk()</code>。</p>
+<h3 id="5-1-sbrk-实现"><a href="#5-1-sbrk-实现" class="headerlink" title="5.1 sbrk() 实现"></a>5.1 sbrk() 实现</h3><p>文件：<code>mm/umm_heap/umm_sbrk.c:76-126</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">FAR <span class="type">void</span> *<span class="title function_">sbrk</span><span class="params">(<span class="type">intptr_t</span> incr)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">uintptr_t</span> brkaddr;</span><br><span class="line">  <span class="type">unsigned</span> <span class="type">int</span> pgincr;</span><br><span class="line">  <span class="type">size_t</span> bytesize;</span><br><span class="line"></span><br><span class="line">  umm_try_initialize();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 获取当前堆的 break 地址（堆末尾）*/</span></span><br><span class="line">  brkaddr = (<span class="type">uintptr_t</span>)mm_brkaddr(USR_HEAP, <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (incr &gt; <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 将增量转换为页数（向上取整）*/</span></span><br><span class="line">      pgincr = MM_NPAGES(incr);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 分配物理页并映射到 break 地址 */</span></span><br><span class="line">      allocbase = pgalloc(brkaddr, pgincr);</span><br><span class="line">      <span class="keyword">if</span> (allocbase == <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="keyword">return</span> (FAR <span class="type">void</span> *)<span class="number">-1</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 扩展堆管理器的可用区域 */</span></span><br><span class="line">      bytesize = pgincr &lt;&lt; MM_PGSHIFT;</span><br><span class="line">      mm_extend(USR_HEAP, (FAR <span class="type">void</span> *)allocbase, bytesize, <span class="number">0</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> (FAR <span class="type">void</span> *)brkaddr;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>sbrk()</code> 做三件事：</p>
+<ol>
+<li><strong>计算需要多少页</strong>：<code>MM_NPAGES(incr)</code> 将字节数向上取整到页数</li>
+<li>**调用 <code>pgalloc()</code>**：分配物理页 + 映射到虚拟地址</li>
+<li>**调用 <code>mm_extend()</code>**：告诉堆管理器”你有更多空间可用了”</li>
+</ol>
+<h3 id="5-2-pgalloc-：物理页分配-MMU-映射的桥梁"><a href="#5-2-pgalloc-：物理页分配-MMU-映射的桥梁" class="headerlink" title="5.2 pgalloc()：物理页分配 + MMU 映射的桥梁"></a>5.2 pgalloc()：物理页分配 + MMU 映射的桥梁</h3><p>文件：<code>arch/arm/src/armv7-a/arm_pgalloc.c:178-254</code>（以下为关键路径摘录并添加 Step 注释标注，原函数含调试日志和断言共 76 行）</p>
+<p>这是 KERNEL 模式内存管理的<strong>核心函数</strong>——它将 Layer 1（物理页分配）和 MMU 映射连接起来：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">uintptr_t</span> <span class="title function_">pgalloc</span><span class="params">(<span class="type">uintptr_t</span> brkaddr, <span class="type">unsigned</span> <span class="type">int</span> npages)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">tcb</span> =</span> this_task();</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">arch_addrenv_s</span> *<span class="title">addrenv</span> =</span> &amp;tcb-&gt;addrenv_own-&gt;addrenv;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* brkaddr = 0 表示堆还没有分配过 */</span></span><br><span class="line">  <span class="keyword">if</span> (brkaddr == <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      brkaddr = CONFIG_ARCH_HEAP_VBASE;  <span class="comment">/* 0x80200000 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (; npages &gt; <span class="number">0</span>; npages--)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* Step 1: 确保该虚拟地址所在的 1MB section 有 L2 页表 */</span></span><br><span class="line">      paddr = get_pgtable(addrenv, brkaddr);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Step 2: 获取 L2 页表的虚拟地址（内核可以直接访问）*/</span></span><br><span class="line">      l2table = (<span class="type">uint32_t</span> *)arm_pgvaddr(paddr);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Step 3: 从 Page Pool 分配一个数据物理页 */</span></span><br><span class="line">      paddr = mm_pgalloc(<span class="number">1</span>);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Step 4: 计算该虚拟地址在 L2 页表中的索引 */</span></span><br><span class="line">      index = (brkaddr &amp; <span class="number">0x000ff000</span>) &gt;&gt; <span class="number">12</span>;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Step 5: 写入 L2 页表条目（建立 VA → PA 映射）*/</span></span><br><span class="line">      l2table[index] = paddr | MMU_L2_UDATAFLAGS;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Step 6: 刷新 D-Cache（确保 PTE 对 MMU 硬件可见）*/</span></span><br><span class="line">      up_flush_dcache((<span class="type">uintptr_t</span>)&amp;l2table[index],</span><br><span class="line">                      (<span class="type">uintptr_t</span>)&amp;l2table[index] + <span class="keyword">sizeof</span>(<span class="type">uint32_t</span>));</span><br><span class="line"></span><br><span class="line">      brkaddr += MM_PGSIZE;  <span class="comment">/* 前进到下一页 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> brkaddr;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：用户堆从 0x80200000 扩展一页到 0x80201000</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">pgalloc(0x80200000, 1):</span><br><span class="line">  Step 1: get_pgtable(addrenv, 0x80200000)</span><br><span class="line">          L1 index = 0x80200000 &gt;&gt; 20 = 0x802</span><br><span class="line">          查 addrenv-&gt;l1table[0x802]</span><br><span class="line">          如果非空 → 提取 L2 页表物理地址</span><br><span class="line">          如果为空 → alloc_pgtable():</span><br><span class="line">            mm_pgalloc(1) = 0x40320000 (L2 页表用的物理页)</span><br><span class="line">            memset(arm_pgvaddr(0x40320000), 0, 1024)</span><br><span class="line">            l1table[0x802] = 0x40320000 | MMU_L1_PGTABFLAGS</span><br><span class="line">            返回 0x40320000</span><br><span class="line"></span><br><span class="line">  Step 2: l2table = arm_pgvaddr(0x40320000) → 得到内核虚拟地址</span><br><span class="line"></span><br><span class="line">  Step 3: mm_pgalloc(1) = 0x40321000 (数据页物理地址)</span><br><span class="line"></span><br><span class="line">  Step 4: index = (0x80200000 &amp; 0x000ff000) &gt;&gt; 12 = 0</span><br><span class="line"></span><br><span class="line">  Step 5: l2table[0] = 0x40321000 | MMU_L2_UDATAFLAGS</span><br><span class="line">          MMU_L2_UDATAFLAGS = PTE_TYPE_SMALL | PTE_WRITE_BACK | PTE_AP_RW01</span><br><span class="line">          最终 PTE 值 = 0x40321FFE (小页、回写缓存、用户可读写)</span><br><span class="line"></span><br><span class="line">  Step 6: flush dcache</span><br><span class="line"></span><br><span class="line">  返回 0x80201000 (下一个可用的虚拟地址)</span><br></pre></td></tr></table></figure>
+
+<p>此后，用户进程访问 VA 0x80200000-0x80200FFF 时，MMU 会通过 L1→L2 查表，找到物理页 0x40321000 上的数据。</p>
+<p><code>pgalloc()</code> 是 Layer 2 的核心。它上面是堆管理器（Layer 3），下面是物理页分配器（Layer 1）。下一节看堆管理器如何管理已映射的虚拟内存。</p>
+<hr>
+<h2 id="6-Layer-3：核心堆管理器（mm-heap）"><a href="#6-Layer-3：核心堆管理器（mm-heap）" class="headerlink" title="6. Layer 3：核心堆管理器（mm_heap）"></a>6. Layer 3：核心堆管理器（mm_heap）</h2><p><code>pgalloc()</code> 以页（4KB）为粒度。但用户可能只需要 16 字节。堆管理器的职责是在已映射的虚拟页内做<strong>字节级细分</strong>——将 4KB 页切割为多个小块，按需分配给用户，并在释放时合并回大块。</p>
+<h3 id="6-1-核心算法原理（选读）"><a href="#6-1-核心算法原理（选读）" class="headerlink" title="6.1 核心算法原理（选读）"></a>6.1 核心算法原理（选读）</h3><p>mm_heap 的算法可以用三个关键词概括：<strong>块（chunk）、桶（bucket）、合并&#x2F;分裂（coalesce&#x2F;split）</strong>。</p>
+<p><strong>原理一：整块内存被切成”块”，每块前面贴个标签</strong></p>
+<p>堆就是一段连续内存，被切成大小不等的块。每块开头有一个 8 字节的 header，记录本块大小和分配状态。已分配块的用户数据紧跟在 header 后面；空闲块的 header 之后是链表指针（<code>flink</code>&#x2F;<code>blink</code>），用于串入空闲链表。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Heap memory (one contiguous region):</span><br><span class="line"></span><br><span class="line">+--------+------------+--------+-------------------+--------+</span><br><span class="line">| header | user data  | header |   free space      | header |</span><br><span class="line">| 8B     | (100B)     | 8B     |   (flink/blink +  | 8B     |</span><br><span class="line">| ALLOC  |            | FREE   |    unused bytes)  | ALLOC  |</span><br><span class="line">+--------+------------+--------+-------------------+--------+</span><br><span class="line"> Chunk A (112B total)   Chunk B (256B total)         Guard</span><br></pre></td></tr></table></figure>
+
+<p><strong>原理二：空闲块按大小分桶索引</strong></p>
+<p>空闲块按大小分散到多个”桶”中，但所有桶<strong>串在同一条双向链表上</strong>——<code>mm_nodelist[]</code> 的每个元素是链表中的哨兵节点（size&#x3D;0），真正的空闲块穿插在哨兵之间，整体按大小升序排列：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">nodelist[0] &lt;-&gt; [16B] &lt;-&gt; [24B] &lt;-&gt; nodelist[1] &lt;-&gt; [32B] &lt;-&gt; [48B] &lt;-&gt; nodelist[2] &lt;-&gt; [80B] &lt;-&gt; ...</span><br><span class="line"> (size=0)                            (size=0)                            (size=0)</span><br></pre></td></tr></table></figure>
+
+<p><code>malloc(100)</code> 时，计算 <code>alignsize = 112</code>，定位到桶 3（&gt;&#x3D; 128B），从 <code>nodelist[3].flink</code> 开始遍历。如果桶 3 为空，循环自动穿过下一个哨兵进入更大的桶——无需额外跳桶逻辑。找到第一个 <code>&gt;= 112</code> 的块就是 best-fit。</p>
+<p><strong>原理三：分裂与合并</strong></p>
+<ul>
+<li><strong>分裂（split）</strong>：找到的空闲块太大时（比如要 112B 但找到 256B），切成两半——前半给用户，后半作为新空闲块放回对应桶。</li>
+<li><strong>合并（coalesce）</strong>：释放时检查物理相邻的前后块是否也是空闲的，如果是就合并成一个更大的空闲块，放入更大的桶。这减少了碎片。</li>
+</ul>
+<p><strong>关键问题：空闲链表按大小排序，怎么找到物理相邻的块？</strong></p>
+<p>答案是：<strong>不通过空闲链表找邻居</strong>。每个块的 header 中有 <code>size</code>（本块大小）和 <code>preceding</code>（前一块大小）两个字段，构成”边界标签（boundary tag）”。通过指针算术 O(1) 直接跳到物理邻居：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">preceding   size        preceding   size        preceding   size</span><br><span class="line">+--------+--------+    +--------+--------+    +--------+--------+</span><br><span class="line">| Prev chunk      |    |  Current chunk  |    | Next chunk      |</span><br><span class="line">|                 |    |                 |    |                 |</span><br><span class="line">+-----------------+    +-----------------+    +-----------------+</span><br><span class="line">^                      ^                      ^</span><br><span class="line">|                      |                      |</span><br><span class="line">|   prev = node - node-&gt;preceding            next = node + node-&gt;size</span><br><span class="line">|          (向前跳 preceding 字节)                    (向后跳 size 字节)</span><br></pre></td></tr></table></figure>
+
+<p>所以合并时：</p>
+<ul>
+<li>后邻居：<code>next = (char *)node + node-&gt;size</code> — 直接算出地址</li>
+<li>前邻居：<code>prev = (char *)node - node-&gt;preceding</code> — 直接算出地址</li>
+<li>检查邻居是否空闲：看 <code>next-&gt;size</code> 的 <code>MM_ALLOC_BIT</code>，或本块 <code>size</code> 的 <code>MM_PREVFREE_BIT</code></li>
+</ul>
+<p><strong>空闲链表和物理邻居各管各的事：</strong></p>
+<table>
+<thead>
+<tr>
+<th>机制</th>
+<th>用途</th>
+<th>寻址方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>flink</code>&#x2F;<code>blink</code> 空闲链表</td>
+<td>malloc 时找可用块</td>
+<td>按大小遍历</td>
+</tr>
+<tr>
+<td><code>size</code>&#x2F;<code>preceding</code> 边界标签</td>
+<td>free 时找物理邻居做合并</td>
+<td>指针算术（O(1)）</td>
+</tr>
+</tbody></table>
+<p><strong>与 FreeRTOS heap_4 的关系</strong>：底层的块管理（header、边界标签、合并、分裂）思路一致，NuttX 在此基础上加了分桶索引和 best-fit 策略，提升了搜索效率和碎片控制。</p>
+<p>理解了这三个原理，下面看具体的数据结构如何支撑它们。</p>
+<h3 id="6-2-数据结构"><a href="#6-2-数据结构" class="headerlink" title="6.2 数据结构"></a>6.2 数据结构</h3><p>文件：<code>mm/mm_heap/mm.h:175-205</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* 已分配块的头部（每个分配的内存块前面都有这个） */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mm_allocnode_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">mmsize_t</span> preceding;    <span class="comment">/* 物理前一个块的大小 */</span></span><br><span class="line">  <span class="type">mmsize_t</span> size;         <span class="comment">/* 本块大小（低2位复用为标志位）*/</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 空闲块的头部（在 allocnode 基础上增加链表指针）*/</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">mmsize_t</span> preceding;</span><br><span class="line">  <span class="type">mmsize_t</span> size;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span> *<span class="title">flink</span>;</span>  <span class="comment">/* 空闲链表前向指针 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span> *<span class="title">blink</span>;</span>  <span class="comment">/* 空闲链表后向指针 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>size</code> 字段的低 2 位被复用为标志（文件：<code>mm/mm_heap/mm.h:128-130</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> MM_ALLOC_BIT     0x1   <span class="comment">/* bit 0: 本块已分配 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> MM_PREVFREE_BIT  0x2   <span class="comment">/* bit 1: 物理前一个块是空闲的 */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>堆本身的结构（文件：<code>mm/mm_heap/mm.h:221-277</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mm_heap_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">mutex_t</span> mm_lock;                                    <span class="comment">/* 堆互斥锁 */</span></span><br><span class="line">  <span class="type">size_t</span> mm_heapsize;                                 <span class="comment">/* 堆总大小 */</span></span><br><span class="line">  <span class="type">size_t</span> mm_curused;                                  <span class="comment">/* 当前使用量 */</span></span><br><span class="line">  <span class="type">size_t</span> mm_maxused;                                  <span class="comment">/* 峰值使用量 */</span></span><br><span class="line"></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_allocnode_s</span> *<span class="title">mm_heapstart</span>[<span class="title">CONFIG_MM_REGIONS</span>];</span> <span class="comment">/* 每区域起始哨兵 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_allocnode_s</span> *<span class="title">mm_heapend</span>[<span class="title">CONFIG_MM_REGIONS</span>];</span>   <span class="comment">/* 每区域结束哨兵 */</span></span><br><span class="line"></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span> <span class="title">mm_nodelist</span>[<span class="title">MM_NNODES</span>];</span>        <span class="comment">/* 分桶空闲链表 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-分桶空闲链表"><a href="#6-3-分桶空闲链表" class="headerlink" title="6.3 分桶空闲链表"></a>6.3 分桶空闲链表</h3><p><code>mm_nodelist[]</code> 看起来是一个数组，但实际上所有桶<strong>串在同一条双向链表上</strong>。<code>mm_nodelist[0]</code> ~ <code>mm_nodelist[N]</code> 本身是链表中的<strong>哨兵节点</strong>（size&#x3D;0），真正的空闲块按大小升序穿插其间：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">mm_nodelist[0] &lt;-&gt; [16B] &lt;-&gt; [24B] &lt;-&gt; mm_nodelist[1] &lt;-&gt; [32B] &lt;-&gt; [48B] &lt;-&gt; mm_nodelist[2] &lt;-&gt; [80B] &lt;-&gt; ... -&gt; NULL</span><br><span class="line">   (size=0)                               (size=0)                               (size=0)</span><br><span class="line">   sentinel                               sentinel                               sentinel</span><br></pre></td></tr></table></figure>
+
+<p>桶的划分基于 2 的幂次：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">mm_nodelist[0]:  16~31B 的空闲块在这个哨兵之后</span><br><span class="line">mm_nodelist[1]:  32~63B 的空闲块在这个哨兵之后</span><br><span class="line">mm_nodelist[2]:  64~127B 的空闲块在这个哨兵之后</span><br><span class="line">...</span><br><span class="line">mm_nodelist[MM_NNODES-1]: &gt;= 4MB 的空闲块</span><br></pre></td></tr></table></figure>
+
+<p>这个设计的巧妙之处：<code>malloc()</code> 从 <code>mm_nodelist[ndx].flink</code> 开始遍历，如果当前桶没有够大的块，循环会穿过下一个哨兵（size&#x3D;0，不满足条件，跳过）自动进入更大的桶继续搜索——无需额外的”找下一个桶”逻辑。</p>
+<p>下图展示了堆的物理内存布局（左）和空闲链表组织（右）的对应关系，以及边界标签导航（底部）：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/gement/mm_heap.png" alt="mm_heap"></p>
+<h3 id="6-4-mm-malloc-算法"><a href="#6-4-mm-malloc-算法" class="headerlink" title="6.4 mm_malloc() 算法"></a>6.4 mm_malloc() 算法</h3><p>文件：<code>mm/mm_heap/mm_malloc.c:170-413</code>（以下为核心逻辑摘录，原函数含锁处理、mempool 快路径等共 243 行）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line">FAR <span class="type">void</span> *<span class="title function_">mm_malloc</span><span class="params">(FAR <span class="keyword">struct</span> mm_heap_s *heap, <span class="type">size_t</span> size)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">size_t</span> alignsize;</span><br><span class="line">  <span class="type">int</span> ndx;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span> *<span class="title">node</span>;</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 对齐并加上头部开销 */</span></span><br><span class="line">  alignsize = MM_ALIGN_UP(size + MM_ALLOCNODE_OVERHEAD);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 计算起始搜索桶 */</span></span><br><span class="line">  ndx = mm_size2ndx(alignsize);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 从桶 ndx 开始搜索——所有桶串在同一条链表上，</span></span><br><span class="line"><span class="comment">   * mm_nodelist[] 哨兵节点 size=0 会被自动跳过，</span></span><br><span class="line"><span class="comment">   * 因此这个循环会自动穿越到更大的桶继续搜索 */</span></span><br><span class="line">  <span class="keyword">for</span> (node = heap-&gt;mm_nodelist[ndx].flink; node; node = node-&gt;flink)</span><br><span class="line">    &#123;</span><br><span class="line">      nodesize = MM_SIZEOF_NODE(node);</span><br><span class="line">      <span class="keyword">if</span> (nodesize &gt;= alignsize)</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="keyword">break</span>;  <span class="comment">/* best-fit: 第一个满足的就是最小够用的 */</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (node)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 从空闲链表摘除 */</span></span><br><span class="line">      node-&gt;blink-&gt;flink = node-&gt;flink;</span><br><span class="line">      <span class="keyword">if</span> (node-&gt;flink) node-&gt;flink-&gt;blink = node-&gt;blink;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 如果剩余空间 &gt;= MM_MIN_CHUNK，分裂出一个新的空闲块 */</span></span><br><span class="line">      remaining = nodesize - alignsize;</span><br><span class="line">      <span class="keyword">if</span> (remaining &gt;= MM_MIN_CHUNK)</span><br><span class="line">        &#123;</span><br><span class="line">          remainder = (FAR <span class="keyword">struct</span> mm_freenode_s *)((<span class="type">char</span> *)node + alignsize);</span><br><span class="line">          remainder-&gt;size = remaining | MM_PREVFREE_BIT;</span><br><span class="line">          mm_addfreechunk(heap, remainder);</span><br><span class="line">          node-&gt;size = alignsize | MM_ALLOC_BIT;</span><br><span class="line">        &#125;</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">          node-&gt;size |= MM_ALLOC_BIT;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">      <span class="keyword">return</span> (<span class="type">char</span> *)node + MM_SIZEOF_ALLOCNODE;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> <span class="literal">NULL</span>;  <span class="comment">/* 堆空间不足，调用者会触发 sbrk() */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：malloc(100) 的内部过程</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">(1) alignsize = ALIGN_UP(100 + 8) = ALIGN_UP(108) = 112 bytes (8字节对齐)</span><br><span class="line">(2) ndx = mm_size2ndx(112) = 3 (对应 &gt;= 64 bytes 的桶)</span><br><span class="line">(3) 搜索 mm_nodelist[3].flink → 找到一个 256 字节的空闲块</span><br><span class="line">(4) 分裂：前 112 字节标记为 ALLOC，后 144 字节作为新空闲块放回链表</span><br><span class="line">(5) 返回指针 = 块地址 + 8 (跳过 allocnode 头部)</span><br><span class="line"></span><br><span class="line">Memory layout:</span><br><span class="line">+------------------+------------------+-------------------+</span><br><span class="line">| allocnode header | user data (100B) | padding (4B)      |</span><br><span class="line">| (8 bytes)        |                  | (to align 112)    |</span><br><span class="line">| size=112|ALLOC   |                  |                   |</span><br><span class="line">+------------------+------------------+-------------------+</span><br><span class="line">|&lt;--- 112 bytes total (including header) ---&gt;|</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-5-mm-free-算法：合并相邻空闲块"><a href="#6-5-mm-free-算法：合并相邻空闲块" class="headerlink" title="6.5 mm_free() 算法：合并相邻空闲块"></a>6.5 mm_free() 算法：合并相邻空闲块</h3><p>文件：<code>mm/mm_heap/mm_free.c:84-221</code></p>
+<p>释放时尝试与物理相邻的前后空闲块合并，减少碎片：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">mm_delayfree</span><span class="params">(FAR <span class="keyword">struct</span> mm_heap_s *heap, FAR <span class="type">void</span> *mem, <span class="type">bool</span> delay)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span> *<span class="title">node</span>;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span> *<span class="title">next</span>;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mm_freenode_s</span> *<span class="title">prev</span>;</span></span><br><span class="line"></span><br><span class="line">  node = (FAR <span class="keyword">struct</span> mm_freenode_s *)((<span class="type">char</span> *)mem - MM_SIZEOF_ALLOCNODE);</span><br><span class="line">  node-&gt;size &amp;= ~MM_ALLOC_BIT;  <span class="comment">/* 清除 ALLOC 标志 */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 尝试与后面的块合并 */</span></span><br><span class="line">  next = (FAR <span class="keyword">struct</span> mm_freenode_s *)((<span class="type">char</span> *)node + MM_SIZEOF_NODE(node));</span><br><span class="line">  <span class="keyword">if</span> ((next-&gt;size &amp; MM_ALLOC_BIT) == <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* next 是空闲的，从链表摘除后合并 */</span></span><br><span class="line">      mm_unlinkfree(heap, next);</span><br><span class="line">      node-&gt;size += MM_SIZEOF_NODE(next);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 尝试与前面的块合并 */</span></span><br><span class="line">  <span class="keyword">if</span> ((node-&gt;size &amp; MM_PREVFREE_BIT) != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      prev = (FAR <span class="keyword">struct</span> mm_freenode_s *)((<span class="type">char</span> *)node - node-&gt;preceding);</span><br><span class="line">      mm_unlinkfree(heap, prev);</span><br><span class="line">      prev-&gt;size += MM_SIZEOF_NODE(node);</span><br><span class="line">      node = prev;  <span class="comment">/* 合并后 node 指向更大的块 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 将合并后的块插入空闲链表 */</span></span><br><span class="line">  mm_addfreechunk(heap, node);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>合并使得释放的内存可以被后续更大的分配重用，避免出现大量无法使用的小碎片。</p>
+<p>堆管理器负责虚拟内存内的字节级分配。当它空间不足时，会调用上面的 <code>sbrk()</code> 扩展。接下来看上层的用户堆和内核堆如何使用这个核心管理器。</p>
+<hr>
+<h2 id="7-Layer-4：用户堆与内核堆"><a href="#7-Layer-4：用户堆与内核堆" class="headerlink" title="7. Layer 4：用户堆与内核堆"></a>7. Layer 4：用户堆与内核堆</h2><ul>
+<li><strong>内核堆（kmm）</strong>：内核代码分配 TCB、task_group、内核栈、驱动缓冲区等。位于内核地址空间（恒等映射的 DDR），所有进程可见。</li>
+<li><strong>用户堆（umm）</strong>：每个用户进程自己的 <code>malloc()</code>。位于用户虚拟地址空间（0x80200000+），进程间隔离。</li>
+</ul>
+<h3 id="7-1-内核堆初始化"><a href="#7-1-内核堆初始化" class="headerlink" title="7.1 内核堆初始化"></a>7.1 内核堆初始化</h3><p>文件：<code>mm/kmm_heap/kmm_initialize.c:61-70</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">kmm_initialize</span><span class="params">(FAR <span class="type">void</span> *heap_start, <span class="type">size_t</span> heap_size)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">mm_heap_config_s</span> <span class="title">config</span>;</span></span><br><span class="line">  config.name  = <span class="string">&quot;Kmem&quot;</span>;</span><br><span class="line">  config.start = heap_start;</span><br><span class="line">  config.size  = heap_size;</span><br><span class="line">  g_kmmheap = mm_initialize_pool(&amp;config, <span class="literal">NULL</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在 <code>nx_start()</code> 中被调用：<code>up_allocate_kheap()</code> 确定内核堆的起止范围（从 <code>g_idle_topstack</code> 到 Page Pool 起始之前），然后 <code>kmm_initialize()</code> 创建堆。</p>
+<p><code>kmm_malloc(size)</code> 就是 <code>mm_malloc(g_kmmheap, size)</code> 的简单包装——不涉及页分配或 MMU 操作，因为内核堆的虚拟地址就是物理地址（恒等映射）。</p>
+<h3 id="7-2-用户堆初始化"><a href="#7-2-用户堆初始化" class="headerlink" title="7.2 用户堆初始化"></a>7.2 用户堆初始化</h3><p>文件：<code>mm/umm_heap/umm_initialize.c:87-100</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">umm_initialize</span><span class="params">(FAR <span class="type">void</span> *heap_start, <span class="type">size_t</span> heap_size)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">mm_heap_config_s</span> <span class="title">config</span>;</span></span><br><span class="line">  config.start = heap_start;</span><br><span class="line">  config.size  = heap_size;</span><br><span class="line">  USR_HEAP = mm_initialize_pool(&amp;config, <span class="literal">NULL</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>USR_HEAP</code> 的解析</strong>（文件：<code>include/nuttx/mm/mm.h:119</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> USR_HEAP (ARCH_DATA_RESERVE-&gt;ar_usrheap)</span></span><br></pre></td></tr></table></figure>
+
+<p>在 KERNEL 模式下，<code>USR_HEAP</code> 指向进程 <code>.data</code> 段开头保留区域中的堆指针。每个进程有自己的 <code>.data</code> 段（映射到不同物理页），所以每个进程有自己的 <code>USR_HEAP</code>。</p>
+<h3 id="7-3-惰性初始化：umm-try-initialize"><a href="#7-3-惰性初始化：umm-try-initialize" class="headerlink" title="7.3 惰性初始化：umm_try_initialize()"></a>7.3 惰性初始化：umm_try_initialize()</h3><p>文件：<code>mm/umm_heap/umm_initialize.c:117-146</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">umm_try_initialize</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">uintptr_t</span> allocbase;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (USR_HEAP != <span class="literal">NULL</span>)</span><br><span class="line">    <span class="keyword">return</span>;  <span class="comment">/* 已初始化 */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 分配第一个堆页 */</span></span><br><span class="line">  allocbase = pgalloc(<span class="number">0</span>, <span class="number">1</span>);  <span class="comment">/* brkaddr=0 → 使用 CONFIG_ARCH_HEAP_VBASE */</span></span><br><span class="line">  DEBUGASSERT(allocbase != <span class="number">0</span>);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 在该页上初始化堆管理结构 */</span></span><br><span class="line">  umm_initialize((FAR <span class="type">void</span> *)allocbase, CONFIG_MM_PGSIZE);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>用户进程首次 <code>malloc()</code> 时触发：分配第一个物理页映射到 <code>CONFIG_ARCH_HEAP_VBASE</code>（0x80200000），在上面初始化 <code>mm_heap_s</code> 结构。之后的 <code>malloc()</code> 就在这个堆上分配，空间不够时 <code>sbrk()</code> 继续扩展。</p>
+<h3 id="7-4-malloc-到-sbrk-的触发路径"><a href="#7-4-malloc-到-sbrk-的触发路径" class="headerlink" title="7.4 malloc() 到 sbrk() 的触发路径"></a>7.4 malloc() 到 sbrk() 的触发路径</h3><p>文件：<code>mm/umm_heap/umm_memalign.c:54</code>（KERNEL 模式下 <code>malloc()</code> 实际调用 <code>memalign()</code>）</p>
+<p>当 <code>mm_malloc()</code> 返回 NULL 时：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">FAR <span class="type">void</span> *<span class="title function_">memalign</span><span class="params">(<span class="type">size_t</span> alignment, <span class="type">size_t</span> size)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="type">void</span> *ret;</span><br><span class="line"></span><br><span class="line">  umm_try_initialize();</span><br><span class="line">  ret = mm_memalign(USR_HEAP, alignment, size);</span><br><span class="line">  <span class="keyword">if</span> (ret == <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 堆空间不够，扩展 */</span></span><br><span class="line">      <span class="keyword">if</span> (sbrk(size &lt; <span class="number">1</span> ? <span class="number">1</span> : size) != (FAR <span class="type">void</span> *)<span class="number">-1</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          ret = mm_memalign(USR_HEAP, alignment, size);  <span class="comment">/* 重试 */</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>整个链条：<code>malloc(100)</code> → <code>memalign(8, 100)</code> → <code>mm_memalign()</code> 返回 NULL → <code>sbrk(100)</code> → <code>pgalloc()</code> 分配物理页 + 映射 → <code>mm_extend()</code> 扩展堆 → 重试 <code>mm_memalign()</code> 成功。</p>
+<p>下图展示了堆空间不足时 <code>malloc()</code> 触发扩展的完整时序：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/gement/malloc%E5%AE%8C%E6%95%B4%E8%B7%AF%E5%BE%84.png" alt="malloc完整路径"></p>
+<hr>
+<h2 id="8-内存释放与进程退出"><a href="#8-内存释放与进程退出" class="headerlink" title="8. 内存释放与进程退出"></a>8. 内存释放与进程退出</h2><p>分配只是内存管理的一半。如果释放逻辑有缺陷（碎片化、无法合并、泄漏），长时间运行的嵌入式系统会逐渐耗尽内存。此外，KERNEL 模式下进程退出时的”批量回收”机制是其相比 FLAT 模式的重要优势——理解它才能明白为什么 KERNEL 模式不怕用户进程的内存泄漏。</p>
+<h3 id="8-1-free-路径"><a href="#8-1-free-路径" class="headerlink" title="8.1 free() 路径"></a>8.1 free() 路径</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">free(ptr)</span><br><span class="line">  → mm_free(USR_HEAP, ptr)</span><br><span class="line">    → mm_delayfree(heap, ptr, delay)</span><br><span class="line">      → 清除 ALLOC 位</span><br><span class="line">      → 合并前后空闲块</span><br><span class="line">      → mm_addfreechunk(heap, node)</span><br></pre></td></tr></table></figure>
+
+<p>释放的内存回到空闲链表，可被后续 <code>malloc()</code> 重用。注意：<strong>释放不会归还物理页给 Page Pool</strong>——已映射的页永远属于该进程的堆，直到进程退出。</p>
+<h3 id="8-2-延迟释放（mm-delaylist）"><a href="#8-2-延迟释放（mm-delaylist）" class="headerlink" title="8.2 延迟释放（mm_delaylist）"></a>8.2 延迟释放（mm_delaylist）</h3><p>文件：<code>mm/mm_heap/mm_free.c:84-100</code></p>
+<p>如果 <code>free()</code> 时无法获取堆的 mutex（例如在中断上下文中被调用），内存块被放入 per-CPU 的 <code>mm_delaylist[]</code>，等下次 <code>malloc()</code> 时批量处理：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (mm_lock(heap) &lt; <span class="number">0</span> || delay)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="comment">/* 暂时放入延迟列表 */</span></span><br><span class="line">    node-&gt;flink = heap-&gt;mm_delaylist[this_cpu()];</span><br><span class="line">    heap-&gt;mm_delaylist[this_cpu()] = node;</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-3-进程退出时的整体回收"><a href="#8-3-进程退出时的整体回收" class="headerlink" title="8.3 进程退出时的整体回收"></a>8.3 进程退出时的整体回收</h3><p>当进程的最后一个线程退出时，整个地址环境被销毁：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">addrenv_destroy()</span><br><span class="line">  → up_addrenv_destroy(addrenv)</span><br><span class="line">    → arm_addrenv_destroy_region(l1table, ..., vaddr)  [对每个区域]</span><br><span class="line">       → 遍历 L2 页表的每个非空条目</span><br><span class="line">         → mm_pgfree(paddr, 1)  [归还物理页给 Page Pool]</span><br><span class="line">       → mm_pgfree(l2table_paddr, 1)  [归还 L2 页表页]</span><br><span class="line">    → mm_pgfree(l1table_paddr, 4)  [归还 L1 页表]</span><br></pre></td></tr></table></figure>
+
+<p>进程退出时不需要逐个 <code>free()</code> 堆上的对象——整个地址空间的物理页被批量归还给 Page Pool。这比 FLAT 模式（需要手动 free 每个分配）高效得多。</p>
+<hr>
+<h2 id="9-对比分析"><a href="#9-对比分析" class="headerlink" title="9. 对比分析"></a>9. 对比分析</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NuttX KERNEL</th>
+<th>NuttX FLAT</th>
+<th>Linux</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>堆的数量</td>
+<td>每进程一个用户堆 + 一个内核堆</td>
+<td>全局一个堆</td>
+<td>每进程用户堆 + SLAB&#x2F;SLUB 内核堆</td>
+</tr>
+<tr>
+<td>物理页分配器</td>
+<td>粒度位图（线性扫描）</td>
+<td>无</td>
+<td>Buddy system（O(1)）</td>
+</tr>
+<tr>
+<td>堆扩展机制</td>
+<td><code>sbrk()</code> → <code>pgalloc()</code></td>
+<td>无（堆大小固定）</td>
+<td><code>brk()</code>&#x2F;<code>mmap()</code> → page fault → alloc</td>
+</tr>
+<tr>
+<td>用户 malloc 失败时</td>
+<td>同步扩展（<code>sbrk</code> 立即分配页）</td>
+<td>直接返回 NULL</td>
+<td>lazy（先映射虚拟，访问时 page fault）</td>
+</tr>
+<tr>
+<td>进程退出时</td>
+<td>批量归还物理页</td>
+<td>需手动 free（否则泄漏）</td>
+<td>销毁地址空间，批量归还</td>
+</tr>
+<tr>
+<td>空闲块管理</td>
+<td>分桶空闲链表（best-fit）</td>
+<td>同</td>
+<td>SLAB（small）+ Buddy（large）</td>
+</tr>
+<tr>
+<td>碎片处理</td>
+<td>前后合并</td>
+<td>同</td>
+<td>SLAB + compaction</td>
+</tr>
+<tr>
+<td>内存开销&#x2F;块</td>
+<td>8 字节 header</td>
+<td>同</td>
+<td>SLAB 无 header（基于 page offset）</td>
+</tr>
+</tbody></table>
+<p><strong>NuttX 的设计取舍</strong>：</p>
+<ul>
+<li>用<strong>同步分配</strong>而非 Linux 的 demand paging——简化了实现（不需要 page fault handler），代价是 <code>malloc()</code> 可能阻塞较长时间</li>
+<li>用<strong>位图</strong>而非 buddy——节省内存（Page Pool 几千页只需几百字节位图），代价是分配速度 O(n)</li>
+<li>用<strong>分桶链表</strong>而非 SLAB——通用性好（适合各种大小），代价是小对象有 8 字节 header 开销</li>
+</ul>
+<hr>
+<h2 id="10-关键要点"><a href="#10-关键要点" class="headerlink" title="10. 关键要点"></a>10. 关键要点</h2><ol>
+<li><p><strong>NuttX KERNEL 模式使用四层分配器</strong>：用户 API（malloc）→ 核心堆管理器（mm_malloc）→ 堆扩展（sbrk&#x2F;pgalloc）→ 物理页分配器（granule bitmap）。</p>
+</li>
+<li><p><strong>内核堆和用户堆完全独立</strong>：内核堆在恒等映射的 DDR 上，无需 MMU 操作；用户堆在进程独有的虚拟地址空间，每次扩展需要分配物理页 + 写 L2 PTE。</p>
+</li>
+<li><p><strong><code>pgalloc()</code> 是 KERNEL 模式的核心桥梁</strong>：它将 Layer 1（物理页）和 MMU 映射连接起来，每次调用做 3 件事：确保 L2 页表存在、分配数据页、写 PTE + flush cache。</p>
+</li>
+<li><p><strong>物理页分配使用 bitmap 算法</strong>：Page Pool 中每页用 1 bit 跟踪，<code>gran_alloc()</code> 线性扫描找连续空闲位。简单但对嵌入式场景足够。</p>
+</li>
+<li><p><strong>用户堆惰性初始化</strong>：首次 <code>malloc()</code> 时才分配第一个页并创建堆结构，避免为从不使用堆的进程浪费物理页。</p>
+</li>
+<li><p><strong><code>free()</code> 不归还物理页</strong>：释放的内存回到堆空闲链表供重用，但物理页不会还给 Page Pool。只有进程退出时才批量回收。</p>
+</li>
+<li><p><strong>进程退出 &#x3D; 批量回收</strong>：<code>addrenv_destroy()</code> 遍历所有 L2 页表条目，将所有物理页和页表页归还 Page Pool。不需要逐个 free。</p>
+</li>
+</ol>
+<hr>
+<h2 id="11-参考文件索引"><a href="#11-参考文件索引" class="headerlink" title="11. 参考文件索引"></a>11. 参考文件索引</h2><table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>关键内容</th>
+<th>引用行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mm/mm_heap/mm.h</code></td>
+<td>mm_allocnode_s, mm_freenode_s, mm_heap_s</td>
+<td>68-277</td>
+</tr>
+<tr>
+<td><code>mm/mm_heap/mm_malloc.c</code></td>
+<td>mm_malloc() 核心算法</td>
+<td>170-413</td>
+</tr>
+<tr>
+<td><code>mm/mm_heap/mm_free.c</code></td>
+<td>mm_delayfree() 释放与合并</td>
+<td>84-221</td>
+</tr>
+<tr>
+<td><code>mm/mm_heap/mm_initialize.c</code></td>
+<td>mm_addregion() 堆初始化</td>
+<td>234+</td>
+</tr>
+<tr>
+<td><code>mm/mm_heap/mm_extend.c</code></td>
+<td>mm_extend() 堆扩展</td>
+<td>54+</td>
+</tr>
+<tr>
+<td><code>mm/kmm_heap/kmm_initialize.c</code></td>
+<td>kmm_initialize() 内核堆</td>
+<td>61-70</td>
+</tr>
+<tr>
+<td><code>mm/umm_heap/umm_initialize.c</code></td>
+<td>umm_initialize(), umm_try_initialize()</td>
+<td>87-146</td>
+</tr>
+<tr>
+<td><code>mm/umm_heap/umm_sbrk.c</code></td>
+<td>sbrk() 实现</td>
+<td>76-126</td>
+</tr>
+<tr>
+<td><code>mm/umm_heap/umm_memalign.c</code></td>
+<td>memalign() 触发 sbrk</td>
+<td>54+</td>
+</tr>
+<tr>
+<td><code>mm/mm_gran/mm_gran.h</code></td>
+<td>struct gran_s 粒度分配器</td>
+<td>68-81</td>
+</tr>
+<tr>
+<td><code>mm/mm_gran/mm_pgalloc.c</code></td>
+<td>mm_pgalloc(), mm_pginitialize()</td>
+<td>99-197</td>
+</tr>
+<tr>
+<td><code>mm/mm_gran/mm_granalloc.c</code></td>
+<td>gran_alloc() 位图搜索</td>
+<td>43+</td>
+</tr>
+<tr>
+<td><code>mm/mm_gran/mm_grantable.c</code></td>
+<td>gran_search(), gran_set()</td>
+<td>260-299</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_pgalloc.c</code></td>
+<td>pgalloc() MMU 映射</td>
+<td>178-254</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_addrenv.c</code></td>
+<td>up_addrenv_create&#x2F;destroy</td>
+<td>167-314</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_addrenv_utils.c</code></td>
+<td>arm_addrenv_create&#x2F;destroy_region</td>
+<td>60-214</td>
+</tr>
+<tr>
+<td><code>include/nuttx/mm/mm.h</code></td>
+<td>USR_HEAP 宏定义</td>
+<td>119</td>
+</tr>
+<tr>
+<td><code>include/nuttx/addrenv.h</code></td>
+<td>addrenv_reserve_s (ar_usrheap)</td>
+<td>301-305</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_start.c</code></td>
+<td>启动时初始化 kmm + pgalloc</td>
+<td>540-575</td>
+</tr>
+<tr>
+<td><code>sched/addrenv/addrenv.c</code></td>
+<td>addrenv_destroy() 进程退出回收</td>
+<td>196+</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_allocateheap.c</code></td>
+<td>up_allocate_kheap(), up_allocate_pgheap()</td>
+<td>241+</td>
+</tr>
+<tr>
+<td><code>Documentation/implementation/memory_configurations.rst</code></td>
+<td>官方内存配置文档</td>
+<td>508-537</td>
+</tr>
+</tbody></table>
+<hr>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/14/Nuttx-Task-Scheduling/" rel="prev" title="Nuttx - Task Scheduling">
+                  <i class="fa fa-angle-left"></i> Nuttx - Task Scheduling
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/15/Nuttx-Interrupt/" rel="next" title="Nuttx - Interrupt">
+                  Nuttx - Interrupt <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

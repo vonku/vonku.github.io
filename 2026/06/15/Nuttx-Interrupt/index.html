@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从 GIC 硬件中断触发到 ISR 执行再到中断级上下文切换，完整解析 NuttX 如何在 ARMv7-A 上管理中断的注册、分发、响应与任务调度联动。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - Interrupt">
+<meta property="og:url" content="http://yoursite.com/2026/06/15/Nuttx-Interrupt/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从 GIC 硬件中断触发到 ISR 执行再到中断级上下文切换，完整解析 NuttX 如何在 ARMv7-A 上管理中断的注册、分发、响应与任务调度联动。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E6%96%AD%E5%8E%8B%E6%A0%88.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E6%96%AD%E5%A4%84%E7%90%86%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B.png">
+<meta property="article:published_time" content="2026-06-15T14:01:21.000Z">
+<meta property="article:modified_time" content="2026-06-15T14:10:34.572Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E6%96%AD%E5%8E%8B%E6%A0%88.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/15/Nuttx-Interrupt/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/15/Nuttx-Interrupt/","path":"2026/06/15/Nuttx-Interrupt/","title":"Nuttx - Interrupt"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - Interrupt | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%80%E7%AF%87%EF%BC%9A%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%E6%A1%86%E6%9E%B6%E8%A7%A3%E5%86%B3%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="nav-text">1. 开篇：中断处理框架解决什么问题？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-GIC-%E7%A1%AC%E4%BB%B6%E5%9F%BA%E7%A1%80"><span class="nav-text">2. GIC 硬件基础</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-GIC-%E7%9A%84%E4%B8%A4%E4%B8%AA%E7%BB%84%E4%BB%B6"><span class="nav-text">2.1 GIC 的两个组件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E4%B8%89%E7%B1%BB%E4%B8%AD%E6%96%AD"><span class="nav-text">2.2 三类中断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%85%B3%E9%94%AE%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">2.3 关键寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Distributor-%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%88%E5%9F%BA%E5%9D%80-MPCORE-ICD-VBASE%EF%BC%8C%E7%B3%BB%E7%BB%9F%E5%94%AF%E4%B8%80%EF%BC%89"><span class="nav-text">Distributor 寄存器（基址 MPCORE_ICD_VBASE，系统唯一）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Group-0-%E4%B8%8E-Group-1"><span class="nav-text">Group 0 与 Group 1</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#CPU-Interface-%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%88%E5%9F%BA%E5%9D%80-MPCORE-ICC-VBASE%EF%BC%8C%E6%AF%8F%E6%A0%B8%E4%B8%80%E4%BB%BD%EF%BC%89"><span class="nav-text">CPU Interface 寄存器（基址 MPCORE_ICC_VBASE，每核一份）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AF%84%E5%AD%98%E5%99%A8%E5%9C%B0%E5%9D%80%E8%AE%A1%E7%AE%97"><span class="nav-text">寄存器地址计算</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#ICCIAR-%E5%AF%84%E5%AD%98%E5%99%A8%E4%BD%8D%E5%9F%9F"><span class="nav-text">ICCIAR 寄存器位域</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-GIC-%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">3. GIC 初始化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-CPU0-%E4%B8%93%E5%B1%9E%E5%88%9D%E5%A7%8B%E5%8C%96%EF%BC%9Aarm-gic0-initialize"><span class="nav-text">3.1 CPU0 专属初始化：arm_gic0_initialize()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%AF%8F-CPU-%E5%88%9D%E5%A7%8B%E5%8C%96%EF%BC%9Aarm-gic-initialize"><span class="nav-text">3.2 每 CPU 初始化：arm_gic_initialize()</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-IRQ-%E5%90%91%E9%87%8F%E5%85%A5%E5%8F%A3%EF%BC%9Aarm-vectorirq"><span class="nav-text">4. IRQ 向量入口：arm_vectorirq</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%AE%8C%E6%95%B4%E6%B1%87%E7%BC%96%E6%B5%81%E7%A8%8B"><span class="nav-text">4.1 完整汇编流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%85%B3%E9%94%AE%E8%A7%82%E5%AF%9F"><span class="nav-text">4.2 关键观察</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-arm-decodeirq-%EF%BC%9A%E4%BB%8E-GIC-%E8%AF%BB%E5%8F%96%E4%B8%AD%E6%96%AD%E5%8F%B7"><span class="nav-text">5. arm_decodeirq()：从 GIC 读取中断号</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%AE%9E%E7%8E%B0"><span class="nav-text">5.1 实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-arm-doirq-%EF%BC%9A%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%E4%B8%8E%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E6%A3%80%E6%B5%8B"><span class="nav-text">6. arm_doirq()：中断处理与上下文切换检测</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%AE%9E%E7%8E%B0"><span class="nav-text">6.1 实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E6%A3%80%E6%B5%8B%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86%EF%BC%88%E9%80%89%E8%AF%BB%EF%BC%89"><span class="nav-text">6.2 上下文切换检测的工作原理（选读）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%BB%B6%E8%BF%9F%E5%A4%84%E7%90%86%EF%BC%9Awork-queue%EF%BC%88NuttX-%E7%9A%84%E2%80%9D%E4%B8%8B%E5%8D%8A%E9%83%A8%E2%80%9D%EF%BC%89"><span class="nav-text">7. 延迟处理：work_queue（NuttX 的”下半部”）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-work-queue-API"><span class="nav-text">7.1 work_queue API</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-HPWORK-%E4%B8%8E-LPWORK"><span class="nav-text">7.2 HPWORK 与 LPWORK</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E5%AE%9E%E4%BE%8B%EF%BC%9AICJx-IO-Expander-%E9%A9%B1%E5%8A%A8%E7%9A%84%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86"><span class="nav-text">7.3 实例：ICJx IO Expander 驱动的中断处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E4%B8%8E-Linux-%E4%B8%8B%E5%8D%8A%E9%83%A8%E6%9C%BA%E5%88%B6%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-text">7.4 与 Linux 下半部机制的对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-irq-attach-%E4%B8%8E-irq-dispatch-%EF%BC%9AISR-%E6%B3%A8%E5%86%8C%E4%B8%8E%E5%88%86%E5%8F%91"><span class="nav-text">8. irq_attach() 与 irq_dispatch()：ISR 注册与分发</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-0-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E8%BD%AF%E4%BB%B6%E5%88%86%E5%8F%91%EF%BC%9F%E2%80%94%E2%80%94ARMv7-A-%E7%9A%84%E5%90%91%E9%87%8F%E8%A1%A8%E9%99%90%E5%88%B6"><span class="nav-text">8.0 为什么需要软件分发？——ARMv7-A 的向量表限制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%A4%84%E7%90%86%E5%87%BD%E6%95%B0%E8%A1%A8"><span class="nav-text">8.1 处理函数表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-irq-attach-%EF%BC%9A%E6%B3%A8%E5%86%8C-ISR"><span class="nav-text">8.2 irq_attach()：注册 ISR</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-irq-dispatch-%EF%BC%9A%E6%9F%A5%E8%A1%A8%E8%B0%83%E7%94%A8"><span class="nav-text">8.3 irq_dispatch()：查表调用</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-enter-critical-section-%EF%BC%9A%E4%B8%B4%E7%95%8C%E5%8C%BA%E4%BF%9D%E6%8A%A4"><span class="nav-text">9. enter_critical_section()：临界区保护</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-ARMv7-A-%E5%AE%9E%E7%8E%B0%EF%BC%88%E9%9D%9E-SMP%EF%BC%89"><span class="nav-text">9.1 ARMv7-A 实现（非 SMP）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E4%B8%8E-sched-lock-%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-text">9.2 与 sched_lock() 的区别</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E4%B8%AD%E6%96%AD%E6%A0%88"><span class="nav-text">10. 中断栈</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-%E9%85%8D%E7%BD%AE%E4%B8%8E%E5%88%86%E9%85%8D"><span class="nav-text">10.1 配置与分配</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%AE%8C%E6%95%B4%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B%E6%80%BB%E8%A7%88"><span class="nav-text">11. 完整中断处理流程总览</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#12-%E5%AF%B9%E6%AF%94%E5%88%86%E6%9E%90"><span class="nav-text">12. 对比分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#13-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">13. 关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#14-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6%E7%B4%A2%E5%BC%95"><span class="nav-text">14. 参考文件索引</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">41</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/15/Nuttx-Interrupt/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - Interrupt | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - Interrupt
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-15 22:01:21" itemprop="dateCreated datePublished" datetime="2026-06-15T22:01:21+08:00">2026-06-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从 GIC 硬件中断触发到 ISR 执行再到中断级上下文切换，完整解析 NuttX 如何在 ARMv7-A 上管理中断的注册、分发、响应与任务调度联动。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>本文回答以下问题：硬件中断触发后 CPU 经历了哪些步骤才到达你注册的 ISR？GIC 如何决定哪个中断优先？为什么 ISR 中调用 <code>sem_post()</code> 不会立即切换任务而要等中断返回？<code>enter_critical_section()</code> 到底做了什么？读完后，你将能够理解中断从硬件到调度器的完整链路，并具备独立编写和调试 NuttX 中断驱动的能力。</p>
+<hr>
+<h2 id="1-开篇：中断处理框架解决什么问题？"><a href="#1-开篇：中断处理框架解决什么问题？" class="headerlink" title="1. 开篇：中断处理框架解决什么问题？"></a>1. 开篇：中断处理框架解决什么问题？</h2><p>中断是嵌入式系统的”神经系统”——外设通过中断通知 CPU”我有数据了”或”我完成了”。但硬件只负责”打断 CPU 并跳转到固定地址”，其余所有问题都需要软件框架来解决：</p>
+<ol>
+<li><strong>识别</strong>：哪个设备产生了中断？（几十上百个中断源共享少量 IRQ 线）</li>
+<li><strong>分发</strong>：找到该中断对应的处理函数（ISR）</li>
+<li><strong>保护</strong>：ISR 执行期间如何防止数据竞争？</li>
+<li><strong>调度联动</strong>：ISR 唤醒了高优先级任务后，如何最快切换过去？</li>
+</ol>
+<p>NuttX 的中断处理框架围绕 ARMv7-A 的 GIC（Generic Interrupt Controller）硬件构建，形成了一条从硬件触发到任务切换的完整链路。NuttX 官方文档（<code>Documentation/implementation/interrupt_controls.rst</code>）描述了中断控制的设计意图：中断处理应当尽可能短，复杂逻辑应交给任务上下文完成。</p>
+<p>接下来先了解 GIC 硬件的基本架构——它是整个中断框架的物理基础。</p>
+<hr>
+<h2 id="2-GIC-硬件基础"><a href="#2-GIC-硬件基础" class="headerlink" title="2. GIC 硬件基础"></a>2. GIC 硬件基础</h2><p>ARMv7-A 处理器只有两条中断输入线：IRQ 和 FIQ。但一个 SoC 可能有上百个中断源（UART、SPI、DMA、定时器…）。GIC 负责将这些中断源<strong>汇聚、排优先级、路由到正确的 CPU 核心</strong>，最终拉高 CPU 的 IRQ 线。</p>
+<h3 id="2-1-GIC-的两个组件"><a href="#2-1-GIC-的两个组件" class="headerlink" title="2.1 GIC 的两个组件"></a>2.1 GIC 的两个组件</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">+------------------+          +------------------+</span><br><span class="line">| Distributor      |          | CPU Interface    |  (per-core)</span><br><span class="line">| (system-wide)    |          | (MPCORE_ICC)     |</span><br><span class="line">|                  |          |                  |</span><br><span class="line">| - SPI enable     |  IRQ     | - Priority mask  |  IRQ/FIQ</span><br><span class="line">| - SPI disable    | -------&gt; | - ACK (ICCIAR)   | -------&gt; CPU</span><br><span class="line">| - Priority set   |          | - EOI (ICCEOIR)  |</span><br><span class="line">| - CPU routing    |          |                  |</span><br><span class="line">+------------------+          +------------------+</span><br></pre></td></tr></table></figure>
+
+<p>Distributor 管理所有 SPI 中断的使能、优先级和目标 CPU 路由；CPU Interface 负责优先级过滤、中断确认（ACK）和结束信号（EOI）。</p>
+<ul>
+<li><strong>Distributor</strong>（分发器）：管理所有中断源的使能、优先级、目标 CPU 路由。系统全局唯一。</li>
+<li><strong>CPU Interface</strong>（CPU 接口）：每个核心一个。负责优先级屏蔽、中断确认（ACK）、中断结束（EOI）信号。</li>
+</ul>
+<blockquote>
+<p><strong>这两个组件是真实的硬件模块，不是软件抽象。</strong> GIC 是 ARM 公司定义的硬件 IP（规范见 <em>ARM Generic Interrupt Controller Architecture Specification v2.0</em>），SoC 厂商在集成 Cortex-A7&#x2F;A9&#x2F;A15 等 ARMv7-A 核心时会将 GIC 作为片上外设一并流片。Distributor 和 CPU Interface 各自拥有独立的 memory-mapped 寄存器空间：Distributor 寄存器组（GICD_*）映射在 <code>MPCORE_ICD_BASE</code>，CPU Interface 寄存器组（GICC_*）映射在 <code>MPCORE_ICC_BASE</code>。NuttX 代码中的 <code>putreg32(val, GIC_ICDDCR)</code> &#x2F; <code>getreg32(GIC_ICCIAR)</code> 就是通过 MMIO 直接访问这些硬件寄存器。</p>
+</blockquote>
+<h3 id="2-2-三类中断"><a href="#2-2-三类中断" class="headerlink" title="2.2 三类中断"></a>2.2 三类中断</h3><p>文件：<code>arch/arm/src/armv7-a/gic.h:598-651</code></p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>ID 范围</th>
+<th>特征</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>SGI</strong> (Software Generated)</td>
+<td>0–15</td>
+<td>软件触发，per-CPU 私有</td>
+<td>SMP 跨核通知（启动、调度、函数调用）</td>
+</tr>
+<tr>
+<td><strong>PPI</strong> (Private Peripheral)</td>
+<td>16–31</td>
+<td>硬件触发，per-CPU 私有</td>
+<td>每核私有定时器、watchdog</td>
+</tr>
+<tr>
+<td><strong>SPI</strong> (Shared Peripheral)</td>
+<td>32+</td>
+<td>硬件触发，可路由到任意 CPU</td>
+<td>UART、SPI、DMA 等外设中断</td>
+</tr>
+</tbody></table>
+<p><strong>实例：qemu-armv7a 上的典型中断分配</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">ID 27: Global Timer (PPI)</span><br><span class="line">ID 29: Secure Physical Timer (PPI)</span><br><span class="line">ID 30: Non-secure Physical Timer (PPI) ← 系统 tick 定时器</span><br><span class="line">ID 32: UART0 (SPI, first external interrupt)</span><br><span class="line">ID 33: UART1 (SPI)</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-关键寄存器"><a href="#2-3-关键寄存器" class="headerlink" title="2.3 关键寄存器"></a>2.3 关键寄存器</h3><p>后续所有代码都是对 GIC 寄存器的读写操作。这里先建立一张”寄存器速查表”，在阅读第 3-5 章时可随时回查。</p>
+<p>文件：<code>arch/arm/src/armv7-a/gic.h:107-277</code></p>
+<h4 id="Distributor-寄存器（基址-MPCORE-ICD-VBASE，系统唯一）"><a href="#Distributor-寄存器（基址-MPCORE-ICD-VBASE，系统唯一）" class="headerlink" title="Distributor 寄存器（基址 MPCORE_ICD_VBASE，系统唯一）"></a>Distributor 寄存器（基址 <code>MPCORE_ICD_VBASE</code>，系统唯一）</h4><table>
+<thead>
+<tr>
+<th>NuttX 宏</th>
+<th>偏移</th>
+<th>全称</th>
+<th>作用</th>
+<th>后文使用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GIC_ICDDCR</code></td>
+<td>0x000</td>
+<td>Distributor Control Register</td>
+<td>bit[0]&#x3D;1 使能 Group0 转发，bit[1]&#x3D;1 使能 Group1 转发。写 0 则所有中断被 Distributor 截停</td>
+<td>第 3 章初始化最后一步</td>
+</tr>
+<tr>
+<td><code>GIC_ICDISER(n)</code></td>
+<td>0x100+</td>
+<td>Interrupt Set-Enable Register</td>
+<td>写 1 使能对应中断（每 bit 对应一个 IRQ ID）。32 个中断一组</td>
+<td><code>up_enable_irq()</code></td>
+</tr>
+<tr>
+<td><code>GIC_ICDICER(n)</code></td>
+<td>0x180+</td>
+<td>Interrupt Clear-Enable Register</td>
+<td>写 1 禁用对应中断。与 ICDISER 镜像，分开设计避免读-改-写竞争</td>
+<td>第 3 章初始化时禁用所有 SPI</td>
+</tr>
+<tr>
+<td><code>GIC_ICDIPR(n)</code></td>
+<td>0x400+</td>
+<td>Interrupt Priority Register</td>
+<td>每个中断 8-bit 优先级（0&#x3D;最高，255&#x3D;最低）。4 个中断打包在一个 32-bit 寄存器中</td>
+<td>第 3 章设置默认优先级 128</td>
+</tr>
+<tr>
+<td><code>GIC_ICDIPTR(n)</code></td>
+<td>0x800+</td>
+<td>Interrupt Processor Targets Register</td>
+<td>每个中断 8-bit CPU 掩码（bit0&#x3D;CPU0, bit1&#x3D;CPU1…）。决定中断路由到哪个核</td>
+<td>第 3 章路由所有 SPI 到 CPU0</td>
+</tr>
+<tr>
+<td><code>GIC_ICDICFR(n)</code></td>
+<td>0xC00+</td>
+<td>Interrupt Configuration Register</td>
+<td>每中断 2-bit：<code>01</code>&#x3D;电平触发 1-N 模型，<code>11</code>&#x3D;边沿触发</td>
+<td>第 3 章设置 SPI 为电平触发</td>
+</tr>
+</tbody></table>
+<h4 id="Group-0-与-Group-1"><a href="#Group-0-与-Group-1" class="headerlink" title="Group 0 与 Group 1"></a>Group 0 与 Group 1</h4><p>上表中 <code>GIC_ICDDCR</code> 提到了 Group0 和 Group1——这是 GIC 对中断的一种安全分组机制。每个中断 ID 通过 Distributor 的 <code>GIC_ICDGRPR(n)</code> 寄存器被分配到其中一组：</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>信号路径</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Group 0</strong></td>
+<td>FIQ（快速中断）</td>
+<td>Secure 世界的中断（TrustZone 安全侧），如安全定时器、安全看门狗</td>
+</tr>
+<tr>
+<td><strong>Group 1</strong></td>
+<td>IRQ（普通中断）</td>
+<td>Non-secure 世界的中断，即操作系统和应用使用的常规中断</td>
+</tr>
+</tbody></table>
+<p>ARM TrustZone 通过这种分组实现安全隔离：Secure 世界的中断走 FIQ，Non-secure 走 IRQ，两者互不干扰。<code>GIC_ICDDCR</code> 的两个 bit 分别控制这两组的总开关。</p>
+<p><strong>NuttX 的处理：</strong> NuttX 不使用 TrustZone 安全扩展，初始化时同时使能两组（<code>GIC_ICDDCR_ENABLEGRP0 | GIC_ICDDCR_ENABLEGRP1</code>），并通过 <code>GIC_ICCICR</code> 中的 <code>FIQEN</code> 位控制 Group 0 是否走 FIQ。在 qemu-armv7a 上，NuttX 将所有中断统一作为 IRQ 处理，Group 分组对功能没有实际影响——但寄存器中这两个 bit 必须都置 1，否则会有中断无法到达 CPU。</p>
+<h4 id="CPU-Interface-寄存器（基址-MPCORE-ICC-VBASE，每核一份）"><a href="#CPU-Interface-寄存器（基址-MPCORE-ICC-VBASE，每核一份）" class="headerlink" title="CPU Interface 寄存器（基址 MPCORE_ICC_VBASE，每核一份）"></a>CPU Interface 寄存器（基址 <code>MPCORE_ICC_VBASE</code>，每核一份）</h4><table>
+<thead>
+<tr>
+<th>NuttX 宏</th>
+<th>偏移</th>
+<th>全称</th>
+<th>作用</th>
+<th>后文使用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GIC_ICCICR</code></td>
+<td>0x00</td>
+<td>CPU Interface Control Register</td>
+<td>使能&#x2F;禁用该核的中断接收。Group0&#x2F;Group1 分别控制</td>
+<td>第 3 章使能 CPU Interface</td>
+</tr>
+<tr>
+<td><code>GIC_ICCPMR</code></td>
+<td>0x04</td>
+<td>Priority Mask Register</td>
+<td>优先级阈值。只有优先级数值<strong>小于</strong>此值的中断才能通过（值越小优先级越高）。写 0xFF &#x3D; 放行所有</td>
+<td>第 3 章设置为 0xFF（全放行）</td>
+</tr>
+<tr>
+<td><code>GIC_ICCBPR</code></td>
+<td>0x08</td>
+<td>Binary Point Register</td>
+<td>决定优先级的哪些位参与”抢占比较”。值 &#x3D; 7 表示没有任何位用于抢占——即禁用中断嵌套</td>
+<td>第 3 章禁用嵌套</td>
+</tr>
+<tr>
+<td><code>GIC_ICCIAR</code></td>
+<td>0x0C</td>
+<td>Interrupt Acknowledge Register</td>
+<td><strong>读取</strong>此寄存器有两个副作用：(1) 返回当前最高优先级 Pending 中断的 ID [9:0]；(2) 将该中断状态从 Pending → Active</td>
+<td>第 5 章 <code>arm_decodeirq()</code></td>
+</tr>
+<tr>
+<td><code>GIC_ICCEOIR</code></td>
+<td>0x10</td>
+<td>End of Interrupt Register</td>
+<td><strong>写入</strong>中断 ID，通知 GIC 该中断处理完毕。中断状态从 Active → Inactive，GIC 可以再次触发</td>
+<td>第 5 章中断处理完成后</td>
+</tr>
+</tbody></table>
+<h4 id="寄存器地址计算"><a href="#寄存器地址计算" class="headerlink" title="寄存器地址计算"></a>寄存器地址计算</h4><p>NuttX 中这些寄存器的实际地址 &#x3D; 基址 + 偏移。以 <code>GIC_ICCIAR</code> 为例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* gic.h:110 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> GIC_ICCIAR_OFFSET    0x000c</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* gic.h:244 */</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> GIC_ICCIAR           (MPCORE_ICC_VBASE + GIC_ICCIAR_OFFSET)</span></span><br></pre></td></tr></table></figure>
+
+<p><code>MPCORE_ICC_VBASE</code> 由板级硬件决定（qemu-armv7a 上为 GIC 外设映射的虚拟地址）。代码中 <code>getreg32(GIC_ICCIAR)</code> 就是一次 32-bit MMIO 读操作。</p>
+<h4 id="ICCIAR-寄存器位域"><a href="#ICCIAR-寄存器位域" class="headerlink" title="ICCIAR 寄存器位域"></a>ICCIAR 寄存器位域</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"> 31            13  12    10  9                 0</span><br><span class="line">+----------------+--------+-------------------+</span><br><span class="line">|   Reserved     |CPUSRC  |   Interrupt ID    |</span><br><span class="line">+----------------+--------+-------------------+</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**Interrupt ID [9:0]**：触发中断的 IRQ 编号（0-1019）。值 1023（0x3FF）表示”伪中断”（Spurious），即没有有效的 Pending 中断。</li>
+<li>**CPUSRC [12:10]**：对于 SGI，指示是哪个 CPU 发送的。对于 SPI&#x2F;PPI 此字段无意义。</li>
+</ul>
+<p>了解了 GIC 硬件结构和寄存器含义，下面看 NuttX 如何在启动时配置它们。</p>
+<hr>
+<h2 id="3-GIC-初始化"><a href="#3-GIC-初始化" class="headerlink" title="3. GIC 初始化"></a>3. GIC 初始化</h2><p>GIC 上电后所有中断默认禁用、优先级未设置、路由未配置。不初始化就收不到任何中断。NuttX 在启动早期（<code>nx_start()</code> → <code>up_irqinitialize()</code> → <code>arm_gic_initialize()</code>）完成 GIC 配置。</p>
+<h3 id="3-1-CPU0-专属初始化：arm-gic0-initialize"><a href="#3-1-CPU0-专属初始化：arm-gic0-initialize" class="headerlink" title="3.1 CPU0 专属初始化：arm_gic0_initialize()"></a>3.1 CPU0 专属初始化：arm_gic0_initialize()</h3><p>文件：<code>arch/arm/src/armv7-a/arm_gicv2.c:165-225</code>（关键摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">arm_gic0_initialize</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">unsigned</span> <span class="type">int</span> nlines = arm_gic_nlines();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 禁用所有 SPI 中断 */</span></span><br><span class="line">  <span class="keyword">for</span> (irq = GIC_IRQ_SPI; irq &lt; nlines; irq += <span class="number">32</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      putreg32(<span class="number">0xffffffff</span>, GIC_ICDICER(irq));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 设置所有 SPI 为电平触发、1-N 模型 */</span></span><br><span class="line">  <span class="keyword">for</span> (irq = GIC_IRQ_SPI; irq &lt; nlines; irq += <span class="number">16</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      putreg32(<span class="number">0x55555555</span>, GIC_ICDICFR(irq));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 设置优先级 = 128（中等）和目标 CPU = CPU0 */</span></span><br><span class="line">  <span class="keyword">for</span> (irq = GIC_IRQ_SPI; irq &lt; nlines; irq += <span class="number">4</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      putreg32(<span class="number">0x80808080</span>, GIC_ICDIPR(irq));</span><br><span class="line">      putreg32(<span class="number">0x01010101</span>, GIC_ICDIPTR(irq));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>只由 CPU0 在启动时执行一次，配置系统级的 SPI 中断。</p>
+<h3 id="3-2-每-CPU-初始化：arm-gic-initialize"><a href="#3-2-每-CPU-初始化：arm-gic-initialize" class="headerlink" title="3.2 每 CPU 初始化：arm_gic_initialize()"></a>3.2 每 CPU 初始化：arm_gic_initialize()</h3><p>文件：<code>arch/arm/src/armv7-a/arm_gicv2.c:241-378</code>（关键摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">arm_gic_initialize</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 设置 SGI 和 PPI 优先级 */</span></span><br><span class="line">  putreg32(<span class="number">0x80808080</span>, GIC_ICDIPR(<span class="number">0</span>));    <span class="comment">/* SGI[0:3] */</span></span><br><span class="line">  <span class="comment">/* ... 其他 SGI/PPI 优先级 ... */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 设置 Binary Point（不允许中断嵌套）*/</span></span><br><span class="line">  putreg32(GIC_ICCBPR_NOPREMPT, GIC_ICCBPR);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 设置优先级掩码（允许所有优先级的中断通过）*/</span></span><br><span class="line">  putreg32(GIC_ICCPMR_MASK, GIC_ICCPMR);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 使能 CPU Interface */</span></span><br><span class="line">  iccicr = GIC_ICCICR_ENABLEGRP0 | GIC_ICCICR_ENABLEGRP1;</span><br><span class="line">  putreg32(iccicr, GIC_ICCICR);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 使能 Distributor */</span></span><br><span class="line">  putreg32(GIC_ICDDCR_ENABLEGRP0 | GIC_ICDDCR_ENABLEGRP1, GIC_ICDDCR);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键配置：中断嵌套默认禁用</strong>。<code>GIC_ICCBPR_NOPREMPT</code> 设置 Binary Point &#x3D; 7，意味着 GIC 不会用优先级的任何位来做抢占比较——当一个中断正在处理时，即使更高优先级的中断到来也不会嵌套进入。</p>
+<p><strong>对比 FreeRTOS</strong>：FreeRTOS 在 Cortex-M 上通过 BASEPRI 寄存器允许高优先级中断嵌套。NuttX 在 ARMv7-A 上默认不嵌套——简化了 ISR 编写（不用考虑重入），代价是高优先级中断可能被低优先级中断延迟。</p>
+<p>GIC 初始化完成后，中断可以触发了。下面看 CPU 收到 IRQ 后的第一步：汇编向量入口。</p>
+<hr>
+<h2 id="4-IRQ-向量入口：arm-vectorirq"><a href="#4-IRQ-向量入口：arm-vectorirq" class="headerlink" title="4. IRQ 向量入口：arm_vectorirq"></a>4. IRQ 向量入口：arm_vectorirq</h2><p>当 IRQ 触发时，CPU 硬件只做三件事：保存 CPSR 到 SPSR_irq、保存返回地址到 LR_irq、跳转到 IRQ 向量地址。所有寄存器保存、栈切换、C 函数调用都必须由汇编代码完成。</p>
+<h3 id="4-1-完整汇编流程"><a href="#4-1-完整汇编流程" class="headerlink" title="4.1 完整汇编流程"></a>4.1 完整汇编流程</h3><p>文件：<code>arch/arm/src/armv7-a/arm_vectors.S:171-278</code>（关键摘录，完整函数约 107 行）</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line">arm_vectorirq:</span><br><span class="line">    /* Step 1: 修正返回地址（ARM IRQ 返回地址多了 4 字节）*/</span><br><span class="line">    sub     lr, lr, #4</span><br><span class="line"></span><br><span class="line">    /* Step 2: 将 LR_irq 和 SPSR_irq 保存到 SYS 模式栈 */</span><br><span class="line">    srsdb   sp!, #PSR_MODE_SYS</span><br><span class="line"></span><br><span class="line">    /* Step 3: 切换到 SYS 模式，禁用中断 */</span><br><span class="line">    cpsid   if, #PSR_MODE_SYS</span><br><span class="line"></span><br><span class="line">    /* Step 4: 保存通用寄存器到 SYS 栈 */</span><br><span class="line">    stmdb   sp!, &#123;r0-r12&#125;</span><br><span class="line"></span><br><span class="line">    /* Step 5: 保存修正后的用户 SP 和 LR */</span><br><span class="line">    add     r1, sp, #(XCPTCONTEXT_SIZE-4*REG_R0)</span><br><span class="line">    stmdb   sp!, &#123;r1, r14&#125;</span><br><span class="line"></span><br><span class="line">    /* Step 6: 保存 FPU 寄存器（如果启用）*/</span><br><span class="line">    savefpu sp, r1</span><br><span class="line"></span><br><span class="line">    /* Step 7: 设置参数并调用 C 函数 */</span><br><span class="line">    mov     r0, sp                  /* R0 = 寄存器帧指针 */</span><br><span class="line">    mov     r4, sp                  /* R4 = 备份 SP（跨函数调用保留）*/</span><br><span class="line"></span><br><span class="line">    /* Step 8: 切换到中断栈（如果配置了独立中断栈）*/</span><br><span class="line">    setirqstack r1, r3              /* SP = g_intstacktop */</span><br><span class="line"></span><br><span class="line">    bic     sp, sp, #7              /* 8 字节对齐 */</span><br><span class="line">    bl      arm_decodeirq           /* 调用 C 分发函数 */</span><br><span class="line"></span><br><span class="line">    /* Step 9: 恢复 SP 并切回 IRQ 模式 */</span><br><span class="line">    mov     sp, r4</span><br><span class="line">    restorefpu r0, r2</span><br><span class="line">    cps     #PSR_MODE_IRQ</span><br><span class="line"></span><br><span class="line">    /* Step 10: 从返回的 regs 指针恢复寄存器 */</span><br><span class="line">    ldmia   r0, &#123;r13, r14&#125;^         /* 恢复用户 SP 和 LR */</span><br><span class="line">    add     r14, r0, #8</span><br><span class="line">    ldmia   r14!, &#123;r0-r12&#125;          /* 恢复 r0-r12 */</span><br><span class="line">    rfeia   r14                      /* 异常返回（恢复 PC + CPSR）*/</span><br></pre></td></tr></table></figure>
+
+<p>下图展示了压栈阶段（Step 1-6）构建的完整寄存器帧，以及出栈阶段（Step 9-10）的恢复过程。底部还展示了上下文切换场景——<code>arm_decodeirq()</code> 返回不同任务的 regs 指针时，Step 10 会恢复另一个任务的寄存器，实现透明的任务切换：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E6%96%AD%E5%8E%8B%E6%A0%88.png" alt="中断压栈"></p>
+<p><strong>与 SVC 入口（<code>arm_vectorsvc</code>）的对比</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>arm_vectorirq (IRQ)</th>
+<th>arm_vectorsvc (SVC)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>返回地址修正</td>
+<td><code>sub lr, #4</code>（必须）</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td>中断栈</td>
+<td>切换到独立中断栈</td>
+<td>不切换（用 SYS 栈）</td>
+</tr>
+<tr>
+<td>返回值含义</td>
+<td>可能指向不同任务的帧</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>触发来源</td>
+<td>硬件外设</td>
+<td>软件 <code>SVC #0</code> 指令</td>
+</tr>
+</tbody></table>
+<p><strong>关键洞察</strong>：<code>arm_decodeirq()</code> 的返回值 <code>r0</code> 可能指向一个<strong>不同任务</strong>的寄存器帧。如果 ISR 唤醒了更高优先级的任务，<code>arm_doirq()</code> 会返回新任务的 <code>xcp.regs</code>——汇编代码从这个新帧恢复寄存器，于是 CPU “返回”到了新任务，完成了中断级上下文切换。</p>
+<h3 id="4-2-关键观察"><a href="#4-2-关键观察" class="headerlink" title="4.2 关键观察"></a>4.2 关键观察</h3><p>回顾整个 <code>arm_vectorirq</code> 流程，有两点核心设计值得特别注意：</p>
+<p><strong>观察 1：模式切换路径是 IRQ → SYS → IRQ</strong></p>
+<p>中断入口在 IRQ 模式下只停留数条指令（修正 LR、保存 banked 寄存器到内存），随即切到 SYS 模式完成所有实质工作（压栈、执行 C 分发函数），最后切回 IRQ 模式做异常返回。这样设计的原因：</p>
+<ul>
+<li>SYS 模式的 SP 就是当前任务的栈指针——上下文帧保存在任务私有栈上，天然支持上下文切换（切换任务 &#x3D; 切换帧指针）。</li>
+<li>提前离开 IRQ 模式保护了 LR_irq 和 SPSR_irq 这两个 banked 寄存器——它们只有一份，停留在 IRQ 模式期间如果发生异常会被覆盖。</li>
+<li>返回时必须切回 IRQ 模式，因为 <code>ldmia &#123;r13,r14&#125;^</code>（<code>^</code> 后缀写入 USR 寄存器）和 <code>rfeia</code>（异常返回）都要求在特权异常模式下执行。</li>
+</ul>
+<p><strong>观察 2：C 分发函数运行在公共中断栈 <code>g_intstacktop</code> 上</strong></p>
+<p>压栈完成后，SP 被 <code>setirqstack</code> 切换到全局中断栈（大小由 <code>CONFIG_ARCH_INTERRUPTSTACK</code> 决定，per-core 一份）。<code>arm_decodeirq()</code> 及其调用的所有 ISR 都在这个公共栈上执行，<strong>不消耗任何任务栈空间</strong>。任务栈只承载上下文帧本身（固定大小），不随 ISR 复杂度增长。这意味着：</p>
+<ul>
+<li>任务栈规划时无需考虑”最坏情况下 ISR 嵌套深度”——ISR 的栈开销被隔离到中断栈。</li>
+<li>所有核共享中断栈（per-core），100 个任务也只有 1 份中断栈开销。</li>
+<li>代价：中断栈大小必须覆盖最深的 ISR 调用链，如果设置不当会栈溢出（但影响范围是全系统而非单个任务）。</li>
+</ul>
+<p>下面看 <code>arm_decodeirq()</code> 如何从 GIC 读取中断号并分发。</p>
+<hr>
+<h2 id="5-arm-decodeirq-：从-GIC-读取中断号"><a href="#5-arm-decodeirq-：从-GIC-读取中断号" class="headerlink" title="5. arm_decodeirq()：从 GIC 读取中断号"></a>5. arm_decodeirq()：从 GIC 读取中断号</h2><p>CPU 只知道”有 IRQ 发生了”，但不知道是哪个设备产生的。必须读 GIC 的 ICCIAR 寄存器才能获取中断 ID。</p>
+<h3 id="5-1-实现"><a href="#5-1-实现" class="headerlink" title="5.1 实现"></a>5.1 实现</h3><p>文件：<code>arch/arm/src/armv7-a/arm_gicv2.c:395-429</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">uint32_t</span> *<span class="title function_">arm_decodeirq</span><span class="params">(<span class="type">uint32_t</span> *regs)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">uint32_t</span> regval;</span><br><span class="line">  <span class="type">int</span> irq;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 读 GIC CPU Interface 的 Interrupt Acknowledge Register */</span></span><br><span class="line">  regval = getreg32(GIC_ICCIAR);</span><br><span class="line">  irq    = (regval &amp; GIC_ICCIAR_INTID_MASK);   <span class="comment">/* 提取中断 ID [9:0] */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 忽略伪中断（ID = 1022 或 1023）*/</span></span><br><span class="line">  <span class="keyword">if</span> (irq &lt; NR_IRQS)</span><br><span class="line">    &#123;</span><br><span class="line">      regs = arm_doirq(irq, regs);             <span class="comment">/* 分发到处理逻辑 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 写 EOI 寄存器，通知 GIC 中断处理完成 */</span></span><br><span class="line">  putreg32(regval, GIC_ICCEOIR);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> regs;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>读 <code>GIC_ICCIAR</code> 的副作用</strong>：这不仅仅是”读取”——GIC 会将该中断标记为 Active 状态（从 Pending → Active），并且如果有更低优先级的中断排队，它们会被阻塞直到 EOI。</p>
+<p><strong>写 <code>GIC_ICCEOIR</code> 的作用</strong>：告诉 GIC”我处理完了”。中断状态从 Active → Inactive，GIC 可以再次触发该中断（如果仍有 Pending）。</p>
+<p><code>arm_decodeirq()</code> 拿到中断号后调用 <code>arm_doirq()</code>——这是中断处理的核心 C 函数。</p>
+<hr>
+<h2 id="6-arm-doirq-：中断处理与上下文切换检测"><a href="#6-arm-doirq-：中断处理与上下文切换检测" class="headerlink" title="6. arm_doirq()：中断处理与上下文切换检测"></a>6. arm_doirq()：中断处理与上下文切换检测</h2><p>ISR 运行在中断上下文中——它使用的是中断栈（或被中断任务的栈），不在任何任务的正常执行流中。如果 ISR 中直接做上下文切换，中断返回的寄存器帧会混乱。NuttX 的策略是：<strong>ISR 只修改调度器状态（就绪队列），实际切换延迟到中断返回时</strong>。</p>
+<h3 id="6-1-实现"><a href="#6-1-实现" class="headerlink" title="6.1 实现"></a>6.1 实现</h3><p>文件：<code>arch/arm/src/armv7-a/arm_doirq.c:56-129</code>（关键摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">uint32_t</span> *<span class="title function_">arm_doirq</span><span class="params">(<span class="type">int</span> irq, <span class="type">uint32_t</span> *regs)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">tcb</span> =</span> this_task();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 保存当前任务的寄存器帧指针 */</span></span><br><span class="line">  tcb-&gt;xcp.regs = regs;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 标记进入中断上下文 */</span></span><br><span class="line">  up_set_interrupt_context(<span class="literal">true</span>);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 分发中断到注册的 ISR */</span></span><br><span class="line">  irq_dispatch(irq, regs);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* ISR 可能唤醒了更高优先级的任务，重新获取当前最高优先级任务 */</span></span><br><span class="line">  tcb = this_task();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 关键：检测是否需要上下文切换 */</span></span><br><span class="line">  <span class="keyword">if</span> (regs != tcb-&gt;xcp.regs)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* regs 不等 → 调度器已经切换了 g_readytorun 头部！ */</span></span><br><span class="line">      <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> **<span class="title">running_task</span> =</span> &amp;g_running_tasks[this_cpu()];</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 切换地址环境（KERNEL 模式）*/</span></span><br><span class="line">      addrenv_switch(tcb);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 更新调度器状态 */</span></span><br><span class="line">      nxsched_switch_context(*running_task, tcb);</span><br><span class="line"></span><br><span class="line">      *running_task = tcb;</span><br><span class="line">      regs = tcb-&gt;xcp.regs;    <span class="comment">/* 使用新任务的寄存器帧！ */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 清除中断上下文标志 */</span></span><br><span class="line">  up_set_interrupt_context(<span class="literal">false</span>);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> regs;   <span class="comment">/* 返回给汇编——可能是不同任务的帧 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-上下文切换检测的工作原理（选读）"><a href="#6-2-上下文切换检测的工作原理（选读）" class="headerlink" title="6.2 上下文切换检测的工作原理（选读）"></a>6.2 上下文切换检测的工作原理（选读）</h3><p>这是 NuttX 中断处理最精妙的设计。让我用一个场景走一遍：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">时刻 T0: TaskA(prio=100) 正在运行，定时器中断触发</span><br><span class="line">  arm_doirq(30, regs_of_TaskA):</span><br><span class="line">    tcb-&gt;xcp.regs = regs_of_TaskA      // 保存 TaskA 帧</span><br><span class="line"></span><br><span class="line">时刻 T1: irq_dispatch() → 调用定时器 ISR</span><br><span class="line">  定时器 ISR 内部调用 sem_post() 唤醒 TaskB(prio=200)</span><br><span class="line">    → nxsched_add_readytorun(TaskB)</span><br><span class="line">    → TaskB 优先级更高，成为 g_readytorun 头部</span><br><span class="line">    → TaskB-&gt;task_state = RUNNING</span><br><span class="line">    → TaskA-&gt;task_state = READYTORUN</span><br><span class="line"></span><br><span class="line">时刻 T2: irq_dispatch() 返回</span><br><span class="line">  tcb = this_task()                     // = TaskB (g_readytorun 头部变了！)</span><br><span class="line">  regs != tcb-&gt;xcp.regs ?              // regs = TaskA 的帧, tcb-&gt;xcp.regs = TaskB 的帧</span><br><span class="line">  → YES! 需要上下文切换！</span><br><span class="line">  regs = tcb-&gt;xcp.regs                 // 返回 TaskB 的帧</span><br><span class="line"></span><br><span class="line">时刻 T3: arm_vectorirq 恢复路径</span><br><span class="line">  ldmia r0, &#123;r13, r14&#125;^                // 从 TaskB 帧恢复 SP, LR</span><br><span class="line">  ldmia r14!, &#123;r0-r12&#125;                 // 从 TaskB 帧恢复寄存器</span><br><span class="line">  rfeia r14                             // &quot;返回&quot;到 TaskB（不是 TaskA！）</span><br></pre></td></tr></table></figure>
+
+<p><strong>一句话总结</strong>：ISR 只管修改调度器状态（把 TaskB 放到链表头），<code>arm_doirq()</code> 通过比较寄存器帧指针检测变化，汇编代码根据返回的帧指针”返回”到不同的任务——无需显式调用任何切换函数。</p>
+<p>上面展示了 ISR 直接修改调度器状态的场景。但复杂驱动（如网卡、SPI 设备）的中断处理不适合全部在中断上下文完成——NuttX 提供了 work_queue 机制来延迟处理。</p>
+<hr>
+<h2 id="7-延迟处理：work-queue（NuttX-的”下半部”）"><a href="#7-延迟处理：work-queue（NuttX-的”下半部”）" class="headerlink" title="7. 延迟处理：work_queue（NuttX 的”下半部”）"></a>7. 延迟处理：work_queue（NuttX 的”下半部”）</h2><p>ISR 运行在中断上下文中，有多个限制：</p>
+<ul>
+<li><strong>中断栈有限</strong>（通常 2-4KB），不能有深层调用</li>
+<li><strong>不能阻塞</strong>（不能调用 <code>sem_wait()</code>、<code>sleep()</code> 等）</li>
+<li><strong>会延迟其他中断</strong>（NuttX 默认不嵌套，ISR 期间其他 IRQ 被屏蔽）</li>
+</ul>
+<p>对于需要做 SPI&#x2F;I2C 通信、大量数据处理或网络协议栈调用的中断，应在 ISR 中仅做最小工作（ACK 硬件 + 禁用中断），然后将实际处理交给<strong>内核工作线程</strong>。</p>
+<h3 id="7-1-work-queue-API"><a href="#7-1-work-queue-API" class="headerlink" title="7.1 work_queue API"></a>7.1 work_queue API</h3><p>文件：<code>include/nuttx/wqueue.h:406</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">work_queue</span><span class="params">(<span class="type">int</span> qid, FAR <span class="keyword">struct</span> work_s *work, <span class="type">worker_t</span> worker,</span></span><br><span class="line"><span class="params">               FAR <span class="type">void</span> *arg, <span class="type">clock_t</span> delay)</span>;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>qid</code>：<code>HPWORK</code>（高优先级工作线程）或 <code>LPWORK</code>（低优先级工作线程）</li>
+<li><code>work</code>：工作项结构体（通常嵌入在驱动私有数据中）</li>
+<li><code>worker</code>：延迟执行的函数（签名：<code>void worker(FAR void *arg)</code>）</li>
+<li><code>arg</code>：传递给 worker 的参数</li>
+<li><code>delay</code>：延迟多少 tick 后执行（0 &#x3D; 立即排队）</li>
+</ul>
+<h3 id="7-2-HPWORK-与-LPWORK"><a href="#7-2-HPWORK-与-LPWORK" class="headerlink" title="7.2 HPWORK 与 LPWORK"></a>7.2 HPWORK 与 LPWORK</h3><table>
+<thead>
+<tr>
+<th>工作队列</th>
+<th>配置项</th>
+<th>默认优先级</th>
+<th>特征</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HPWORK</code></td>
+<td><code>CONFIG_SCHED_HPWORK</code></td>
+<td>224（接近最高）</td>
+<td>不应做阻塞操作，用于 ISR 延迟处理</td>
+</tr>
+<tr>
+<td><code>LPWORK</code></td>
+<td><code>CONFIG_SCHED_LPWORK</code></td>
+<td>50（较低）</td>
+<td>可做较长时间操作，用于非紧急后台任务</td>
+</tr>
+</tbody></table>
+<p>两者都是普通的内核线程——它们在任务上下文中运行，有自己的栈，可以做大多数内核操作（但 HPWORK 优先级高，不应长时间阻塞）。</p>
+<h3 id="7-3-实例：ICJx-IO-Expander-驱动的中断处理"><a href="#7-3-实例：ICJx-IO-Expander-驱动的中断处理" class="headerlink" title="7.3 实例：ICJx IO Expander 驱动的中断处理"></a>7.3 实例：ICJx IO Expander 驱动的中断处理</h3><p>文件：<code>drivers/ioexpander/icjx.c:1081-1094</code>（ISR）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">icjx_interrupt</span><span class="params">(<span class="type">int</span> irq, FAR <span class="type">void</span> *context, FAR <span class="type">void</span> *arg)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">icjx_dev_s</span> *<span class="title">priv</span> =</span> (FAR <span class="keyword">struct</span> icjx_dev_s *)arg;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 中断上下文中只做一件事：调度工作到 HPWORK</span></span><br><span class="line"><span class="comment">   * 注释原文：&quot;We do not want to do this in the interrupt handler</span></span><br><span class="line"><span class="comment">   * because SPI communication speed.&quot;</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line"></span><br><span class="line">  DEBUGVERIFY(work_queue(HPWORK, &amp;priv-&gt;work, icjx_interrupt_worker,</span><br><span class="line">                         (FAR <span class="type">void</span> *)priv, <span class="number">0</span>));</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>drivers/ioexpander/icjx.c:1013-1038</code>（Worker，任务上下文）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">icjx_interrupt_worker</span><span class="params">(<span class="type">void</span> *arg)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">icjx_dev_s</span> *<span class="title">priv</span> =</span> (FAR <span class="keyword">struct</span> icjx_dev_s *)arg;</span><br><span class="line">  <span class="type">uint16_t</span> isr;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 禁用中断（防止 worker 执行期间重复触发）*/</span></span><br><span class="line">  priv-&gt;config-&gt;enable(priv-&gt;config, <span class="literal">false</span>);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 通过 SPI 读取中断状态寄存器（这在 ISR 中不能做——SPI 可能阻塞！）*/</span></span><br><span class="line">  icjx_read(priv, ICJX_INT_STATUS_A, &amp;isr, ICJX_NOB2);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">while</span> (isr != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 处理变化的 IO 引脚，调用用户注册的回调 */</span></span><br><span class="line">      <span class="comment">/* ... */</span></span><br><span class="line">      icjx_read(priv, ICJX_INT_STATUS_A, &amp;isr, ICJX_NOB2);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 重新使能中断 */</span></span><br><span class="line">  priv-&gt;config-&gt;enable(priv-&gt;config, <span class="literal">true</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>模式总结</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">ISR (interrupt context):          Worker (task context, HPWORK):</span><br><span class="line">  - 极短（几行代码）                  - 可以做 SPI/I2C 通信</span><br><span class="line">  - 禁用设备中断                      - 可以做数据处理</span><br><span class="line">  - work_queue(HPWORK, ...)           - 完成后重新使能中断</span><br><span class="line">  - return OK</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-与-Linux-下半部机制的对比"><a href="#7-4-与-Linux-下半部机制的对比" class="headerlink" title="7.4 与 Linux 下半部机制的对比"></a>7.4 与 Linux 下半部机制的对比</h3><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>Linux</th>
+<th>NuttX 等价物</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>softirq</td>
+<td>内核软中断，不可阻塞，per-CPU</td>
+<td>无</td>
+</tr>
+<tr>
+<td>tasklet</td>
+<td>基于 softirq，不可阻塞</td>
+<td>无</td>
+</tr>
+<tr>
+<td>workqueue</td>
+<td>内核线程，可阻塞</td>
+<td><strong><code>work_queue(HPWORK/LPWORK, ...)</code></strong> ← 唯一选项</td>
+</tr>
+<tr>
+<td>threaded IRQ</td>
+<td>中断线程化，可阻塞</td>
+<td>HPWORK 工作线程（等效）</td>
+</tr>
+</tbody></table>
+<p>NuttX 用一个统一的 work_queue 机制覆盖了 Linux 需要多种机制处理的场景。设计哲学：嵌入式系统中断源少、处理逻辑相对简单，一个高优先级工作线程足够应对。</p>
+<p>work_queue 解决了”ISR 太长”的问题。下面回到 ISR 注册本身——看 <code>irq_attach()</code> 如何将 ISR 绑定到中断号。</p>
+<hr>
+<h2 id="8-irq-attach-与-irq-dispatch-：ISR-注册与分发"><a href="#8-irq-attach-与-irq-dispatch-：ISR-注册与分发" class="headerlink" title="8. irq_attach() 与 irq_dispatch()：ISR 注册与分发"></a>8. irq_attach() 与 irq_dispatch()：ISR 注册与分发</h2><h3 id="8-0-为什么需要软件分发？——ARMv7-A-的向量表限制"><a href="#8-0-为什么需要软件分发？——ARMv7-A-的向量表限制" class="headerlink" title="8.0 为什么需要软件分发？——ARMv7-A 的向量表限制"></a>8.0 为什么需要软件分发？——ARMv7-A 的向量表限制</h3><p>在理解 <code>irq_attach()</code> &#x2F; <code>irq_dispatch()</code> 之前，需要先了解一个硬件事实：<strong>ARMv7-A 的异常向量表只有 8 个条目</strong>，所有外设中断共用其中一个入口。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">ARMv7-A Exception Vector Table (仅 8 项):</span><br><span class="line"></span><br><span class="line">  Offset    Exception</span><br><span class="line"> +--------+---------------------------+</span><br><span class="line"> | 0x00   | Reset                     |</span><br><span class="line"> | 0x04   | Undefined Instruction     |</span><br><span class="line"> | 0x08   | SVC (Supervisor Call)     |</span><br><span class="line"> | 0x0C   | Prefetch Abort            |</span><br><span class="line"> | 0x10   | Data Abort                |</span><br><span class="line"> | 0x14   | (Reserved)                |</span><br><span class="line"> | 0x18   | IRQ  ← 所有外设中断共用！ |</span><br><span class="line"> | 0x1C   | FIQ                       |</span><br><span class="line"> +--------+---------------------------+</span><br></pre></td></tr></table></figure>
+
+<p>无论是 UART、定时器、DMA 还是 SPI 触发中断，CPU 都跳到偏移 <code>0x18</code> 这<strong>同一个地址</strong>（即 <code>arm_vectorirq</code>）。硬件不会告诉你”是哪个设备”——必须读 <code>GIC_ICCIAR</code> 获取中断号，再通过软件查表找到对应的处理函数。</p>
+<p><strong>对比 Cortex-M（NVIC）：</strong> Cortex-M 的向量表有 16 + N 个条目（N &#x3D; 外设中断数，可达数百个），每个外设中断有独立的入口地址。IRQ 33 触发时，CPU 硬件直接跳到向量表第 33 项指向的函数——不需要软件分发。这就是为什么 FreeRTOS 在 Cortex-M 上可以直接用硬件向量表注册 ISR，而 NuttX 在 ARMv7-A 上必须维护一张软件分发表。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Cortex-M (NVIC):                 ARMv7-A (GIC):</span><br><span class="line">┌────────────────────┐           ┌───────────────────────┐</span><br><span class="line">│ Vector[16] → UART  │           │ 0x18 → arm_vectorirq  │ (唯一入口)</span><br><span class="line">│ Vector[17] → Timer │           │   read GIC_ICCIAR → ID│</span><br><span class="line">│ Vector[18] → DMA   │           │   g_irqvector[ID]()   │ (软件查表)</span><br><span class="line">│ ...                │           └───────────────────────┘</span><br><span class="line">└────────────────────┘</span><br><span class="line">  硬件直接跳转                      软件分发</span><br></pre></td></tr></table></figure>
+
+<p>理解了这个硬件背景，就能明白为什么 NuttX 需要 <code>g_irqvector[]</code> 数组 + <code>irq_attach()</code> 注册机制——它们本质上是用软件实现了 ARMv7-A 硬件缺失的”per-interrupt 向量表”。</p>
+<h3 id="8-1-处理函数表"><a href="#8-1-处理函数表" class="headerlink" title="8.1 处理函数表"></a>8.1 处理函数表</h3><p>文件：<code>sched/irq/irq.h:50-59</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">irq_info_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">xcpt_t</span> handler;      <span class="comment">/* ISR 函数指针 */</span></span><br><span class="line">  FAR <span class="type">void</span> *arg;       <span class="comment">/* 传递给 ISR 的参数 */</span></span><br><span class="line">  <span class="type">clock_t</span> time;        <span class="comment">/* 最大执行时间（监控用）*/</span></span><br><span class="line">  <span class="type">uint32_t</span> count;      <span class="comment">/* 触发次数 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>sched/irq/irq_initialize.c:53-57</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">irq_info_s</span> <span class="title">g_irqvector</span>[<span class="title">NR_IRQS</span>];</span></span><br></pre></td></tr></table></figure>
+
+<p>启动时所有条目初始化为 <code>irq_unexpected_isr</code>（未注册中断的 panic 处理）。</p>
+<h3 id="8-2-irq-attach-：注册-ISR"><a href="#8-2-irq-attach-：注册-ISR" class="headerlink" title="8.2 irq_attach()：注册 ISR"></a>8.2 irq_attach()：注册 ISR</h3><p>文件：<code>sched/irq/irq_attach.c:114-185</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">irq_attach</span><span class="params">(<span class="type">int</span> irq, <span class="type">xcpt_t</span> isr, FAR <span class="type">void</span> *arg)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> ndx = IRQ_TO_NDX(irq);</span><br><span class="line"></span><br><span class="line">  <span class="type">irqstate_t</span> flags = spin_lock_irqsave(&amp;g_irqlock);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (isr == <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 注销：禁用中断，指向 panic 处理函数 */</span></span><br><span class="line">      up_disable_irq(irq);</span><br><span class="line">      isr = irq_unexpected_isr;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  g_irqvector[ndx].handler = isr;</span><br><span class="line">  g_irqvector[ndx].arg     = arg;</span><br><span class="line"></span><br><span class="line">  spin_unlock_irqrestore(&amp;g_irqlock, flags);</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>ISR 函数签名</strong>：<code>int handler(int irq, FAR void *context, FAR void *arg)</code></p>
+<ul>
+<li><code>irq</code>：中断号</li>
+<li><code>context</code>：寄存器帧指针（通常不用）</li>
+<li><code>arg</code>：<code>irq_attach()</code> 时传入的自定义参数</li>
+</ul>
+<h3 id="8-3-irq-dispatch-：查表调用"><a href="#8-3-irq-dispatch-：查表调用" class="headerlink" title="8.3 irq_dispatch()：查表调用"></a>8.3 irq_dispatch()：查表调用</h3><p>文件：<code>sched/irq/irq_dispatch.c:98-165</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">irq_dispatch</span><span class="params">(<span class="type">int</span> irq, FAR <span class="type">void</span> *context)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> ndx = IRQ_TO_NDX(irq);</span><br><span class="line">  <span class="type">xcpt_t</span> <span class="built_in">vector</span> = g_irqvector[ndx].handler;</span><br><span class="line">  FAR <span class="type">void</span> *arg = g_irqvector[ndx].arg;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 调用注册的 ISR */</span></span><br><span class="line">  <span class="built_in">vector</span>(irq, context, arg);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>整个分发过程就是一次数组索引 + 函数指针调用——O(1) 复杂度。</p>
+<hr>
+<h2 id="9-enter-critical-section-：临界区保护"><a href="#9-enter-critical-section-：临界区保护" class="headerlink" title="9. enter_critical_section()：临界区保护"></a>9. enter_critical_section()：临界区保护</h2><p>多任务系统中，共享数据可能被”任务 + 中断”或”多个 CPU”同时访问。<code>enter_critical_section()</code> 通过禁用中断（+ SMP 下的 spinlock）保证代码段的原子性。</p>
+<h3 id="9-1-ARMv7-A-实现（非-SMP）"><a href="#9-1-ARMv7-A-实现（非-SMP）" class="headerlink" title="9.1 ARMv7-A 实现（非 SMP）"></a>9.1 ARMv7-A 实现（非 SMP）</h3><p>文件：<code>arch/arm/include/armv7-a/irq.h:367-380</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">irqstate_t</span> <span class="title function_">up_irq_save</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">unsigned</span> <span class="type">int</span> cpsr;</span><br><span class="line">  __asm__ __volatile__ (</span><br><span class="line">    <span class="string">&quot;mrs    %0, cpsr\n&quot;</span>     <span class="comment">/* 读当前 CPSR */</span></span><br><span class="line">    <span class="string">&quot;cpsid  i\n&quot;</span>            <span class="comment">/* 禁用 IRQ（设置 CPSR.I 位）*/</span></span><br><span class="line">    : <span class="string">&quot;=r&quot;</span> (cpsr) : : <span class="string">&quot;memory&quot;</span></span><br><span class="line">  );</span><br><span class="line">  <span class="keyword">return</span> cpsr;              <span class="comment">/* 返回修改前的 CPSR（用于恢复）*/</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">up_irq_restore</span><span class="params">(<span class="type">irqstate_t</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">  __asm__ __volatile__ (</span><br><span class="line">    <span class="string">&quot;msr    cpsr_c, %0&quot;</span>     <span class="comment">/* 写回 CPSR 控制位（包含 I 位）*/</span></span><br><span class="line">    : : <span class="string">&quot;r&quot;</span> (flags) : <span class="string">&quot;memory&quot;</span></span><br><span class="line">  );</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>enter_critical_section()</code> &#x3D; <code>up_irq_save()</code>（禁中断）+ 记录嵌套计数。<br><code>leave_critical_section()</code> &#x3D; 减计数 + <code>up_irq_restore()</code>（恢复中断状态）。</p>
+<h3 id="9-2-与-sched-lock-的区别"><a href="#9-2-与-sched-lock-的区别" class="headerlink" title="9.2 与 sched_lock() 的区别"></a>9.2 与 sched_lock() 的区别</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>enter_critical_section()</th>
+<th>sched_lock()</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>机制</td>
+<td>禁用 CPU 中断（CPSR.I）</td>
+<td>递增 lockcount 计数器</td>
+</tr>
+<tr>
+<td>中断响应</td>
+<td>被屏蔽</td>
+<td>正常响应</td>
+</tr>
+<tr>
+<td>保护范围</td>
+<td>防止中断 + 防止切换</td>
+<td>仅防止切换</td>
+</tr>
+<tr>
+<td>SMP 行为</td>
+<td>+ 全局 spinlock</td>
+<td>仅本 CPU 有效</td>
+</tr>
+<tr>
+<td>延迟影响</td>
+<td>增加中断响应延迟</td>
+<td>不影响中断响应</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>极短临界区（几条指令）</td>
+<td>较长临界区（允许中断响应）</td>
+</tr>
+</tbody></table>
+<p><strong>原则</strong>：能用 <code>sched_lock()</code> 就不用 <code>enter_critical_section()</code>——前者对实时性的影响更小。</p>
+<hr>
+<h2 id="10-中断栈"><a href="#10-中断栈" class="headerlink" title="10. 中断栈"></a>10. 中断栈</h2><p>如果中断使用被中断任务的栈，每个任务都必须预留足够空间给中断处理（ISR + 可能的嵌套）。这浪费内存。独立中断栈让所有中断共享一块固定大小的栈空间，任务栈只需考虑自身需求。</p>
+<h3 id="10-1-配置与分配"><a href="#10-1-配置与分配" class="headerlink" title="10.1 配置与分配"></a>10.1 配置与分配</h3><p>文件：<code>arch/arm/src/armv7-a/arm_vectors.S:796-828</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">#if !defined(CONFIG_SMP) &amp;&amp; CONFIG_ARCH_INTERRUPTSTACK &gt; 7</span><br><span class="line">    .bss</span><br><span class="line">    .balign 8</span><br><span class="line">g_intstackalloc:</span><br><span class="line">    .skip   ((CONFIG_ARCH_INTERRUPTSTACK + 4) &amp; ~7)</span><br><span class="line">g_intstacktop:</span><br></pre></td></tr></table></figure>
+
+<p>在 BSS 段分配固定大小的中断栈。<code>arm_vectorirq</code> 入口处通过 <code>setirqstack</code> 宏将 SP 切换到 <code>g_intstacktop</code>。</p>
+<p><strong>配置值的含义</strong>：</p>
+<ul>
+<li><code>CONFIG_ARCH_INTERRUPTSTACK = 0</code>：不使用独立中断栈（中断直接用任务栈）</li>
+<li><code>CONFIG_ARCH_INTERRUPTSTACK = 4096</code>：分配 4KB 中断栈</li>
+</ul>
+<p><strong>实践建议</strong>：对于 ARMv7-A KERNEL 模式，推荐设置 <code>CONFIG_ARCH_INTERRUPTSTACK &gt;= 2048</code>——因为 ISR 中可能调用较深的内核函数（如 <code>sem_post()</code> → <code>nxsched_add_readytorun()</code>）。</p>
+<hr>
+<h2 id="11-完整中断处理流程总览"><a href="#11-完整中断处理流程总览" class="headerlink" title="11. 完整中断处理流程总览"></a>11. 完整中断处理流程总览</h2><p>下图展示了从硬件中断触发到上下文切换完成的完整时序：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E6%96%AD%E5%A4%84%E7%90%86%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B.png" alt="中断处理完整流程"></p>
+<p>将上面所有环节串起来：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line">Hardware IRQ asserted</span><br><span class="line">  |</span><br><span class="line">  v</span><br><span class="line">[CPU] 保存 CPSR→SPSR_irq, PC→LR_irq, 切换到 IRQ 模式, 跳转向量</span><br><span class="line">  |</span><br><span class="line">  v</span><br><span class="line">arm_vectorirq (assembly)                    arch/arm/src/armv7-a/arm_vectors.S:175</span><br><span class="line">  ├─ sub lr, #4                             修正返回地址</span><br><span class="line">  ├─ srsdb sp!, #PSR_MODE_SYS              保存 LR+SPSR 到 SYS 栈</span><br><span class="line">  ├─ cpsid if, #PSR_MODE_SYS               切到 SYS 模式，禁中断</span><br><span class="line">  ├─ stmdb sp!, &#123;r0-r12&#125;                   保存通用寄存器</span><br><span class="line">  ├─ stmdb sp!, &#123;r1, r14&#125;                  保存修正 SP 和 LR</span><br><span class="line">  ├─ setirqstack                            切换到中断栈</span><br><span class="line">  └─ bl arm_decodeirq                       调用 C 函数</span><br><span class="line">       |</span><br><span class="line">       v</span><br><span class="line">arm_decodeirq()                             arch/arm/src/armv7-a/arm_gicv2.c:395</span><br><span class="line">  ├─ getreg32(GIC_ICCIAR)                  读 GIC，获取中断 ID + ACK</span><br><span class="line">  ├─ arm_doirq(irq, regs)</span><br><span class="line">  │    |</span><br><span class="line">  │    v</span><br><span class="line">  │  arm_doirq()                            arch/arm/src/armv7-a/arm_doirq.c:56</span><br><span class="line">  │    ├─ tcb-&gt;xcp.regs = regs             保存当前帧到 TCB</span><br><span class="line">  │    ├─ up_set_interrupt_context(true)</span><br><span class="line">  │    ├─ irq_dispatch(irq, regs)           查 g_irqvector[] 表，调用 ISR</span><br><span class="line">  │    │    └─ handler(irq, context, arg)   ← 用户注册的 ISR 执行</span><br><span class="line">  │    │         (ISR 中可能 sem_post/信号 → 修改就绪队列)</span><br><span class="line">  │    ├─ tcb = this_task()                 ISR 返回后重新获取最高优先级任务</span><br><span class="line">  │    ├─ if (regs != tcb-&gt;xcp.regs)       检测上下文切换</span><br><span class="line">  │    │    ├─ addrenv_switch(tcb)          切换 MMU 页表（KERNEL 模式）</span><br><span class="line">  │    │    ├─ nxsched_switch_context()     更新调度状态</span><br><span class="line">  │    │    └─ regs = tcb-&gt;xcp.regs        使用新任务的帧</span><br><span class="line">  │    └─ return regs                       返回（可能是不同任务的帧）</span><br><span class="line">  │</span><br><span class="line">  └─ putreg32(regval, GIC_ICCEOIR)          写 EOI，通知 GIC 处理完成</span><br><span class="line">     return regs</span><br><span class="line">       |</span><br><span class="line">       v</span><br><span class="line">arm_vectorirq (restore path)</span><br><span class="line">  ├─ ldmia r0, &#123;r13, r14&#125;^                 从返回的帧恢复 SP+LR</span><br><span class="line">  ├─ ldmia r14!, &#123;r0-r12&#125;                  恢复 r0-r12</span><br><span class="line">  └─ rfeia r14                              异常返回（PC+CPSR 从帧中加载）</span><br><span class="line">       |</span><br><span class="line">       v</span><br><span class="line">[CPU] 以恢复的 CPSR 运行 → 可能是原任务，也可能是新任务</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="12-对比分析"><a href="#12-对比分析" class="headerlink" title="12. 对比分析"></a>12. 对比分析</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NuttX (ARMv7-A GICv2)</th>
+<th>Linux (ARMv7-A GICv2)</th>
+<th>FreeRTOS (Cortex-M NVIC)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>中断控制器</td>
+<td>GIC，软件配置</td>
+<td>同，+ irqdomain 抽象</td>
+<td>NVIC，硬件优先级</td>
+</tr>
+<tr>
+<td>中断嵌套</td>
+<td>默认禁用</td>
+<td>支持（threaded IRQ）</td>
+<td>硬件自动嵌套</td>
+</tr>
+<tr>
+<td>ISR 注册</td>
+<td><code>irq_attach(irq, handler, arg)</code></td>
+<td><code>request_irq(irq, handler, flags, name, dev)</code></td>
+<td>直接写向量表</td>
+</tr>
+<tr>
+<td>ISR 上下文</td>
+<td>中断栈或任务栈</td>
+<td>专用内核栈</td>
+<td>任务栈（MSP 或 PSP）</td>
+</tr>
+<tr>
+<td>上下文切换</td>
+<td>中断返回时比较 regs 指针</td>
+<td><code>schedule()</code> 在 softirq&#x2F;preempt 点</td>
+<td>PendSV（延迟切换）</td>
+</tr>
+<tr>
+<td>下半部机制</td>
+<td>work_queue (HPWORK&#x2F;LPWORK)</td>
+<td>softirq &#x2F; tasklet &#x2F; workqueue</td>
+<td>无（ISR 直接处理）</td>
+</tr>
+<tr>
+<td>EOI 时机</td>
+<td>ISR 返回后写 EOI</td>
+<td>同</td>
+<td>硬件自动（NVIC）</td>
+</tr>
+<tr>
+<td>ISR 函数签名</td>
+<td><code>int f(int irq, void *ctx, void *arg)</code></td>
+<td><code>irqreturn_t f(int irq, void *dev_id)</code></td>
+<td><code>void f(void)</code></td>
+</tr>
+</tbody></table>
+<p><strong>NuttX 的设计取舍</strong>：</p>
+<ul>
+<li><strong>无下半部</strong>——ISR 中直接完成所有工作，简单但 ISR 不能太长</li>
+<li><strong>默认不嵌套</strong>——避免了复杂的重入问题，但可能增加高优先级中断的延迟</li>
+<li><strong>中断级上下文切换</strong>——比 FreeRTOS 的 PendSV 更直接（不需要额外的软中断），但实现复杂度在汇编层</li>
+</ul>
+<hr>
+<h2 id="13-关键要点"><a href="#13-关键要点" class="headerlink" title="13. 关键要点"></a>13. 关键要点</h2><ol>
+<li><p>**GIC 是 ARMv7-A 中断的”总管”**——管理几百个中断源的使能、优先级和 CPU 路由。NuttX 默认禁用中断嵌套。</p>
+</li>
+<li><p><strong><code>arm_vectorirq</code> 汇编入口做三件事</strong>：保存寄存器到 SYS 栈帧 → 切换到中断栈 → 调用 C 函数 <code>arm_decodeirq()</code>。</p>
+</li>
+<li><p><strong>中断号从 GIC_ICCIAR 寄存器读取</strong>（<code>arm_decodeirq()</code>），读操作本身就是 ACK；处理完后写 GIC_ICCEOIR 表示 EOI。</p>
+</li>
+<li><p>**<code>arm_doirq()</code> 的核心逻辑是”比较帧指针”**——ISR 运行前保存 <code>regs</code>，运行后检查 <code>this_task()-&gt;xcp.regs</code> 是否变了。如果变了，说明调度器切换了任务，返回新帧给汇编代码。</p>
+</li>
+<li><p><strong>ISR 中不直接切换任务</strong>——只修改调度器状态（<code>nxsched_add_readytorun()</code> 等）。实际切换延迟到 <code>arm_doirq()</code> 返回、汇编代码恢复寄存器时生效。</p>
+</li>
+<li><p><strong><code>enter_critical_section()</code> &#x3D; <code>cpsid i</code>（禁 IRQ）</strong>+ SMP 下的 spinlock。比 <code>sched_lock()</code> 更重量级，应尽量缩短使用时间。</p>
+</li>
+<li><p><strong>独立中断栈避免任务栈浪费</strong>——所有中断共享一块固定栈空间，推荐 &gt;&#x3D; 2048 字节。</p>
+</li>
+</ol>
+<hr>
+<h2 id="14-参考文件索引"><a href="#14-参考文件索引" class="headerlink" title="14. 参考文件索引"></a>14. 参考文件索引</h2><table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>关键内容</th>
+<th>引用行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>arch/arm/src/armv7-a/arm_vectors.S</code></td>
+<td>arm_vectorirq 汇编入口、中断栈分配</td>
+<td>171-278, 796-828</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_gicv2.c</code></td>
+<td>arm_decodeirq(), arm_gic0_initialize(), arm_gic_initialize()</td>
+<td>165-429</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_doirq.c</code></td>
+<td>arm_doirq() 上下文切换检测</td>
+<td>56-129</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/gic.h</code></td>
+<td>GIC 寄存器定义、SPI&#x2F;PPI&#x2F;SGI ID</td>
+<td>103-651</td>
+</tr>
+<tr>
+<td><code>arch/arm/include/armv7-a/irq.h</code></td>
+<td>up_irq_save&#x2F;restore, up_interrupt_context, 帧布局</td>
+<td>367-494</td>
+</tr>
+<tr>
+<td><code>sched/irq/irq.h</code></td>
+<td>struct irq_info_s, g_irqvector 声明</td>
+<td>50-81</td>
+</tr>
+<tr>
+<td><code>sched/irq/irq_initialize.c</code></td>
+<td>g_irqvector[] 定义和初始化</td>
+<td>53-90</td>
+</tr>
+<tr>
+<td><code>sched/irq/irq_attach.c</code></td>
+<td>irq_attach() ISR 注册</td>
+<td>114-185</td>
+</tr>
+<tr>
+<td><code>sched/irq/irq_dispatch.c</code></td>
+<td>irq_dispatch() ISR 分发</td>
+<td>98-165</td>
+</tr>
+<tr>
+<td><code>sched/irq/irq_csection.c</code></td>
+<td>enter&#x2F;leave_critical_section()</td>
+<td>258-463</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/common/arm_internal.h</code></td>
+<td>g_intstackalloc&#x2F;g_intstacktop 声明</td>
+<td>201-204</td>
+</tr>
+<tr>
+<td><code>include/nuttx/wqueue.h</code></td>
+<td>work_queue() API 定义</td>
+<td>406</td>
+</tr>
+<tr>
+<td><code>sched/wqueue/kwork_queue.c</code></td>
+<td>work_queue() 实现</td>
+<td>70-157</td>
+</tr>
+<tr>
+<td><code>drivers/ioexpander/icjx.c</code></td>
+<td>ISR + worker 模式实例</td>
+<td>1013-1094</td>
+</tr>
+<tr>
+<td><code>Documentation/implementation/interrupt_controls.rst</code></td>
+<td>NuttX 官方中断控制文档</td>
+<td>全文</td>
+</tr>
+</tbody></table>
+<p><strong>外部参考文档：</strong></p>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ARM Architecture Reference Manual (ARMv7-A&#x2F;R)</td>
+<td>异常模型、IRQ&#x2F;FIQ 模式、CPSR 位定义</td>
+</tr>
+<tr>
+<td>ARM Generic Interrupt Controller Architecture Specification (GIC v2.0)</td>
+<td>ICCIAR&#x2F;ICCEOIR 寄存器、优先级模型、Binary Point</td>
+</tr>
+<tr>
+<td>NuttX Documentation: <a target="_blank" rel="noopener" href="https://nuttx.apache.org/docs/latest/">https://nuttx.apache.org/docs/latest/</a></td>
+<td>官方中断配置和驱动开发指南</td>
+</tr>
+</tbody></table>
+<hr>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/15/Nuttx-Memory-Management/" rel="prev" title="Nuttx - Memory Management">
+                  <i class="fa fa-angle-left"></i> Nuttx - Memory Management
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/15/Nuttx-VFS/" rel="next" title="Nuttx - VFS">
+                  Nuttx - VFS <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
