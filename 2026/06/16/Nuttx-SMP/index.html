@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="拆解 NuttX 如何将单核 RTOS 改造为对称多处理器操作系统——从 CPU 启动、任务分配、跨核 IPI、自旋锁到临界区的完整实现路径。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - SMP">
+<meta property="og:url" content="http://yoursite.com/2026/06/16/Nuttx-SMP/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="拆解 NuttX 如何将单核 RTOS 改造为对称多处理器操作系统——从 CPU 启动、任务分配、跨核 IPI、自旋锁到临界区的完整实现路径。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ng">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E8%B0%83%E5%BA%A6.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="article:published_time" content="2026-06-16T13:25:27.000Z">
+<meta property="article:modified_time" content="2026-06-16T13:37:29.452Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/16/Nuttx-SMP/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/16/Nuttx-SMP/","path":"2026/06/16/Nuttx-SMP/","title":"Nuttx - SMP"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - SMP | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-SMP%EF%BC%9F%E2%80%94%E2%80%94%E5%8D%95%E6%A0%B8%E5%81%87%E8%AE%BE%E7%9A%84%E5%B4%A9%E6%BA%83"><span class="nav-text">1. 为什么需要 SMP？——单核假设的崩溃</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%A4%9A%E6%A0%B8%E4%B8%8B%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E5%8F%98%E9%9D%A9"><span class="nav-text">2. 多核下的数据结构变革</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-g-readytorun%EF%BC%9A%E4%BB%8E%E2%80%9D%E5%85%A8%E9%83%A8%E5%B0%B1%E7%BB%AA%E2%80%9D%E5%88%B0%E2%80%9D%E6%9C%AA%E5%88%86%E9%85%8D%E4%BB%BB%E5%8A%A1%E6%B1%A0%E2%80%9D"><span class="nav-text">2.1 g_readytorun：从”全部就绪”到”未分配任务池”</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-g-assignedtasks%EF%BC%9A%E6%AF%8F-CPU-%E7%9A%84%E8%BF%90%E8%A1%8C%E4%BB%BB%E5%8A%A1%E5%90%91%E9%87%8F"><span class="nav-text">2.2 g_assignedtasks：每 CPU 的运行任务向量</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-TCB-%E7%9A%84-SMP-%E5%AD%97%E6%AE%B5"><span class="nav-text">2.3 TCB 的 SMP 字段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-this-task-%E5%92%8C-current-task-%E7%9A%84%E5%A4%9A%E6%A0%B8%E7%89%88%E6%9C%AC"><span class="nav-text">2.4 this_task() 和 current_task() 的多核版本</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-g-delivertasks%EF%BC%9A%E8%B7%A8%E6%A0%B8%E8%B0%83%E5%BA%A6%E8%AF%B7%E6%B1%82%E6%95%B0%E7%BB%84"><span class="nav-text">2.5 g_delivertasks：跨核调度请求数组</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-CPU-%E5%90%AF%E5%8A%A8%EF%BC%9A%E4%BB%8E%E5%8D%95%E6%A0%B8%E5%88%B0%E5%A4%9A%E6%A0%B8%E7%9A%84%E5%BC%95%E5%AF%BC%E6%B5%81%E7%A8%8B"><span class="nav-text">3. CPU 启动：从单核到多核的引导流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%89%B9%E6%AE%8A%E7%9A%84%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B%EF%BC%9F"><span class="nav-text">3.1 为什么需要特殊的启动流程？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-IDLE-%E4%BB%BB%E5%8A%A1%E7%9A%84%E5%88%9B%E5%BB%BA"><span class="nav-text">3.2 IDLE 任务的创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-nx-smp-start-%EF%BC%9A%E5%90%AF%E5%8A%A8%E6%AC%A1%E7%BA%A7-CPU"><span class="nav-text">3.3 nx_smp_start()：启动次级 CPU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E6%AC%A1%E7%BA%A7-CPU-%E7%9A%84%E6%B1%87%E7%BC%96%E5%85%A5%E5%8F%A3"><span class="nav-text">3.4 次级 CPU 的汇编入口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-nx-idle-trampoline-%EF%BC%9A%E6%AC%A1%E7%BA%A7-CPU-%E7%9A%84%E2%80%9D%E8%87%AA%E6%97%8B%E7%AD%89%E5%BE%85-%E9%A6%96%E6%AC%A1%E8%B0%83%E5%BA%A6%E2%80%9D"><span class="nav-text">3.5 nx_idle_trampoline()：次级 CPU 的”自旋等待-首次调度”</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E4%BB%BB%E5%8A%A1%E5%88%86%E9%85%8D%EF%BC%9ACPU-%E9%80%89%E6%8B%A9%E7%AE%97%E6%B3%95"><span class="nav-text">4. 任务分配：CPU 选择算法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-nxsched-select-cpu-%EF%BC%9A%E6%9C%80%E4%BD%8E%E4%BC%98%E5%85%88%E7%BA%A7%E5%90%AF%E5%8F%91%E5%BC%8F"><span class="nav-text">4.1 nxsched_select_cpu()：最低优先级启发式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-nxsched-add-readytorun-%EF%BC%9ASMP-%E7%89%88%E6%9C%AC%E7%9A%84%E5%B0%B1%E7%BB%AA%E5%85%A5%E9%98%9F"><span class="nav-text">4.2 nxsched_add_readytorun()：SMP 版本的就绪入队</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-nxsched-switch-running-%EF%BC%9A%E5%AE%9E%E9%99%85%E6%89%A7%E8%A1%8C%E4%BB%BB%E5%8A%A1%E6%9B%BF%E6%8D%A2"><span class="nav-text">4.3 nxsched_switch_running()：实际执行任务替换</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E8%B7%A8%E6%A0%B8%E8%B0%83%E5%BA%A6%EF%BC%9AIPI-%E4%B8%8E%E4%BB%BB%E5%8A%A1%E4%BA%A4%E4%BB%98%E5%8D%8F%E8%AE%AE"><span class="nav-text">5. 跨核调度：IPI 与任务交付协议</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E8%B7%A8%E6%A0%B8%E8%B0%83%E5%BA%A6%EF%BC%9F"><span class="nav-text">5.1 为什么需要跨核调度？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-nxsched-deliver-task-%EF%BC%9A%E6%9C%AC%E5%9C%B0-vs-%E8%BF%9C%E7%A8%8B%E7%9A%84%E5%88%86%E5%8F%91%E9%80%BB%E8%BE%91"><span class="nav-text">5.2 nxsched_deliver_task()：本地 vs 远程的分发逻辑</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-up-send-smp-sched-%EF%BC%9A%E6%9E%B6%E6%9E%84%E7%89%B9%E5%AE%9A%E7%9A%84-IPI-%E5%8F%91%E9%80%81"><span class="nav-text">5.3 up_send_smp_sched()：架构特定的 IPI 发送</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-nxsched-process-delivered-%EF%BC%9AIPI-%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86"><span class="nav-text">5.4 nxsched_process_delivered()：IPI 中断处理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E8%87%AA%E6%97%8B%E9%94%81%EF%BC%9ASMP-%E6%A0%B8%E5%BF%83%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD"><span class="nav-text">6. 自旋锁：SMP 核心同步原语</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E8%87%AA%E6%97%8B%E9%94%81%EF%BC%9F"><span class="nav-text">6.1 为什么需要自旋锁？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-up-testset-%EF%BC%9A%E7%A1%AC%E4%BB%B6%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C"><span class="nav-text">6.2 up_testset()：硬件原子操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-spin-lock-%EF%BC%9A%E5%BF%99%E7%AD%89%E8%8E%B7%E5%8F%96%E9%94%81"><span class="nav-text">6.3 spin_lock()：忙等获取锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E5%85%A8%E5%B1%80-IRQ-%E8%87%AA%E6%97%8B%E9%94%81%EF%BC%9Ag-cpu-irqlock"><span class="nav-text">6.4 全局 IRQ 自旋锁：g_cpu_irqlock</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-Ticket-Spinlock"><span class="nav-text">6.5 Ticket Spinlock</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E4%B8%B4%E7%95%8C%E5%8C%BA%EF%BC%9Aenter-critical-section-%E7%9A%84%E5%A4%9A%E6%A0%B8%E9%87%8D%E6%9E%84"><span class="nav-text">7. 临界区：enter_critical_section 的多核重构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E5%8D%95%E6%A0%B8-vs-%E5%A4%9A%E6%A0%B8%E7%9A%84%E8%AF%AD%E4%B9%89%E5%8F%98%E5%8C%96"><span class="nav-text">7.1 单核 vs 多核的语义变化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-enter-critical-section-notrace-%EF%BC%9A%E5%8F%8C%E8%B7%AF%E5%BE%84%E5%A4%84%E7%90%86"><span class="nav-text">7.2 enter_critical_section_notrace()：双路径处理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-leave-critical-section-notrace-%EF%BC%9A%E5%AE%89%E5%85%A8%E9%80%80%E5%87%BA"><span class="nav-text">7.3 leave_critical_section_notrace()：安全退出</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E4%B8%B4%E7%95%8C%E5%8C%BA%E5%AF%B9%E6%8A%A2%E5%8D%A0%E7%9A%84%E5%89%AF%E4%BD%9C%E7%94%A8"><span class="nav-text">7.4 临界区对抢占的副作用</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-sched-lock-sched-unlock%EF%BC%9A%E7%A6%81%E6%AD%A2%E6%8A%A2%E5%8D%A0%E7%9A%84%E5%A4%9A%E6%A0%B8%E8%AF%AD%E4%B9%89"><span class="nav-text">8. sched_lock &#x2F; sched_unlock：禁止抢占的多核语义</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-sched-lock-%EF%BC%9A%E4%BB%85%E9%99%90%E5%BD%93%E5%89%8D-CPU"><span class="nav-text">8.1 sched_lock()：仅限当前 CPU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-sched-unlock-%EF%BC%9A%E6%A3%80%E6%9F%A5-g-readytorun-%E8%80%8C%E9%9D%9E-g-pendingtasks"><span class="nav-text">8.2 sched_unlock()：检查 g_readytorun 而非 g_pendingtasks</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E7%BA%BF%E7%A8%8B%E4%BA%B2%E5%92%8C%E6%80%A7-Affinity"><span class="nav-text">9. 线程亲和性 (Affinity)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-CPU-%E4%BA%B2%E5%92%8C%E6%80%A7%EF%BC%9F"><span class="nav-text">9.1 为什么需要 CPU 亲和性？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-%E9%BB%98%E8%AE%A4%E8%A1%8C%E4%B8%BA"><span class="nav-text">9.2 默认行为</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-3-sched-setaffinity-sched-getaffinity"><span class="nav-text">9.3 sched_setaffinity &#x2F; sched_getaffinity</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-4-TCB-FLAG-CPU-LOCKED"><span class="nav-text">9.4 TCB_FLAG_CPU_LOCKED</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-5-%E4%B8%8E-Linux-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-text">9.5 与 Linux 的对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">10. 关键要点总结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="nav-text">11. 参考资料</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">45</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/16/Nuttx-SMP/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - SMP | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - SMP
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-16 21:25:27" itemprop="dateCreated datePublished" datetime="2026-06-16T21:25:27+08:00">2026-06-16</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>拆解 NuttX 如何将单核 RTOS 改造为对称多处理器操作系统——从 CPU 启动、任务分配、跨核 IPI、自旋锁到临界区的完整实现路径。</p>
+</blockquote>
+<span id="more"></span>
+
+<p><strong>阅读指南：</strong> 本文回答以下问题：NuttX 如何在多核处理器上同时启动 4 个 CPU？一个就绪任务如何被分配到最合适的核心上执行？CPU 之间如何通过 IPI（核间中断）和自旋锁协同工作而不相互破坏数据？<code>enter_critical_section()</code> 在多核下发生了哪些根本性变化？读完后，你将能够从源码级别理解 NuttX SMP 的调度决策路径、核间通信机制和同步原语设计，并具备独立调试 SMP 竞态条件的能力。</p>
+<hr>
+<h2 id="1-为什么需要-SMP？——单核假设的崩溃"><a href="#1-为什么需要-SMP？——单核假设的崩溃" class="headerlink" title="1. 为什么需要 SMP？——单核假设的崩溃"></a>1. 为什么需要 SMP？——单核假设的崩溃</h2><p>NuttX 最初为一个假设设计：系统中只有 <strong>一个 CPU</strong>。在这个假设下，许多设计非常简洁：</p>
+<ul>
+<li>只有一个 <code>g_readytorun</code> 链表，链表头就是”当前正在运行的任务”；</li>
+<li><code>this_task()</code> 直接取 <code>g_readytorun.head</code>，不需要知道自己在哪个 CPU 上；</li>
+<li><code>sched_lock()</code> 递增 <code>lockcount</code> → 禁止抢占，等于独占整个 CPU；</li>
+<li><code>enter_critical_section()</code> 关本地中断 → 临界区成立，因为没有别的 CPU 能碰数据。</li>
+</ul>
+<p>当硬件变为 <strong>4 核 Cortex-A9</strong>（如 i.MX6 Quad），上述假设全部失效：</p>
+<ol>
+<li><strong>哪个任务是”当前任务”？</strong> 4 个 CPU 上同时运行着 4 个不同的任务。</li>
+<li><strong>关本地中断不够。</strong> CPU0 关了中断，CPU1 仍然可能修改同一个内核数据结构。</li>
+<li><strong><code>sched_lock()</code> 不能阻止其他核上的任务运行。</strong> 只是阻止了当前 CPU 的抢占。</li>
+</ol>
+<p>NuttX 官方设计文档 <code>Documentation/implementation/smp.rst</code> 列出了 SMP 的 7 大设计需求：</p>
+<ol>
+<li>能够启动多个 CPU 并运行 NuttX</li>
+<li>需要管理多个活跃任务的数据结构</li>
+<li>需要能在其他 CPU 上调度任务</li>
+<li>需要能修改在其他 CPU 上运行的任务</li>
+<li>需要管理所有 CPU 上的临界区</li>
+<li>需要自旋锁来阻塞所有 CPU</li>
+<li>需要理解 <code>sched_lock()</code> 等非标准操作在 SMP 下的语义变化</li>
+</ol>
+<p>本文将逐一拆解这些需求的实现。**所有的源码引用基于 i.MX6 Quad (ARMv7-A, 4 核)**，<code>CONFIG_SMP_NCPUS=4</code>。</p>
+<hr>
+<h2 id="2-多核下的数据结构变革"><a href="#2-多核下的数据结构变革" class="headerlink" title="2. 多核下的数据结构变革"></a>2. 多核下的数据结构变革</h2><p>在深入调度算法之前，先理解数据结构的根本变化。这些结构是后续所有逻辑的基础。</p>
+<h3 id="2-1-g-readytorun：从”全部就绪”到”未分配任务池”"><a href="#2-1-g-readytorun：从”全部就绪”到”未分配任务池”" class="headerlink" title="2.1 g_readytorun：从”全部就绪”到”未分配任务池”"></a>2.1 g_readytorun：从”全部就绪”到”未分配任务池”</h3><p>在单核 NuttX 中，<code>g_readytorun</code> 是一个按优先级排序的双向链表，包含所有就绪任务，链表头就是当前正在运行的任务，链表尾一定是 IDLE 任务。</p>
+<p>在 SMP 下，<code>g_readytorun</code> 的语义发生了根本变化：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched.h:170-188</span></span><br><span class="line"><span class="comment">/* In order to support SMP, the function of the g_readytorun list changes,</span></span><br><span class="line"><span class="comment"> * The g_readytorun is still used but in the SMP case it will contain only:</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> *  - Only tasks/threads that are eligible to run, but not currently running,</span></span><br><span class="line"><span class="comment"> *    and</span></span><br><span class="line"><span class="comment"> *  - Tasks/threads that have not been assigned to a CPU.</span></span><br><span class="line"><span class="comment"> */</span></span><br></pre></td></tr></table></figure>
+
+<p>SMP 下 <code>g_readytorun</code> 只包含<strong>尚未分配 CPU 且未在运行</strong>的任务。正在运行的任务不再存在于这个链表中——它们被搬到了新的数据结构 <code>g_assignedtasks[]</code> 中。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">单核：g_readytorun = [Task A(运行)] -&gt; [Task B] -&gt; [Task C] -&gt; [IDLE]</span><br><span class="line">SMP： g_readytorun = [Task E] -&gt; [Task F]      (未分配CPU的就绪任务)</span><br><span class="line">      g_assignedtasks[0] = Task A (CPU0 正在运行)</span><br><span class="line">      g_assignedtasks[1] = Task B (CPU1 正在运行)</span><br><span class="line">      g_assignedtasks[2] = Task C (CPU2 正在运行)</span><br><span class="line">      g_assignedtasks[3] = IDLE3  (CPU3 空闲)</span><br></pre></td></tr></table></figure>
+
+<p>下图可视化了 <code>g_readytorun</code> 和 <code>g_assignedtasks[]</code> 的关系：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png" alt="SMP数据结构"></p>
+<blockquote>
+<p>注：IDLE0（优先级 0）仍然保留在 <code>g_readytorun</code> 尾部保持链表非空，但它已被分配给了 CPU0，其状态为 <code>TSTATE_TASK_ASSIGNED</code>。</p>
+</blockquote>
+<h3 id="2-2-g-assignedtasks：每-CPU-的运行任务向量"><a href="#2-2-g-assignedtasks：每-CPU-的运行任务向量" class="headerlink" title="2.2 g_assignedtasks：每 CPU 的运行任务向量"></a>2.2 g_assignedtasks：每 CPU 的运行任务向量</h3><p>与官方设计文档中设想的 <code>dq_queue_t g_assignedtasks[CONFIG_SMP_NCPUS]</code>（每个 CPU 一个队列）不同，实际实现是一个更简洁的<strong>指针数组</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/init/nx_start.c:116</span></span><br><span class="line">FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">g_assignedtasks</span>[<span class="title">CONFIG_SMP_NCPUS</span>];</span></span><br></pre></td></tr></table></figure>
+
+<p>每个 CPU 只存储<strong>一个</strong> TCB 指针——当前正在该 CPU 上执行的任务。非运行但已分配的就绪任务仍然放回 <code>g_readytorun</code>。</p>
+<p>这是一个重要的简化：最初设计曾设想过每个 CPU 维护一个”已分配任务队列”，但最终实现选择了”当前运行任务指针 + 全局就绪池”的模式。这避免了对每个 CPU 维护优先级队列的复杂度。</p>
+<h3 id="2-3-TCB-的-SMP-字段"><a href="#2-3-TCB-的-SMP-字段" class="headerlink" title="2.3 TCB 的 SMP 字段"></a>2.3 TCB 的 SMP 字段</h3><p><code>tcb_s</code> 结构体（<code>include/nuttx/sched.h:617-624</code>）中新增了以下 SMP 相关字段：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/nuttx/sched.h:617-624</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line">  <span class="type">uint8_t</span>  cpu;         <span class="comment">// 任务当前分配/运行的 CPU 编号</span></span><br><span class="line">  <span class="type">cpu_set_t</span> affinity;   <span class="comment">// 允许运行的 CPU 位掩码</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">  <span class="type">uint32_t</span> flags;       <span class="comment">// TCB_FLAG_CPU_LOCKED (bit 5)</span></span><br><span class="line">  <span class="type">int16_t</span>  lockcount;   <span class="comment">// 抢占锁计数 (&gt;0 则禁止抢占)</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_IRQCOUNT</span></span><br><span class="line">  <span class="type">int16_t</span>  irqcount;    <span class="comment">// 临界区嵌套计数 (&gt;0 则处于临界区)</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>关键字段解释：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cpu</code></td>
+<td><code>uint8_t</code></td>
+<td>任务被分配到的 CPU 编号。调度器在任务就绪时设定</td>
+</tr>
+<tr>
+<td><code>affinity</code></td>
+<td><code>cpu_set_t</code></td>
+<td>位掩码，限制任务只能运行在哪些 CPU 上。子线程继承父线程</td>
+</tr>
+<tr>
+<td><code>flags</code> (Bit 5)</td>
+<td><code>TCB_FLAG_CPU_LOCKED</code></td>
+<td>置位时 <code>cpu</code> 字段为权威值，覆盖 <code>affinity</code>。IDLE 任务始终置位</td>
+</tr>
+<tr>
+<td><code>lockcount</code></td>
+<td><code>int16_t</code></td>
+<td><code>sched_lock()</code> 递增，<code>sched_unlock()</code> 递减。&gt;0 时禁止抢占</td>
+</tr>
+<tr>
+<td><code>irqcount</code></td>
+<td><code>int16_t</code></td>
+<td><code>enter_critical_section()</code> 递增。&gt;0 时处于临界区，并持有全局 IRQ 自旋锁</td>
+</tr>
+</tbody></table>
+<p><code>TCB_FLAG_CPU_LOCKED</code> 的定义（<code>include/nuttx/sched.h:101</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> TCB_FLAG_CPU_LOCKED  (1 &lt;&lt; 5)  <span class="comment">/* Bit 5: Locked to this CPU */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>当此标志置位时，任务<strong>只能</strong>在 <code>tcb-&gt;cpu</code> 指定的 CPU 上运行，调度器不会尝试将其迁移。</p>
+<p><strong>实例：IDLE 任务的 TCB 初始化值（i.MX6 Quad, CONFIG_SMP_NCPUS&#x3D;4）</strong></p>
+<p>以 CPU0 的 IDLE 任务为例，初始化后的 TCB 关键字段值：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">tcb-&gt;pid        = 0         // IDLE PID  = CPU 编号</span><br><span class="line">tcb-&gt;cpu        = 0         // 绑定到 CPU0</span><br><span class="line">tcb-&gt;affinity   = 0x0F      // bit[3:0] 全 1, 允许所有 CPU (但被 CPU_LOCKED 覆盖)</span><br><span class="line">tcb-&gt;flags      = TCB_FLAG_TTYPE_KERNEL | TCB_FLAG_CPU_LOCKED</span><br><span class="line">tcb-&gt;lockcount  = 1         // 初始禁止抢占</span><br><span class="line">tcb-&gt;irqcount   = 0         // 未在临界区</span><br><span class="line">tcb-&gt;sched_priority = 0     // 最低优先级</span><br></pre></td></tr></table></figure>
+
+<p>CPU0 和 CPU1-3 的 IDLE 任务唯一区别：</p>
+<ul>
+<li>CPU0: <code>start = nx_start</code>，<code>g_assignedtasks[0]</code> 已直接设为 <code>&amp;g_idletcb[0]</code></li>
+<li>CPU1-3: <code>start = nx_idle_trampoline</code>，<code>g_assignedtasks[i] = &amp;g_idletcb[i]</code></li>
+</ul>
+<p><strong>与 Linux 的对比：</strong> Linux 的 <code>task_struct</code> 中有 <code>thread_info-&gt;cpu</code> 字段存储在栈的末端（通过 <code>current_thread_info()-&gt;cpu</code> 获取），还有 <code>cpus_allowed</code>（对应 NuttX 的 <code>affinity</code>）。NuttX 将这两个字段直接嵌入 TCB，避免了栈对齐的复杂度。</p>
+<h3 id="2-4-this-task-和-current-task-的多核版本"><a href="#2-4-this-task-和-current-task-的多核版本" class="headerlink" title="2.4 this_task() 和 current_task() 的多核版本"></a>2.4 this_task() 和 current_task() 的多核版本</h3><p>单核下 <code>this_task()</code> 等价于 <code>g_readytorun.head</code>。SMP 下必须根据当前 CPU 索引查找 <code>g_assignedtasks[]</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched.h:69-73</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> current_task(cpu)  (g_assignedtasks[cpu])</span></span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> current_task(cpu)  ((FAR struct tcb_s *)list_readytorun()-&gt;head)</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched.h:371-393 — SMP 版本的 this_task()</span></span><br><span class="line"><span class="type">static</span> inline_function FAR <span class="keyword">struct</span> tcb_s *<span class="title function_">this_task</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">tcb</span>;</span></span><br><span class="line">  <span class="type">irqstate_t</span> flags;</span><br><span class="line"></span><br><span class="line">  flags = up_irq_save();          <span class="comment">// 关本地中断，防止在获取CPU编号后被迁移</span></span><br><span class="line">  tcb = current_task(this_cpu()); <span class="comment">// g_assignedtasks[this_cpu()]</span></span><br><span class="line">  up_irq_restore(flags);</span><br><span class="line">  <span class="keyword">return</span> tcb;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么需要关中断？</strong> <code>this_cpu()</code> 返回当前 CPU 编号，然后以此索引 <code>g_assignedtasks[]</code>。如果在这两步之间发生调度导致任务被迁移到另一个 CPU，就会读到错误的任务。关本地中断保证这个两步操作的原子性。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/nuttx/sched.h:222-226</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> this_cpu()  up_this_cpu()</span></span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> this_cpu()  (0)</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p><code>up_this_cpu()</code> 在 ARMv7-A 上通过读取 CP15 协处理器的 MPIDR（Multiprocessor Affinity Register）寄存器实现，该寄存器包含当前 CPU 的硬件 ID。</p>
+<h3 id="2-5-g-delivertasks：跨核调度请求数组"><a href="#2-5-g-delivertasks：跨核调度请求数组" class="headerlink" title="2.5 g_delivertasks：跨核调度请求数组"></a>2.5 g_delivertasks：跨核调度请求数组</h3><p>单核下调度决策只在当前 CPU 上生效。多核下，CPU0 可能决定 CPU1 应该切换任务。这需要一个核间通信机制：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/init/nx_start.c:117</span></span><br><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">task_deliver_e</span> <span class="title">g_delivertasks</span>[<span class="title">CONFIG_SMP_NCPUS</span>];</span></span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>task_deliver_e</code> 枚举（<code>sched/sched/sched.h:138-145</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">enum</span> <span class="title">task_deliver_e</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  SWITCH_NONE   = <span class="number">0</span>, <span class="comment">/* 无待处理调度请求 */</span></span><br><span class="line">  SWITCH_HIGHER = <span class="number">1</span>, <span class="comment">/* 需要切入更高优先级任务 */</span></span><br><span class="line">  SWITCH_EQUAL       <span class="comment">/* 需要切入相同或更高优先级任务 (用于时间片轮转) */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>这是 NuttX 的”任务交付协议”核心：当一个 CPU 决定另一个 CPU 应该重新调度时，它在 <code>g_delivertasks[target]</code> 中写入优先级级别，然后发送 IPI（核间中断）触发目标 CPU 执行调度。</p>
+<p><strong>实例：4 核系统中的典型 <code>g_delivertasks</code> 状态</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">// CPU0 触发对 CPU3 的调度请求后：</span><br><span class="line">g_delivertasks[0] = SWITCH_NONE    // CPU0: 无请求</span><br><span class="line">g_delivertasks[1] = SWITCH_NONE    // CPU1: 无请求</span><br><span class="line">g_delivertasks[2] = SWITCH_NONE    // CPU2: 无请求</span><br><span class="line">g_delivertasks[3] = SWITCH_HIGHER  // CPU3: 有待处理的高优先级任务!</span><br><span class="line"></span><br><span class="line">// CPU3 在 nxsched_process_delivered() 中处理后将:</span><br><span class="line">g_delivertasks[3] = SWITCH_NONE    // 清除请求</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p>以上数据结构定义了 SMP 的”静态快照”。接下来我们看这些结构是如何被填充的——从只有 CPU0 活跃的启动时刻开始。</p>
+<h2 id="3-CPU-启动：从单核到多核的引导流程"><a href="#3-CPU-启动：从单核到多核的引导流程" class="headerlink" title="3. CPU 启动：从单核到多核的引导流程"></a>3. CPU 启动：从单核到多核的引导流程</h2><h3 id="3-1-为什么需要特殊的启动流程？"><a href="#3-1-为什么需要特殊的启动流程？" class="headerlink" title="3.1 为什么需要特殊的启动流程？"></a>3.1 为什么需要特殊的启动流程？</h3><p>多核处理器的启动遵循不对称模型：上电后只有 CPU0（主核）开始执行 boot ROM，其余 CPU（次级核）处于复位状态。CPU0 需要完成 OS 初始化后，逐个释放次级核。这不同于 Linux 的 <code>smp_init()</code> &#x2F; <code>secondary_start_kernel()</code>，但原理相同。</p>
+<p>NuttX 官方文档 <code>Documentation/implementation/smp.rst:311-328</code> 描述了这一设计：</p>
+<blockquote>
+<p>“I assume that initially, only one CPU is active. System initialization would then occur on that single thread. At the completion of the initialization of the OS, just before beginning normal multitasking, the additional CPUs would be started.”</p>
+</blockquote>
+<h3 id="3-2-IDLE-任务的创建"><a href="#3-2-IDLE-任务的创建" class="headerlink" title="3.2 IDLE 任务的创建"></a>3.2 IDLE 任务的创建</h3><p><code>nx_start()</code>（<code>sched/init/nx_start.c</code>）在系统初始化早期为每个 CPU 创建一个 IDLE 任务。详细流程在 <code>idle_task_initialize()</code>（第 328-420 行）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/init/nx_start.c:328-420 — IDLE 任务初始化 (关键 SMP 部分)</span></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">idle_task_initialize</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="built_in">memset</span>(g_idletcb, <span class="number">0</span>, <span class="keyword">sizeof</span>(g_idletcb));</span><br><span class="line">  <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; CONFIG_SMP_NCPUS; i++)</span><br><span class="line">    &#123;</span><br><span class="line">      tcb = &amp;g_idletcb[i];        <span class="comment">// 静态分配的 TCB 数组</span></span><br><span class="line">      tcb-&gt;pid        = i;        <span class="comment">// IDLE 任务的 PID = CPU 编号</span></span><br><span class="line">      tcb-&gt;task_state = TSTATE_TASK_RUNNING;</span><br><span class="line">      tcb-&gt;lockcount  = <span class="number">1</span>;        <span class="comment">// 初始化时禁止抢占</span></span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (i &gt; <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          tcb-&gt;start      = nx_idle_trampoline;  <span class="comment">// CPU1-3 入口</span></span><br><span class="line">          tcb-&gt;entry.main = (<span class="type">main_t</span>)nx_idle_trampoline;</span><br><span class="line">        &#125;</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">          tcb-&gt;start      = nx_start;            <span class="comment">// CPU0 入口</span></span><br><span class="line">          tcb-&gt;entry.main = (<span class="type">main_t</span>)nx_start;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">      tcb-&gt;flags = (TCB_FLAG_TTYPE_KERNEL | TCB_FLAG_CPU_LOCKED);</span><br><span class="line">      tcb-&gt;cpu   = i;</span><br><span class="line">      tcb-&gt;affinity =</span><br><span class="line">        (<span class="type">cpu_set_t</span>)(CONFIG_SMP_DEFAULT_CPUSET &amp; SCHED_ALL_CPUS);</span><br><span class="line"></span><br><span class="line">      <span class="built_in">snprintf</span>(tcb-&gt;name, CONFIG_TASK_NAME_SIZE, <span class="string">&quot;CPU%d IDLE&quot;</span>, i);</span><br><span class="line">      g_assignedtasks[i] = tcb;     <span class="comment">// 设为当前运行任务</span></span><br><span class="line">      g_running_tasks[i]  = tcb;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>对于 i.MX6 Quad，<code>CONFIG_SMP_NCPUS=4</code>，所以会创建 4 个 IDLE 任务：</p>
+<ul>
+<li>CPU0 IDLE (pid&#x3D;0) — 入口点：<code>nx_start</code> 的尾部</li>
+<li>CPU1 IDLE (pid&#x3D;1) — 入口点：<code>nx_idle_trampoline</code></li>
+<li>CPU2 IDLE (pid&#x3D;2) — 入口点：<code>nx_idle_trampoline</code></li>
+<li>CPU3 IDLE (pid&#x3D;3) — 入口点：<code>nx_idle_trampoline</code></li>
+</ul>
+<p><strong>为什么 <code>lockcount=1</code>？</strong> 初始化阶段调度器尚未完全就绪，必须先禁止抢占。最后在 CPU0 进入 IDLE 循环前调用 <code>sched_unlock()</code> 释放。</p>
+<h3 id="3-3-nx-smp-start-：启动次级-CPU"><a href="#3-3-nx-smp-start-：启动次级-CPU" class="headerlink" title="3.3 nx_smp_start()：启动次级 CPU"></a>3.3 nx_smp_start()：启动次级 CPU</h3><p>CPU0 完成所有 OS 初始化后（内存、驱动、中断、文件系统、网络），在 <code>nx_start()</code> 第 734 行调用 <code>nx_smp_start()</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/init/nx_smpstart.c:118-142</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">nx_smp_start</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> ret;</span><br><span class="line">  <span class="type">int</span> cpu;</span><br><span class="line"></span><br><span class="line">  up_flush_dcache_all();           <span class="comment">// 刷 D-Cache，确保 CPU 间数据一致</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (cpu = <span class="number">1</span>; cpu &lt; CONFIG_SMP_NCPUS; cpu++)</span><br><span class="line">    &#123;</span><br><span class="line">      ret = up_cpu_start(cpu);     <span class="comment">// 架构特定的次级 CPU 启动</span></span><br><span class="line">      <span class="keyword">if</span> (ret &lt; <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          serr(<span class="string">&quot;ERROR: Failed to start CPU%d: %d\n&quot;</span>, cpu, ret);</span><br><span class="line">          <span class="keyword">return</span> ret;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里的关键操作是 <code>up_flush_dcache_all()</code>。CPU0 在初始化期间修改了 <code>g_assignedtasks[]</code>、<code>g_idletcb[]</code> 等全局数据结构，这些修改可能在 CPU0 的 D-Cache 中尚未写回主存。如果次级 CPU 不经过 D-Cache 直接读取主存，将看到过期的数据。刷 D-Cache 保证核间数据一致性。</p>
+<p>在 i.MX6 Quad 上，<code>up_cpu_start()</code> 的实现位于 <code>arch/arm/src/armv7-a/arm_cpustart.c:112-129</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> weak_function <span class="title function_">up_cpu_start</span><span class="params">(<span class="type">int</span> cpu)</span></span><br><span class="line">&#123;</span><br><span class="line">  DEBUGASSERT(cpu &gt;= <span class="number">0</span> &amp;&amp; cpu &lt; CONFIG_SMP_NCPUS &amp;&amp; cpu != this_cpu());</span><br><span class="line">  arm_cpu_sgi(GIC_SMP_CPUSTART, (<span class="number">1</span> &lt;&lt; cpu));  <span class="comment">// 发送 SGI 启动目标 CPU</span></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ARM GICv2 使用 SGI（Software Generated Interrupt）来触发次级 CPU。SGI 编号定义如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// arch/arm/src/armv7-a/gic.h:643-651</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_ARCH_TRUSTZONE_SECURE</span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> GIC_SMP_CPUSTART       GIC_IRQ_SGI9</span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> GIC_SMP_CALL           GIC_IRQ_SGI10</span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> GIC_SMP_SCHED          GIC_IRQ_SGI11</span></span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> GIC_SMP_CPUSTART       GIC_IRQ_SGI1   <span class="comment">// 启动 CPU</span></span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> GIC_SMP_CALL           GIC_IRQ_SGI2   <span class="comment">// 跨核函数调用</span></span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> GIC_SMP_SCHED          GIC_IRQ_SGI3   <span class="comment">// 触发调度</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-4-次级-CPU-的汇编入口"><a href="#3-4-次级-CPU-的汇编入口" class="headerlink" title="3.4 次级 CPU 的汇编入口"></a>3.4 次级 CPU 的汇编入口</h3><p>次级 CPU 被释放后从硬件复位向量开始执行，经过 boot ROM 后跳转到 NuttX 的汇编入口。以 ARMv7-A 为例（<code>arch/arm/src/armv7-a/arm_cpuhead.S:85-112</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">__cpu1_start:                    @ CPU1 的入口标签</span><br><span class="line">    cpsid   if, #PSR_MODE_SYS   @ 关 IRQ/FIQ，进入 SYS 模式</span><br><span class="line">    ldr     sp, .Lcpu1_stackpointer</span><br><span class="line">    sub     sp, sp, #XCPTCONTEXT_SIZE  @ 为上下文保存预留空间</span><br><span class="line">    mov     r5, #1              @ R5 = CPU 编号 (1, 2, 3...)</span><br><span class="line">    b       .Lcpu_start         @ 跳转到公共初始化代码</span><br></pre></td></tr></table></figure>
+
+<p>公共代码 <code>.Lcpu_start</code>（<code>arm_cpuhead.S:192-394</code>）执行：</p>
+<ol>
+<li>关闭 MMU 和 Cache（清除 SCTLR 的 M&#x2F;C&#x2F;I 位）</li>
+<li>无效化 TLB（<code>TLBIALLIS</code>）、分支预测器（<code>BPIALLIS</code>）、I-Cache（<code>ICIALLUIS</code>）</li>
+<li>初始化 TTBR0&#x2F;TTBR1 页表基址寄存器</li>
+<li>配置域访问控制（DACR）</li>
+<li>使能 MMU → 跳转到虚拟地址 <code>.Lcpu_vstart</code></li>
+</ol>
+<p>然后调用 C 函数 <code>arm_cpu_boot(cpu)</code>，最终进入 <code>nx_idle_trampoline()</code>。</p>
+<h3 id="3-5-nx-idle-trampoline-：次级-CPU-的”自旋等待-首次调度”"><a href="#3-5-nx-idle-trampoline-：次级-CPU-的”自旋等待-首次调度”" class="headerlink" title="3.5 nx_idle_trampoline()：次级 CPU 的”自旋等待-首次调度”"></a>3.5 nx_idle_trampoline()：次级 CPU 的”自旋等待-首次调度”</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/init/nx_smpstart.c:68-93</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">nx_idle_trampoline</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 等待 CPU0 完成所有初始化，进入 IDLE 循环 */</span></span><br><span class="line">  <span class="keyword">while</span> (!OSINIT_IDLELOOP());</span><br><span class="line"></span><br><span class="line">  sched_unlock();                <span class="comment">// 释放初始化时设置的 lockcount</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 进入 IDLE 循环，随时准备被调度 */</span></span><br><span class="line">  <span class="keyword">for</span> (; ; )</span><br><span class="line">    &#123;</span><br><span class="line">      up_idle();                 <span class="comment">// 架构特定的 IDLE 操作（如 WFI）</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>OSINIT_IDLELOOP()</code> 是 <code>nx_start()</code> 末尾设置的一个全局标志。次级 CPU 在这个 <code>while</code> 循环上自旋等待，直到 CPU0 完成所有初始化（包括启动 init 进程）进入 IDLE 循环后才释放。</p>
+<p>以下是完整的 CPU 启动时序图：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ng" alt="SMP启动"></p>
+<p><strong>与 Linux 的对比：</strong> Linux 使用 <code>cpu_up()</code> → <code>smp_ops.smp_boot_secondary()</code> → 次级 CPU 执行 <code>secondary_start_kernel()</code>，其中包含一个自旋等待 <code>cpu_startup_entry()</code> 的准备过程。NuttX 的模式更简单：次级 CPU 直接跳转到 IDLE trampoline，等待 CPU0 完成初始化后释放调度锁。</p>
+<hr>
+<p>所有 CPU 都启动后进入 IDLE 循环等待任务。那么当第一个非 IDLE 任务就绪时，NuttX 如何决定它该在哪个 CPU 上运行？答案在下一节。</p>
+<h2 id="4-任务分配：CPU-选择算法"><a href="#4-任务分配：CPU-选择算法" class="headerlink" title="4. 任务分配：CPU 选择算法"></a>4. 任务分配：CPU 选择算法</h2><p>当一个任务变为就绪（例如信号量被释放、定时器到期、或新任务被创建），调度器需要决定两个问题：</p>
+<ol>
+<li><strong>目标 CPU 选哪个？</strong>——<code>nxsched_select_cpu()</code></li>
+<li><strong>如何让目标 CPU 实际执行新任务？</strong>——<code>nxsched_add_readytorun()</code> + <code>nxsched_deliver_task()</code></li>
+</ol>
+<h3 id="4-1-nxsched-select-cpu-：最低优先级启发式"><a href="#4-1-nxsched-select-cpu-：最低优先级启发式" class="headerlink" title="4.1 nxsched_select_cpu()：最低优先级启发式"></a>4.1 nxsched_select_cpu()：最低优先级启发式</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched.h:567-608</span></span><br><span class="line"><span class="type">static</span> inline_function <span class="type">int</span> <span class="title function_">nxsched_select_cpu</span><span class="params">(<span class="type">cpu_set_t</span> affinity)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">uint8_t</span> minprio;</span><br><span class="line">  <span class="type">int</span> cpu;</span><br><span class="line">  <span class="type">int</span> i;</span><br><span class="line"></span><br><span class="line">  minprio = SCHED_PRIORITY_MAX;   <span class="comment">// 初始化为最高优先级 (255)</span></span><br><span class="line">  cpu     = <span class="number">0xff</span>;                 <span class="comment">// 0xff = &quot;未找到&quot;</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; CONFIG_SMP_NCPUS; i++)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">if</span> ((affinity &amp; (<span class="number">1</span> &lt;&lt; i)) != <span class="number">0</span>)  <span class="comment">// 该 CPU 在亲和性掩码中？</span></span><br><span class="line">        &#123;</span><br><span class="line">          FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> current_task(i);</span><br><span class="line"></span><br><span class="line">          <span class="keyword">if</span> (is_idle_task(rtcb))      <span class="comment">// CPU 正在运行 IDLE 任务？</span></span><br><span class="line">            &#123;</span><br><span class="line">              DEBUGASSERT(rtcb-&gt;sched_priority == <span class="number">0</span>);</span><br><span class="line">              <span class="keyword">return</span> i;                <span class="comment">// 立即选择空闲 CPU</span></span><br><span class="line">            &#125;</span><br><span class="line">          <span class="keyword">else</span> <span class="keyword">if</span> (rtcb-&gt;sched_priority &lt;= minprio)</span><br><span class="line">            &#123;</span><br><span class="line">              minprio = rtcb-&gt;sched_priority;</span><br><span class="line">              cpu = i;                 <span class="comment">// 记录当前最低优先级的 CPU</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  DEBUGASSERT(cpu != <span class="number">0xff</span>);        <span class="comment">// 至少有一个 CPU 在亲和性掩码中</span></span><br><span class="line">  <span class="keyword">return</span> cpu;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>算法逻辑：</strong></p>
+<ol>
+<li>只考虑任务亲和性掩码允许的 CPU（<code>affinity</code> 位掩码）</li>
+<li>如果某 CPU 正在运行 IDLE 任务（优先级 0），<strong>立即选择它</strong>——不产生任何抢占开销</li>
+<li>否则，选择当前运行任务<strong>优先级最低</strong>的 CPU——这最小化了抢占带来的开销</li>
+</ol>
+<p><strong>实例：i.MX6 Quad 上有 4 个 CPU，新任务 Task X (pri&#x3D;80, affinity&#x3D;所有CPU)</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">CPU0: Task A, pri=90  ← 高优先级，不选</span><br><span class="line">CPU1: Task B, pri=60  ← 当前最低，候选</span><br><span class="line">CPU2: Task C, pri=70  ← 比 CPU1 高</span><br><span class="line">CPU3: IDLE3, pri=0    ← 空闲！直接选 CPU3</span><br><span class="line"></span><br><span class="line">结果：选 CPU3（空闲）。如果所有 CPU 都忙，选 CPU1。</span><br></pre></td></tr></table></figure>
+
+<p><code>affinity</code> 位掩码的每一位代表一个 CPU：</p>
+<ul>
+<li>CPU0: bit 0 &#x3D; 1</li>
+<li>CPU1: bit 1 &#x3D; 2</li>
+<li>CPU2: bit 2 &#x3D; 4</li>
+<li>CPU3: bit 3 &#x3D; 8</li>
+<li>全允许：<code>0b1111</code> &#x3D; 0x0F</li>
+</ul>
+<h3 id="4-2-nxsched-add-readytorun-：SMP-版本的就绪入队"><a href="#4-2-nxsched-add-readytorun-：SMP-版本的就绪入队" class="headerlink" title="4.2 nxsched_add_readytorun()：SMP 版本的就绪入队"></a>4.2 nxsched_add_readytorun()：SMP 版本的就绪入队</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched_addreadytorun.c:253-277</span></span><br><span class="line"><span class="type">bool</span> <span class="title function_">nxsched_add_readytorun</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *btcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">bool</span> doswitch = <span class="literal">false</span>;</span><br><span class="line">  <span class="type">int</span> target_cpu = btcb-&gt;flags &amp; TCB_FLAG_CPU_LOCKED ? btcb-&gt;cpu :</span><br><span class="line">    nxsched_select_cpu(btcb-&gt;affinity);</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">tcb</span> =</span> current_task(target_cpu);</span><br><span class="line"></span><br><span class="line">  btcb-&gt;task_state = TSTATE_TASK_READYTORUN;</span><br><span class="line">  nxsched_add_prioritized(btcb, list_readytorun());  <span class="comment">// 加入 g_readytorun</span></span><br><span class="line"></span><br><span class="line">  btcb-&gt;cpu = target_cpu;</span><br><span class="line">  <span class="keyword">if</span> (tcb-&gt;sched_priority &lt; btcb-&gt;sched_priority)    <span class="comment">// 新任务优先级更高？</span></span><br><span class="line">    &#123;</span><br><span class="line">      doswitch = nxsched_deliver_task(this_cpu(), target_cpu,</span><br><span class="line">                                      SWITCH_HIGHER);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> doswitch;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>完整执行流程（以 Task X, pri&#x3D;80, CPU3 空闲为例）：</strong></p>
+<ol>
+<li>确定目标 CPU：<code>TCB_FLAG_CPU_LOCKED</code> 未置位 → 调用 <code>nxsched_select_cpu(affinity)</code> → 返回 3（CPU3 空闲）</li>
+<li>将 Task X 以优先级顺序插入 <code>g_readytorun</code></li>
+<li>设置 <code>btcb-&gt;cpu = 3</code></li>
+<li>比较：CPU3 正在运行 IDLE3 (pri&#x3D;0)，Task X (pri&#x3D;80) → 80 &gt; 0 → 触发 <code>nxsched_deliver_task()</code></li>
+<li><code>nxsched_deliver_task</code> 决定是本地切换还是发送 IPI</li>
+</ol>
+<h3 id="4-3-nxsched-switch-running-：实际执行任务替换"><a href="#4-3-nxsched-switch-running-：实际执行任务替换" class="headerlink" title="4.3 nxsched_switch_running()：实际执行任务替换"></a>4.3 nxsched_switch_running()：实际执行任务替换</h3><p>当目标 CPU 响应调度请求后，<code>nxsched_switch_running()</code> 执行实际的任务替换：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched_addreadytorun.c:152-216</span></span><br><span class="line"><span class="type">bool</span> <span class="title function_">nxsched_switch_running</span><span class="params">(<span class="type">int</span> cpu, <span class="type">bool</span> switch_equal)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> current_task(cpu);</span><br><span class="line">  <span class="type">int</span> sched_priority = rtcb-&gt;sched_priority;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">btcb</span>;</span></span><br><span class="line">  <span class="type">bool</span> ret = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">  DEBUGASSERT(cpu == this_cpu());      <span class="comment">// 只能在当前 CPU 上调用</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (nxsched_islocked_tcb(rtcb))    <span class="comment">// 当前任务禁止抢占？</span></span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;                    <span class="comment">// 不做切换</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (switch_equal &amp;&amp; sched_priority &gt; <span class="number">0</span>)</span><br><span class="line">    sched_priority--;                <span class="comment">// 允许同优先级切换（如时间片轮转）</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 扫描 g_readytorun，找能在该 CPU 上运行的更高优先级任务 */</span></span><br><span class="line">  <span class="keyword">for</span> (btcb = (FAR <span class="keyword">struct</span> tcb_s *)dq_peek(list_readytorun());</span><br><span class="line">       btcb &amp;&amp; btcb-&gt;sched_priority &gt; sched_priority;</span><br><span class="line">       btcb = btcb-&gt;flink)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 检查亲和性和 CPU_LOCKED 标志 */</span></span><br><span class="line">      <span class="keyword">if</span> (CPU_ISSET(cpu, &amp;btcb-&gt;affinity) &amp;&amp;</span><br><span class="line">          ((btcb-&gt;flags &amp; TCB_FLAG_CPU_LOCKED) == <span class="number">0</span> || btcb-&gt;cpu == cpu))</span><br><span class="line">        &#123;</span><br><span class="line">          dq_rem((FAR <span class="keyword">struct</span> dq_entry_s *)btcb, list_readytorun());</span><br><span class="line"></span><br><span class="line">          <span class="keyword">if</span> (!is_idle_task(rtcb))</span><br><span class="line">            &#123;</span><br><span class="line">              rtcb-&gt;task_state = TSTATE_TASK_READYTORUN;</span><br><span class="line">              nxsched_add_prioritized(rtcb, list_readytorun());  <span class="comment">// 旧任务回队列</span></span><br><span class="line">            &#125;</span><br><span class="line">          <span class="keyword">else</span></span><br><span class="line">            &#123;</span><br><span class="line">              rtcb-&gt;task_state = TSTATE_TASK_ASSIGNED;  <span class="comment">// IDLE 保持 ASSIGNED 状态</span></span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">          g_assignedtasks[cpu] = btcb;  <span class="comment">// 新任务成为 CPU 的当前任务</span></span><br><span class="line">          up_update_task(btcb);         <span class="comment">// 更新架构特定状态（如 TPIDRPRW）</span></span><br><span class="line">          btcb-&gt;cpu = cpu;</span><br><span class="line">          btcb-&gt;task_state = TSTATE_TASK_RUNNING;</span><br><span class="line">          ret = <span class="literal">true</span>;</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键细节：</strong></p>
+<ul>
+<li><strong><code>nxsched_islocked_tcb(rtcb)</code></strong> 检查 <code>rtcb-&gt;lockcount &gt; 0</code>。如果当前任务通过 <code>sched_lock()</code> 禁止了抢占，<strong>不做任何切换</strong>，即使有更高优先级任务等待。</li>
+<li><strong>亲和性检查</strong>：<code>CPU_ISSET(cpu, &amp;btcb-&gt;affinity)</code> 确保任务允许在当前 CPU 上运行。</li>
+<li><strong>CPU_LOCKED 覆盖</strong>：如果 <code>TCB_FLAG_CPU_LOCKED</code> 置位，只接受 <code>btcb-&gt;cpu == cpu</code> 的精确匹配。</li>
+<li><strong>旧任务处理</strong>：非 IDLE 的旧任务被放回 <code>g_readytorun</code> 等待下次调度；IDLE 不进入 <code>g_readytorun</code>（它始终”属于”当前 CPU，状态设为 <code>TSTATE_TASK_ASSIGNED</code>）。</li>
+</ul>
+<hr>
+<p>上一节展示了任务如何被标记为目标 CPU 的任务。但”标记”不等于”执行”——如果目标 CPU 是远程核，还需要一个机制通知对方。这就是跨核 IPI 调度协议要解决的问题。</p>
+<h2 id="5-跨核调度：IPI-与任务交付协议"><a href="#5-跨核调度：IPI-与任务交付协议" class="headerlink" title="5. 跨核调度：IPI 与任务交付协议"></a>5. 跨核调度：IPI 与任务交付协议</h2><h3 id="5-1-为什么需要跨核调度？"><a href="#5-1-为什么需要跨核调度？" class="headerlink" title="5.1 为什么需要跨核调度？"></a>5.1 为什么需要跨核调度？</h3><p>单核系统中，调度决策和被调度任务的执行发生在同一 CPU 上。多核下出现了”调度者”与”执行者”分离的场景：</p>
+<ul>
+<li>CPU0 上的中断处理例程唤醒了一个高优先级任务</li>
+<li>根据 <code>nxsched_select_cpu()</code> 的决策，该任务应该运行在 CPU2 上</li>
+<li>但 CPU2 不知道有更高优先级的任务就绪了——它可能正在运行一个低优先级任务甚至 IDLE</li>
+</ul>
+<p>解决这个问题需要 <strong>IPI（Inter-Processor Interrupt，核间中断）</strong>——一个 CPU 向另一个 CPU 发送硬件中断信号。</p>
+<h3 id="5-2-nxsched-deliver-task-：本地-vs-远程的分发逻辑"><a href="#5-2-nxsched-deliver-task-：本地-vs-远程的分发逻辑" class="headerlink" title="5.2 nxsched_deliver_task()：本地 vs 远程的分发逻辑"></a>5.2 nxsched_deliver_task()：本地 vs 远程的分发逻辑</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched.h:541-565</span></span><br><span class="line"><span class="type">static</span> inline_function <span class="type">bool</span></span><br><span class="line"><span class="title function_">nxsched_deliver_task</span><span class="params">(<span class="type">int</span> cpu, <span class="type">int</span> target_cpu,</span></span><br><span class="line"><span class="params">                     <span class="keyword">enum</span> task_deliver_e priority)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">bool</span> ret = <span class="literal">false</span>;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (g_delivertasks[target_cpu] != priority)  <span class="comment">// 避免重复请求</span></span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">if</span> (cpu == target_cpu)</span><br><span class="line">        &#123;</span><br><span class="line">          ret = nxsched_switch_running(cpu, priority == SWITCH_EQUAL);</span><br><span class="line">        &#125;</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">          g_delivertasks[target_cpu] = priority;  <span class="comment">// 写入优先级级别</span></span><br><span class="line">          up_send_smp_sched(target_cpu);           <span class="comment">// 发送 IPI</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>逻辑分支：</strong></p>
+<ul>
+<li>**<code>cpu == target_cpu</code>**：目标任务就在当前 CPU 上（例如就绪任务的亲和性只允许当前 CPU）。直接调用 <code>nxsched_switch_running()</code> 执行本地上下文切换。</li>
+<li>**<code>cpu != target_cpu</code>**：目标任务在远程 CPU 上。先将 <code>g_delivertasks[target_cpu]</code> 设为 <code>priority</code>（告诉目标 CPU “你要切换到什么级别的任务”），然后发送 IPI。</li>
+</ul>
+<p><code>g_delivertasks[target_cpu] != priority</code> 这个条件起到了<strong>去重</strong>作用：如果目标 CPU 已经有一个相同或更高优先级的调度请求待处理，就不再重复发送 IPI，减少了不必要的核间中断。</p>
+<h3 id="5-3-up-send-smp-sched-：架构特定的-IPI-发送"><a href="#5-3-up-send-smp-sched-：架构特定的-IPI-发送" class="headerlink" title="5.3 up_send_smp_sched()：架构特定的 IPI 发送"></a>5.3 up_send_smp_sched()：架构特定的 IPI 发送</h3><p>不同架构使用不同的硬件机制发送 IPI。ARMv7-A 的实现（<code>arch/arm/src/armv7-a/arm_smpcall.c:96-101</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">up_send_smp_sched</span><span class="params">(<span class="type">int</span> cpu)</span></span><br><span class="line">&#123;</span><br><span class="line">  arm_cpu_sgi(GIC_SMP_SCHED, (<span class="number">1</span> &lt;&lt; cpu));</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>arm_cpu_sgi()</code> 写入 GICv2 的 GICD_SGIR 寄存器（Software Generated Interrupt Register），指定 SGI 编号（3 &#x3D; <code>GIC_SMP_SCHED</code>）和目标 CPU 位掩码。</p>
+<p>各架构的 IPI 机制对比：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">ARMv7-A/ARMv7-R:  GICv2 SGI (SGI #3 = GIC_SMP_SCHED)</span><br><span class="line">ARM64 (AArch64):  GICv3 ICC_SGI1R_EL1 系统寄存器 或 GICv2 SGI</span><br><span class="line">RISC-V:           SBI IPI (S 模式) 或直接写 IPI 寄存器 (M 模式)</span><br><span class="line">x86_64:           APIC IPI (固定交付模式)</span><br><span class="line">Simulator (SIM):  POSIX signal (SIGUSR1)</span><br></pre></td></tr></table></figure>
+
+<p>RISC-V 的 SMP 处理有一个有趣的区别——它的 IPI 处理函数同时负责调度和跨核函数调用，并在中断处理函数内部显式保存和恢复上下文（<code>arch/risc-v/src/common/riscv_smpcall.c:60-78</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">riscv_smp_call_handler</span><span class="params">(<span class="type">int</span> irq, <span class="type">void</span> *c, <span class="type">void</span> *arg)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> cpu = this_cpu();</span><br><span class="line">  nxsched_smp_call_handler(irq, c, arg);  <span class="comment">// 执行跨核函数调用</span></span><br><span class="line">  riscv_ipi_clear(cpu);</span><br><span class="line">  tcb = current_task(cpu);</span><br><span class="line">  riscv_savecontext(tcb);                 <span class="comment">// 保存当前任务上下文</span></span><br><span class="line">  nxsched_process_delivered(cpu);         <span class="comment">// 处理调度请求</span></span><br><span class="line">  tcb = current_task(cpu);</span><br><span class="line">  riscv_restorecontext(tcb);              <span class="comment">// 恢复新任务上下文</span></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ARM 的实现则将三个功能（CPU 启动、调度触发、函数调用）分配给了三个独立的 SGI 处理函数。</p>
+<h3 id="5-4-nxsched-process-delivered-：IPI-中断处理"><a href="#5-4-nxsched-process-delivered-：IPI-中断处理" class="headerlink" title="5.4 nxsched_process_delivered()：IPI 中断处理"></a>5.4 nxsched_process_delivered()：IPI 中断处理</h3><p>目标 CPU 收到 IPI 后，进入 <code>arm_smp_sched_handler()</code>（或等效的架构处理函数），调用 <code>nxsched_process_delivered()</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched_process_delivered.c:63-120</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">nxsched_process_delivered</span><span class="params">(<span class="type">int</span> cpu)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">enum</span> <span class="title">task_deliver_e</span> <span class="title">priority</span>;</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 获取 g_cpu_irqlock 自旋锁（如果尚未持有） */</span></span><br><span class="line">  <span class="keyword">if</span> ((g_cpu_irqset &amp; (<span class="number">1</span> &lt;&lt; cpu)) == <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      spin_lock_notrace(&amp;g_cpu_irqlock);</span><br><span class="line">      g_cpu_irqset |= (<span class="number">1</span> &lt;&lt; cpu);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  priority = g_delivertasks[cpu];           <span class="comment">// 读取请求的优先级</span></span><br><span class="line">  g_delivertasks[cpu] = SWITCH_NONE;        <span class="comment">// 清除请求</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (priority != SWITCH_NONE &amp;&amp;</span><br><span class="line">      !nxsched_switch_running(cpu, priority == SWITCH_EQUAL))</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 切换失败（可能当前任务刚进入 sched_lock）。</span></span><br><span class="line"><span class="comment">       * 将任务转发给另一个合适的 CPU，避免调度延迟。 */</span></span><br><span class="line">      FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">tcb</span> =</span> (FAR <span class="keyword">struct</span> tcb_s *)dq_peek(list_readytorun());</span><br><span class="line">      <span class="keyword">if</span> (tcb)</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="type">int</span> target_cpu = tcb-&gt;flags &amp; TCB_FLAG_CPU_LOCKED ?</span><br><span class="line">            tcb-&gt;cpu : nxsched_select_cpu(tcb-&gt;affinity);</span><br><span class="line">          <span class="keyword">if</span> (target_cpu != cpu &amp;&amp;</span><br><span class="line">              current_task(target_cpu)-&gt;sched_priority &lt; tcb-&gt;sched_priority)</span><br><span class="line">            &#123;</span><br><span class="line">              nxsched_deliver_task(cpu, target_cpu, priority);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (current_task(cpu)-&gt;irqcount &lt;= <span class="number">0</span>)</span><br><span class="line">    cpu_irqlock_clear();                    <span class="comment">// 释放自旋锁</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>故障转发机制（第 90-113 行）：</strong> 如果 <code>nxsched_switch_running()</code> 失败（通常因为当前任务通过 <code>sched_lock()</code> 禁止了抢占），该函数不会丢弃调度请求。它检查 <code>g_readytorun</code> 头部的最高优先级任务，重新选择一个目标 CPU，并将请求<strong>转发</strong>给另一个 CPU。这保证了调度延迟的最小化。</p>
+<p><strong>完整调度决策路径（具体实例）：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">场景：CPU0 上的中断例程释放了一个信号量，唤醒 Task X (pri=80, affinity=0x0F)</span><br><span class="line">     当前状态：CPU1=Task A(pri=70), CPU2=Task B(pri=60), CPU3=IDLE3(pri=0)</span><br><span class="line"></span><br><span class="line">CPU0 (中断上下文):</span><br><span class="line">  nxsched_add_readytorun(Task X)</span><br><span class="line">    └─ nxsched_select_cpu(0x0F) → 扫描:</span><br><span class="line">        CPU0? 当前 CPU 在中断中，不参与选择</span><br><span class="line">        CPU1? pri=70, minprio=70, cpu=1</span><br><span class="line">        CPU2? pri=60 &lt; 70, 跳过</span><br><span class="line">        CPU3? IDLE! 立即选 CPU3</span><br><span class="line">    结果: target_cpu = 3</span><br><span class="line">    └─ btcb-&gt;cpu = 3</span><br><span class="line">    └─ IDLE3.pri(0) &lt; TaskX.pri(80) → nxsched_deliver_task(0, 3, SWITCH_HIGHER)</span><br><span class="line">        └─ cpu(0) != target(3) → g_delivertasks[3] = SWITCH_HIGHER</span><br><span class="line">        └─ up_send_smp_sched(3) → GICv2 SGI #3 to CPU3</span><br><span class="line"></span><br><span class="line">CPU3 (收到 IPI):</span><br><span class="line">  arm_smp_sched_handler() → nxsched_process_delivered(3)</span><br><span class="line">    └─ spin_lock_notrace(&amp;g_cpu_irqlock)</span><br><span class="line">    └─ g_delivertasks[3] == SWITCH_HIGHER → nxsched_switch_running(3, false)</span><br><span class="line">        └─ IDLE3 未 locked → 扫描 g_readytorun</span><br><span class="line">        └─ 找到 Task X (pri=80, affinity 含 CPU3)</span><br><span class="line">        └─ dq_rem(TaskX) → g_assignedtasks[3] = TaskX</span><br><span class="line">        └─ TaskX: TSTATE_TASK_RUNNING, cpu=3</span><br><span class="line">    └─ IRQ 返回 → 上下文切换到 Task X</span><br><span class="line"></span><br><span class="line">结果：Task X 在 CPU3 上开始运行，整个过程只有一次 IPI。</span><br></pre></td></tr></table></figure>
+
+<p>下图展示了跨核调度中各组件的交互：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E8%B0%83%E5%BA%A6.png" alt="SMP跨核任务调度"></p>
+<hr>
+<p>跨核调度解决了”让远程 CPU 执行任务”的问题，但没有解决”多个 CPU 同时修改共享数据”的问题。IPI 通知本身需要原子性保证——不能多个 CPU 同时写入 <code>g_delivertasks[]</code>。这就需要自旋锁。</p>
+<h2 id="6-自旋锁：SMP-核心同步原语"><a href="#6-自旋锁：SMP-核心同步原语" class="headerlink" title="6. 自旋锁：SMP 核心同步原语"></a>6. 自旋锁：SMP 核心同步原语</h2><h3 id="6-1-为什么需要自旋锁？"><a href="#6-1-为什么需要自旋锁？" class="headerlink" title="6.1 为什么需要自旋锁？"></a>6.1 为什么需要自旋锁？</h3><p>在单核 NuttX 中，<code>enter_critical_section()</code> 关本地中断就足以保护内核数据结构，因为没有其他 CPU 会同时访问。在多核下，关本地中断只能阻止当前 CPU 上的上下文切换和中断——CPU1 仍然可以自由地修改同一数据结构。</p>
+<p>自旋锁（spinlock）通过一个原子变量和一个忙等循环，确保同一时刻只有一个 CPU 能持有锁并访问受保护资源。</p>
+<h3 id="6-2-up-testset-：硬件原子操作"><a href="#6-2-up-testset-：硬件原子操作" class="headerlink" title="6.2 up_testset()：硬件原子操作"></a>6.2 up_testset()：硬件原子操作</h3><p>自旋锁的核心是 <code>up_testset()</code>——一个原子的”读取-修改-写入”操作。在 ARMv7-A 上使用 LDREXB&#x2F;STREXB 指令实现（<code>arch/arm/include/spinlock.h:102-123</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> inline_function <span class="type">spinlock_t</span> <span class="title function_">up_testset</span><span class="params">(<span class="keyword">volatile</span> <span class="type">spinlock_t</span> *lock)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">spinlock_t</span> ret = SP_UNLOCKED;</span><br><span class="line">  __asm__ __volatile__ (</span><br><span class="line">    <span class="string">&quot;1:                    \n&quot;</span></span><br><span class="line">    <span class="string">&quot;ldrexb   %0, [%2]     \n&quot;</span>   <span class="comment">// 独占加载字节 (Load Exclusive Byte)</span></span><br><span class="line">    <span class="string">&quot;cmp      %0, %1       \n&quot;</span>   <span class="comment">// 比较当前值是否等于 SP_LOCKED</span></span><br><span class="line">    <span class="string">&quot;beq      2f           \n&quot;</span>   <span class="comment">// 如果已锁，跳转到 2 (不做写入)</span></span><br><span class="line">    <span class="string">&quot;strexb   %0, %1, [%2] \n&quot;</span>   <span class="comment">// 独占存储 SP_LOCKED (Store Exclusive Byte)</span></span><br><span class="line">    <span class="string">&quot;cmp      %0, %1       \n&quot;</span>   <span class="comment">// 检查 strxb 是否成功 (%0 为 strexb 的返回值)</span></span><br><span class="line">    <span class="string">&quot;beq      1b           \n&quot;</span>   <span class="comment">// 如果失败(被其他CPU打断)，重试</span></span><br><span class="line">    <span class="string">&quot;dmb                   \n&quot;</span>   <span class="comment">// 数据内存屏障</span></span><br><span class="line">    <span class="string">&quot;2:                    \n&quot;</span></span><br><span class="line">    : <span class="string">&quot;+r&quot;</span> (ret) : <span class="string">&quot;r&quot;</span> (SP_LOCKED), <span class="string">&quot;r&quot;</span> (lock) : <span class="string">&quot;memory&quot;</span></span><br><span class="line">  );</span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>ARM 的 LDREX&#x2F;STREX 机制：</strong> ARM 使用”独占监视器”（exclusive monitor）。<code>LDREXB</code> 加载一个字节的同时在硬件中标记该地址为”独占”。<code>STREXB</code> 只有在独占标记仍然有效时才写入，否则返回非零表示失败（另一个 CPU 在此期间修改了该地址）。这就是 LL&#x2F;SC（Load-Linked&#x2F;Store-Conditional）模式。</p>
+<p><code>spinlock_t</code> 在 ARM 上是 <code>uint8_t</code>（1 字节），<code>SP_UNLOCKED=0</code>，<code>SP_LOCKED=1</code>。</p>
+<p>不同架构的 <code>up_testset()</code> 对比：</p>
+<table>
+<thead>
+<tr>
+<th>架构</th>
+<th>spinlock_t</th>
+<th>原子指令</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ARM (32-bit)</td>
+<td><code>uint8_t</code></td>
+<td><code>LDREXB/STREXB</code></td>
+<td>字节粒度，DMB 屏障</td>
+</tr>
+<tr>
+<td>ARM64</td>
+<td><code>uint64_t</code></td>
+<td><code>LDAXR/STXR</code></td>
+<td>64-bit，带 acquire 语义</td>
+</tr>
+<tr>
+<td>RISC-V</td>
+<td><code>uintptr_t</code></td>
+<td><code>AMOSWAP.W/D</code></td>
+<td>原子交换，fence 屏障</td>
+</tr>
+<tr>
+<td>Xtensa</td>
+<td><code>uint32_t</code></td>
+<td><code>S32C1I</code></td>
+<td>Store Conditional Immediate</td>
+</tr>
+<tr>
+<td>x86_64</td>
+<td><code>uintptr_t</code></td>
+<td><code>XCHG</code></td>
+<td>隐含 LOCK 前缀</td>
+</tr>
+<tr>
+<td>SPARC</td>
+<td><code>uint32_t</code></td>
+<td><code>CASA</code></td>
+<td>Compare and Swap Alternative</td>
+</tr>
+<tr>
+<td>SIM</td>
+<td><code>uint8_t</code></td>
+<td><code>atomic_exchange</code></td>
+<td>C11 stdatomic</td>
+</tr>
+</tbody></table>
+<h3 id="6-3-spin-lock-：忙等获取锁"><a href="#6-3-spin-lock-：忙等获取锁" class="headerlink" title="6.3 spin_lock()：忙等获取锁"></a>6.3 spin_lock()：忙等获取锁</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/nuttx/spinlock.h:183-197</span></span><br><span class="line"><span class="type">static</span> inline_function <span class="type">void</span> <span class="title function_">spin_lock_notrace</span><span class="params">(FAR <span class="keyword">volatile</span> <span class="type">spinlock_t</span> *lock)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">while</span> (up_testset(lock) == SP_LOCKED)  <span class="comment">// 尝试原子获取锁</span></span><br><span class="line">    &#123;</span><br><span class="line">      UP_DSB();                           <span class="comment">// 数据同步屏障</span></span><br><span class="line">      UP_WFE();                           <span class="comment">// Wait For Event 低功耗等待</span></span><br><span class="line">    &#125;</span><br><span class="line">  UP_DMB();                               <span class="comment">// 数据内存屏障</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>up_testset()</code> 返回旧值：<code>SP_UNLOCKED (0) → 成功获取锁，退出循环；</code>SP_LOCKED (1) → 锁被其他 CPU 持有，继续循环&#96;</li>
+<li><code>UP_WFE()</code> (Wait For Event) 让 CPU 进入低功耗等待状态，直到收到 SEV (Send Event) 信号。<code>spin_unlock()</code> 会发送 SEV 唤醒等待者</li>
+<li><code>UP_DSB()</code>&#x2F;<code>UP_DMB()</code> 是内存屏障，确保锁变量的读写不会被 CPU 的乱序执行重排</li>
+</ul>
+<h3 id="6-4-全局-IRQ-自旋锁：g-cpu-irqlock"><a href="#6-4-全局-IRQ-自旋锁：g-cpu-irqlock" class="headerlink" title="6.4 全局 IRQ 自旋锁：g_cpu_irqlock"></a>6.4 全局 IRQ 自旋锁：g_cpu_irqlock</h3><p>NuttX 定义了一个全局自旋锁 <code>g_cpu_irqlock</code>（<code>sched/irq/irq_csection.c:62</code>），用于保护所有进入临界区的代码路径：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">volatile</span> <span class="type">spinlock_t</span> g_cpu_irqlock = SP_UNLOCKED;</span><br><span class="line"><span class="keyword">volatile</span> <span class="type">cpu_set_t</span>  g_cpu_irqset;        <span class="comment">// 跟踪哪些 CPU 持有锁</span></span><br><span class="line"><span class="keyword">volatile</span> <span class="type">uint8_t</span>    g_cpu_nestcount[CONFIG_SMP_NCPUS]; <span class="comment">// 中断嵌套计数</span></span><br></pre></td></tr></table></figure>
+
+<p><code>g_cpu_irqset</code> 是一个位掩码，每一位代表一个 CPU 当前是否在临界区内。<code>g_cpu_nestcount[]</code> 处理中断处理函数中对 <code>enter_critical_section()</code> 的嵌套调用。</p>
+<h3 id="6-5-Ticket-Spinlock"><a href="#6-5-Ticket-Spinlock" class="headerlink" title="6.5 Ticket Spinlock"></a>6.5 Ticket Spinlock</h3><p>NuttX 还支持 Ticket Spinlock（<code>CONFIG_TICKET_SPINLOCK</code>），解决了普通自旋锁的公平性问题：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/nuttx/spinlock_type.h:57-66</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">spinlock_s</span> &#123;</span></span><br><span class="line">  <span class="type">uint32_t</span> owner;   <span class="comment">// 当前正在服务的号码</span></span><br><span class="line">  <span class="type">uint32_t</span> next;    <span class="comment">// 下一个可发放的号码</span></span><br><span class="line">&#125; <span class="type">spinlock_t</span>;</span><br><span class="line"><span class="meta">#<span class="keyword">define</span> SP_UNLOCKED (spinlock_t)&#123;0, 0&#125;</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> SP_LOCKED   (spinlock_t)&#123;0, 1&#125;</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// include/nuttx/spinlock.h:185-188 (ticket 版本)</span></span><br><span class="line"><span class="type">static</span> inline_function <span class="type">void</span> <span class="title function_">spin_lock_notrace</span><span class="params">(FAR <span class="keyword">volatile</span> <span class="type">spinlock_t</span> *lock)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> ticket = atomic_fetch_add(&amp;lock-&gt;next, <span class="number">1</span>);  <span class="comment">// 领取号码牌</span></span><br><span class="line">  <span class="keyword">while</span> (<span class="type">atomic_read</span>(&amp;lock-&gt;owner) != ticket)     <span class="comment">// 等待叫号</span></span><br><span class="line">    &#123;</span><br><span class="line">      UP_DSB();</span><br><span class="line">      UP_WFE();</span><br><span class="line">    &#125;</span><br><span class="line">  UP_DMB();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>与银行排队叫号类似：每个 CPU 先领取一个递增的号码（<code>next</code>），然后等待 <code>owner</code> 等于自己的号码。这保证了 <strong>FIFO 公平性</strong>——先请求的 CPU 先获得锁，避免了某些 CPU 长时间”饥饿”。</p>
+<hr>
+<p>自旋锁是底层原语。<code>enter_critical_section()</code> 是建立在自旋锁之上的高层封装——它还必须处理中断上下文与任务上下文的差异、嵌套调用、以及与 NuttX 原有的抢占控制协同工作。本节剖析这个复杂的组合逻辑。</p>
+<h2 id="7-临界区：enter-critical-section-的多核重构"><a href="#7-临界区：enter-critical-section-的多核重构" class="headerlink" title="7. 临界区：enter_critical_section 的多核重构"></a>7. 临界区：enter_critical_section 的多核重构</h2><h3 id="7-1-单核-vs-多核的语义变化"><a href="#7-1-单核-vs-多核的语义变化" class="headerlink" title="7.1 单核 vs 多核的语义变化"></a>7.1 单核 vs 多核的语义变化</h3><p>在单核 NuttX 中，临界区的语义很简单：关本地中断 → 临界区成立。因为只有一个 CPU，关中断就消除了所有竞争。</p>
+<p>多核下的语义必须扩展：<strong>关本地中断 + 获取全局 IRQ 自旋锁</strong>。关中断防止当前 CPU 上的上下文切换和中断重入；全局自旋锁防止其他 CPU 同时进入临界区。</p>
+<h3 id="7-2-enter-critical-section-notrace-：双路径处理"><a href="#7-2-enter-critical-section-notrace-：双路径处理" class="headerlink" title="7.2 enter_critical_section_notrace()：双路径处理"></a>7.2 enter_critical_section_notrace()：双路径处理</h3><p>自旋锁的状态转换如下图所示。状态机有两个核心状态——<code>SP_UNLOCKED (0)</code> 表示锁空闲，任何 CPU 都可以通过 <code>up_testset()</code> 原子操作将其翻转为 <code>SP_LOCKED (1)</code>。当 CPU0 持有锁时，<code>g_cpu_irqset</code> 的第 0 位被置位，标记”CPU0 正在临界区”。其他 CPU 尝试获取锁时会进入自旋循环：反复调用 <code>up_testset()</code> 直到其返回 <code>SP_UNLOCKED</code>，每次失败后执行 <code>UP_WFE()</code> 进入低功耗等待。当 CPU0 调用 <code>cpu_irqlock_clear()</code> 释放锁时，<code>g_cpu_irqset</code> 被清零，<code>spin_unlock()</code> 发送 SEV 事件唤醒等待者。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="SMP自旋锁"></p>
+<p>这是 NuttX SMP 中最复杂的同步逻辑之一（<code>sched/irq/irq_csection.c:92-254</code>）。它必须处理两种调用场景：</p>
+<p><strong>路径 A：从中断处理函数调用（<code>up_interrupt_context()</code> 为真）</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/irq/irq_csection.c:117-193 — 中断上下文路径</span></span><br><span class="line"><span class="keyword">if</span> (up_interrupt_context())</span><br><span class="line">  &#123;</span><br><span class="line">    cpu = this_cpu();</span><br><span class="line">    <span class="keyword">if</span> (g_cpu_nestcount[cpu] &gt; <span class="number">0</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="comment">/* 嵌套调用：只需递增计数 */</span></span><br><span class="line">        g_cpu_nestcount[cpu]++;</span><br><span class="line">      &#125;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">      &#123;</span><br><span class="line">        <span class="comment">/* 首次调用：如果此 CPU 尚未持有自旋锁，尝试获取 */</span></span><br><span class="line">        <span class="keyword">if</span> ((g_cpu_irqset &amp; (<span class="number">1</span> &lt;&lt; cpu)) == <span class="number">0</span>)</span><br><span class="line">          &#123;</span><br><span class="line">            spin_lock_notrace(&amp;g_cpu_irqlock);  <span class="comment">// 自旋等待全局锁</span></span><br><span class="line">            cpu_irqlock_set(cpu);               <span class="comment">// 在 g_cpu_irqset 中标记此 CPU</span></span><br><span class="line">          &#125;</span><br><span class="line">        g_cpu_nestcount[cpu] = <span class="number">1</span>;</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>路径 B：从任务上下文调用（正常内核代码）</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/irq/irq_csection.c:195-248 — 任务上下文路径</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">  &#123;</span><br><span class="line">    cpu  = this_cpu();</span><br><span class="line">    rtcb = current_task(cpu);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rtcb-&gt;irqcount &gt; <span class="number">0</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="comment">/* 嵌套调用：递增 irqcount */</span></span><br><span class="line">        rtcb-&gt;irqcount++;</span><br><span class="line">      &#125;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">      &#123;</span><br><span class="line">        <span class="comment">/* 首次进入临界区：必须获取全局自旋锁 */</span></span><br><span class="line">        DEBUGASSERT((g_cpu_irqset &amp; (<span class="number">1</span> &lt;&lt; cpu)) == <span class="number">0</span>);</span><br><span class="line">        spin_lock_notrace(&amp;g_cpu_irqlock);  <span class="comment">// 与其他 CPU 竞争全局锁</span></span><br><span class="line">        cpu_irqlock_set(cpu);               <span class="comment">// 标记此 CPU 持有锁</span></span><br><span class="line">        rtcb-&gt;irqcount = <span class="number">1</span>;</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>嵌套支持：</strong> <code>irqcount</code>（任务上下文）和 <code>g_cpu_nestcount[cpu]</code>（中断上下文）分别支持各自路径的嵌套。例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Task A (pri=80) 调用 enter_critical_section()</span><br><span class="line">  → rtcb-&gt;irqcount: 0 → 1, 获取 g_cpu_irqlock</span><br><span class="line">  → 调用内核函数 foo(), 内部也调用 enter_critical_section()</span><br><span class="line">    → rtcb-&gt;irqcount: 1 → 2, 锁已持有，只递增计数</span><br><span class="line">  → 调用 leave_critical_section()</span><br><span class="line">    → rtcb-&gt;irqcount: 2 → 1, 锁仍然持有</span><br><span class="line">→ 调用 leave_critical_section()</span><br><span class="line">  → rtcb-&gt;irqcount: 1 → 0, 释放 g_cpu_irqlock</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-leave-critical-section-notrace-：安全退出"><a href="#7-3-leave-critical-section-notrace-：安全退出" class="headerlink" title="7.3 leave_critical_section_notrace()：安全退出"></a>7.3 leave_critical_section_notrace()：安全退出</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/irq/irq_csection.c:334-433 — 退出的任务路径</span></span><br><span class="line"><span class="keyword">else</span>  <span class="comment">// 任务上下文</span></span><br><span class="line">  &#123;</span><br><span class="line">    <span class="keyword">if</span> (rtcb-&gt;irqcount &gt; <span class="number">1</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        rtcb-&gt;irqcount--;             <span class="comment">// 仅递减计数</span></span><br><span class="line">      &#125;</span><br><span class="line">    <span class="keyword">else</span>  <span class="comment">// irqcount == 1 → 最后一次退出</span></span><br><span class="line">      &#123;</span><br><span class="line">        rtcb-&gt;irqcount = <span class="number">0</span>;</span><br><span class="line">        cpu_irqlock_clear();          <span class="comment">// 清零 g_cpu_irqset，</span></span><br><span class="line">                                        <span class="comment">// 解锁 g_cpu_irqlock</span></span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">up_irq_restore(flags);                <span class="comment">// 恢复本地中断状态</span></span><br></pre></td></tr></table></figure>
+
+<p><code>cpu_irqlock_clear()</code> 宏（<code>include/nuttx/irq.h:99-107</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">![SMP临界区](SMP临界区.png)![SMP临界区](SMP临界区.png)<span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line"><span class="meta">#  <span class="keyword">define</span> cpu_irqlock_clear() \</span></span><br><span class="line"><span class="meta">  do \</span></span><br><span class="line"><span class="meta">    &#123; \</span></span><br><span class="line"><span class="meta">      g_cpu_irqset = 0; \</span></span><br><span class="line"><span class="meta">      spin_unlock_notrace(&amp;g_cpu_irqlock); \</span></span><br><span class="line"><span class="meta">    &#125; \</span></span><br><span class="line"><span class="meta">  while (0)</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p><strong>注意：</strong> <code>cpu_irqlock_clear()</code> 将 <code>g_cpu_irqset</code> 整体清零（而非仅清除当前 CPU 的位），因为它假设同一时刻只有一个 CPU 能释放锁。这种设计在嵌套使用中依赖于 <code>irqcount</code> 来保证正确性。</p>
+<h3 id="7-4-临界区对抢占的副作用"><a href="#7-4-临界区对抢占的副作用" class="headerlink" title="7.4 临界区对抢占的副作用"></a>7.4 临界区对抢占的副作用</h3><p>完整的临界区进入&#x2F;退出时序图：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="SMP临界区"></p>
+<p>进入临界区不仅关中断，还会修改抢占控制行为。NuttX 官方文档 <code>Documentation/implementation/smp.rst:742-776</code> 指出：</p>
+<blockquote>
+<p>“The basic result of this modification is that new tasks are not permitted to be started or resumed if:</p>
+<ol>
+<li>Pre-emption is disabled, OR</li>
+<li>Some other CPU other than the current CPU is in a critical section.”</li>
+</ol>
+</blockquote>
+<p>这意味着：如果 CPU0 处于临界区，CPU1 不能启动新任务或恢复已暂停的任务——即使 CPU1 自身的抢占是开启的。这是因为临界区持有 <code>g_cpu_irqlock</code>，而任务启动&#x2F;恢复的逻辑通常也需要进入临界区。当 CPU1 尝试获取 <code>g_cpu_irqlock</code> 时，它会被阻塞在自旋锁上。</p>
+<hr>
+<h2 id="8-sched-lock-sched-unlock：禁止抢占的多核语义"><a href="#8-sched-lock-sched-unlock：禁止抢占的多核语义" class="headerlink" title="8. sched_lock &#x2F; sched_unlock：禁止抢占的多核语义"></a>8. sched_lock &#x2F; sched_unlock：禁止抢占的多核语义</h2><p>前几章讨论了临界区如何通过全局自旋锁保护跨核共享数据。但 NuttX 还有另一个更低层级的保护机制——<code>sched_lock()</code>。理解它在 SMP 下的变化，需要先回答一个基础问题：为什么单核的”禁止抢占 &#x3D;&#x3D; 独占 CPU”在多核下不再成立？</p>
+<p>因为 SMP 下有 N 个 CPU。<code>sched_lock()</code> 只递增当前任务的 <code>lockcount</code>，而 <code>lockcount</code> 是 per-TCB 的字段。当 <code>nxsched_switch_running()</code> 检查 <code>nxsched_islocked_tcb(rtcb)</code> 时，它只阻止<strong>当前 CPU</strong> 上的任务替换——其他 3 个 CPU 完全不受影响。这与 <code>enter_critical_section()</code> 形成对比：后者持有全局自旋锁 <code>g_cpu_irqlock</code>，确实能影响所有 CPU。</p>
+<h3 id="8-1-sched-lock-：仅限当前-CPU"><a href="#8-1-sched-lock-：仅限当前-CPU" class="headerlink" title="8.1 sched_lock()：仅限当前 CPU"></a>8.1 sched_lock()：仅限当前 CPU</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched_lock.c:67-99</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">sched_lock</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (!up_interrupt_context())</span><br><span class="line">    &#123;</span><br><span class="line">      FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line">      <span class="keyword">if</span> (rtcb-&gt;lockcount++ == <span class="number">0</span>)     <span class="comment">// 首次加锁时记录事件</span></span><br><span class="line">        &#123;</span><br><span class="line">          nxsched_critmon_preemption(rtcb, <span class="literal">true</span>, return_address(<span class="number">0</span>));</span><br><span class="line">          sched_note_preemption(rtcb, <span class="literal">true</span>);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>sched_lock()</code> 在多核下的语义是 <strong>仅禁止当前 CPU 上当前任务的抢占</strong>。它不阻止其他 CPU 上的任务继续运行，也不阻止其他 CPU 上的任务被抢占。</p>
+<p><strong>实例：4 核系统中 sched_lock() 的影响范围</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">CPU0: Task A 调用 sched_lock() → rtcb-&gt;lockcount = 1</span><br><span class="line">  → CPU0 上 Task A 不会被抢占 (nxsched_islocked_tcb() 返回 true)</span><br><span class="line">CPU1: Task B 仍然正常运行，可被抢占或自行调用 sched_lock()</span><br><span class="line">CPU2: Task C 仍然正常运行</span><br><span class="line">CPU3: IDLE3 仍然正常运行</span><br><span class="line"></span><br><span class="line">// CPU0 上即使有更高优先级任务就绪:</span><br><span class="line">// nxsched_switch_running(0) → nxsched_islocked_tcb(rtcb)=true → return false</span><br><span class="line">// 但 nxsched_deliver_task() 可能将高优先级任务发给 CPU1-3 执行!</span><br></pre></td></tr></table></figure>
+
+<p>这与单核有本质区别：单核下 <code>sched_lock()</code> 的效果等同于”此任务暂时独占 CPU”；多核下，它只意味着”此任务不会被当前 CPU 上的其他任务抢占”，但其他 CPU 上的活动完全不受影响。</p>
+<h3 id="8-2-sched-unlock-：检查-g-readytorun-而非-g-pendingtasks"><a href="#8-2-sched-unlock-：检查-g-readytorun-而非-g-pendingtasks" class="headerlink" title="8.2 sched_unlock()：检查 g_readytorun 而非 g_pendingtasks"></a>8.2 sched_unlock()：检查 g_readytorun 而非 g_pendingtasks</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched_unlock.c:73-102 — SMP 无关健路径</span></span><br><span class="line">rtcb-&gt;lockcount = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Release any ready-to-run tasks that have collected in</span></span><br><span class="line"><span class="comment"> * g_pendingtasks (or in g_readytorun for SMP)</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line">ptcb = (FAR <span class="keyword">struct</span> tcb_s *)dq_peek(list_readytorun());</span><br><span class="line"><span class="keyword">if</span> (ptcb &amp;&amp; ptcb-&gt;sched_priority &gt; rtcb-&gt;sched_priority &amp;&amp;</span><br><span class="line">    nxsched_deliver_task(rtcb-&gt;cpu, rtcb-&gt;cpu, SWITCH_HIGHER))</span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line">ptcb = (FAR <span class="keyword">struct</span> tcb_s *)dq_peek(list_pendingtasks());</span><br><span class="line"><span class="keyword">if</span> (ptcb &amp;&amp; nxsched_merge_pending())</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">  &#123;</span><br><span class="line">    up_switch_context(this_task(), rtcb);  <span class="comment">// 触发上下文切换</span></span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>单核 NuttX 中，<code>sched_lock()</code> 期间到达的高优先级任务被放入 <code>g_pendingtasks</code> 列表，<code>sched_unlock()</code> 时合并回 <code>g_readytorun</code>。</p>
+<p>SMP 下**没有 <code>g_pendingtasks</code>**。这是因为 <code>nxsched_add_readytorun()</code> 可以直接将任务放入 <code>g_readytorun</code> 并在另一个 CPU 上执行调度决策，不需要”暂存”机制。当 <code>sched_unlock()</code> 释放时，只需检查 <code>g_readytorun</code> 头部是否有比当前任务更高优先级的任务。</p>
+<hr>
+<p><code>sched_lock()</code> 和前文的临界区机制共同构成了 NuttX 的并发控制体系。最后我们看一个面向应用的 SMP 特性——CPU 亲和性，它让用户能显式指定任务可运行的 CPU 集合。</p>
+<h2 id="9-线程亲和性-Affinity"><a href="#9-线程亲和性-Affinity" class="headerlink" title="9. 线程亲和性 (Affinity)"></a>9. 线程亲和性 (Affinity)</h2><h3 id="9-1-为什么需要-CPU-亲和性？"><a href="#9-1-为什么需要-CPU-亲和性？" class="headerlink" title="9.1 为什么需要 CPU 亲和性？"></a>9.1 为什么需要 CPU 亲和性？</h3><p>SMP 系统默认的任务调度策略是”任意核可用”——<code>nxsched_select_cpu()</code> 在亲和性掩码允许的 CPU 中自由选择。但有些场景下，允许任务在 CPU 之间迁移是有害的：</p>
+<ul>
+<li><strong>Cache 亲和性</strong>：任务在 CPU0 上运行一段时间后，其代码和数据被填充到 CPU0 的 L1&#x2F;L2 Cache 中。迁移到 CPU1 意味着 Cache 冷启动——所有数据需要从主存重新加载，可能导致显著的性能波动。</li>
+<li><strong>实时隔离</strong>：在混合负载系统中，可能需要将实时任务固定到特定 CPU，确保它们不受其他时间共享任务的干扰。</li>
+<li><strong>设备亲和性</strong>：某些外设的中断只能路由到特定 CPU（例如 GICv2 的 SPI 中断可配置亲和性）。处理该中断的任务最好运行在同一 CPU 上。</li>
+</ul>
+<p>NuttX 通过 <code>tcb-&gt;affinity</code> 字段实现了 CPU 亲和性机制，语义与 Linux 的 <code>sched_setaffinity()</code> 兼容。</p>
+<h3 id="9-2-默认行为"><a href="#9-2-默认行为" class="headerlink" title="9.2 默认行为"></a>9.2 默认行为</h3><p>默认情况下，任务可以在任何 CPU 上运行：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/task/task_setup.c:226-234</span></span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_SMP</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">nxtask_inherit_affinity</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *tcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line">  tcb-&gt;affinity = rtcb-&gt;affinity;    <span class="comment">// 子线程继承父线程的亲和性</span></span><br><span class="line">&#125;</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br></pre></td></tr></table></figure>
+
+<p>如果从未显式设置亲和性，<code>affinity</code> 在初始化时被设为 <code>CONFIG_SMP_DEFAULT_CPUSET &amp; SCHED_ALL_CPUS</code>（即允许所有 CPU）。</p>
+<h3 id="9-3-sched-setaffinity-sched-getaffinity"><a href="#9-3-sched-setaffinity-sched-getaffinity" class="headerlink" title="9.3 sched_setaffinity &#x2F; sched_getaffinity"></a>9.3 sched_setaffinity &#x2F; sched_getaffinity</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/sched/sched_setaffinity.c:74-156</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">nxsched_set_affinity</span><span class="params">(<span class="type">pid_t</span> pid, <span class="type">size_t</span> cpusetsize, FAR <span class="type">const</span> <span class="type">cpu_set_t</span> *mask)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 验证掩码非零 */</span></span><br><span class="line">  <span class="keyword">if</span> (*mask == <span class="number">0</span>) <span class="keyword">return</span> -EINVAL;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 解析 pid → tcb */</span></span><br><span class="line">  tcb = nxsched_get_tcb(pid);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* IDLE 任务 CPU_LOCKED，不可修改亲和性 */</span></span><br><span class="line">  <span class="keyword">if</span> ((tcb-&gt;flags &amp; TCB_FLAG_CPU_LOCKED) != <span class="number">0</span>)</span><br><span class="line">    <span class="keyword">return</span> -EINVAL;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 设置新亲和性 */</span></span><br><span class="line">  tcb-&gt;affinity = *mask;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 如果任务正在运行且当前 CPU 不再在亲和性掩码中，</span></span><br><span class="line"><span class="comment">   * 通过重新设置优先级来触发迁移 */</span></span><br><span class="line">  <span class="keyword">if</span> (tcb-&gt;task_state &gt;= FIRST_READY_TO_RUN_STATE &amp;&amp;</span><br><span class="line">      tcb-&gt;task_state &lt;= LAST_READY_TO_RUN_STATE)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">if</span> ((tcb-&gt;affinity &amp; (<span class="number">1</span> &lt;&lt; tcb-&gt;cpu)) == <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          nxsched_set_priority(tcb, tcb-&gt;sched_priority);  <span class="comment">// 触发重新调度</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>如果任务当前 CPU 不在新的亲和性掩码中怎么办？</strong> NuttX 的策略是调用 <code>nxsched_set_priority()</code> 将其重新设置为相同的优先级。这会触发调度器将该任务从当前队列中移除并重新入队，在新的入队过程中，<code>nxsched_select_cpu()</code> 会基于新的 <code>affinity</code> 选择一个合适的 CPU。</p>
+<h3 id="9-4-TCB-FLAG-CPU-LOCKED"><a href="#9-4-TCB-FLAG-CPU-LOCKED" class="headerlink" title="9.4 TCB_FLAG_CPU_LOCKED"></a>9.4 TCB_FLAG_CPU_LOCKED</h3><p>此标志表示任务被硬性绑定到特定 CPU。IDLE 任务始终设置了此标志（因为每个 CPU 有自己专用的 IDLE 任务），某些内核操作也会临时设置它以防止竞态条件。</p>
+<h3 id="9-5-与-Linux-的对比"><a href="#9-5-与-Linux-的对比" class="headerlink" title="9.5 与 Linux 的对比"></a>9.5 与 Linux 的对比</h3><p>Linux 使用 <code>sched_setaffinity()</code>（POSIX 标准）和 <code>cpusets</code>（cgroup 机制）。NuttX 在 POSIX 语义上基本兼容，但实现更简单：没有 cgroup 层级，亲和性直接存储在 TCB 中且仅为 CPU 级别的位掩码。</p>
+<hr>
+<h2 id="10-关键要点总结"><a href="#10-关键要点总结" class="headerlink" title="10. 关键要点总结"></a>10. 关键要点总结</h2><ol>
+<li><p><strong>数据结构分层</strong>：NuttX SMP 引入了 <code>g_assignedtasks[]</code>（每 CPU 当前运行任务指针）和 <code>g_delivertasks[]</code>（跨核调度请求数组），将单核 <code>g_readytorun</code> 的职责拆分为”未分配任务池”和”每 CPU 运行任务”两层。</p>
+</li>
+<li><p><strong>CPU 选择启发式</strong>：<code>nxsched_select_cpu()</code> 优先选择空闲 CPU（运行 IDLE 任务的），其次选择运行最低优先级任务的 CPU。该算法受任务亲和性掩码和 <code>TCB_FLAG_CPU_LOCKED</code> 约束。</p>
+</li>
+<li><p><strong>跨核调度协议</strong>：调度请求通过 <code>nxsched_deliver_task()</code> 写入 <code>g_delivertasks[target]</code>，然后发送架构特定的 IPI（GICv2 SGI、RISC-V IPI、POSIX signal 等）。目标 CPU 在 IPI 处理函数中调用 <code>nxsched_process_delivered()</code> 完成实际调度。切换失败时自动转发给其他 CPU。</p>
+</li>
+<li><p><strong>全局自旋锁 + 位掩码</strong>：<code>g_cpu_irqlock</code> 是唯一保护临界区的全局自旋锁。<code>g_cpu_irqset</code> 位掩码跟踪哪些 CPU 正在临界区内，支持非对称的持有者追踪。<code>g_cpu_nestcount[]</code> 和 <code>irqcount</code> 分别处理中断上下文和任务上下文的嵌套。</p>
+</li>
+<li><p><strong>锁层次结构</strong>：<code>irqcount</code>（全局临界区） &gt; <code>lockcount</code>（本地抢占禁用）。<code>sched_lock()</code> 不影响其他 CPU，而 <code>enter_critical_section()</code> 通过全局自旋锁影响所有 CPU。</p>
+</li>
+<li><p><strong>SGI 分离设计</strong>（ARM）：CPU 启动（SGI1）、跨核函数调用（SGI2）、调度触发（SGI3）使用三个不同的 SGI 编号，各自有独立的处理函数。RISC-V 则合并到一个统一的处理函数中。</p>
+</li>
+<li><p><strong>无 g_pendingtasks</strong>：SMP 下不存在待处理任务队列。任务就绪时直接进入 <code>g_readytorun</code>，调度决策可以在任何 CPU 上触发其他 CPU 的调度。</p>
+</li>
+</ol>
+<hr>
+<h2 id="11-参考资料"><a href="#11-参考资料" class="headerlink" title="11. 参考资料"></a>11. 参考资料</h2><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Documentation/implementation/smp.rst</code></td>
+<td>SMP 官方设计文档（872 行），包含最初的设计规格</td>
+</tr>
+<tr>
+<td><code>Documentation/reference/os/smp.rst</code></td>
+<td>SMP API 参考文档（99 行）</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_smpstart.c:68-142</code></td>
+<td><code>nx_idle_trampoline()</code> 和 <code>nx_smp_start()</code></td>
+</tr>
+<tr>
+<td><code>sched/init/nx_start.c:328-420</code></td>
+<td><code>idle_task_initialize()</code> 创建每 CPU 的 IDLE TCB</td>
+</tr>
+<tr>
+<td><code>include/nuttx/sched.h:222-226</code></td>
+<td><code>this_cpu()</code> 宏定义</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched.h:69-73</code></td>
+<td><code>current_task()</code> 宏定义</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched.h:138-145</code></td>
+<td><code>task_deliver_e</code> 枚举（调度请求类型）</td>
+</tr>
+<tr>
+<td><code>sched/init/nx_start.c:116-117</code></td>
+<td><code>g_assignedtasks[]</code> 和 <code>g_delivertasks[]</code> 声明</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched.h:170-188</code></td>
+<td><code>g_readytorun</code> SMP 语义设计注释</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched.h:367-393</code></td>
+<td><code>this_task()</code> SMP 版本实现</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched.h:541-565</code></td>
+<td><code>nxsched_deliver_task()</code> 跨核调度分发</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched.h:567-608</code></td>
+<td><code>nxsched_select_cpu()</code> CPU 选择算法</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_addreadytorun.c:152-277</code></td>
+<td><code>nxsched_switch_running()</code> 和 SMP 版 <code>nxsched_add_readytorun()</code></td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_process_delivered.c:63-120</code></td>
+<td><code>nxsched_process_delivered()</code> IPI 中断处理</td>
+</tr>
+<tr>
+<td><code>sched/irq/irq_csection.c:57-483</code></td>
+<td><code>enter_critical_section_notrace()</code> 和 <code>leave_critical_section_notrace()</code></td>
+</tr>
+<tr>
+<td><code>include/nuttx/sched.h:617-624</code></td>
+<td>TCB 的 SMP 字段定义</td>
+</tr>
+<tr>
+<td><code>include/nuttx/sched.h:101</code></td>
+<td><code>TCB_FLAG_CPU_LOCKED</code> 标志定义</td>
+</tr>
+<tr>
+<td><code>include/nuttx/spinlock.h:183-197</code></td>
+<td><code>spin_lock_notrace()</code> 自旋锁获取</td>
+</tr>
+<tr>
+<td><code>include/nuttx/spinlock_type.h:52-66</code></td>
+<td><code>spinlock_t</code> 和 <code>ticket spinlock</code> 类型定义</td>
+</tr>
+<tr>
+<td><code>include/nuttx/irq.h:99-107</code></td>
+<td><code>cpu_irqlock_clear()</code> 宏</td>
+</tr>
+<tr>
+<td><code>arch/arm/include/spinlock.h:102-123</code></td>
+<td>ARM <code>up_testset()</code> — LDREXB&#x2F;STREXB</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/gic.h:643-651</code></td>
+<td>GICv2 SGI 编号定义</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_cpuhead.S:85-459</code></td>
+<td>ARMv7-A 次级 CPU 汇编启动代码</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_cpustart.c:112-129</code></td>
+<td><code>up_cpu_start()</code> ARMv7-A</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_smpcall.c:71-120</code></td>
+<td><code>arm_smp_sched_handler</code> 和 <code>up_send_smp_sched</code></td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_lock.c:67-99</code></td>
+<td><code>sched_lock()</code></td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_unlock.c:57-179</code></td>
+<td><code>sched_unlock()</code> SMP 路径</td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_setaffinity.c:74-156</code></td>
+<td><code>nxsched_set_affinity()</code></td>
+</tr>
+<tr>
+<td><code>sched/task/task_setup.c:226-234</code></td>
+<td><code>nxtask_inherit_affinity()</code></td>
+</tr>
+<tr>
+<td><code>sched/sched/sched_smp.c:53-360</code></td>
+<td>SMP 跨核函数调用基础设施</td>
+</tr>
+<tr>
+<td><code>arch/risc-v/src/common/riscv_smpcall.c:60-78</code></td>
+<td>RISC-V SMP 统一处理和上下文保存&#x2F;恢复</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/16/Nuttx-ELF-Loader/" rel="prev" title="Nuttx - ELF Loader">
+                  <i class="fa fa-angle-left"></i> Nuttx - ELF Loader
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

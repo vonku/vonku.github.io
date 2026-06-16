@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从 sigaction 注册到 kill 发送，从内核态 trampoline 到用户态 handler 执行，完整解析 NuttX POSIX 信号在 CONFIG_BUILD_KERNEL 模式下的投递链路。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - Signal">
+<meta property="og:url" content="http://yoursite.com/2026/06/16/Nuttx-Signal/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从 sigaction 注册到 kill 发送，从内核态 trampoline 到用户态 handler 执行，完整解析 NuttX POSIX 信号在 CONFIG_BUILD_KERNEL 模式下的投递链路。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/al.png">
+<meta property="article:published_time" content="2026-06-16T13:24:26.000Z">
+<meta property="article:modified_time" content="2026-06-16T13:32:10.010Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/al.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/16/Nuttx-Signal/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/16/Nuttx-Signal/","path":"2026/06/16/Nuttx-Signal/","title":"Nuttx - Signal"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - Signal | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%80%E7%AF%87%EF%BC%9A%E4%BF%A1%E5%8F%B7%E8%A7%A3%E5%86%B3%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98%EF%BC%9F"><span class="nav-text">1. 开篇：信号解决什么问题？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">2. 核心数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-struct-sigaction%EF%BC%9A%E6%B3%A8%E5%86%8C%E7%9A%84%E4%BF%A1%E5%8F%B7%E5%8A%A8%E4%BD%9C"><span class="nav-text">2.1 struct sigaction：注册的信号动作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-siginfo-t%EF%BC%9A%E4%BF%A1%E5%8F%B7%E6%90%BA%E5%B8%A6%E7%9A%84%E4%BF%A1%E6%81%AF"><span class="nav-text">2.2 siginfo_t：信号携带的信息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-struct-sigactq%EF%BC%9Aper-group-%E7%9A%84%E5%8A%A8%E4%BD%9C%E6%B3%A8%E5%86%8C%E8%A1%A8%E6%9D%A1%E7%9B%AE"><span class="nav-text">2.3 struct sigactq：per-group 的动作注册表条目</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-struct-sigq-s%EF%BC%9A%E5%BE%85%E6%8A%95%E9%80%92%E7%9A%84%E4%BF%A1%E5%8F%B7%E5%8A%A8%E4%BD%9C%EF%BC%88per-TCB%EF%BC%89"><span class="nav-text">2.4 struct sigq_s：待投递的信号动作（per-TCB）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-TCB-%E4%B8%AD%E7%9A%84%E4%BF%A1%E5%8F%B7%E5%AD%97%E6%AE%B5"><span class="nav-text">2.5 TCB 中的信号字段</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%BF%A1%E5%8F%B7%E6%B3%A8%E5%86%8C%EF%BC%9Asigaction"><span class="nav-text">3. 信号注册：sigaction()</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%AE%9E%E7%8E%B0"><span class="nav-text">3.1 实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E4%BF%A1%E5%8F%B7%E5%8F%91%E9%80%81%EF%BC%9Akill-sigqueue"><span class="nav-text">4. 信号发送：kill() &#x2F; sigqueue()</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-kill-%E5%AE%9E%E7%8E%B0"><span class="nav-text">4.1 kill() 实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-sigqueue-%E5%AE%9E%E7%8E%B0"><span class="nav-text">4.2 sigqueue() 实现</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E4%BF%A1%E5%8F%B7%E5%88%86%E5%8F%91%EF%BC%9A%E5%86%B3%E7%AD%96%E6%A0%91"><span class="nav-text">5. 信号分发：决策树</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-nxsig-tcbdispatch-%EF%BC%9A%E6%A0%B8%E5%BF%83%E5%86%B3%E7%AD%96"><span class="nav-text">5.1 nxsig_tcbdispatch()：核心决策</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E4%BF%A1%E5%8F%B7%E6%8A%95%E9%80%92%EF%BC%9AKERNEL-%E6%A8%A1%E5%BC%8F%E7%9A%84%E4%B8%89%E6%AC%A1%E7%89%B9%E6%9D%83%E7%BA%A7%E5%88%87%E6%8D%A2"><span class="nav-text">6. 信号投递：KERNEL 模式的三次特权级切换</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-Step-1%EF%BC%9Aup-schedule-sigaction-%E2%80%94%E2%80%94%E4%BF%AE%E6%94%B9%E7%9B%AE%E6%A0%87%E4%BB%BB%E5%8A%A1%E7%9A%84%E5%AF%84%E5%AD%98%E5%99%A8%E5%B8%A7"><span class="nav-text">6.1 Step 1：up_schedule_sigaction()——修改目标任务的寄存器帧</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-Step-2%EF%BC%9Aarm-sigdeliver-%E2%80%94%E2%80%94%E5%86%85%E6%A0%B8%E6%80%81%E4%BF%A1%E5%8F%B7%E6%8A%95%E9%80%92%E5%85%A5%E5%8F%A3"><span class="nav-text">6.2 Step 2：arm_sigdeliver()——内核态信号投递入口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-Step-3%EF%BC%9Anxsig-deliver-%E2%80%94%E2%80%94%E6%8A%95%E9%80%92%E6%AF%8F%E4%B8%AA-pending-%E4%BF%A1%E5%8F%B7"><span class="nav-text">6.3 Step 3：nxsig_deliver()——投递每个 pending 信号</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-Step-4%EF%BC%9Aup-signal-dispatch-%E2%80%94%E2%80%94%E8%A7%A6%E5%8F%91-SYS-signal-handler"><span class="nav-text">6.4 Step 4：up_signal_dispatch()——触发 SYS_signal_handler</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-Step-5%EF%BC%9Aarm-syscall-SYS-signal-handler%E2%80%94%E2%80%94%E5%88%87%E6%8D%A2%E5%88%B0-USR-%E6%A8%A1%E5%BC%8F"><span class="nav-text">6.5 Step 5：arm_syscall() SYS_signal_handler——切换到 USR 模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-6-Step-6%EF%BC%9Asig-trampoline-%E2%80%94%E2%80%94%E7%94%A8%E6%88%B7%E7%A9%BA%E9%97%B4%E8%B7%B3%E6%9D%BF"><span class="nav-text">6.6 Step 6：sig_trampoline()——用户空间跳板</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-7-Step-7%EF%BC%9ASYS-signal-handler-return%E2%80%94%E2%80%94%E5%9B%9E%E5%88%B0%E5%86%85%E6%A0%B8%E6%80%81"><span class="nav-text">6.7 Step 7：SYS_signal_handler_return——回到内核态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-8-%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B%E5%9B%BE"><span class="nav-text">6.8 完整流程图</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E4%BF%A1%E5%8F%B7%E9%98%BB%E5%A1%9E%E4%B8%8E%E7%AD%89%E5%BE%85"><span class="nav-text">7. 信号阻塞与等待</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-sigprocmask-%EF%BC%9A%E6%8E%A7%E5%88%B6%E5%93%AA%E4%BA%9B%E4%BF%A1%E5%8F%B7%E8%A2%AB%E9%98%BB%E5%A1%9E"><span class="nav-text">7.1 sigprocmask()：控制哪些信号被阻塞</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-sigwaitinfo-%EF%BC%9A%E5%90%8C%E6%AD%A5%E7%AD%89%E5%BE%85%E4%BF%A1%E5%8F%B7"><span class="nav-text">7.2 sigwaitinfo()：同步等待信号</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E4%BF%A1%E5%8F%B7%E8%B7%B3%E6%9D%BF%E7%9A%84%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">8. 信号跳板的初始化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%88%9D%E5%A7%8B%E5%8C%96%E8%BF%87%E7%A8%8B"><span class="nav-text">8.1 初始化过程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%AF%B9%E6%AF%94%E5%88%86%E6%9E%90"><span class="nav-text">9. 对比分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">10. 关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6%E7%B4%A2%E5%BC%95"><span class="nav-text">11. 参考文件索引</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">45</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/16/Nuttx-Signal/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - Signal | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - Signal
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-16 21:24:26" itemprop="dateCreated datePublished" datetime="2026-06-16T21:24:26+08:00">2026-06-16</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从 sigaction 注册到 kill 发送，从内核态 trampoline 到用户态 handler 执行，完整解析 NuttX POSIX 信号在 CONFIG_BUILD_KERNEL 模式下的投递链路。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>本文回答以下问题：NuttX 如何实现 POSIX 信号的注册、发送和投递？在 KERNEL 模式下，内核如何安全地调用用户空间的信号处理函数？信号被阻塞时如何排队、何时投递？<code>sigprocmask</code> 和 <code>sigwaitinfo</code> 的内部机制是什么？读完后，你将能够从源码级别追踪一个信号从 <code>kill()</code> 到用户 handler 执行的完整路径，理解 KERNEL 模式下涉及的三次特权级切换。</p>
+<hr>
+<h2 id="1-开篇：信号解决什么问题？"><a href="#1-开篇：信号解决什么问题？" class="headerlink" title="1. 开篇：信号解决什么问题？"></a>1. 开篇：信号解决什么问题？</h2><p>信号是 POSIX 系统中<strong>异步通知</strong>的核心机制。与同步 IPC（信号量、管道、消息队列）不同，信号可以在任何时刻”打断”目标任务的执行，迫使它运行预先注册的处理函数。典型用途：</p>
+<ul>
+<li>进程终止通知（SIGCHLD）</li>
+<li>定时器到期（SIGALRM）</li>
+<li>用户自定义事件（SIGUSR1&#x2F;SIGUSR2）</li>
+<li>异常处理（SIGSEGV、SIGBUS）</li>
+</ul>
+<p>在 KERNEL 模式下，信号投递面临额外挑战：<strong>信号处理函数运行在用户空间（USR 模式），但投递决策在内核中完成</strong>。内核不能直接调用用户函数（特权级不对），必须通过<strong>信号跳板（signal trampoline）</strong>安全地跨越边界。</p>
+<p>NuttX 的信号实现遵循 POSIX 标准（IEEE Std 1003.1 Signal章节），同时为嵌入式场景做了精简（如固定大小的预分配池、无实时信号队列深度限制等）。NuttX 官方文档（<code>Documentation/implementation/signal_handlers.rst</code>）描述了信号处理的设计约束：信号 handler 在任务上下文中执行，不在中断上下文中。</p>
+<p>接下来先看信号相关的核心数据结构。</p>
+<hr>
+<h2 id="2-核心数据结构"><a href="#2-核心数据结构" class="headerlink" title="2. 核心数据结构"></a>2. 核心数据结构</h2><p>信号机制涉及三个维度的信息：<strong>动作</strong>（收到信号后做什么）、<strong>状态</strong>（哪些信号被阻塞）、<strong>队列</strong>（待投递的信号）。NuttX 用不同的结构体分别管理这三个维度。</p>
+<h3 id="2-1-struct-sigaction：注册的信号动作"><a href="#2-1-struct-sigaction：注册的信号动作" class="headerlink" title="2.1 struct sigaction：注册的信号动作"></a>2.1 struct sigaction：注册的信号动作</h3><p>文件：<code>include/signal.h:400-429</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sigaction</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">union</span></span></span><br><span class="line"><span class="class">  &#123;</span></span><br><span class="line">    <span class="type">_sa_handler_t</span>   _sa_handler;     <span class="comment">/* void handler(int signo) */</span></span><br><span class="line">    <span class="type">_sa_sigaction_t</span> _sa_sigaction;   <span class="comment">/* void handler(int signo, siginfo_t *info, void *ctx) */</span></span><br><span class="line">  &#125; sa_u;</span><br><span class="line">  <span class="type">sigset_t</span>          sa_mask;          <span class="comment">/* 执行 handler 期间额外阻塞的信号集 */</span></span><br><span class="line">  <span class="type">int</span>               sa_flags;         <span class="comment">/* SA_SIGINFO, SA_NODEFER, SA_NOCLDWAIT 等 */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> sa_handler   sa_u._sa_handler</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> sa_sigaction sa_u._sa_sigaction</span></span><br></pre></td></tr></table></figure>
+
+<p>每个信号最多有一个 <code>sigaction</code> 与之关联，存储在 task_group 的 <code>tg_sigactionq</code> 链表中。</p>
+<h3 id="2-2-siginfo-t：信号携带的信息"><a href="#2-2-siginfo-t：信号携带的信息" class="headerlink" title="2.2 siginfo_t：信号携带的信息"></a>2.2 siginfo_t：信号携带的信息</h3><p>文件：<code>include/signal.h:378-394</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">siginfo</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">uint8_t</span>      si_signo;     <span class="comment">/* 信号编号 */</span></span><br><span class="line">  <span class="type">uint8_t</span>      si_code;      <span class="comment">/* 来源：SI_USER, SI_QUEUE, SI_TIMER 等 */</span></span><br><span class="line">  <span class="type">uint8_t</span>      si_errno;     <span class="comment">/* 关联的 errno */</span></span><br><span class="line">  <span class="class"><span class="keyword">union</span> <span class="title">sigval</span> <span class="title">si_value</span>;</span>     <span class="comment">/* sigqueue() 传递的附加数据 */</span></span><br><span class="line">  <span class="type">pid_t</span>        si_pid;       <span class="comment">/* 发送者 PID */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>siginfo_t</code> 是信号携带的元数据——接收方的 handler 通过它知道信号来自谁（<code>si_pid</code>）、为什么产生（<code>si_code</code>）、以及附带的数据（<code>si_value</code>）。<code>si_code</code> 区分了信号来源：<code>SI_USER</code> 来自 <code>kill()</code>、<code>SI_QUEUE</code> 来自 <code>sigqueue()</code>、<code>SI_TIMER</code> 来自定时器到期。</p>
+<h3 id="2-3-struct-sigactq：per-group-的动作注册表条目"><a href="#2-3-struct-sigactq：per-group-的动作注册表条目" class="headerlink" title="2.3 struct sigactq：per-group 的动作注册表条目"></a>2.3 struct sigactq：per-group 的动作注册表条目</h3><p>文件：<code>sched/signal/signal.h:74-80</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sigactq</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">sigactq</span> *<span class="title">flink</span>;</span>   <span class="comment">/* 链表指针 */</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">sigaction</span> <span class="title">act</span>;</span>         <span class="comment">/* 注册的动作 */</span></span><br><span class="line">  <span class="type">uint8_t</span>   signo;             <span class="comment">/* 关联的信号编号 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>task_group_s-&gt;tg_sigactionq</code> 是一个 <code>sigactq</code> 链表——每个条目对应一个已注册 handler 的信号。查找时线性遍历匹配 <code>signo</code>。</p>
+<h3 id="2-4-struct-sigq-s：待投递的信号动作（per-TCB）"><a href="#2-4-struct-sigq-s：待投递的信号动作（per-TCB）" class="headerlink" title="2.4 struct sigq_s：待投递的信号动作（per-TCB）"></a>2.4 struct sigq_s：待投递的信号动作（per-TCB）</h3><p>文件：<code>sched/signal/signal.h:101-113</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">sigq_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">sigq_s</span> *<span class="title">flink</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">union</span> &#123;</span></span><br><span class="line">    <span class="type">void</span> (*sighandler)(<span class="type">int</span> signo, <span class="type">siginfo_t</span> *info, <span class="type">void</span> *context);</span><br><span class="line">  &#125; action;                   <span class="comment">/* 要执行的 handler */</span></span><br><span class="line">  <span class="type">sigset_t</span>  mask;             <span class="comment">/* 执行期间的额外阻塞掩码 */</span></span><br><span class="line">  <span class="type">siginfo_t</span> info;             <span class="comment">/* 信号信息 */</span></span><br><span class="line">  <span class="type">uint8_t</span>   type;             <span class="comment">/* 分配类型标记 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>当一个信号被分发到目标 TCB 时，一个 <code>sigq_s</code> 被分配并加入 <code>tcb-&gt;sigpendactionq</code>。这是”待投递队列”——等待下次上下文切换时执行。</p>
+<h3 id="2-5-TCB-中的信号字段"><a href="#2-5-TCB-中的信号字段" class="headerlink" title="2.5 TCB 中的信号字段"></a>2.5 TCB 中的信号字段</h3><p>文件：<code>include/nuttx/sched.h:664-675</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="comment">/* ... */</span></span><br><span class="line">  <span class="type">sig_deliver_t</span> sigdeliver;        <span class="comment">/* 信号投递回调（= nxsig_deliver）*/</span></span><br><span class="line">  <span class="type">sq_queue_t</span> sigpendactionq;       <span class="comment">/* 待投递的信号动作队列 */</span></span><br><span class="line">  <span class="type">sq_queue_t</span> sigpostedq;           <span class="comment">/* 正在投递中的信号 */</span></span><br><span class="line">  <span class="type">sigset_t</span>   sigprocmask;          <span class="comment">/* 被阻塞的信号集 */</span></span><br><span class="line">  <span class="type">sigset_t</span>   sigwaitmask;          <span class="comment">/* sigwaitinfo 等待的信号集 */</span></span><br><span class="line">  <span class="type">siginfo_t</span>  *sigunbinfo;          <span class="comment">/* 解除阻塞时的信号信息指针 */</span></span><br><span class="line">  <span class="comment">/* ... */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>两个关键队列</strong>：</p>
+<ul>
+<li><code>sigpendactionq</code>：已决定要投递但还没执行的 handler</li>
+<li><code>sigpostedq</code>：正在执行中的 handler（用于防止重入）</li>
+</ul>
+<p>数据结构定义了”谁”和”做什么”。下面看如何通过 <code>sigaction()</code> 注册处理函数。</p>
+<hr>
+<h2 id="3-信号注册：sigaction"><a href="#3-信号注册：sigaction" class="headerlink" title="3. 信号注册：sigaction()"></a>3. 信号注册：sigaction()</h2><p><code>signal()</code> 是 C89 接口，语义在不同 Unix 上不一致（有的自动重置为 SIG_DFL）。<code>sigaction()</code> 是 POSIX 标准接口，提供明确的控制：可以指定执行 handler 期间阻塞哪些额外信号（<code>sa_mask</code>），可以选择是否接收 <code>siginfo_t</code>（<code>SA_SIGINFO</code>），可以控制是否自动取消注册（<code>SA_RESETHAND</code>）。</p>
+<h3 id="3-1-实现"><a href="#3-1-实现" class="headerlink" title="3.1 实现"></a>3.1 实现</h3><p>文件：<code>sched/signal/sig_action.c:207-409</code>（<code>nxsig_action()</code> 关键摘录，原函数约 200 行）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nxsig_action</span><span class="params">(<span class="type">int</span> signo, FAR <span class="type">const</span> <span class="keyword">struct</span> sigaction *act,</span></span><br><span class="line"><span class="params">                 FAR <span class="keyword">struct</span> sigaction *oact, <span class="type">bool</span> force)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">task_group_s</span> *<span class="title">group</span> =</span> rtcb-&gt;group;</span><br><span class="line">  FAR <span class="type">sigactq_t</span> *sigact;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 在 group-&gt;tg_sigactionq 中查找该信号的现有注册 */</span></span><br><span class="line">  sigact = nxsig_find_action(group, signo);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 如果调用者要求获取旧的 action（oact != NULL），复制出来 */</span></span><br><span class="line">  <span class="keyword">if</span> (oact != <span class="literal">NULL</span> &amp;&amp; sigact != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="built_in">memcpy</span>(oact, &amp;sigact-&gt;act, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> sigaction));</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (act == <span class="literal">NULL</span>) <span class="keyword">return</span> OK;  <span class="comment">/* 仅查询 */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 如果 handler == SIG_IGN：从链表中移除该 signal 的 action */</span></span><br><span class="line">  <span class="keyword">if</span> (act-&gt;sa_handler == SIG_IGN)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* ... remove sigact from tg_sigactionq, free ... */</span></span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 分配或复用 sigactq_t，设置 handler/mask/flags */</span></span><br><span class="line">      <span class="keyword">if</span> (sigact == <span class="literal">NULL</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          sigact = nxsig_alloc_action();  <span class="comment">/* 从预分配池中取 */</span></span><br><span class="line">        &#125;</span><br><span class="line">      sigact-&gt;signo = signo;</span><br><span class="line">      <span class="built_in">memcpy</span>(&amp;sigact-&gt;act, act, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> sigaction));</span><br><span class="line">      sq_addlast(&amp;sigact-&gt;flink, &amp;group-&gt;tg_sigactionq);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>注册完成后，该信号的 handler 信息保存在 task_group 中——同一进程的所有线程共享信号 action。</p>
+<p>注册只是准备工作。下面看信号如何被发送到目标任务。</p>
+<hr>
+<h2 id="4-信号发送：kill-sigqueue"><a href="#4-信号发送：kill-sigqueue" class="headerlink" title="4. 信号发送：kill() &#x2F; sigqueue()"></a>4. 信号发送：kill() &#x2F; sigqueue()</h2><p><code>kill()</code> 只发送信号编号，<code>sigqueue()</code> 还能附带一个 <code>union sigval</code>（整数或指针）。接收方通过 <code>siginfo_t.si_value</code> 获取附带数据。</p>
+<h3 id="4-1-kill-实现"><a href="#4-1-kill-实现" class="headerlink" title="4.1 kill() 实现"></a>4.1 kill() 实现</h3><p>文件：<code>sched/signal/sig_kill.c:78-160</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nxsig_kill</span><span class="params">(<span class="type">pid_t</span> pid, <span class="type">int</span> signo)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">siginfo_t</span> info;</span><br><span class="line"></span><br><span class="line">  info.si_signo = signo;</span><br><span class="line">  info.si_code  = SI_USER;        <span class="comment">/* 标记来源为用户 kill */</span></span><br><span class="line">  info.si_errno = EINTR;</span><br><span class="line">  info.si_value.sival_ptr = <span class="literal">NULL</span>;</span><br><span class="line">  info.si_pid   = _SCHED_GETPID();</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> nxsig_dispatch(pid, &amp;info, <span class="literal">false</span>);  <span class="comment">/* false = group dispatch */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>nxsig_dispatch()</code> 是所有信号发送的统一入口——无论来源是 <code>kill()</code>、<code>sigqueue()</code>、<code>timer_expire()</code> 还是内核内部，最终都调用它。</p>
+<h3 id="4-2-sigqueue-实现"><a href="#4-2-sigqueue-实现" class="headerlink" title="4.2 sigqueue() 实现"></a>4.2 sigqueue() 实现</h3><p>文件：<code>sched/signal/sig_queue.c:79</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nxsig_queue</span><span class="params">(<span class="type">pid_t</span> pid, <span class="type">int</span> signo, <span class="keyword">union</span> sigval value)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">siginfo_t</span> info;</span><br><span class="line"></span><br><span class="line">  info.si_signo       = signo;</span><br><span class="line">  info.si_code        = SI_QUEUE;    <span class="comment">/* 标记来源为 sigqueue */</span></span><br><span class="line">  info.si_errno       = OK;</span><br><span class="line">  info.si_value       = value;       <span class="comment">/* 携带用户数据 */</span></span><br><span class="line">  info.si_pid         = _SCHED_GETPID();</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> nxsig_dispatch(pid, &amp;info, <span class="literal">false</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>发送触发了 <code>nxsig_dispatch()</code>。下面看分发逻辑如何决定信号的命运。</p>
+<hr>
+<h2 id="5-信号分发：决策树"><a href="#5-信号分发：决策树" class="headerlink" title="5. 信号分发：决策树"></a>5. 信号分发：决策树</h2><p>收到信号后，系统必须回答多个问题：</p>
+<ul>
+<li>信号是否被目标 <code>sigprocmask</code> 阻塞？</li>
+<li>目标是否正在 <code>sigwaitinfo()</code> 等待该信号？</li>
+<li>该信号有没有注册 handler？</li>
+<li>目标当前是什么状态（运行中？阻塞在信号量上？）</li>
+</ul>
+<p>不同组合导致不同行为。</p>
+<h3 id="5-1-nxsig-tcbdispatch-：核心决策"><a href="#5-1-nxsig-tcbdispatch-：核心决策" class="headerlink" title="5.1 nxsig_tcbdispatch()：核心决策"></a>5.1 nxsig_tcbdispatch()：核心决策</h3><p>文件：<code>sched/signal/sig_dispatch.c:479-747</code>（逻辑流程摘要）</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">nxsig_tcbdispatch(stcb, info):</span><br><span class="line">  |</span><br><span class="line">  +-- 信号被 sigprocmask 阻塞？</span><br><span class="line">  |     |</span><br><span class="line">  |     +-- YES: 目标在 sigwaitinfo 等待该信号？</span><br><span class="line">  |     |         +-- YES: 解除阻塞，copy info → sigunbinfo，唤醒任务</span><br><span class="line">  |     |         +-- NO:  加入 pending 队列（等 mask 解除时投递）</span><br><span class="line">  |     |</span><br><span class="line">  |     +-- NO (信号未被阻塞):</span><br><span class="line">  |           |</span><br><span class="line">  |           +-- 查找 sigaction：nxsig_find_action(group, signo)</span><br><span class="line">  |           |</span><br><span class="line">  |           +-- 有 handler？</span><br><span class="line">  |                 +-- YES: nxsig_queue_action() → 加入 sigpendactionq</span><br><span class="line">  |                 |         → stcb-&gt;sigdeliver = nxsig_deliver</span><br><span class="line">  |                 |         → up_schedule_sigaction(stcb) [安排下次切换时执行]</span><br><span class="line">  |                 |</span><br><span class="line">  |                 +-- NO (SIG_DFL): 执行默认动作（终止/忽略/停止）</span><br><span class="line">  |</span><br><span class="line">  +-- 如果目标阻塞在 sem/mqueue 上：以 EINTR 解除阻塞</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：TaskA 调用 kill(TaskB_pid, SIGUSR1)</strong></p>
+<p>假设 TaskB 注册了 SIGUSR1 的 handler 且未阻塞该信号：</p>
+<ol>
+<li><code>nxsig_dispatch()</code> 找到 TaskB 的 TCB</li>
+<li>检查 <code>TaskB-&gt;sigprocmask</code>：SIGUSR1 不在其中 → 未阻塞</li>
+<li><code>nxsig_find_action()</code> 在 <code>group-&gt;tg_sigactionq</code> 中找到 SIGUSR1 的 handler</li>
+<li><code>nxsig_queue_action()</code>：分配 <code>sigq_t</code>，填入 handler 指针和 siginfo，加入 <code>TaskB-&gt;sigpendactionq</code></li>
+<li>设置 <code>TaskB-&gt;sigdeliver = nxsig_deliver</code></li>
+<li>调用 <code>up_schedule_sigaction(TaskB)</code>——修改 TaskB 的保存寄存器帧，使其下次被调度时先进入 <code>arm_sigdeliver</code></li>
+</ol>
+<p>分发决定了”谁该收到信号”。真正执行 handler 的是投递机制——这是 KERNEL 模式下最复杂的部分。</p>
+<hr>
+<h2 id="6-信号投递：KERNEL-模式的三次特权级切换"><a href="#6-信号投递：KERNEL-模式的三次特权级切换" class="headerlink" title="6. 信号投递：KERNEL 模式的三次特权级切换"></a>6. 信号投递：KERNEL 模式的三次特权级切换</h2><p>用户注册的 handler 必须在 USR 模式执行（安全隔离要求）。但信号投递决策在内核中完成。从内核到用户 handler 再回到内核，需要<strong>三次特权级切换</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">(1) arm_sigdeliver: SYS mode → nxsig_deliver() → up_signal_dispatch()</span><br><span class="line">(2) SYS_signal_handler: SYS mode → USR mode (进入 sig_trampoline)</span><br><span class="line">(3) SYS_signal_handler_return: USR mode → SYS mode (回到 nxsig_deliver)</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-1-Step-1：up-schedule-sigaction-——修改目标任务的寄存器帧"><a href="#6-1-Step-1：up-schedule-sigaction-——修改目标任务的寄存器帧" class="headerlink" title="6.1 Step 1：up_schedule_sigaction()——修改目标任务的寄存器帧"></a>6.1 Step 1：up_schedule_sigaction()——修改目标任务的寄存器帧</h3><p>文件：<code>arch/arm/src/armv7-a/arm_schedulesigaction.c:82-118</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">up_schedule_sigaction</span><span class="params">(<span class="keyword">struct</span> tcb_s *tcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 保存当前寄存器帧 */</span></span><br><span class="line">  tcb-&gt;xcp.saved_regs = tcb-&gt;xcp.regs;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 在栈上复制一份寄存器帧（为信号处理预留空间）*/</span></span><br><span class="line">  tcb-&gt;xcp.regs = (<span class="type">void</span> *)((<span class="type">uint32_t</span>)tcb-&gt;xcp.regs - XCPTCONTEXT_SIZE);</span><br><span class="line">  <span class="built_in">memcpy</span>(tcb-&gt;xcp.regs, tcb-&gt;xcp.saved_regs, XCPTCONTEXT_SIZE);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 修改新帧的 PC 为 arm_sigdeliver */</span></span><br><span class="line">  tcb-&gt;xcp.regs[REG_PC]   = (<span class="type">uint32_t</span>)arm_sigdeliver;</span><br><span class="line">  <span class="comment">/* 修改 CPSR 为 SYS 模式 + 禁中断 */</span></span><br><span class="line">  tcb-&gt;xcp.regs[REG_CPSR] = (PSR_MODE_SYS | PSR_I_BIT | PSR_F_BIT);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>效果：当 TaskB 下次被调度时，CPU 不会恢复到它被中断的位置，而是进入 <code>arm_sigdeliver()</code>。原始寄存器帧被保存在 <code>xcp.saved_regs</code> 中，等信号处理完后恢复。</p>
+<h3 id="6-2-Step-2：arm-sigdeliver-——内核态信号投递入口"><a href="#6-2-Step-2：arm-sigdeliver-——内核态信号投递入口" class="headerlink" title="6.2 Step 2：arm_sigdeliver()——内核态信号投递入口"></a>6.2 Step 2：arm_sigdeliver()——内核态信号投递入口</h3><p>文件：<code>arch/arm/src/armv7-a/arm_sigdeliver.c:56-167</code>（关键摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">arm_sigdeliver</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 开启中断（handler 需要在可中断状态下执行）*/</span></span><br><span class="line">  up_irq_enable();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 调用信号投递函数（遍历 sigpendactionq 中的所有待投递信号）*/</span></span><br><span class="line">  (rtcb-&gt;sigdeliver)(rtcb);   <span class="comment">/* = nxsig_deliver(rtcb) */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 所有信号处理完毕，恢复原始上下文 */</span></span><br><span class="line">  rtcb-&gt;sigdeliver = <span class="literal">NULL</span>;</span><br><span class="line">  rtcb-&gt;xcp.regs = rtcb-&gt;xcp.saved_regs;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 完全恢复寄存器帧（回到被中断的位置）*/</span></span><br><span class="line">  arm_fullcontextrestore();   <span class="comment">/* sys_call0(SYS_restore_context) */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-Step-3：nxsig-deliver-——投递每个-pending-信号"><a href="#6-3-Step-3：nxsig-deliver-——投递每个-pending-信号" class="headerlink" title="6.3 Step 3：nxsig_deliver()——投递每个 pending 信号"></a>6.3 Step 3：nxsig_deliver()——投递每个 pending 信号</h3><p>文件：<code>sched/signal/sig_deliver.c:55-216</code>（关键摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">nxsig_deliver</span><span class="params">(FAR <span class="keyword">struct</span> tcb_s *stcb)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">while</span> ((sigq = sq_remfirst(&amp;stcb-&gt;sigpendactionq)) != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 保存旧 sigprocmask，设置新的（= 旧 | sa_mask | 当前信号）*/</span></span><br><span class="line">      savemask = stcb-&gt;sigprocmask;</span><br><span class="line">      stcb-&gt;sigprocmask |= sigq-&gt;mask;</span><br><span class="line">      nxsig_addset(&amp;stcb-&gt;sigprocmask, sigq-&gt;info.si_signo);</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> ((stcb-&gt;flags &amp; TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_KERNEL)</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="comment">/* 用户任务：通过 syscall 跳到用户空间执行 handler */</span></span><br><span class="line">          up_signal_dispatch(sigq-&gt;action.sighandler,</span><br><span class="line">                             sigq-&gt;info.si_signo, &amp;sigq-&gt;info, <span class="literal">NULL</span>);</span><br><span class="line">        &#125;</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">          <span class="comment">/* 内核线程：直接调用 handler（已在特权态）*/</span></span><br><span class="line">          (*sigq-&gt;action.sighandler)(sigq-&gt;info.si_signo, &amp;sigq-&gt;info, <span class="literal">NULL</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 恢复 sigprocmask */</span></span><br><span class="line">      stcb-&gt;sigprocmask = savemask;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 检查是否有新解除阻塞的 pending 信号 */</span></span><br><span class="line">      nxsig_unmask_pendingsignal();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-4-Step-4：up-signal-dispatch-——触发-SYS-signal-handler"><a href="#6-4-Step-4：up-signal-dispatch-——触发-SYS-signal-handler" class="headerlink" title="6.4 Step 4：up_signal_dispatch()——触发 SYS_signal_handler"></a>6.4 Step 4：up_signal_dispatch()——触发 SYS_signal_handler</h3><p>文件：<code>arch/arm/src/common/arm_signal_dispatch.c:69-76</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">up_signal_dispatch</span><span class="params">(<span class="type">_sa_sigaction_t</span> sighand, <span class="type">int</span> signo,</span></span><br><span class="line"><span class="params">                        <span class="type">siginfo_t</span> *info, <span class="type">void</span> *ucontext)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 通过 SVC 进入内核，请求切换到用户态执行 handler */</span></span><br><span class="line">  sys_call4(SYS_signal_handler, (<span class="type">uintptr_t</span>)sighand,</span><br><span class="line">            (<span class="type">uintptr_t</span>)signo, (<span class="type">uintptr_t</span>)info, (<span class="type">uintptr_t</span>)ucontext);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-5-Step-5：arm-syscall-SYS-signal-handler——切换到-USR-模式"><a href="#6-5-Step-5：arm-syscall-SYS-signal-handler——切换到-USR-模式" class="headerlink" title="6.5 Step 5：arm_syscall() SYS_signal_handler——切换到 USR 模式"></a>6.5 Step 5：arm_syscall() SYS_signal_handler——切换到 USR 模式</h3><p>文件：<code>arch/arm/src/armv7-a/arm_syscall.c:382-446</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> SYS_signal_handler:</span><br><span class="line">  <span class="comment">/* 保存返回地址（nxsig_deliver 中 up_signal_dispatch 之后的位置）*/</span></span><br><span class="line">  rtcb-&gt;xcp.sigreturn = regs[REG_PC];</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 设置 PC 为用户空间的 signal trampoline */</span></span><br><span class="line">  regs[REG_PC] = (<span class="type">uint32_t</span>)(ARCH_DATA_RESERVE-&gt;ar_sigtramp);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 切换到用户模式 */</span></span><br><span class="line">  cpsr = regs[REG_CPSR] &amp; ~PSR_MODE_MASK;</span><br><span class="line">  regs[REG_CPSR] = cpsr | PSR_MODE_USR;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 参数传递：R0=sighand, R1=signo, R2=info, R3=ucontext */</span></span><br><span class="line">  regs[REG_R0] = regs[REG_R1];   <span class="comment">/* sighand */</span></span><br><span class="line">  regs[REG_R1] = regs[REG_R2];   <span class="comment">/* signo */</span></span><br><span class="line">  regs[REG_R2] = regs[REG_R3];   <span class="comment">/* info */</span></span><br><span class="line">  regs[REG_R3] = regs[REG_R4];   <span class="comment">/* ucontext */</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-6-Step-6：sig-trampoline-——用户空间跳板"><a href="#6-6-Step-6：sig-trampoline-——用户空间跳板" class="headerlink" title="6.6 Step 6：sig_trampoline()——用户空间跳板"></a>6.6 Step 6：sig_trampoline()——用户空间跳板</h3><p>文件：<code>arch/arm/src/common/crt0.c:82-101</code></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">sig_trampoline:</span><br><span class="line">    push  &#123;lr&#125;             /* 保存 LR */</span><br><span class="line">    mov   ip, r0           /* IP = sighand（用户 handler 地址）*/</span><br><span class="line">    mov   r0, r1           /* R0 = signo */</span><br><span class="line">    mov   r1, r2           /* R1 = info */</span><br><span class="line">    mov   r2, r3           /* R2 = ucontext */</span><br><span class="line">    blx   ip               /* 调用用户的信号处理函数！ */</span><br><span class="line">    pop   &#123;r2&#125;             /* 恢复 LR */</span><br><span class="line">    mov   lr, r2</span><br><span class="line">    mov   r0, #SYS_signal_handler_return</span><br><span class="line">    svc   #SYS_syscall     /* 返回内核 */</span><br></pre></td></tr></table></figure>
+
+<p>用户 handler 在 USR 模式执行完毕后，<code>sig_trampoline</code> 通过 SVC 请求 <code>SYS_signal_handler_return</code> 回到内核。</p>
+<h3 id="6-7-Step-7：SYS-signal-handler-return——回到内核态"><a href="#6-7-Step-7：SYS-signal-handler-return——回到内核态" class="headerlink" title="6.7 Step 7：SYS_signal_handler_return——回到内核态"></a>6.7 Step 7：SYS_signal_handler_return——回到内核态</h3><p>文件：<code>arch/arm/src/armv7-a/arm_syscall.c:457-485</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> SYS_signal_handler_return:</span><br><span class="line">  <span class="comment">/* 恢复 PC 到 nxsig_deliver 中的返回点 */</span></span><br><span class="line">  regs[REG_PC]   = rtcb-&gt;xcp.sigreturn;</span><br><span class="line">  <span class="comment">/* 切回 SYS 模式（特权态）*/</span></span><br><span class="line">  cpsr           = regs[REG_CPSR] &amp; ~PSR_MODE_MASK;</span><br><span class="line">  regs[REG_CPSR] = cpsr | PSR_MODE_SYS;</span><br><span class="line">  rtcb-&gt;xcp.sigreturn = <span class="number">0</span>;</span><br></pre></td></tr></table></figure>
+
+<p>之后 <code>nxsig_deliver()</code> 继续处理下一个 pending 信号（如果有），最终 <code>arm_sigdeliver()</code> 恢复原始寄存器帧，任务回到被中断的位置继续执行。</p>
+<h3 id="6-8-完整流程图"><a href="#6-8-完整流程图" class="headerlink" title="6.8 完整流程图"></a>6.8 完整流程图</h3><p>下图展示了 KERNEL 模式下信号从发送到用户 handler 执行再返回内核的完整时序（含三次特权级切换）：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/al.png" alt="Signal"></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">kill(TaskB, SIGUSR1)</span><br><span class="line">  |  nxsig_dispatch -&gt; nxsig_tcbdispatch -&gt; nxsig_queue_action</span><br><span class="line">  |  -&gt; up_schedule_sigaction: set TaskB-&gt;xcp.regs[PC] = arm_sigdeliver</span><br><span class="line">  v</span><br><span class="line">[TaskB gets scheduled]</span><br><span class="line">  |</span><br><span class="line">  v</span><br><span class="line">arm_sigdeliver() [SYS mode]</span><br><span class="line">  | enable IRQ</span><br><span class="line">  | nxsig_deliver(TaskB)</span><br><span class="line">  |   | pop sigq from sigpendactionq</span><br><span class="line">  |   | up_signal_dispatch(handler, signo, info, NULL)</span><br><span class="line">  |   |   | sys_call4(SYS_signal_handler, ...)</span><br><span class="line">  |   |   v</span><br><span class="line">  |   | [SVC] arm_syscall: SYS_signal_handler</span><br><span class="line">  |   |   | sigreturn = regs[PC]</span><br><span class="line">  |   |   | regs[PC] = sig_trampoline</span><br><span class="line">  |   |   | regs[CPSR] = USR mode</span><br><span class="line">  |   |   v</span><br><span class="line">  |   | [USR mode] sig_trampoline</span><br><span class="line">  |   |   | blx handler(signo, info, ctx)  &lt;- USER HANDLER EXECUTES</span><br><span class="line">  |   |   | svc SYS_signal_handler_return</span><br><span class="line">  |   |   v</span><br><span class="line">  |   | [SVC] arm_syscall: SYS_signal_handler_return</span><br><span class="line">  |   |   | regs[PC] = sigreturn</span><br><span class="line">  |   |   | regs[CPSR] = SYS mode</span><br><span class="line">  |   |   v</span><br><span class="line">  |   | [back to nxsig_deliver] restore sigprocmask, next signal</span><br><span class="line">  |   v</span><br><span class="line">  | nxsig_deliver returns</span><br><span class="line">  | sigdeliver = NULL</span><br><span class="line">  | xcp.regs = saved_regs</span><br><span class="line">  | arm_fullcontextrestore()</span><br><span class="line">  v</span><br><span class="line">TaskB resumes at original interrupted point</span><br></pre></td></tr></table></figure>
+
+<p>信号投递链路展示了”handler 如何被执行”。但并非所有信号都会被立即投递——应用可以通过 <code>sigprocmask</code> 阻塞信号，或通过 <code>sigwaitinfo</code> 同步等待信号。</p>
+<hr>
+<h2 id="7-信号阻塞与等待"><a href="#7-信号阻塞与等待" class="headerlink" title="7. 信号阻塞与等待"></a>7. 信号阻塞与等待</h2><p>有时应用不希望在任意时刻被信号打断（如正在操作共享数据结构），需要临时阻塞某些信号。阻塞期间到达的信号不会丢失——它们被排入 pending 队列，等解除阻塞后立即投递。</p>
+<p>另一种场景是”同步等待信号”——任务主动睡眠直到特定信号到达（如等待定时器超时），这比注册 handler + flag 轮询更高效。</p>
+<h3 id="7-1-sigprocmask-：控制哪些信号被阻塞"><a href="#7-1-sigprocmask-：控制哪些信号被阻塞" class="headerlink" title="7.1 sigprocmask()：控制哪些信号被阻塞"></a>7.1 sigprocmask()：控制哪些信号被阻塞</h3><p>文件：<code>sched/signal/sig_procmask.c:90-189</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nxsig_procmask</span><span class="params">(<span class="type">int</span> how, FAR <span class="type">const</span> <span class="type">sigset_t</span> *<span class="built_in">set</span>, FAR <span class="type">sigset_t</span> *oset)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (oset != <span class="literal">NULL</span>)</span><br><span class="line">    *oset = rtcb-&gt;sigprocmask;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">set</span> != <span class="literal">NULL</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">switch</span> (how)</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="keyword">case</span> SIG_BLOCK:    <span class="comment">/* 添加到阻塞集 */</span></span><br><span class="line">            sigorset(&amp;rtcb-&gt;sigprocmask, &amp;rtcb-&gt;sigprocmask, <span class="built_in">set</span>);</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">          <span class="keyword">case</span> SIG_UNBLOCK:  <span class="comment">/* 从阻塞集移除 */</span></span><br><span class="line">            sigandset(&amp;rtcb-&gt;sigprocmask, &amp;rtcb-&gt;sigprocmask, &amp;~(*<span class="built_in">set</span>));</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">          <span class="keyword">case</span> SIG_SETMASK:  <span class="comment">/* 直接替换 */</span></span><br><span class="line">            rtcb-&gt;sigprocmask = *<span class="built_in">set</span>;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 检查是否有之前被阻塞的 pending 信号现在可以投递了 */</span></span><br><span class="line">      nxsig_unmask_pendingsignal();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>nxsig_unmask_pendingsignal()</code> 是关键——每次解除阻塞后都要检查 pending 队列，将新可投递的信号立即分发。</p>
+<h3 id="7-2-sigwaitinfo-：同步等待信号"><a href="#7-2-sigwaitinfo-：同步等待信号" class="headerlink" title="7.2 sigwaitinfo()：同步等待信号"></a>7.2 sigwaitinfo()：同步等待信号</h3><p>文件：<code>sched/signal/sig_timedwait.c:102-242</code></p>
+<p><code>sigwaitinfo()</code> 让任务阻塞等待指定信号集中的任何一个信号到达：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nxsig_timedwait</span><span class="params">(FAR <span class="type">const</span> <span class="type">sigset_t</span> *<span class="built_in">set</span>, FAR <span class="type">siginfo_t</span> *info,</span></span><br><span class="line"><span class="params">                    FAR <span class="type">const</span> <span class="keyword">struct</span> timespec *timeout)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 先检查是否已有匹配的 pending 信号 */</span></span><br><span class="line">  pendingsig = nxsig_remove_pendingsignal(rtcb, <span class="built_in">set</span>);</span><br><span class="line">  <span class="keyword">if</span> (pendingsig)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 有！直接返回，不阻塞 */</span></span><br><span class="line">      <span class="built_in">memcpy</span>(info, &amp;pendingsig-&gt;info, <span class="keyword">sizeof</span>(<span class="type">siginfo_t</span>));</span><br><span class="line">      <span class="keyword">return</span> pendingsig-&gt;info.si_signo;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 没有匹配的 pending 信号，阻塞等待 */</span></span><br><span class="line">  rtcb-&gt;sigwaitmask = *<span class="built_in">set</span>;</span><br><span class="line">  rtcb-&gt;sigunbinfo  = info;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 如果有 timeout，启动 watchdog timer */</span></span><br><span class="line">  <span class="keyword">if</span> (timeout) wd_start(&amp;rtcb-&gt;waitdog, ...);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 将任务置为 TSTATE_WAIT_SIG，让出 CPU */</span></span><br><span class="line">  nxtask_wait(..., TSTATE_WAIT_SIG);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 被唤醒后：info 已被 nxsig_tcbdispatch 填充 */</span></span><br><span class="line">  <span class="keyword">return</span> info-&gt;si_signo;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>当目标信号到达时，<code>nxsig_tcbdispatch()</code> 检测到 <code>sigwaitmask</code> 匹配，将信号信息复制到 <code>sigunbinfo</code>，并唤醒任务——这是信号分发决策树中”目标在 sigwaitinfo 等待”的路径。</p>
+<p>信号的阻塞和等待都依赖于正确的 handler 投递。而在 KERNEL 模式下，handler 投递还需要一个关键基础设施：用户空间的信号跳板。</p>
+<hr>
+<h2 id="8-信号跳板的初始化"><a href="#8-信号跳板的初始化" class="headerlink" title="8. 信号跳板的初始化"></a>8. 信号跳板的初始化</h2><p>在 KERNEL 模式下，<code>sig_trampoline</code> 函数运行在用户空间。内核必须知道它在用户虚拟地址空间中的位置，才能在 <code>SYS_signal_handler</code> 中设置 PC。这个地址存储在每个进程数据段开头的保留区域中。</p>
+<h3 id="8-1-初始化过程"><a href="#8-1-初始化过程" class="headerlink" title="8.1 初始化过程"></a>8.1 初始化过程</h3><p>文件：<code>arch/arm/src/common/crt0.c:163-173</code>（用户进程的 <code>_start()</code> 函数）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> _start(<span class="type">int</span> argc, <span class="type">char</span> *argv[])</span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 将 sig_trampoline 的地址写入进程保留区域 */</span></span><br><span class="line">  ARCH_DATA_RESERVE-&gt;ar_sigtramp = (<span class="type">addrenv_sigtramp_t</span>)sig_trampoline;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 然后调用用户的 main() */</span></span><br><span class="line">  <span class="built_in">exit</span>(main(argc, argv));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>ARCH_DATA_RESERVE</code> 是每个进程 <code>.data</code> 段起始处的 4KB 保留区域（VA <code>CONFIG_ARCH_DATA_VBASE</code>），内核可以在该进程的地址环境中读取 <code>ar_sigtramp</code> 指针。</p>
+<hr>
+<h2 id="9-对比分析"><a href="#9-对比分析" class="headerlink" title="9. 对比分析"></a>9. 对比分析</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NuttX</th>
+<th>Linux</th>
+<th>FreeRTOS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>信号标准</td>
+<td>POSIX（sigaction&#x2F;sigqueue&#x2F;kill）</td>
+<td>POSIX + RT signals</td>
+<td>无信号（用 task notification 替代）</td>
+</tr>
+<tr>
+<td>投递时机</td>
+<td>下次上下文切换到目标时</td>
+<td>返回用户态时</td>
+<td>—</td>
+</tr>
+<tr>
+<td>handler 执行模式</td>
+<td>USR（KERNEL 模式）&#x2F; SYS（FLAT）</td>
+<td>USR</td>
+<td>—</td>
+</tr>
+<tr>
+<td>信号排队</td>
+<td>每信号至多一个 pending（非 RT）</td>
+<td>RT signals 可排多个</td>
+<td>—</td>
+</tr>
+<tr>
+<td>跳板机制</td>
+<td>sig_trampoline (crt0.c)</td>
+<td>rt_sigreturn</td>
+<td>—</td>
+</tr>
+<tr>
+<td>sa_mask 支持</td>
+<td>完整</td>
+<td>完整</td>
+<td>—</td>
+</tr>
+<tr>
+<td>siginfo 数据传递</td>
+<td>内核栈→用户栈 memcpy</td>
+<td>同（signal frame on user stack）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>预分配策略</td>
+<td>固定池（CONFIG_SIG_PREALLOC_ACTIONS）</td>
+<td>动态 slab</td>
+<td>—</td>
+</tr>
+<tr>
+<td>SIGKILL&#x2F;SIGSTOP</td>
+<td>不可捕获&#x2F;阻塞</td>
+<td>同</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p><strong>NuttX 的设计取舍</strong>：</p>
+<ul>
+<li><strong>预分配池</strong>而非动态分配——避免信号投递路径中的 malloc（可能阻塞），代价是信号数量有上限</li>
+<li><strong>单信号排队</strong>（非实时）——同一信号多次发送只保留一个 pending，简化了 pending 队列管理</li>
+<li><strong>三次特权级切换</strong>是 KERNEL 模式的必然代价——FLAT 模式下 handler 直接调用，无需跳板</li>
+</ul>
+<hr>
+<h2 id="10-关键要点"><a href="#10-关键要点" class="headerlink" title="10. 关键要点"></a>10. 关键要点</h2><ol>
+<li><p><strong>信号动作注册在 task_group 中</strong>（同一进程的所有线程共享），待投递队列在各 TCB 中（线程私有）。</p>
+</li>
+<li><p><strong>信号分发的核心决策</strong>在 <code>nxsig_tcbdispatch()</code> 中：判断阻塞&#x2F;等待&#x2F;忽略&#x2F;处理，决定信号的最终命运。</p>
+</li>
+<li><p><strong>KERNEL 模式下信号投递涉及三次特权级切换</strong>：SYS→SYS（arm_sigdeliver 调用 nxsig_deliver）→ SYS→USR（SYS_signal_handler 跳到 sig_trampoline）→ USR→SYS（SYS_signal_handler_return 回到 nxsig_deliver）。</p>
+</li>
+<li><p><strong><code>up_schedule_sigaction()</code> 通过修改目标 TCB 的 xcp.regs</strong>（PC→arm_sigdeliver），使目标下次被调度时自动进入信号处理流程——不需要显式”打断”目标。</p>
+</li>
+<li><p><strong>sig_trampoline 在每个进程的 <code>_start()</code> 中注册到 ARCH_DATA_RESERVE</strong>，内核通过该地址知道用户空间跳板在哪里。</p>
+</li>
+<li><p>**sigprocmask 的每次修改都会触发 <code>nxsig_unmask_pendingsignal()</code>**——确保被阻塞的信号在解除阻塞的第一时间被投递。</p>
+</li>
+<li><p><strong>信号使用预分配池</strong>（<code>g_sigfreeaction</code>、<code>g_sigpendingsignal</code> 等），避免在信号投递的关键路径上做内存分配。</p>
+</li>
+</ol>
+<hr>
+<h2 id="11-参考文件索引"><a href="#11-参考文件索引" class="headerlink" title="11. 参考文件索引"></a>11. 参考文件索引</h2><table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>关键内容</th>
+<th>引用行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>include/signal.h</code></td>
+<td>siginfo_t, struct sigaction, sigset_t</td>
+<td>378-429</td>
+</tr>
+<tr>
+<td><code>include/nuttx/sched.h</code></td>
+<td>TCB 中的信号字段（sigprocmask, sigpendactionq 等）</td>
+<td>664-675, 518-524</td>
+</tr>
+<tr>
+<td><code>include/nuttx/addrenv.h</code></td>
+<td>ARCH_DATA_RESERVE, addrenv_sigtramp_t</td>
+<td>292-312</td>
+</tr>
+<tr>
+<td><code>sched/signal/signal.h</code></td>
+<td>sigactq, sigpendq, sigq_s, 全局池声明</td>
+<td>74-155</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_action.c</code></td>
+<td>nxsig_action() &#x2F; sigaction()</td>
+<td>207-409</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_kill.c</code></td>
+<td>nxsig_kill() &#x2F; kill()</td>
+<td>78-160</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_queue.c</code></td>
+<td>nxsig_queue() &#x2F; sigqueue()</td>
+<td>79+</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_dispatch.c</code></td>
+<td>nxsig_dispatch(), nxsig_tcbdispatch(), nxsig_queue_action()</td>
+<td>112-805</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_deliver.c</code></td>
+<td>nxsig_deliver()</td>
+<td>55-216</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_procmask.c</code></td>
+<td>nxsig_procmask() &#x2F; sigprocmask()</td>
+<td>90-189</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_timedwait.c</code></td>
+<td>nxsig_timedwait() &#x2F; sigwaitinfo()</td>
+<td>102-242</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_unmaskpendingsignal.c</code></td>
+<td>nxsig_unmask_pendingsignal()</td>
+<td>50-120</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_findaction.c</code></td>
+<td>nxsig_find_action()</td>
+<td>46-72</td>
+</tr>
+<tr>
+<td><code>sched/signal/sig_initialize.c</code></td>
+<td>预分配池初始化</td>
+<td>56-57</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_schedulesigaction.c</code></td>
+<td>up_schedule_sigaction()</td>
+<td>82-118</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_sigdeliver.c</code></td>
+<td>arm_sigdeliver()</td>
+<td>56-167</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_syscall.c</code></td>
+<td>SYS_signal_handler &#x2F; SYS_signal_handler_return</td>
+<td>382-485</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/common/arm_signal_dispatch.c</code></td>
+<td>up_signal_dispatch()</td>
+<td>69-76</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/common/crt0.c</code></td>
+<td>sig_trampoline, _start() 注册跳板</td>
+<td>82-173</td>
+</tr>
+<tr>
+<td><code>Documentation/implementation/signal_handlers.rst</code></td>
+<td>NuttX 官方信号处理设计文档</td>
+<td>全文</td>
+</tr>
+</tbody></table>
+<p><strong>外部参考文档：</strong></p>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IEEE Std 1003.1 (POSIX.1-2017), Section 2.4 Signal Concepts</td>
+<td>信号语义标准定义</td>
+</tr>
+<tr>
+<td>NuttX Documentation: <a target="_blank" rel="noopener" href="https://nuttx.apache.org/docs/latest/">https://nuttx.apache.org/docs/latest/</a></td>
+<td>官方 API 参考和配置指南</td>
+</tr>
+<tr>
+<td>ARM Architecture Reference Manual (ARMv7-A&#x2F;R)</td>
+<td>CPSR mode bits, exception return</td>
+</tr>
+</tbody></table>
+<hr>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/16/Nuttx-IPC/" rel="prev" title="Nuttx - IPC">
+                  <i class="fa fa-angle-left"></i> Nuttx - IPC
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/16/Nuttx-ELF-Loader/" rel="next" title="Nuttx - ELF Loader">
+                  Nuttx - ELF Loader <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

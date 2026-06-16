@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从 exec() 系统调用到 ELF 文件解析、段加载、符号重定位、地址环境创建，完整解析 NuttX 如何将文件系统中的 ELF 可执行文件变为一个独立运行的任务。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - ELF Loader">
+<meta property="og:url" content="http://yoursite.com/2026/06/16/Nuttx-ELF-Loader/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从 exec() 系统调用到 ELF 文件解析、段加载、符号重定位、地址环境创建，完整解析 NuttX 如何将文件系统中的 ELF 可执行文件变为一个独立运行的任务。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ELF-memory-layout.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E9%87%8D%E5%AE%9A%E4%BD%8D%E7%BB%86%E8%8A%82.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ELF%E5%8A%A0%E8%BD%BD%E5%AE%8C%E6%88%90.png">
+<meta property="article:published_time" content="2026-06-16T13:25:20.000Z">
+<meta property="article:modified_time" content="2026-06-16T13:33:05.692Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ELF-memory-layout.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/16/Nuttx-ELF-Loader/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/16/Nuttx-ELF-Loader/","path":"2026/06/16/Nuttx-ELF-Loader/","title":"Nuttx - ELF Loader"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - ELF Loader | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%95%E8%A8%80%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-ELF-%E5%8A%A0%E8%BD%BD%E5%99%A8"><span class="nav-text">1. 引言：为什么需要 ELF 加载器</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-binfmt-%E6%A1%86%E6%9E%B6%EF%BC%9A%E6%B3%A8%E5%86%8C%E4%B8%8E%E5%88%86%E5%8F%91"><span class="nav-text">2. binfmt 框架：注册与分发</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">2.1 数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-ELF-%E6%A0%BC%E5%BC%8F%E6%B3%A8%E5%86%8C"><span class="nav-text">2.2 ELF 格式注册</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%8A%A0%E8%BD%BD%E5%88%86%E5%8F%91%E6%B5%81%E7%A8%8B"><span class="nav-text">2.3 加载分发流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%88%9D%E5%A7%8B%E5%8C%96%EF%BC%9A%E6%89%93%E5%BC%80%E6%96%87%E4%BB%B6%E3%80%81%E9%AA%8C%E8%AF%81-ELF-%E5%A4%B4"><span class="nav-text">3. 初始化：打开文件、验证 ELF 头</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-ELF-%E5%A4%B4%E9%AA%8C%E8%AF%81"><span class="nav-text">3.1 ELF 头验证</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%AE%B5%E5%8A%A0%E8%BD%BD%EF%BC%9A%E4%BB%8E%E6%96%87%E4%BB%B6%E5%88%B0%E5%86%85%E5%AD%98"><span class="nav-text">4. 段加载：从文件到内存</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%8A%A0%E8%BD%BD-Section-Program-Headers"><span class="nav-text">4.1 加载 Section&#x2F;Program Headers</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E8%AE%A1%E7%AE%97%E5%86%85%E5%AD%98%E9%9C%80%E6%B1%82"><span class="nav-text">4.2 计算内存需求</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E7%AD%96%E7%95%A5"><span class="nav-text">4.3 内存分配策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E5%B0%86%E6%AE%B5%E6%95%B0%E6%8D%AE%E8%AF%BB%E5%85%A5%E5%86%85%E5%AD%98"><span class="nav-text">4.4 将段数据读入内存</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E7%AC%A6%E5%8F%B7%E7%BB%91%E5%AE%9A%E4%B8%8E%E9%87%8D%E5%AE%9A%E4%BD%8D"><span class="nav-text">5. 符号绑定与重定位</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%BD%95%E6%97%B6%E9%9C%80%E8%A6%81%E7%BB%91%E5%AE%9A"><span class="nav-text">5.1 何时需要绑定</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E7%BB%91%E5%AE%9A%E4%B8%BB%E6%B5%81%E7%A8%8B"><span class="nav-text">5.2 绑定主流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E7%AC%A6%E5%8F%B7%E8%A7%A3%E6%9E%90%EF%BC%9Alibelf-symvalue"><span class="nav-text">5.3 符号解析：libelf_symvalue()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E9%87%8D%E5%AE%9A%E4%BD%8D%E5%A4%84%E7%90%86%EF%BC%9Alibelf-relocate"><span class="nav-text">5.4 重定位处理：libelf_relocate()</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-ARM-%E6%9E%B6%E6%9E%84%E9%87%8D%E5%AE%9A%E4%BD%8D%E5%AE%9E%E7%8E%B0"><span class="nav-text">6. ARM 架构重定位实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E6%94%AF%E6%8C%81%E7%9A%84%E9%87%8D%E5%AE%9A%E4%BD%8D%E7%B1%BB%E5%9E%8B%E6%80%BB%E8%A7%88"><span class="nav-text">6.1 支持的重定位类型总览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-R-ARM-ABS32%EF%BC%9A%E6%9C%80%E7%AE%80%E5%8D%95%E7%9A%84%E9%87%8D%E5%AE%9A%E4%BD%8D"><span class="nav-text">6.2 R_ARM_ABS32：最简单的重定位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-R-ARM-CALL-R-ARM-JUMP24%EF%BC%9AARM-%E5%88%86%E6%94%AF%E6%8C%87%E4%BB%A4%E9%87%8D%E5%AE%9A%E4%BD%8D"><span class="nav-text">6.3 R_ARM_CALL &#x2F; R_ARM_JUMP24：ARM 分支指令重定位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-R-ARM-THM-CALL%EF%BC%9AThumb-%E5%88%86%E6%94%AF%E9%87%8D%E5%AE%9A%E4%BD%8D"><span class="nav-text">6.4 R_ARM_THM_CALL：Thumb 分支重定位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-R-ARM-MOVW-ABS-NC-R-ARM-MOVT-ABS%EF%BC%9A%E7%AB%8B%E5%8D%B3%E6%95%B0%E5%8A%A0%E8%BD%BD"><span class="nav-text">6.5 R_ARM_MOVW_ABS_NC &#x2F; R_ARM_MOVT_ABS：立即数加载</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83%EF%BC%9A%E8%BF%9B%E7%A8%8B%E7%BA%A7%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E9%9A%94%E7%A6%BB"><span class="nav-text">7. 地址环境：进程级虚拟地址隔离</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E5%88%86%E9%85%8D%E5%9C%B0%E5%9D%80%E7%8E%AF%E5%A2%83"><span class="nav-text">7.1 分配地址环境</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E4%B8%B4%E6%97%B6%E6%BF%80%E6%B4%BB%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4"><span class="nav-text">7.2 临时激活地址空间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E6%81%A2%E5%A4%8D%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4"><span class="nav-text">7.3 恢复地址空间</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E4%BB%BB%E5%8A%A1%E5%88%9B%E5%BB%BA%E4%B8%8E%E6%89%A7%E8%A1%8C"><span class="nav-text">8. 任务创建与执行</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%85%B3%E9%94%AE%E6%AD%A5%E9%AA%A4"><span class="nav-text">8.1 关键步骤</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E5%85%A5%E5%8F%A3%E7%82%B9%E7%A1%AE%E5%AE%9A"><span class="nav-text">8.2 入口点确定</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-exec-swap%EF%BC%9A%E8%BF%9B%E7%A8%8B%E6%9B%BF%E6%8D%A2"><span class="nav-text">8.3 exec_swap：进程替换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-4-%E4%BB%BB%E5%8A%A1%E6%BF%80%E6%B4%BB"><span class="nav-text">8.4 任务激活</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%AE%8C%E6%95%B4%E8%B0%83%E7%94%A8%E9%93%BE%E6%80%BB%E8%A7%88"><span class="nav-text">9. 完整调用链总览</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-NuttX-vs-Linux-vs-FreeRTOS-%E5%AF%B9%E6%AF%94"><span class="nav-text">10. NuttX vs Linux vs FreeRTOS 对比</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">11. 关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#12-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6"><span class="nav-text">12. 参考文件</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">45</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/16/Nuttx-ELF-Loader/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - ELF Loader | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - ELF Loader
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-16 21:25:20" itemprop="dateCreated datePublished" datetime="2026-06-16T21:25:20+08:00">2026-06-16</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从 exec() 系统调用到 ELF 文件解析、段加载、符号重定位、地址环境创建，完整解析 NuttX 如何将文件系统中的 ELF 可执行文件变为一个独立运行的任务。</p>
+</blockquote>
+<p><strong><span id="more"></span></strong></p>
+<p><strong>阅读指南：</strong> 本文回答以下问题：NuttX 的 binfmt 框架如何识别和加载不同格式的二进制文件？ELF 文件的哪些信息被用来决定内存布局？重定位阶段如何将未定义符号链接到内核导出表？Kernel Build 模式下地址环境如何为每个进程创建独立的虚拟地址空间？读完后，你将能够从源码级别理解 NuttX ELF 加载的完整链路，具备独立调试 ELF 加载失败问题的能力，并能为新架构移植重定位支持。</p>
+<hr>
+<h2 id="1-引言：为什么需要-ELF-加载器"><a href="#1-引言：为什么需要-ELF-加载器" class="headerlink" title="1. 引言：为什么需要 ELF 加载器"></a>1. 引言：为什么需要 ELF 加载器</h2><p>嵌入式 RTOS 传统上将所有代码静态链接为一个单体镜像烧写到 Flash。这意味着每次修改一个应用都要重新编译整个系统。NuttX 的 ELF 加载器打破了这个限制——它允许在运行时从文件系统加载独立编译的 ELF 可执行文件，像 Linux 一样用 <code>exec()</code> 启动新进程。</p>
+<p>NuttX 官方文档（<code>Documentation/components/binfmt.rst</code>）这样描述 Binary Loader 的设计意图：</p>
+<blockquote>
+<p>The purpose of a binary loader is to load and execute modules in various binary formats that reside in a file system. Loading refers to instantiating the binary module in some fashion, usually copy all or some of the binary module into memory and then linking the module with other components.</p>
+</blockquote>
+<p>要实现这个目标，ELF 加载器需要解决四个核心问题：</p>
+<ol>
+<li><strong>格式识别</strong>：如何判断文件是合法的 ELF 二进制？</li>
+<li><strong>内存布局</strong>：代码段和数据段分别放在哪里、分配多大空间？</li>
+<li><strong>符号链接</strong>：ELF 中引用的内核函数（如 <code>printf</code>、<code>open</code>）地址在哪？</li>
+<li><strong>地址隔离</strong>：Kernel Build 模式下，每个进程如何拥有独立虚拟地址空间？</li>
+</ol>
+<p>接下来从 binfmt 框架的整体架构开始，逐步深入每个环节。</p>
+<hr>
+<h2 id="2-binfmt-框架：注册与分发"><a href="#2-binfmt-框架：注册与分发" class="headerlink" title="2. binfmt 框架：注册与分发"></a>2. binfmt 框架：注册与分发</h2><p>NuttX 支持多种二进制格式（ELF、NXFLAT、Builtin），它们通过统一的 binfmt 框架注册和分发。这个框架的核心是一个链表——每种格式注册一个 handler，加载时依次尝试。</p>
+<h3 id="2-1-数据结构"><a href="#2-1-数据结构" class="headerlink" title="2.1 数据结构"></a>2.1 数据结构</h3><p>文件：<code>include/nuttx/binfmt/binfmt.h:121-137</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">binfmt_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">binfmt_s</span> *<span class="title">next</span>;</span>              <span class="comment">/* Supports a singly-linked list */</span></span><br><span class="line">  <span class="type">int</span> (*load)(FAR <span class="keyword">struct</span> binary_s *bin,   <span class="comment">/* Verify and load binary into memory */</span></span><br><span class="line">              FAR <span class="type">const</span> <span class="type">char</span> *filename,</span><br><span class="line">              FAR <span class="type">const</span> <span class="keyword">struct</span> symtab_s *exports,</span><br><span class="line">              <span class="type">int</span> nexports);</span><br><span class="line">  <span class="type">int</span> (*unload)(FAR <span class="keyword">struct</span> binary_s *bin);<span class="comment">/* Unload module from memory */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个二进制格式只需实现两个回调：<code>load</code> 负责识别并加载文件，<code>unload</code> 负责卸载时释放资源。框架通过全局链表 <code>g_binfmts</code> 管理所有已注册的 handler。</p>
+<p>文件：<code>binfmt/binfmt_globals.c:47</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FAR <span class="class"><span class="keyword">struct</span> <span class="title">binfmt_s</span> *<span class="title">g_binfmts</span>;</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-ELF-格式注册"><a href="#2-2-ELF-格式注册" class="headerlink" title="2.2 ELF 格式注册"></a>2.2 ELF 格式注册</h3><p>文件：<code>binfmt/elf.c:73-78</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">binfmt_s</span> <span class="title">g_elfbinfmt</span> =</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* next */</span></span><br><span class="line">  elf_loadbinary,   <span class="comment">/* load */</span></span><br><span class="line">  elf_unloadbinary, <span class="comment">/* unload */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>系统启动时，<code>binfmt_initialize()</code> 调用 <code>elf_initialize()</code> 将 ELF handler 注册到链表头部：</p>
+<p>文件：<code>binfmt/elf.c:274-289</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">elf_initialize</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">  binfo(<span class="string">&quot;Registering ELF\n&quot;</span>);</span><br><span class="line"></span><br><span class="line">  ret = register_binfmt(&amp;g_elfbinfmt);</span><br><span class="line">  <span class="keyword">if</span> (ret != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      berr(<span class="string">&quot;Failed to register binfmt: %d\n&quot;</span>, ret);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>register_binfmt()</code> 的实现极为简单——头插法加入链表：</p>
+<p>文件：<code>binfmt/binfmt_register.c:57-71</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">register_binfmt</span><span class="params">(FAR <span class="keyword">struct</span> binfmt_s *binfmt)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (binfmt)</span><br><span class="line">    &#123;</span><br><span class="line">      binfmt-&gt;next = g_binfmts;</span><br><span class="line">      g_binfmts    = binfmt;</span><br><span class="line">      <span class="keyword">return</span> OK;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">return</span> -EINVAL;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-加载分发流程"><a href="#2-3-加载分发流程" class="headerlink" title="2.3 加载分发流程"></a>2.3 加载分发流程</h3><p>当用户调用 <code>exec()</code> 时，框架遍历 <code>g_binfmts</code> 链表，逐个尝试每个 handler 的 <code>load</code> 回调。第一个返回 <code>OK</code> 的 handler 获胜，后续 handler 不再尝试。</p>
+<p>文件：<code>binfmt/binfmt_loadmodule.c:101</code>（<code>load_absmodule()</code>）</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">for (binfmt = g_binfmts; binfmt; binfmt = binfmt-&gt;next)</span><br><span class="line">  &#123;</span><br><span class="line">    ret = binfmt-&gt;load(bin, filename, exports, nexports);</span><br><span class="line">    if (ret == OK) break;    /* This format recognized the binary */</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果 ELF handler 发现文件不是 ELF 格式（magic 不匹配），会返回 <code>-ENOEXEC</code>，框架继续尝试下一个 handler。这种设计让多种格式可以和平共存。</p>
+<p>了解了框架如何找到 ELF handler 并调用它，下面进入 ELF 加载的第一步——初始化与头部验证。</p>
+<hr>
+<h2 id="3-初始化：打开文件、验证-ELF-头"><a href="#3-初始化：打开文件、验证-ELF-头" class="headerlink" title="3. 初始化：打开文件、验证 ELF 头"></a>3. 初始化：打开文件、验证 ELF 头</h2><p>ELF 加载从 <code>elf_loadbinary()</code> 开始，第一步是调用 <code>libelf_initialize()</code> 打开文件并验证 ELF 头。</p>
+<p>文件：<code>libs/libc/elf/elf_init.c:99-158</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">libelf_initialize</span><span class="params">(FAR <span class="type">const</span> <span class="type">char</span> *filename,</span></span><br><span class="line"><span class="params">                      FAR <span class="keyword">struct</span> mod_loadinfo_s *loadinfo)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">int</span> ret;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Clear the load info structure */</span></span><br><span class="line"></span><br><span class="line">  <span class="built_in">memset</span>(loadinfo, <span class="number">0</span>, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> mod_loadinfo_s));</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Open the binary file for reading (only) */</span></span><br><span class="line"></span><br><span class="line">  loadinfo-&gt;filfd = _NX_OPEN(filename, O_RDONLY);</span><br><span class="line">  <span class="keyword">if</span> (loadinfo-&gt;filfd &lt; <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> -_NX_GETERRNO(loadinfo-&gt;filfd);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Get some stats info of the file. */</span></span><br><span class="line"></span><br><span class="line">  ret = libelf_fileinfo(loadinfo);</span><br><span class="line">  <span class="keyword">if</span> (ret &lt; <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Read the ELF ehdr from offset 0 */</span></span><br><span class="line"></span><br><span class="line">  ret = libelf_read(loadinfo, (FAR <span class="type">uint8_t</span> *)&amp;loadinfo-&gt;ehdr,</span><br><span class="line">                    <span class="keyword">sizeof</span>(Elf_Ehdr), <span class="number">0</span>);</span><br><span class="line">  <span class="keyword">if</span> (ret &lt; <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> ret;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Verify the ELF header */</span></span><br><span class="line"></span><br><span class="line">  ret = libelf_verifyheader(&amp;loadinfo-&gt;ehdr);</span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这段代码完成三件事：(1) 打开文件并获取文件大小&#x2F;UID&#x2F;GID&#x2F;权限；(2) 从偏移 0 读取 52 字节的 ELF 头（32 位系统）；(3) 验证头部合法性。</p>
+<h3 id="3-1-ELF-头验证"><a href="#3-1-ELF-头验证" class="headerlink" title="3.1 ELF 头验证"></a>3.1 ELF 头验证</h3><p>文件：<code>libs/libc/elf/elf_verify.c:64-102</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">libelf_verifyheader</span><span class="params">(FAR <span class="type">const</span> Elf_Ehdr *ehdr)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (!ehdr)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> -ENOEXEC;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Verify that the magic number indicates an ELF file */</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="built_in">memcmp</span>(ehdr-&gt;e_ident, g_modmagic, EI_MAGIC_SIZE) != <span class="number">0</span>)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> -ENOEXEC;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Verify that this is a relocatable file */</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (ehdr-&gt;e_type != ET_REL &amp;&amp; ehdr-&gt;e_type != ET_DYN &amp;&amp;</span><br><span class="line">      ehdr-&gt;e_type != ET_EXEC)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> -EINVAL;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Verify that this file works with the currently configured architecture */</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (!up_checkarch(ehdr))</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">return</span> -ENOEXEC;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>验证分三层：</p>
+<ol>
+<li><strong>Magic 校验</strong>：前 4 字节必须是 <code>\x7fELF</code></li>
+<li><strong>类型校验</strong>：必须是 <code>ET_REL</code>（可重定位）、<code>ET_DYN</code>（共享对象）或 <code>ET_EXEC</code>（可执行文件）之一</li>
+<li><strong>架构校验</strong>：调用架构特定的 <code>up_checkarch()</code> 确认 <code>e_machine</code>、字长和字节序匹配</li>
+</ol>
+<p><strong>实例：ARMv7-A 上的架构校验</strong></p>
+<p>文件：<code>libs/libc/machine/arm/armv7-a/arch_elf.c:56-104</code></p>
+<p>对于 qemu-armv7a 板级，<code>up_checkarch()</code> 检查：</p>
+<ul>
+<li><code>e_machine == EM_ARM</code>（值为 40）</li>
+<li><code>e_ident[EI_CLASS] == ELFCLASS32</code>（32 位 ELF）</li>
+<li><code>e_ident[EI_DATA] == ELFDATA2LSB</code>（小端序）</li>
+<li><code>e_entry</code> 对齐：Thumb 模式要求 2 字节对齐，ARM 模式要求 4 字节对齐</li>
+</ul>
+<p>如果加载一个 x86_64 的 ELF 文件到 ARMv7-A，<code>up_checkarch()</code> 会在 <code>e_machine</code> 检查处失败，返回 <code>-ENOEXEC</code>。</p>
+<p>头部验证通过后，加载器知道这是一个合法的 ARM ELF 文件。下一步是将代码和数据实际加载到内存中。</p>
+<hr>
+<h2 id="4-段加载：从文件到内存"><a href="#4-段加载：从文件到内存" class="headerlink" title="4. 段加载：从文件到内存"></a>4. 段加载：从文件到内存</h2><p>验证通过后，<code>elf_loadbinary()</code> 调用 <code>libelf_load_with_addrenv()</code>（或 <code>libelf_load()</code>）进入段加载阶段。这一阶段要解决三个问题：代码段多大？数据段多大？分别放到哪块内存？</p>
+<h3 id="4-1-加载-Section-Program-Headers"><a href="#4-1-加载-Section-Program-Headers" class="headerlink" title="4.1 加载 Section&#x2F;Program Headers"></a>4.1 加载 Section&#x2F;Program Headers</h3><p>文件：<code>libs/libc/elf/elf_load.c:554</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ret = libelf_loadhdrs(loadinfo);</span><br></pre></td></tr></table></figure>
+
+<p><code>libelf_loadhdrs()</code> 从 ELF 头的 <code>e_shoff</code> 和 <code>e_phoff</code> 处读取所有 Section Header 和 Program Header 到内存。后续所有操作都基于这些缓存的头部数据。</p>
+<h3 id="4-2-计算内存需求"><a href="#4-2-计算内存需求" class="headerlink" title="4.2 计算内存需求"></a>4.2 计算内存需求</h3><p>文件：<code>libs/libc/elf/elf_load.c:151-246</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">libelf_elfsize</span><span class="params">(FAR <span class="keyword">struct</span> mod_loadinfo_s *loadinfo, <span class="type">bool</span> alloc)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">size_t</span> textsize = <span class="number">0</span>;</span><br><span class="line">  <span class="type">size_t</span> datasize = <span class="number">0</span>;</span><br><span class="line">  <span class="type">int</span> i;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (loadinfo-&gt;ehdr.e_type == ET_DYN)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; loadinfo-&gt;ehdr.e_phnum; i++)</span><br><span class="line">        &#123;</span><br><span class="line">          FAR Elf_Phdr *phdr = &amp;loadinfo-&gt;phdr[i];</span><br><span class="line">          <span class="keyword">if</span> (phdr-&gt;p_type == PT_LOAD)</span><br><span class="line">            &#123;</span><br><span class="line">              <span class="keyword">if</span> (phdr-&gt;p_flags &amp; PF_X)</span><br><span class="line">                textsize += phdr-&gt;p_memsz;</span><br><span class="line">              <span class="keyword">else</span></span><br><span class="line">                datasize += phdr-&gt;p_memsz;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    &#123;</span><br><span class="line">      <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; loadinfo-&gt;ehdr.e_shnum; i++)</span><br><span class="line">        &#123;</span><br><span class="line">          FAR Elf_Shdr *shdr = &amp;loadinfo-&gt;shdr[i];</span><br><span class="line">          <span class="keyword">if</span> ((shdr-&gt;sh_flags &amp; SHF_ALLOC) != <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">              <span class="keyword">if</span> ((shdr-&gt;sh_flags &amp; SHF_WRITE) != <span class="number">0</span>)</span><br><span class="line">                &#123;</span><br><span class="line">                  datasize = _ALIGN_UP(datasize, shdr-&gt;sh_addralign);</span><br><span class="line">                  datasize += ELF_ALIGNUP(shdr-&gt;sh_size);</span><br><span class="line">                &#125;</span><br><span class="line">              <span class="keyword">else</span></span><br><span class="line">                &#123;</span><br><span class="line">                  textsize = _ALIGN_UP(textsize, shdr-&gt;sh_addralign);</span><br><span class="line">                  textsize += ELF_ALIGNUP(shdr-&gt;sh_size);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  loadinfo-&gt;textsize = textsize;</span><br><span class="line">  loadinfo-&gt;datasize = datasize;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逻辑非常清晰：遍历所有 <code>SHF_ALLOC</code> 段，按 <code>SHF_WRITE</code> 标志分为 text（只读&#x2F;可执行）和 data（可写）两类，分别累加对齐后的大小。</p>
+<p>对于 <code>ET_DYN</code>（动态共享对象），则基于 Program Header 的 <code>PT_LOAD</code> 段计算，按 <code>PF_X</code>（可执行）标志区分。</p>
+<h3 id="4-3-内存分配策略"><a href="#4-3-内存分配策略" class="headerlink" title="4.3 内存分配策略"></a>4.3 内存分配策略</h3><p>分配策略因 ELF 类型和构建模式而异：</p>
+<table>
+<thead>
+<tr>
+<th>ELF 类型</th>
+<th>构建模式</th>
+<th>分配方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ET_REL</code> &#x2F; <code>ET_EXEC</code></td>
+<td>FLAT</td>
+<td><code>lib_memalign()</code> 分别分配 text 和 data</td>
+</tr>
+<tr>
+<td><code>ET_DYN</code></td>
+<td>FLAT</td>
+<td><code>lib_memalign()</code> 一次性分配 text + segpad + data（保持相对偏移）</td>
+</tr>
+<tr>
+<td>任意</td>
+<td>KERNEL (<code>CONFIG_ARCH_ADDRENV</code>)</td>
+<td><code>up_addrenv_create()</code> 创建虚拟地址空间</td>
+</tr>
+</tbody></table>
+<p><strong>为什么 ET_DYN 必须连续分配？</strong> 动态共享对象使用 GOT（Global Offset Table）进行 PIC 寻址，GOT 中的偏移依赖 text 和 data 之间的固定距离。如果分开分配，所有 GOT 条目都会失效。</p>
+<p>下图展示了 ELF 文件从磁盘到虚拟地址空间再到物理内存的映射关系（以 qemu-armv7a knsh 配置为例）：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ELF-memory-layout.png" alt="ELF-memory-layout"></p>
+<p><strong>实例：qemu-armv7a knsh 配置的地址分配</strong></p>
+<p>根据 <code>boards/arm/qemu/qemu-armv7a/configs/knsh/defconfig</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">CONFIG_ARCH_TEXT_VBASE=0x80000000</span><br><span class="line">CONFIG_ARCH_DATA_VBASE=0x80100000</span><br><span class="line">CONFIG_ARCH_HEAP_VBASE=0x80200000</span><br><span class="line">CONFIG_ARCH_TEXT_NPAGES=256    (256 * 4KB = 1MB)</span><br><span class="line">CONFIG_ARCH_DATA_NPAGES=256    (256 * 4KB = 1MB)</span><br><span class="line">CONFIG_RAM_START=0x40000000</span><br></pre></td></tr></table></figure>
+
+<p>当加载一个 ELF 可执行文件时：</p>
+<ul>
+<li><code>libelf_addrenv_alloc()</code> 调用 <code>up_addrenv_create(textsize, datasize, heapsize)</code> 创建页表</li>
+<li><code>up_addrenv_vtext()</code> 返回 <code>0x80000000</code> 作为 text 虚拟基址</li>
+<li><code>up_addrenv_vdata()</code> 返回 <code>0x80100000</code> 作为 data 虚拟基址</li>
+<li>物理页从 page pool（<code>0x40300000</code>，大小 13MB）中分配</li>
+</ul>
+<h3 id="4-4-将段数据读入内存"><a href="#4-4-将段数据读入内存" class="headerlink" title="4.4 将段数据读入内存"></a>4.4 将段数据读入内存</h3><p>文件：<code>libs/libc/elf/elf_load.c:331-526</code></p>
+<p>分配完内存后，<code>libelf_loadfile()</code> 将文件中的段内容复制到已分配的内存区域（以下为关键逻辑摘录，省略了 <code>CONFIG_ARCH_USE_SEPARATED_SECTION</code>、<code>CONFIG_LIBC_ELF_LOADTO_LMA</code> 等条件分支）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">int</span> <span class="title function_">libelf_loadfile</span><span class="params">(FAR <span class="keyword">struct</span> mod_loadinfo_s *loadinfo)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="type">uint8_t</span> *text = (FAR <span class="type">uint8_t</span> *)loadinfo-&gt;textalloc;</span><br><span class="line">  FAR <span class="type">uint8_t</span> *data = (FAR <span class="type">uint8_t</span> *)loadinfo-&gt;datastart;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; loadinfo-&gt;ehdr.e_shnum; i++)</span><br><span class="line">    &#123;</span><br><span class="line">      FAR Elf_Shdr *shdr = &amp;loadinfo-&gt;shdr[i];</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> ((shdr-&gt;sh_flags &amp; SHF_ALLOC) == <span class="number">0</span> || shdr-&gt;sh_size == <span class="number">0</span>)</span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Determine target pointer: text or data */</span></span><br><span class="line">      <span class="keyword">if</span> ((shdr-&gt;sh_flags &amp; SHF_WRITE) != <span class="number">0</span>)</span><br><span class="line">        pptr = &amp;data;</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        pptr = &amp;text;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Align the destination address */</span></span><br><span class="line">      *pptr = (FAR <span class="type">uint8_t</span> *)_ALIGN_UP((<span class="type">uintptr_t</span>)*pptr, shdr-&gt;sh_addralign);</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (shdr-&gt;sh_type != SHT_NOBITS)</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="comment">/* Read section data from file offset to memory */</span></span><br><span class="line">          ret = libelf_read(loadinfo, *pptr, shdr-&gt;sh_size, shdr-&gt;sh_offset);</span><br><span class="line">        &#125;</span><br><span class="line">      <span class="keyword">else</span></span><br><span class="line">        &#123;</span><br><span class="line">          <span class="comment">/* BSS section: zero-fill */</span></span><br><span class="line">          <span class="built_in">memset</span>(*pptr, <span class="number">0</span>, shdr-&gt;sh_size);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Update sh_addr to point to in-memory copy */</span></span><br><span class="line">      shdr-&gt;sh_offset = (<span class="type">uintptr_t</span>)shdr-&gt;sh_addr;  <span class="comment">/* Save original VMA */</span></span><br><span class="line">      shdr-&gt;sh_addr = (<span class="type">uintptr_t</span>)*pptr;             <span class="comment">/* New in-memory address */</span></span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Advance pointer for next section */</span></span><br><span class="line">      *pptr += ELF_ALIGNUP(shdr-&gt;sh_size);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>关键细节：</p>
+<ol>
+<li><strong><code>SHT_NOBITS</code> 段（BSS）不需要从文件读取</strong>——只需 <code>memset</code> 清零。BSS 段在 ELF 文件中不占空间，但运行时需要实际内存。</li>
+<li><strong><code>sh_addr</code> 被覆写为内存地址</strong>——后续重定位阶段需要知道每个段在内存中的实际位置，而不是文件中的 VMA。原始 VMA 保存在 <code>sh_offset</code> 中。</li>
+<li><strong>指针按对齐递进</strong>——每加载完一个段，text&#x2F;data 指针前进到下一个对齐边界，确保后续段的对齐要求被满足。</li>
+</ol>
+<p>段加载完成后，代码和数据已在内存中就位，但其中的符号引用仍指向错误的地址。下一步是符号绑定与重定位。</p>
+<hr>
+<h2 id="5-符号绑定与重定位"><a href="#5-符号绑定与重定位" class="headerlink" title="5. 符号绑定与重定位"></a>5. 符号绑定与重定位</h2><p>段加载完成后，ELF 文件中的函数调用和全局变量引用仍然使用编译时的占位值。重定位阶段的任务是：找到所有需要修改的位置，查询符号的真实地址，然后修补（patch）指令或数据字。</p>
+<h3 id="5-1-何时需要绑定"><a href="#5-1-何时需要绑定" class="headerlink" title="5.1 何时需要绑定"></a>5.1 何时需要绑定</h3><p>文件：<code>binfmt/elf.c:125-149</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (loadinfo.ehdr.e_type == ET_REL || loadinfo.gotindex &gt;= <span class="number">0</span>)</span><br><span class="line">  &#123;</span><br><span class="line">    ret = libelf_bind(&amp;binp-&gt;mod, &amp;loadinfo, exports, nexports);</span><br><span class="line">    binp-&gt;entrypt = (<span class="type">main_t</span>)(loadinfo.textalloc + loadinfo.ehdr.e_entry);</span><br><span class="line">  &#125;</span><br><span class="line"><span class="keyword">else</span> <span class="keyword">if</span> (loadinfo.ehdr.e_type == ET_EXEC)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="comment">/* The entrypoint for a fully linked executable can be found directly */</span></span><br><span class="line">    binp-&gt;entrypt = (<span class="type">main_t</span>)(loadinfo.ehdr.e_entry);</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>**<code>ET_REL</code>**（可重定位文件）：必须绑定，入口点 &#x3D; textalloc + e_entry</li>
+<li>**<code>ET_DYN</code>**（有 GOT）：必须绑定，入口点 &#x3D; textalloc + e_entry</li>
+<li>**<code>ET_EXEC</code>**（完全链接）：不需要绑定，入口点直接使用 e_entry 绝对地址</li>
+</ul>
+<h3 id="5-2-绑定主流程"><a href="#5-2-绑定主流程" class="headerlink" title="5.2 绑定主流程"></a>5.2 绑定主流程</h3><p>文件：<code>libs/libc/elf/elf_bind.c:915</code></p>
+<p><code>libelf_bind()</code> 是符号绑定的入口。简化后的流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">libelf_bind()</span><br><span class="line">  |</span><br><span class="line">  +-- libelf_addrenv_select()      切换到目标地址空间（可写 .text）</span><br><span class="line">  |</span><br><span class="line">  +-- libelf_findsymtab()          找到 SHT_SYMTAB 段的索引</span><br><span class="line">  |</span><br><span class="line">  +-- for each section:</span><br><span class="line">  |     |</span><br><span class="line">  |     +-- SHT_REL  -&gt; libelf_relocate()      处理 Rel 类型重定位</span><br><span class="line">  |     +-- SHT_RELA -&gt; libelf_relocateadd()   处理 Rela 类型重定位</span><br><span class="line">  |     +-- SHT_DYNAMIC -&gt; libelf_relocatedyn() 处理动态链接</span><br><span class="line">  |</span><br><span class="line">  +-- up_coherent_dcache()         刷新 D-cache / 无效化 I-cache</span><br><span class="line">  |</span><br><span class="line">  +-- libelf_addrenv_restore()     恢复原地址空间，移除 .text 写权限</span><br></pre></td></tr></table></figure>
+
+<p>这条流程的核心设计是”地址空间包裹”：绑定操作的前后各有一次地址空间切换。进入时 <code>addrenv_select()</code> 使 CPU 能访问目标进程的虚拟页，同时赋予 <code>.text</code> 写权限以允许修补指令；退出时 <code>addrenv_restore()</code> 撤销写权限并恢复内核地址空间。中间的 <code>libelf_relocate()</code> 循环是计算密集型操作——遍历所有重定位段，对每个条目执行符号查找 + 架构特定修补 + GOT 更新。最后 <code>up_coherent_dcache()</code> 确保 I-cache 能看到修补后的指令，防止 CPU 从旧缓存行取指。</p>
+<h3 id="5-3-符号解析：libelf-symvalue"><a href="#5-3-符号解析：libelf-symvalue" class="headerlink" title="5.3 符号解析：libelf_symvalue()"></a>5.3 符号解析：libelf_symvalue()</h3><p>每个重定位条目引用一个符号。<code>libelf_symvalue()</code> 负责把符号名解析为内存地址。</p>
+<p>文件：<code>libs/libc/elf/elf_symbols.c:340-457</code></p>
+<p>解析策略基于 <code>sym-&gt;st_shndx</code>：</p>
+<table>
+<thead>
+<tr>
+<th><code>st_shndx</code></th>
+<th>含义</th>
+<th>处理方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SHN_ABS</code></td>
+<td>绝对符号</td>
+<td>直接使用 <code>st_value</code>，无需修改</td>
+</tr>
+<tr>
+<td><code>SHN_UNDEF</code></td>
+<td>未定义符号（外部引用）</td>
+<td>在内核导出表 + 已加载模块中查找</td>
+</tr>
+<tr>
+<td>其他值</td>
+<td>定义在某个段中</td>
+<td><code>st_value += shdr[st_shndx].sh_addr</code>（加上段基址）</td>
+</tr>
+</tbody></table>
+<p><strong>实例：三种 st_shndx 的解析结果</strong></p>
+<p>假设 hello.elf 加载后 <code>.text</code> 段基址为 <code>0x80000000</code>，<code>.data</code> 段基址为 <code>0x80100000</code>：</p>
+<ul>
+<li>符号 <code>main</code>：<code>st_shndx = 3</code>（.text 段索引），<code>st_value = 0x1A0</code> → 解析后 <code>st_value = 0x80000000 + 0x1A0 = 0x800001A0</code></li>
+<li>符号 <code>printf</code>：<code>st_shndx = SHN_UNDEF</code>，<code>st_value = 0</code> → 从内核导出表查到 <code>printf = 0x40001000</code>，解析后 <code>st_value = 0x40001000</code></li>
+<li>符号 <code>__aeabi_unwind_cpp_pr0</code>：<code>st_shndx = SHN_ABS</code>，<code>st_value = 0</code> → 不修改，保持 <code>st_value = 0</code></li>
+</ul>
+<p>对于 <code>SHN_UNDEF</code>（未定义符号），解析顺序为：</p>
+<ol>
+<li>遍历已加载模块的导出表：<code>libelf_registry_foreach(libelf_symcallback, ...)</code></li>
+<li>搜索内核全局符号表：<code>symtab_findbyname(exports, name, nexports)</code></li>
+</ol>
+<p><strong>如果两层查找都失败，返回 <code>-ENOENT</code>，整个加载过程失败。</strong> 这意味着：如果你的 ELF 程序调用了一个内核没有导出的函数，加载时就会报错，而不是运行时崩溃。</p>
+<p><strong>与 Linux 的关键区别：</strong> Linux 使用动态链接器（<code>ld.so</code>）在用户空间完成符号解析。NuttX 在内核中一次性完成——没有独立的动态链接器进程。这使得加载更简单快速，但也意味着所有需要的符号必须在加载时就可用。</p>
+<h3 id="5-4-重定位处理：libelf-relocate"><a href="#5-4-重定位处理：libelf-relocate" class="headerlink" title="5.4 重定位处理：libelf_relocate()"></a>5.4 重定位处理：libelf_relocate()</h3><p>文件：<code>libs/libc/elf/elf_bind.c:180</code></p>
+<p><code>libelf_relocate()</code> 处理 <code>SHT_REL</code> 类型的重定位段。ARM 使用 REL（不带 addend），addend 嵌入在指令编码中。</p>
+<p>核心循环的关键步骤（摘录自 <code>elf_bind.c:306-411</code>，省略了批量读取和缓存管理代码）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; nrels; i++)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="comment">/* Extract symbol index from relocation info */</span></span><br><span class="line"></span><br><span class="line">    symidx = ELF_R_SYM(rels[i].r_info);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Look up symbol in LRU cache, or read from file */</span></span><br><span class="line"></span><br><span class="line">    libelf_readsym(loadinfo, symidx, &amp;sym);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Resolve the symbol value to an absolute address */</span></span><br><span class="line"></span><br><span class="line">    ret = libelf_symvalue(loadinfo, &amp;sym, exports, nexports);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Calculate the relocation target address in loaded memory */</span></span><br><span class="line"></span><br><span class="line">    addr = (<span class="type">uintptr_t</span>)(dstsec-&gt;sh_addr + rels[i].r_offset);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Perform architecture-specific relocation (patches the instruction) */</span></span><br><span class="line"></span><br><span class="line">    ret = up_relocate(&amp;rels[i], &amp;sym, addr, ARCH_ELFDATA_PARM);</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+
+<p>每次重定位都涉及一次符号查找和一次架构特定的指令修补。为了优化性能，NuttX 使用 LRU 缓存（大小由 <code>CONFIG_LIBC_ELF_SYMBOL_CACHECOUNT</code> 控制）避免重复读取相同符号。</p>
+<p>下图详细展示了单次重定位处理的内部交互，包括 LRU 缓存查询、三种 <code>st_shndx</code> 的符号解析路径，以及 ARM 架构的指令修补分支：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E9%87%8D%E5%AE%9A%E4%BD%8D%E7%BB%86%E8%8A%82.png" alt="重定位细节"></p>
+<p>符号绑定完成后，所有指令中的地址引用都已指向正确位置。但具体的指令修补逻辑是高度架构相关的——下面以 ARM 为例详细展示。</p>
+<hr>
+<h2 id="6-ARM-架构重定位实现"><a href="#6-ARM-架构重定位实现" class="headerlink" title="6. ARM 架构重定位实现"></a>6. ARM 架构重定位实现</h2><p>ARM 的重定位处理在 <code>libs/libc/machine/arm/armv7-a/arch_elf.c</code> 中实现。这个文件的核心是 <code>up_relocate()</code> 函数——一个 477 行的 switch-case，处理 ARM 指令集特有的各种编码格式。</p>
+<h3 id="6-1-支持的重定位类型总览"><a href="#6-1-支持的重定位类型总览" class="headerlink" title="6.1 支持的重定位类型总览"></a>6.1 支持的重定位类型总览</h3><table>
+<thead>
+<tr>
+<th>重定位类型</th>
+<th>ID</th>
+<th>作用</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>R_ARM_NONE</code></td>
+<td>0</td>
+<td>无操作</td>
+<td>占位</td>
+</tr>
+<tr>
+<td><code>R_ARM_PC24</code> &#x2F; <code>R_ARM_CALL</code> &#x2F; <code>R_ARM_JUMP24</code></td>
+<td>1&#x2F;28&#x2F;29</td>
+<td>ARM 24-bit PC-relative 分支</td>
+<td><code>bl function</code> &#x2F; <code>b label</code></td>
+</tr>
+<tr>
+<td><code>R_ARM_ABS32</code> &#x2F; <code>R_ARM_TARGET1</code></td>
+<td>2&#x2F;38</td>
+<td>32-bit 绝对地址</td>
+<td>全局变量引用、函数指针</td>
+</tr>
+<tr>
+<td><code>R_ARM_V4BX</code></td>
+<td>40</td>
+<td>BX → MOV PC 转换</td>
+<td>ARMv4 兼容</td>
+</tr>
+<tr>
+<td><code>R_ARM_PREL31</code></td>
+<td>42</td>
+<td>31-bit PC-relative</td>
+<td>异常表 (.ARM.exidx)</td>
+</tr>
+<tr>
+<td><code>R_ARM_MOVW_ABS_NC</code> &#x2F; <code>R_ARM_MOVT_ABS</code></td>
+<td>43&#x2F;44</td>
+<td>ARM MOVW&#x2F;MOVT 立即数</td>
+<td>32-bit 地址加载（MOVW+MOVT 对）</td>
+</tr>
+<tr>
+<td><code>R_ARM_THM_MOVW_ABS_NC</code> &#x2F; <code>R_ARM_THM_MOVT_ABS</code></td>
+<td>47&#x2F;48</td>
+<td>Thumb MOVW&#x2F;MOVT 立即数</td>
+<td>Thumb 模式 32-bit 地址加载</td>
+</tr>
+<tr>
+<td><code>R_ARM_THM_CALL</code> &#x2F; <code>R_ARM_THM_JUMP24</code></td>
+<td>10&#x2F;30</td>
+<td>Thumb 24-bit BL&#x2F;B.W</td>
+<td>Thumb 模式函数调用</td>
+</tr>
+</tbody></table>
+<h3 id="6-2-R-ARM-ABS32：最简单的重定位"><a href="#6-2-R-ARM-ABS32：最简单的重定位" class="headerlink" title="6.2 R_ARM_ABS32：最简单的重定位"></a>6.2 R_ARM_ABS32：最简单的重定位</h3><p>文件：<code>libs/libc/machine/arm/armv7-a/arch_elf.c:198-208</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> R_ARM_ABS32:</span><br><span class="line"><span class="keyword">case</span> R_ARM_TARGET1:</span><br><span class="line">  &#123;</span><br><span class="line">    *(<span class="type">uint32_t</span> *)addr += sym-&gt;st_value;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p>这是最直观的重定位：目标地址处有一个 32-bit 数据字（通常是编译器放入的占位值 0 或段内偏移），直接加上符号的绝对地址即可。</p>
+<p><strong>实例：全局变量引用</strong></p>
+<p>假设 ELF 中有一个对内核导出符号 <code>g_uart_base</code> 的引用：</p>
+<ul>
+<li>重定位前：<code>*(uint32_t *)0x80000100 = 0x00000000</code>（占位零值）</li>
+<li><code>sym-&gt;st_value = 0x40009000</code>（UART 寄存器基址，从内核符号表查到）</li>
+<li>重定位后：<code>*(uint32_t *)0x80000100 = 0x40009000</code></li>
+</ul>
+<h3 id="6-3-R-ARM-CALL-R-ARM-JUMP24：ARM-分支指令重定位"><a href="#6-3-R-ARM-CALL-R-ARM-JUMP24：ARM-分支指令重定位" class="headerlink" title="6.3 R_ARM_CALL &#x2F; R_ARM_JUMP24：ARM 分支指令重定位"></a>6.3 R_ARM_CALL &#x2F; R_ARM_JUMP24：ARM 分支指令重定位</h3><p>文件：<code>libs/libc/machine/arm/armv7-a/arch_elf.c:159-196</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> R_ARM_PC24:</span><br><span class="line"><span class="keyword">case</span> R_ARM_CALL:</span><br><span class="line"><span class="keyword">case</span> R_ARM_JUMP24:</span><br><span class="line">  &#123;</span><br><span class="line">    offset = (*(<span class="type">uint32_t</span> *)addr &amp; <span class="number">0x00ffffff</span>) &lt;&lt; <span class="number">2</span>;</span><br><span class="line">    <span class="keyword">if</span> (offset &amp; <span class="number">0x02000000</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        offset -= <span class="number">0x04000000</span>;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">    offset += sym-&gt;st_value - addr;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> ((offset &amp; <span class="number">3</span>) != <span class="number">0</span> || offset &lt; (<span class="type">int32_t</span>) <span class="number">0xfe000000</span> ||</span><br><span class="line">        offset &gt;= (<span class="type">int32_t</span>) <span class="number">0x02000000</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="keyword">return</span> -EINVAL;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">    offset &gt;&gt;= <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line">    *(<span class="type">uint32_t</span> *)addr &amp;= <span class="number">0xff000000</span>;</span><br><span class="line">    *(<span class="type">uint32_t</span> *)addr |= offset &amp; <span class="number">0x00ffffff</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p>ARM <code>BL</code>&#x2F;<code>B</code> 指令编码：高 8 位是条件码+操作码，低 24 位是有符号字偏移（实际字节偏移 &#x3D; 字偏移 * 4）。算法步骤：</p>
+<ol>
+<li><strong>提取原始偏移</strong>：从指令低 24 位取出，左移 2 位得到字节偏移，符号扩展</li>
+<li><strong>计算新偏移</strong>：<code>new_offset = old_offset + symbol_address - relocation_address</code></li>
+<li><strong>范围检查</strong>：ARM 分支范围为 +&#x2F;-32MB（26 位有符号），超出报错</li>
+<li><strong>回写指令</strong>：右移 2 位后写入低 24 位</li>
+</ol>
+<p><strong>实例：BL printf 重定位</strong></p>
+<p>假设：</p>
+<ul>
+<li>重定位地址 <code>addr = 0x80000040</code>（ELF .text 中的 BL 指令位置）</li>
+<li>指令原始值 <code>0xEBFFFFFE</code>（<code>BL -8</code>，编译时的占位值）</li>
+<li><code>sym-&gt;st_value = 0x40001000</code>（printf 在内核中的地址）</li>
+</ul>
+<p>计算过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Step 1: offset = (0x00FFFFFE) &lt;&lt; 2 = 0x03FFFFF8</span><br><span class="line">        sign-extend: 0x03FFFFF8 &amp; 0x02000000 → offset -= 0x04000000 → offset = -8</span><br><span class="line">Step 2: offset += 0x40001000 - 0x80000040 = -8 + 0xC0000FC0 = 0xC0000FB8</span><br><span class="line">        (This would be out of range — in practice, kernel symbols are within +-32MB)</span><br></pre></td></tr></table></figure>
+
+<p>如果跳转目标超出 +&#x2F;-32MB 范围，<code>up_relocate()</code> 返回 <code>-EINVAL</code>，加载失败。这是 ARM 架构的硬限制——如果用户程序虚拟地址与内核符号距离超过 32MB，需要使用 veneer（跳板）或不同的重定位方式。</p>
+<h3 id="6-4-R-ARM-THM-CALL：Thumb-分支重定位"><a href="#6-4-R-ARM-THM-CALL：Thumb-分支重定位" class="headerlink" title="6.4 R_ARM_THM_CALL：Thumb 分支重定位"></a>6.4 R_ARM_THM_CALL：Thumb 分支重定位</h3><p>文件：<code>libs/libc/machine/arm/armv7-a/arch_elf.c:340-467</code></p>
+<p>Thumb 的 <code>BL</code> 是一条 32-bit 指令（由两个 16-bit halfword 组成），分支偏移编码在 S&#x2F;J1&#x2F;J2&#x2F;imm10&#x2F;imm11 五个字段中。解码公式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">offset[24]    = S</span><br><span class="line">offset[23]    = ~(J1 ^ S)</span><br><span class="line">offset[22]    = ~(J2 ^ S)</span><br><span class="line">offset[12:21] = imm10</span><br><span class="line">offset[1:11]  = imm11</span><br><span class="line">offset[0]     = 0 (always halfword-aligned)</span><br></pre></td></tr></table></figure>
+
+<p>回写时的编码公式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">S  = offset[24]</span><br><span class="line">J1 = S ^ (~offset[23] &amp; 1)</span><br><span class="line">J2 = S ^ (~offset[22] &amp; 1)</span><br></pre></td></tr></table></figure>
+
+<p>分支范围为 +&#x2F;-16MB（25 位有符号）。此外，如果目标符号类型是 <code>STT_FUNC</code>，偏移必须是奇数（bit[0]&#x3D;1），表示目标是 Thumb 代码——这是 ARM-Thumb 互操作的要求。</p>
+<h3 id="6-5-R-ARM-MOVW-ABS-NC-R-ARM-MOVT-ABS：立即数加载"><a href="#6-5-R-ARM-MOVW-ABS-NC-R-ARM-MOVT-ABS：立即数加载" class="headerlink" title="6.5 R_ARM_MOVW_ABS_NC &#x2F; R_ARM_MOVT_ABS：立即数加载"></a>6.5 R_ARM_MOVW_ABS_NC &#x2F; R_ARM_MOVT_ABS：立即数加载</h3><p>文件：<code>libs/libc/machine/arm/armv7-a/arch_elf.c:237-258</code></p>
+<p>ARM 加载 32-bit 常量通常用 MOVW+MOVT 指令对：MOVW 加载低 16 位，MOVT 加载高 16 位。16-bit 立即数编码在指令的 <code>imm4</code>(bit[19:16]) 和 <code>imm12</code>(bit[11:0]) 字段中。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> R_ARM_MOVW_ABS_NC:</span><br><span class="line"><span class="keyword">case</span> R_ARM_MOVT_ABS:</span><br><span class="line">  &#123;</span><br><span class="line">    offset = *(<span class="type">uint32_t</span> *)addr;</span><br><span class="line">    offset = ((offset &amp; <span class="number">0xf0000</span>) &gt;&gt; <span class="number">4</span>) | (offset &amp; <span class="number">0xfff</span>);</span><br><span class="line"></span><br><span class="line">    offset += sym-&gt;st_value;</span><br><span class="line">    <span class="keyword">if</span> (ELF32_R_TYPE(rel-&gt;r_info) == R_ARM_MOVT_ABS)</span><br><span class="line">      &#123;</span><br><span class="line">        offset &gt;&gt;= <span class="number">16</span>;</span><br><span class="line">      &#125;</span><br><span class="line"></span><br><span class="line">    *(<span class="type">uint32_t</span> *)addr &amp;= <span class="number">0xfff0f000</span>;</span><br><span class="line">    *(<span class="type">uint32_t</span> *)addr |= ((offset &amp; <span class="number">0xf000</span>) &lt;&lt; <span class="number">4</span>) | (offset &amp; <span class="number">0x0fff</span>);</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：MOVW + MOVT 加载 0x40009000</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">MOVW R0, #0x9000   → R_ARM_MOVW_ABS_NC, sym=0x40009000</span><br><span class="line">  decode: imm4=0x0, imm12=0x000 → offset=0x0000</span><br><span class="line">  add sym: offset = 0x40009000</span><br><span class="line">  take low 16: 0x9000</span><br><span class="line">  encode: imm4=0x9, imm12=0x000</span><br><span class="line">  → MOVW R0, #0x9000</span><br><span class="line"></span><br><span class="line">MOVT R0, #0x4000   → R_ARM_MOVT_ABS, sym=0x40009000</span><br><span class="line">  decode: imm4=0x0, imm12=0x000 → offset=0x0000</span><br><span class="line">  add sym: offset = 0x40009000</span><br><span class="line">  shift &gt;&gt;16: 0x4000</span><br><span class="line">  encode: imm4=0x4, imm12=0x000</span><br><span class="line">  → MOVT R0, #0x4000</span><br></pre></td></tr></table></figure>
+
+<p>重定位完成后，R0 将包含完整的 32-bit 地址 <code>0x40009000</code>。</p>
+<p>了解了重定位如何修补指令，下面看 Kernel Build 模式下地址环境如何为每个进程提供独立的虚拟地址空间。</p>
+<hr>
+<h2 id="7-地址环境：进程级虚拟地址隔离"><a href="#7-地址环境：进程级虚拟地址隔离" class="headerlink" title="7. 地址环境：进程级虚拟地址隔离"></a>7. 地址环境：进程级虚拟地址隔离</h2><p>在 <code>CONFIG_BUILD_KERNEL</code> 模式下，每个用户进程拥有独立的虚拟地址空间。ELF 加载器需要为新进程创建 MMU 页表，分配物理页，并建立虚拟地址映射。这由 <code>libelf_addrenv_*</code> 系列函数完成。</p>
+<h3 id="7-1-分配地址环境"><a href="#7-1-分配地址环境" class="headerlink" title="7.1 分配地址环境"></a>7.1 分配地址环境</h3><p>文件：<code>libs/libc/elf/elf_addrenv.c:83-143</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">libelf_addrenv_alloc</span><span class="params">(FAR <span class="keyword">struct</span> mod_loadinfo_s *loadinfo,</span></span><br><span class="line"><span class="params">                         <span class="type">size_t</span> textsize, <span class="type">size_t</span> datasize)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="type">size_t</span> heapsize = MAX(ARCH_HEAP_SIZE, CONFIG_ELF_STACKSIZE);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Create an address environment for the new ELF task */</span></span><br><span class="line"></span><br><span class="line">  loadinfo-&gt;addrenv = addrenv_allocate();</span><br><span class="line">  <span class="keyword">if</span> (!loadinfo-&gt;addrenv)</span><br><span class="line">    <span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Start creating the address environment sections */</span></span><br><span class="line"></span><br><span class="line">  addrenv = &amp;loadinfo-&gt;addrenv-&gt;addrenv;</span><br><span class="line"></span><br><span class="line">  ret = up_addrenv_create(textsize, datasize, heapsize, addrenv);</span><br><span class="line">  <span class="keyword">if</span> (ret &lt; <span class="number">0</span>)</span><br><span class="line">    <span class="keyword">goto</span> errout_with_addrenv;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Get the virtual addresses */</span></span><br><span class="line"></span><br><span class="line">  ret = up_addrenv_vtext(addrenv, &amp;vtext);</span><br><span class="line">  ret = up_addrenv_vdata(addrenv, textsize, &amp;vdata);</span><br><span class="line"></span><br><span class="line">  loadinfo-&gt;textalloc = (<span class="type">uintptr_t</span>)vtext;</span><br><span class="line">  loadinfo-&gt;datastart = (<span class="type">uintptr_t</span>)vdata;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>up_addrenv_create()</code> 是架构特定函数，在 ARMv7-A 上会：</p>
+<ol>
+<li>分配 L1 页表（16KB，4096 个条目）</li>
+<li>为 text&#x2F;data&#x2F;heap 区域分配 L2 页表</li>
+<li>从 page pool 分配物理页并填充页表条目</li>
+</ol>
+<h3 id="7-2-临时激活地址空间"><a href="#7-2-临时激活地址空间" class="headerlink" title="7.2 临时激活地址空间"></a>7.2 临时激活地址空间</h3><p>加载段数据和执行重定位时，需要写入新进程的虚拟地址。但此时 CPU 运行在内核地址空间中，新进程的页表尚未激活。<code>libelf_addrenv_select()</code> 解决这个问题：</p>
+<p>文件：<code>libs/libc/elf/elf_addrenv.c:159-183</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">libelf_addrenv_select</span><span class="params">(FAR <span class="keyword">struct</span> mod_loadinfo_s *loadinfo)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* Instantiate the new address environment */</span></span><br><span class="line"></span><br><span class="line">  ret = addrenv_select(loadinfo-&gt;addrenv, &amp;loadinfo-&gt;oldenv);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Allow write access to .text */</span></span><br><span class="line"></span><br><span class="line">  ret = up_addrenv_mprot(&amp;loadinfo-&gt;addrenv-&gt;addrenv, loadinfo-&gt;textalloc,</span><br><span class="line">                         loadinfo-&gt;textsize, ELF_TEXT_WRE);</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>关键设计：<code>.text</code> 段运行时应该是只读+可执行（W^X 安全原则），但加载阶段需要写入数据和修补重定位。解决方案是临时赋予 <code>.text</code> 写权限（<code>PROT_READ | PROT_WRITE | PROT_EXEC</code>），加载完成后恢复为只读+可执行（<code>PROT_READ | PROT_EXEC</code>）。</p>
+<h3 id="7-3-恢复地址空间"><a href="#7-3-恢复地址空间" class="headerlink" title="7.3 恢复地址空间"></a>7.3 恢复地址空间</h3><p>文件：<code>libs/libc/elf/elf_addrenv.c:200-224</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">libelf_addrenv_restore</span><span class="params">(FAR <span class="keyword">struct</span> mod_loadinfo_s *loadinfo)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* Remove write access to .text */</span></span><br><span class="line"></span><br><span class="line">  ret = up_addrenv_mprot(&amp;loadinfo-&gt;addrenv-&gt;addrenv, loadinfo-&gt;textalloc,</span><br><span class="line">                         loadinfo-&gt;textsize, ELF_TEXT_RE);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Restore the old address environment */</span></span><br><span class="line"></span><br><span class="line">  ret = addrenv_restore(loadinfo-&gt;oldenv);</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>如果没有地址环境会怎样？</strong> 在 FLAT build 模式下（无 MMU 或不启用地址隔离），所有进程共享同一地址空间。此时 <code>libelf_load()</code> 直接用 <code>lib_memalign()</code> 从内核堆分配内存，无需页表操作。代码更简单，但没有进程间内存保护。</p>
+<p>段加载和重定位都完成后，ELF 文件已经成为一段可执行的内存映像。最后一步是创建任务并让它运行起来。</p>
+<hr>
+<h2 id="8-任务创建与执行"><a href="#8-任务创建与执行" class="headerlink" title="8. 任务创建与执行"></a>8. 任务创建与执行</h2><p><code>elf_loadbinary()</code> 返回后，控制回到 <code>exec_internal()</code>，后者调用 <code>exec_module()</code> 完成从”内存中的代码”到”可调度的任务”的转变。</p>
+<p>文件：<code>binfmt/binfmt_execmodule.c:152-354</code></p>
+<h3 id="8-1-关键步骤"><a href="#8-1-关键步骤" class="headerlink" title="8.1 关键步骤"></a>8.1 关键步骤</h3><p>以下是 <code>exec_module()</code> 的核心路径摘录（<code>binfmt/binfmt_execmodule.c:182-354</code>，省略了错误处理和条件编译分支）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/* Allocate a TCB for the new task */</span></span><br><span class="line"></span><br><span class="line">tcb = kmm_zalloc(<span class="keyword">sizeof</span>(<span class="keyword">struct</span> tcb_s));                        <span class="comment">/* line 182 */</span></span><br><span class="line"></span><br><span class="line">ret = binfmt_copyargv(&amp;argv, argv);                            <span class="comment">/* line 188 */</span></span><br><span class="line">ret = binfmt_copyenv(&amp;envp, envp);                             <span class="comment">/* line 201 */</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* Instantiate the address environment containing the user heap */</span></span><br><span class="line"></span><br><span class="line">ret = addrenv_select(binp-&gt;addrenv, &amp;binp-&gt;oldenv);           <span class="comment">/* line 224 */</span></span><br><span class="line">ret = up_addrenv_vheap(addrenv, &amp;vheap);                       <span class="comment">/* line 231 */</span></span><br><span class="line">umm_initialize(vheap, up_addrenv_heapsize(addrenv));           <span class="comment">/* line 240 */</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* Initialize the task with the ELF entry point */</span></span><br><span class="line"></span><br><span class="line">ret = nxtask_init(tcb, argv[<span class="number">0</span>], binp-&gt;priority, stackaddr,    <span class="comment">/* line 257 */</span></span><br><span class="line">                  binp-&gt;stacksize, binp-&gt;entrypt, &amp;argv[<span class="number">1</span>],</span><br><span class="line">                  envp, actions);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Attach the address environment to the new task */</span></span><br><span class="line"></span><br><span class="line">ret = addrenv_attach(tcb, binp-&gt;addrenv);                      <span class="comment">/* line 295 */</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (!spawn)</span><br><span class="line">  &#123;</span><br><span class="line">    exec_swap(this_task(), tcb);                                <span class="comment">/* line 317 */</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* Then activate the task at the provided priority */</span></span><br><span class="line"></span><br><span class="line">nxtask_activate(tcb);                                           <span class="comment">/* line 352 */</span></span><br><span class="line"><span class="keyword">return</span> pid;</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-2-入口点确定"><a href="#8-2-入口点确定" class="headerlink" title="8.2 入口点确定"></a>8.2 入口点确定</h3><p>入口点在 <code>elf_loadbinary()</code> 中确定：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>入口点计算</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ET_REL</code> 或有 GOT</td>
+<td><code>textalloc + ehdr.e_entry</code></td>
+<td>e_entry 是相对于 .text 起始的偏移</td>
+</tr>
+<tr>
+<td><code>ET_EXEC</code></td>
+<td><code>ehdr.e_entry</code> 直接使用</td>
+<td>完全链接，e_entry 是绝对虚拟地址</td>
+</tr>
+</tbody></table>
+<p><strong>实例：qemu-armv7a 上加载 hello 程序</strong></p>
+<p>假设 hello ELF 的 <code>e_entry = 0x000001A0</code>，加载后 <code>textalloc = 0x80000000</code>：</p>
+<ul>
+<li>入口点 &#x3D; <code>0x80000000 + 0x000001A0 = 0x800001A0</code></li>
+<li><code>nxtask_init()</code> 设置初始栈帧，使任务首次被调度时从 <code>0x800001A0</code> 开始执行</li>
+<li>该地址对应 hello 程序的 <code>main()</code> 函数（或 C runtime 的 <code>_start</code>）</li>
+</ul>
+<h3 id="8-3-exec-swap：进程替换"><a href="#8-3-exec-swap：进程替换" class="headerlink" title="8.3 exec_swap：进程替换"></a>8.3 exec_swap：进程替换</h3><p>当通过 <code>exec()</code> 调用（而非 <code>posix_spawn()</code>）时，新任务替换当前任务：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (!spawn)</span><br><span class="line">  exec_swap(this_task(), tcb);</span><br></pre></td></tr></table></figure>
+
+<p><code>exec_swap()</code> 交换两个 TCB 的 PID 和进程组信息，实现 POSIX 语义：<code>exec()</code> 后进程 PID 不变，但执行的代码完全不同。</p>
+<h3 id="8-4-任务激活"><a href="#8-4-任务激活" class="headerlink" title="8.4 任务激活"></a>8.4 任务激活</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">nxtask_activate(tcb);</span><br></pre></td></tr></table></figure>
+
+<p>这使新任务进入 ready-to-run 队列。当调度器下次选择它时，CPU 将跳转到 ELF 的入口点开始执行用户代码。至此，一个文件系统中的 ELF 文件变成了一个独立运行的进程。</p>
+<hr>
+<h2 id="9-完整调用链总览"><a href="#9-完整调用链总览" class="headerlink" title="9. 完整调用链总览"></a>9. 完整调用链总览</h2><p>从用户调用 <code>exec(&quot;/system/bin/hello&quot;, ...)</code> 到 hello 程序开始运行，完整时序如下图所示：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ELF%E5%8A%A0%E8%BD%BD%E5%AE%8C%E6%88%90.png" alt="ELF加载完成"></p>
+<p>对应的文本形式调用链：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">exec()                                    binfmt/binfmt_exec.c:266</span><br><span class="line"> └─ exec_internal()                       binfmt/binfmt_exec.c:77</span><br><span class="line">     ├─ load_module()                     binfmt/binfmt_loadmodule.c:160</span><br><span class="line">     │   └─ load_absmodule()              binfmt/binfmt_loadmodule.c:101</span><br><span class="line">     │       └─ elf_loadbinary()          binfmt/elf.c:93</span><br><span class="line">     │           ├─ libelf_initialize()   libs/libc/elf/elf_init.c:99</span><br><span class="line">     │           │   ├─ _NX_OPEN()                 打开 ELF 文件</span><br><span class="line">     │           │   ├─ libelf_read(ehdr)           读取 ELF 头</span><br><span class="line">     │           │   └─ libelf_verifyheader()       验证 magic/type/arch</span><br><span class="line">     │           │</span><br><span class="line">     │           ├─ libelf_load_with_addrenv()     libs/libc/elf/elf_load.c:701</span><br><span class="line">     │           │   ├─ libelf_loadhdrs()           读取 section/program headers</span><br><span class="line">     │           │   ├─ libelf_elfsize()            计算 text/data 大小</span><br><span class="line">     │           │   ├─ libelf_addrenv_alloc()      创建虚拟地址空间</span><br><span class="line">     │           │   ├─ libelf_addrenv_select()     激活地址空间 + .text 可写</span><br><span class="line">     │           │   ├─ libelf_loadfile()           读取段数据到内存</span><br><span class="line">     │           │   └─ libelf_addrenv_restore()    恢复地址空间 + .text 只读</span><br><span class="line">     │           │</span><br><span class="line">     │           ├─ libelf_bind()                   libs/libc/elf/elf_bind.c:915</span><br><span class="line">     │           │   ├─ libelf_findsymtab()         定位符号表</span><br><span class="line">     │           │   ├─ libelf_relocate()           处理每个重定位条目</span><br><span class="line">     │           │   │   ├─ libelf_symvalue()       解析符号地址</span><br><span class="line">     │           │   │   └─ up_relocate()           架构特定指令修补</span><br><span class="line">     │           │   └─ up_coherent_dcache()        缓存一致性维护</span><br><span class="line">     │           │</span><br><span class="line">     │           └─ libelf_uninitialize()           关闭文件、释放临时缓冲区</span><br><span class="line">     │</span><br><span class="line">     └─ exec_module()                     binfmt/binfmt_execmodule.c:152</span><br><span class="line">         ├─ kmm_zalloc(tcb)                        分配 TCB</span><br><span class="line">         ├─ addrenv_select() + umm_initialize()    初始化用户堆</span><br><span class="line">         ├─ nxtask_init(entrypt)                   设置初始栈帧</span><br><span class="line">         ├─ addrenv_attach(tcb, addrenv)           绑定地址环境</span><br><span class="line">          ├─ exec_swap()                            替换当前进程（exec 语义）</span><br><span class="line">          └─ nxtask_activate(tcb)                   任务进入就绪队列</span><br></pre></td></tr></table></figure>
+
+<p>这条完整链路体现了 NuttX ELF 加载的分层设计：binfmt 框架负责格式分发和任务创建（顶层 <code>exec()</code> &#x2F; <code>exec_module()</code>），libelf 库负责 ELF 格式的通用解析（段加载、符号解析），而架构特定代码只在最底层的 <code>up_relocate()</code> 和 <code>up_addrenv_create()</code> 中出现。移植新架构时只需实现这两个函数——其余 900+ 行的加载逻辑完全复用。注意链路中有两次地址空间切换：一次在 <code>libelf_load_with_addrenv()</code> 中（写入段数据），一次在 <code>libelf_bind()</code> 中（修补重定位）。每次切换都遵循 select → 操作 → restore 的对称模式。</p>
+<hr>
+<h2 id="10-NuttX-vs-Linux-vs-FreeRTOS-对比"><a href="#10-NuttX-vs-Linux-vs-FreeRTOS-对比" class="headerlink" title="10. NuttX vs Linux vs FreeRTOS 对比"></a>10. NuttX vs Linux vs FreeRTOS 对比</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>NuttX ELF Loader</th>
+<th>Linux ELF Loader</th>
+<th>FreeRTOS</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>加载器位置</td>
+<td>内核中 (binfmt)</td>
+<td>内核 + 用户空间 (ld.so)</td>
+<td>无内置（需第三方库）</td>
+</tr>
+<tr>
+<td>支持的 ELF 类型</td>
+<td>ET_REL &#x2F; ET_DYN &#x2F; ET_EXEC</td>
+<td>ET_DYN &#x2F; ET_EXEC</td>
+<td>通常仅 ET_REL</td>
+</tr>
+<tr>
+<td>动态链接器</td>
+<td>无（内核一次性完成）</td>
+<td>ld-linux.so（用户空间）</td>
+<td>无</td>
+</tr>
+<tr>
+<td>地址隔离</td>
+<td>可选 (CONFIG_ARCH_ADDRENV)</td>
+<td>必需 (MMU)</td>
+<td>无</td>
+</tr>
+<tr>
+<td>符号表来源</td>
+<td>编译时生成的静态导出表</td>
+<td>共享库 .dynsym</td>
+<td>手动提供</td>
+</tr>
+<tr>
+<td>重定位时机</td>
+<td>加载时全部完成</td>
+<td>加载时 + 延迟绑定 (PLT&#x2F;GOT)</td>
+<td>加载时</td>
+</tr>
+<tr>
+<td>C++ 构造器</td>
+<td>支持 (.init_array)</td>
+<td>支持 (.init_array + .init)</td>
+<td>依实现而定</td>
+</tr>
+<tr>
+<td>代码大小</td>
+<td>~3000 行 (libs&#x2F;libc&#x2F;elf&#x2F;)</td>
+<td>~10000+ 行 (fs&#x2F;binfmt_elf.c + ld.so)</td>
+<td>N&#x2F;A</td>
+</tr>
+</tbody></table>
+<p><strong>关键设计差异：</strong></p>
+<ol>
+<li><p><strong>NuttX 没有独立的动态链接器</strong>。Linux 的 <code>ld.so</code> 在用户空间运行，支持延迟绑定（PLT stub 第一次调用时才解析符号）。NuttX 在加载时就完成所有重定位——更简单、更确定性，但无法支持延迟绑定优化。</p>
+</li>
+<li><p><strong>NuttX 的符号表是静态的</strong>。内核导出哪些符号在编译时就决定了（通过 <code>CONFIG_SYMTAB_ORDEREDBYNAME</code> + 编译生成的符号数组）。Linux 的共享库可以动态加载&#x2F;卸载，符号表动态变化。</p>
+</li>
+<li><p><strong>NuttX 支持 ET_REL 加载</strong>。Linux 内核模块也用 ET_REL，但用户空间可执行文件必须是 ET_DYN&#x2F;ET_EXEC。NuttX 三种都支持，给嵌入式开发提供了更大灵活性。</p>
+</li>
+</ol>
+<hr>
+<h2 id="11-关键要点"><a href="#11-关键要点" class="headerlink" title="11. 关键要点"></a>11. 关键要点</h2><ol>
+<li><p><strong>binfmt 框架是可扩展的</strong>——通过链表注册机制，ELF&#x2F;NXFLAT&#x2F;Builtin 三种格式和平共存，加载时自动识别。</p>
+</li>
+<li><p><strong>ELF 加载分三阶段</strong>：初始化（验证头）→ 段加载（分配内存 + 复制数据）→ 绑定（符号解析 + 重定位）。每个阶段失败都会回滚前序操作。</p>
+</li>
+<li><p><strong>重定位是架构强相关的</strong>——ARM 的 10+ 种重定位类型对应不同的指令编码格式。每种类型的提取&#x2F;计算&#x2F;回写逻辑完全不同。</p>
+</li>
+<li><p><strong>Kernel Build 模式下每个 ELF 进程有独立页表</strong>——<code>libelf_addrenv_alloc()</code> 创建地址空间，.text 临时可写用于重定位，完成后恢复为只读+可执行。</p>
+</li>
+<li><p><strong>符号查找失败 &#x3D; 加载失败</strong>——与 Linux 延迟绑定不同，NuttX 在加载时就验证所有外部引用。如果内核没有导出某个函数，加载立即报错 <code>-ENOENT</code>。</p>
+</li>
+<li><p><strong><code>up_coherent_dcache()</code> 不可省略</strong>——重定位修改了 .text 段的指令字，必须刷新 D-cache 并无效化 I-cache，否则 CPU 可能执行旧的（未修补的）指令。</p>
+</li>
+</ol>
+<hr>
+<h2 id="12-参考文件"><a href="#12-参考文件" class="headerlink" title="12. 参考文件"></a>12. 参考文件</h2><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>内容</th>
+<th>关键行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>binfmt/elf.c</code></td>
+<td>ELF 格式注册、elf_loadbinary 入口</td>
+<td>73-78, 93-238, 274-289</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_exec.c</code></td>
+<td>exec() &#x2F; exec_internal() 入口</td>
+<td>77, 266</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_globals.c</code></td>
+<td>g_binfmts 全局链表头</td>
+<td>47</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_register.c</code></td>
+<td>register_binfmt() 链表操作</td>
+<td>57-71</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_loadmodule.c</code></td>
+<td>load_module() 遍历格式链表</td>
+<td>101, 160</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_execmodule.c</code></td>
+<td>exec_module() 创建任务</td>
+<td>152-354</td>
+</tr>
+<tr>
+<td><code>binfmt/binfmt_initialize.c</code></td>
+<td>启动时注册所有格式</td>
+<td>49-78</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_init.c</code></td>
+<td>libelf_initialize() 打开+验证</td>
+<td>99-158</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_verify.c</code></td>
+<td>libelf_verifyheader() 三层验证</td>
+<td>64-102</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_load.c</code></td>
+<td>段大小计算 + 内存分配 + 段加载</td>
+<td>151-246, 331-526, 545-777</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_bind.c</code></td>
+<td>libelf_bind() + libelf_relocate()</td>
+<td>180, 915</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_symbols.c</code></td>
+<td>libelf_symvalue() 符号解析</td>
+<td>340-457</td>
+</tr>
+<tr>
+<td><code>libs/libc/elf/elf_addrenv.c</code></td>
+<td>地址环境分配&#x2F;激活&#x2F;恢复</td>
+<td>83-143, 159-183, 200-224</td>
+</tr>
+<tr>
+<td><code>libs/libc/machine/arm/armv7-a/arch_elf.c</code></td>
+<td>ARM up_relocate() 所有重定位类型</td>
+<td>56-104, 128-477</td>
+</tr>
+<tr>
+<td><code>include/nuttx/binfmt/binfmt.h</code></td>
+<td>struct binary_s, struct binfmt_s</td>
+<td>63-137</td>
+</tr>
+<tr>
+<td><code>include/nuttx/lib/elf.h</code></td>
+<td>struct mod_loadinfo_s</td>
+<td>196-254</td>
+</tr>
+<tr>
+<td><code>include/elf32.h</code></td>
+<td>Elf32_Ehdr, Elf32_Shdr, Elf32_Rel, Elf32_Sym</td>
+<td>75-134</td>
+</tr>
+<tr>
+<td><code>boards/arm/qemu/qemu-armv7a/configs/knsh/defconfig</code></td>
+<td>Kernel Build ELF 配置</td>
+<td>全文</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>外部参考</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>NuttX 官方文档 <code>Documentation/components/binfmt.rst</code></td>
+<td>Binary Loader 设计意图、API 说明</td>
+</tr>
+<tr>
+<td>ARM ELF specification (ARM IHI 0044F)</td>
+<td>ARM 重定位类型定义、指令编码</td>
+</tr>
+<tr>
+<td>ELF specification (Tool Interface Standard)</td>
+<td>ELF 文件格式、段类型、符号绑定规则</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/16/Nuttx-Signal/" rel="prev" title="Nuttx - Signal">
+                  <i class="fa fa-angle-left"></i> Nuttx - Signal
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/06/16/Nuttx-SMP/" rel="next" title="Nuttx - SMP">
+                  Nuttx - SMP <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
