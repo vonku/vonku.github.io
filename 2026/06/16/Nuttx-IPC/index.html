@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从信号量到消息队列、从共享内存到管道，全面解析 NuttX KERNEL 模式下的 IPC 机制，深入剖析消息队列、共享内存和管道的内核实现。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Nuttx - IPC">
+<meta property="og:url" content="http://yoursite.com/2026/06/16/Nuttx-IPC/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从信号量到消息队列、从共享内存到管道，全面解析 NuttX KERNEL 模式下的 IPC 机制，深入剖析消息队列、共享内存和管道的内核实现。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/_struct.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ive.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="article:published_time" content="2026-06-16T12:56:31.000Z">
+<meta property="article:modified_time" content="2026-06-16T12:59:59.510Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="Nuttx">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/_struct.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/06/16/Nuttx-IPC/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/06/16/Nuttx-IPC/","path":"2026/06/16/Nuttx-IPC/","title":"Nuttx - IPC"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Nuttx - IPC | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%80%E7%AF%87%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E5%A4%9A%E7%A7%8D-IPC-%E6%9C%BA%E5%88%B6%EF%BC%9F"><span class="nav-text">1. 开篇：为什么需要多种 IPC 机制？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-IPC-%E6%9C%BA%E5%88%B6%E4%BD%BF%E7%94%A8%E6%A6%82%E8%A7%88"><span class="nav-text">2. IPC 机制使用概览</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%BF%A1%E5%8F%B7%E9%87%8F%EF%BC%88Semaphore%EF%BC%89"><span class="nav-text">2.1 信号量（Semaphore）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E4%BA%92%E6%96%A5%E9%94%81%EF%BC%88Mutex%EF%BC%89"><span class="nav-text">2.2 互斥锁（Mutex）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%EF%BC%88Message-Queue%EF%BC%89"><span class="nav-text">2.3 消息队列（Message Queue）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98%EF%BC%88Shared-Memory%EF%BC%89"><span class="nav-text">2.4 共享内存（Shared Memory）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-%E7%AE%A1%E9%81%93%E4%B8%8E-FIFO"><span class="nav-text">2.5 管道与 FIFO</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%B7%B1%E5%85%A5%EF%BC%9A%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%E5%86%85%E6%A0%B8%E5%AE%9E%E7%8E%B0"><span class="nav-text">3. 深入：消息队列内核实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">3.1 核心数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E4%BB%8E%E7%94%A8%E6%88%B7%E7%A9%BA%E9%97%B4%E5%88%B0%E5%86%85%E6%A0%B8%E7%A9%BA%E9%97%B4%EF%BC%9ASVC-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E8%B7%AF%E5%BE%84"><span class="nav-text">3.2 从用户空间到内核空间：SVC 系统调用路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-mq-open-%EF%BC%9A%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97%E7%9A%84%E5%88%9B%E5%BB%BA%E4%B8%8E%E6%89%93%E5%BC%80"><span class="nav-text">3.3 mq_open()：消息队列的创建与打开</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E6%B6%88%E6%81%AF%E5%8F%91%E9%80%81%EF%BC%9Amq-send-%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF"><span class="nav-text">3.4 消息发送：mq_send() 完整链路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E6%B6%88%E6%81%AF%E6%8E%A5%E6%94%B6%EF%BC%9Amq-receive-%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF"><span class="nav-text">3.5 消息接收：mq_receive() 完整链路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-%E9%98%BB%E5%A1%9E%E4%B8%8E%E5%94%A4%E9%86%92%E6%9C%BA%E5%88%B6%E8%AF%A6%E8%A7%A3"><span class="nav-text">3.6 阻塞与唤醒机制详解</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-6-1-%E5%8F%91%E9%80%81%E8%80%85%E9%98%BB%E5%A1%9E%EF%BC%88nxmq-wait-send%EF%BC%89"><span class="nav-text">3.6.1 发送者阻塞（nxmq_wait_send）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-6-2-%E6%8E%A5%E6%94%B6%E8%80%85%E9%98%BB%E5%A1%9E%EF%BC%88nxmq-wait-receive%EF%BC%89"><span class="nav-text">3.6.2 接收者阻塞（nxmq_wait_receive）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-6-3-%E5%94%A4%E9%86%92%E9%98%BB%E5%A1%9E%E8%80%85%EF%BC%88nxmq-notify-send-nxmq-notify-receive%EF%BC%89"><span class="nav-text">3.6.3 唤醒阻塞者（nxmq_notify_send &#x2F; nxmq_notify_receive）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-6-4-%E8%B6%85%E6%97%B6%E6%9C%BA%E5%88%B6"><span class="nav-text">3.6.4 超时机制</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-7-VFS-%E9%9B%86%E6%88%90"><span class="nav-text">3.7 VFS 集成</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-8-%E5%AF%B9%E6%AF%94%EF%BC%9A%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%97-vs-%E4%BF%A1%E5%8F%B7%E9%87%8F-vs-%E7%AE%A1%E9%81%93%E9%98%BB%E5%A1%9E%E6%9C%BA%E5%88%B6"><span class="nav-text">3.8 对比：消息队列 vs 信号量 vs 管道阻塞机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%B7%B1%E5%85%A5%EF%BC%9A%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98%E5%86%85%E6%A0%B8%E5%AE%9E%E7%8E%B0%EF%BC%88KERNEL-%E6%A8%A1%E5%BC%8F%EF%BC%89"><span class="nav-text">4. 深入：共享内存内核实现（KERNEL 模式）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">4.1 核心数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-shmget-%EF%BC%9A%E5%88%9B%E5%BB%BA-%E8%8E%B7%E5%8F%96%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98"><span class="nav-text">4.2 shmget()：创建&#x2F;获取共享内存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-shmat-%EF%BC%9A%E6%98%A0%E5%B0%84%E5%88%B0%E8%BF%9B%E7%A8%8B%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4"><span class="nav-text">4.3 shmat()：映射到进程地址空间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-up-shmat-%EF%BC%9AARMv7-A-MMU-%E9%A1%B5%E8%A1%A8%E6%93%8D%E4%BD%9C"><span class="nav-text">4.4 up_shmat()：ARMv7-A MMU 页表操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-shmdt-%EF%BC%9A%E8%A7%A3%E9%99%A4%E6%98%A0%E5%B0%84"><span class="nav-text">4.5 shmdt()：解除映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-POSIX-shm-open-%E9%A3%8E%E6%A0%BC%EF%BC%88%E9%80%9A%E8%BF%87-VFS%EF%BC%89"><span class="nav-text">4.6 POSIX shm_open 风格（通过 VFS）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E6%B7%B1%E5%85%A5%EF%BC%9A%E7%AE%A1%E9%81%93%E5%86%85%E6%A0%B8%E5%AE%9E%E7%8E%B0"><span class="nav-text">5. 深入：管道内核实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%A0%B8%E5%BF%83%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">5.1 核心数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-pipe-%E5%88%9B%E5%BB%BA%E6%B5%81%E7%A8%8B"><span class="nav-text">5.2 pipe() 创建流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E5%86%99%E5%85%A5%EF%BC%9Apipecommon-write"><span class="nav-text">5.3 写入：pipecommon_write()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E8%AF%BB%E5%8F%96%EF%BC%9Apipecommon-read"><span class="nav-text">5.4 读取：pipecommon_read()</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E9%98%BB%E5%A1%9E%E6%9C%BA%E5%88%B6"><span class="nav-text">5.5 阻塞机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-%E5%85%B3%E9%97%AD%E8%AF%AD%E4%B9%89"><span class="nav-text">5.6 关闭语义</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E9%80%89%E6%8B%A9%E6%8C%87%E5%8D%97%EF%BC%9A%E4%BD%95%E6%97%B6%E7%94%A8%E5%93%AA%E7%A7%8D-IPC"><span class="nav-text">6. 选择指南：何时用哪种 IPC</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%AF%B9%E6%AF%94%E5%88%86%E6%9E%90"><span class="nav-text">7. 对比分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">8. 关键要点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%8F%82%E8%80%83%E6%96%87%E4%BB%B6%E7%B4%A2%E5%BC%95"><span class="nav-text">9. 参考文件索引</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">42</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/06/16/Nuttx-IPC/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Nuttx - IPC | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Nuttx - IPC
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-06-16 20:56:31" itemprop="dateCreated datePublished" datetime="2026-06-16T20:56:31+08:00">2026-06-16</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Nuttx/" itemprop="url" rel="index"><span itemprop="name">Nuttx</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从信号量到消息队列、从共享内存到管道，全面解析 NuttX KERNEL 模式下的 IPC 机制，深入剖析消息队列、共享内存和管道的内核实现。</p>
+</blockquote>
+<span id="more"></span>
+
+<p>本文回答以下问题：NuttX 提供了哪些 IPC 机制，各自适用什么场景？消息队列如何实现带优先级的消息排序和阻塞等待？共享内存在 KERNEL 模式下如何通过 MMU 将同一物理页映射到多个进程？管道的环形缓冲区如何实现读写阻塞？读完后，你将能够选择合适的 IPC 机制，并从源码级别理解其内核实现。</p>
+<hr>
+<h2 id="1-开篇：为什么需要多种-IPC-机制？"><a href="#1-开篇：为什么需要多种-IPC-机制？" class="headerlink" title="1. 开篇：为什么需要多种 IPC 机制？"></a>1. 开篇：为什么需要多种 IPC 机制？</h2><p>在 KERNEL 模式下，每个进程有独立的虚拟地址空间——进程 A 的指针对进程 B 毫无意义。进程间要通信，必须通过内核提供的受控通道。不同场景需要不同特征的通道：</p>
+<table>
+<thead>
+<tr>
+<th>需求</th>
+<th>适合的 IPC</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>互斥访问共享资源</td>
+<td>信号量 &#x2F; 互斥锁</td>
+</tr>
+<tr>
+<td>传递结构化消息（带优先级）</td>
+<td>消息队列</td>
+</tr>
+<tr>
+<td>高性能大数据共享（零拷贝）</td>
+<td>共享内存</td>
+</tr>
+<tr>
+<td>流式字节数据传递</td>
+<td>管道 &#x2F; FIFO</td>
+</tr>
+<tr>
+<td>异步通知</td>
+<td>信号（已在前文覆盖）</td>
+</tr>
+</tbody></table>
+<p>NuttX 实现了 POSIX 标准（IEEE Std 1003.1）定义的全部 IPC 机制。NuttX 官方文档（<a target="_blank" rel="noopener" href="https://nuttx.apache.org/docs/latest/reference/user/index.html%EF%BC%89%E6%8F%90%E4%BE%9B%E4%BA%86%E5%90%84">https://nuttx.apache.org/docs/latest/reference/user/index.html）提供了各</a> API 的用户手册。本文先概览各机制的使用方式，再深入消息队列、共享内存和管道的内核实现。</p>
+<hr>
+<h2 id="2-IPC-机制使用概览"><a href="#2-IPC-机制使用概览" class="headerlink" title="2. IPC 机制使用概览"></a>2. IPC 机制使用概览</h2><p>以下代码示例为用户应用层代码（非内核源码），展示各 IPC 机制的标准 POSIX API 用法。</p>
+<h3 id="2-1-信号量（Semaphore）"><a href="#2-1-信号量（Semaphore）" class="headerlink" title="2.1 信号量（Semaphore）"></a>2.1 信号量（Semaphore）</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;semaphore.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">sem_t</span> sem;</span><br><span class="line">sem_init(&amp;sem, <span class="number">0</span>, <span class="number">1</span>);       <span class="comment">/* 初始值 1（互斥锁用法）*/</span></span><br><span class="line">sem_wait(&amp;sem);              <span class="comment">/* P 操作：计数-1，若 &lt;0 则阻塞 */</span></span><br><span class="line"><span class="comment">/* ... 临界区 ... */</span></span><br><span class="line">sem_post(&amp;sem);              <span class="comment">/* V 操作：计数+1，唤醒等待者 */</span></span><br><span class="line">sem_destroy(&amp;sem);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 命名信号量（跨进程）*/</span></span><br><span class="line"><span class="type">sem_t</span> *sem = sem_open(<span class="string">&quot;/mysem&quot;</span>, O_CREAT, <span class="number">0666</span>, <span class="number">1</span>);</span><br><span class="line">sem_wait(sem);</span><br><span class="line">sem_post(sem);</span><br><span class="line">sem_close(sem);</span><br></pre></td></tr></table></figure>
+
+<p>NuttX 信号量支持优先级继承（已在调度博客中讲解），阻塞的任务按优先级排序在 <code>g_waitingforsemaphore</code> 链表中。</p>
+<h3 id="2-2-互斥锁（Mutex）"><a href="#2-2-互斥锁（Mutex）" class="headerlink" title="2.2 互斥锁（Mutex）"></a>2.2 互斥锁（Mutex）</h3><p>互斥锁用于同一进程内的线程间互斥，不支持跨进程共享。NuttX 的 mutex 接受 <code>PTHREAD_PROCESS_SHARED</code> 属性但内部忽略它——该属性存在是为了 POSIX 兼容性，不改变实际行为。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;pthread.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">pthread_mutex_t</span> mtx = PTHREAD_MUTEX_INITIALIZER;</span><br><span class="line"></span><br><span class="line">pthread_mutex_lock(&amp;mtx);</span><br><span class="line"><span class="comment">/* ... 临界区 ... */</span></span><br><span class="line">pthread_mutex_unlock(&amp;mtx);</span><br></pre></td></tr></table></figure>
+
+<p>NuttX 的 mutex 在内部基于信号量实现（<code>sched/mutex/</code>），增加了所有权检查（按 PID 判断）、递归计数（<code>PTHREAD_MUTEX_RECURSIVE</code>）和优先级继承。</p>
+<blockquote>
+<p>如果需要在不同进程间做互斥同步，请用命名信号量 <code>sem_open()</code>——它是 NuttX 官方支持的跨进程 IPC 机制。</p>
+</blockquote>
+<h3 id="2-3-消息队列（Message-Queue）"><a href="#2-3-消息队列（Message-Queue）" class="headerlink" title="2.3 消息队列（Message Queue）"></a>2.3 消息队列（Message Queue）</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;mqueue.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 创建/打开 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mq_attr</span> <span class="title">attr</span> =</span> &#123; .mq_maxmsg = <span class="number">10</span>, .mq_msgsize = <span class="number">256</span> &#125;;</span><br><span class="line"><span class="type">mqd_t</span> mq = mq_open(<span class="string">&quot;/myqueue&quot;</span>, O_CREAT | O_RDWR, <span class="number">0666</span>, &amp;attr);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 发送（带优先级，0-255，高优先级先被接收）*/</span></span><br><span class="line">mq_send(mq, <span class="string">&quot;hello&quot;</span>, <span class="number">6</span>, <span class="number">100</span>);   <span class="comment">/* priority = 100 */</span></span><br><span class="line">mq_send(mq, <span class="string">&quot;urgent&quot;</span>, <span class="number">7</span>, <span class="number">200</span>);  <span class="comment">/* priority = 200，将排在前面 */</span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 接收（总是取出最高优先级的消息）*/</span></span><br><span class="line"><span class="type">char</span> buf[<span class="number">256</span>];</span><br><span class="line"><span class="type">unsigned</span> <span class="type">int</span> prio;</span><br><span class="line">mq_receive(mq, buf, <span class="number">256</span>, &amp;prio);  <span class="comment">/* 先收到 &quot;urgent&quot;(prio=200) */</span></span><br><span class="line"></span><br><span class="line">mq_close(mq);</span><br><span class="line">mq_unlink(<span class="string">&quot;/myqueue&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-共享内存（Shared-Memory）"><a href="#2-4-共享内存（Shared-Memory）" class="headerlink" title="2.4 共享内存（Shared Memory）"></a>2.4 共享内存（Shared Memory）</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/shm.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* System V 风格 */</span></span><br><span class="line"><span class="type">int</span> shmid = shmget(<span class="number">1234</span>, <span class="number">4096</span>, IPC_CREAT | <span class="number">0666</span>);</span><br><span class="line"><span class="type">void</span> *ptr = shmat(shmid, <span class="literal">NULL</span>, <span class="number">0</span>);</span><br><span class="line"><span class="comment">/* 直接读写 ptr，另一个进程 shmat 同一 shmid 可看到相同内容 */</span></span><br><span class="line">shmdt(ptr);</span><br><span class="line">shmctl(shmid, IPC_RMID, <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* POSIX 风格（通过 VFS）*/</span></span><br><span class="line"><span class="type">int</span> fd = shm_open(<span class="string">&quot;/myshm&quot;</span>, O_CREAT | O_RDWR, <span class="number">0666</span>);</span><br><span class="line">ftruncate(fd, <span class="number">4096</span>);</span><br><span class="line"><span class="type">void</span> *ptr = mmap(<span class="literal">NULL</span>, <span class="number">4096</span>, PROT_READ|PROT_WRITE, MAP_SHARED, fd, <span class="number">0</span>);</span><br><span class="line"><span class="comment">/* ... use ptr ... */</span></span><br><span class="line">munmap(ptr, <span class="number">4096</span>);</span><br><span class="line">shm_unlink(<span class="string">&quot;/myshm&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意</strong>：共享内存仅在 <code>CONFIG_BUILD_KERNEL</code> 模式下可用——它需要 MMU 和地址环境支持。</p>
+<h3 id="2-5-管道与-FIFO"><a href="#2-5-管道与-FIFO" class="headerlink" title="2.5 管道与 FIFO"></a>2.5 管道与 FIFO</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;unistd.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">/* 匿名管道（父子进程间）*/</span></span><br><span class="line"><span class="type">int</span> pipefd[<span class="number">2</span>];</span><br><span class="line">pipe(pipefd);</span><br><span class="line"><span class="comment">/* pipefd[0] = 读端, pipefd[1] = 写端 */</span></span><br><span class="line">write(pipefd[<span class="number">1</span>], <span class="string">&quot;data&quot;</span>, <span class="number">5</span>);</span><br><span class="line">read(pipefd[<span class="number">0</span>], buf, <span class="number">5</span>);</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 命名管道 FIFO（任意进程间）*/</span></span><br><span class="line">mkfifo(<span class="string">&quot;/tmp/myfifo&quot;</span>, <span class="number">0666</span>);</span><br><span class="line"><span class="type">int</span> fd = open(<span class="string">&quot;/tmp/myfifo&quot;</span>, O_WRONLY);  <span class="comment">/* 阻塞直到有读端打开 */</span></span><br><span class="line">write(fd, <span class="string">&quot;data&quot;</span>, <span class="number">5</span>);</span><br></pre></td></tr></table></figure>
+
+<p>概览完毕。下面深入消息队列的内核实现。</p>
+<hr>
+<h2 id="3-深入：消息队列内核实现"><a href="#3-深入：消息队列内核实现" class="headerlink" title="3. 深入：消息队列内核实现"></a>3. 深入：消息队列内核实现</h2><p>消息队列提供三个关键特性：<strong>消息边界保持</strong>（每条消息完整交付，不会像管道那样被截断）、<strong>优先级排序</strong>（紧急消息可以插队）、<strong>内核托管</strong>（发送方不需要等接收方准备好）。</p>
+<blockquote>
+<p>本章将逐一回答四个核心问题：</p>
+<ol>
+<li><strong><code>mq_open</code> 做了什么？</strong>——如何通过 VFS inode 创建和查找消息队列</li>
+<li><strong>用户空间怎么到内核空间？</strong>——SVC 系统调用从触发到分派的完整链路</li>
+<li><strong>消息发送和接收怎么实现？</strong>——<code>mq_send</code>&#x2F;<code>mq_receive</code> 的逐步骤分析</li>
+<li><strong>如何管理阻塞与唤醒？</strong>——优先级等待队列 + 超时看门狗的协作机制</li>
+</ol>
+</blockquote>
+<h3 id="3-1-核心数据结构"><a href="#3-1-核心数据结构" class="headerlink" title="3.1 核心数据结构"></a>3.1 核心数据结构</h3><p>消息队列由三层数据结构组成：消息节点（<code>mqueue_msg_s</code>）存储单条消息；队列本体（<code>mqueue_inode_s</code>）管理消息链表和容量；公共头部（<code>mqueue_cmn_s</code>）管理阻塞任务。<code>mqueue_inode_s</code> 内嵌 <code>mqueue_cmn_s</code>，而 <code>mqueue_cmn_s</code> 的两个 <code>dq_queue_t</code> 头各自链接着按优先级排序的 TCB。<code>mqueue_inode_s</code> 作为 <code>inode-&gt;i_private</code> 挂在 VFS 中，是内核操作消息队列的唯一入口。</p>
+<p>下图展示了这些结构体的嵌套关系、字段布局以及”通过 VFS inode 找到 msgq → 通过 waitfornotempty&#x2F;waitfornotfull 管理阻塞 TCB → 通过 msglist 存取消息”的完整数据流：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/_struct.png" alt="mq_data_struct"></p>
+<p>文件：<code>sched/mqueue/mqueue.h:68-79</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mqueue_msg_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">list_node</span> <span class="title">node</span>;</span>        <span class="comment">/* 链表节点 */</span></span><br><span class="line">  <span class="type">uint8_t</span> type;                 <span class="comment">/* 分配类型：预分配/动态/中断保留 */</span></span><br><span class="line">  <span class="type">uint8_t</span> priority;             <span class="comment">/* 消息优先级（0 ~ MQ_PRIO_MAX-1）*/</span></span><br><span class="line">  <span class="type">uint16_t</span> msglen;              <span class="comment">/* 消息数据长度 */</span></span><br><span class="line">  <span class="type">char</span> mail[<span class="number">1</span>];                 <span class="comment">/* 可变长消息体（flexible array）*/</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>include/nuttx/mqueue.h:103-131</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mqueue_cmn_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">dq_queue_t</span> waitfornotempty;   <span class="comment">/* 等待队列非空的任务链表（接收者阻塞在此）*/</span></span><br><span class="line">  <span class="type">dq_queue_t</span> waitfornotfull;    <span class="comment">/* 等待队列非满的任务链表（发送者阻塞在此）*/</span></span><br><span class="line">  <span class="type">int16_t</span> nwaitnotfull;         <span class="comment">/* 等待非满的任务数 */</span></span><br><span class="line">  <span class="type">int16_t</span> nwaitnotempty;        <span class="comment">/* 等待非空的任务数 */</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mqueue_inode_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">mqueue_cmn_s</span> <span class="title">cmn</span>;</span>      <span class="comment">/* 公共头部（阻塞队列在此）*/</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span>;</span>      <span class="comment">/* 对应的 VFS inode */</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">list_node</span> <span class="title">msglist</span>;</span>     <span class="comment">/* 按优先级降序的消息链表 */</span></span><br><span class="line">  <span class="type">int16_t</span> maxmsgs;              <span class="comment">/* 队列最大消息数 */</span></span><br><span class="line">  <span class="type">int16_t</span> nmsgs;                <span class="comment">/* 当前消息数 */</span></span><br><span class="line">  <span class="type">uint16_t</span> maxmsgsize;          <span class="comment">/* 单条消息最大字节数 */</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">pollfd</span> *<span class="title">fds</span>[<span class="title">CONFIG_FS_MQUEUE_NPOLLWAITERS</span>];</span> <span class="comment">/* poll 等待者 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>消息链表 <code>msglist</code> 始终按优先级降序排列（高优先级在前），<code>mq_receive()</code> 从链表头取即可得到最高优先级消息——O(1)取出。</p>
+<h3 id="3-2-从用户空间到内核空间：SVC-系统调用路径"><a href="#3-2-从用户空间到内核空间：SVC-系统调用路径" class="headerlink" title="3.2 从用户空间到内核空间：SVC 系统调用路径"></a>3.2 从用户空间到内核空间：SVC 系统调用路径</h3><p>在 KERNEL 或 PROTECTED 构建模式下，用户进程运行在非特权态。<code>mq_open</code>、<code>mq_send</code>、<code>mq_receive</code> 等 POSIX API 由 <code>tools/mksyscall.c</code> 自动生成代理函数，通过 <code>sys_call4</code> 宏触发 <code>svc</code> 指令陷入内核。内核侧的 <code>arm_syscall()</code> 根据系统调用号查 <code>g_stublookup[]</code> 表，找到对应的 STUB 函数做类型转换后调用真正的内核实现。</p>
+<p><strong>完整调用链路</strong>（以 <code>mq_send</code> 为例）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">用户进程 mq_send()</span><br><span class="line">  → sys_call4(SYS_mq_send, ...)           [用户态代理，mksyscall 自动生成]</span><br><span class="line">    → &quot;svc&quot; 指令                          [触发 SVC 异常，切换到特权态]</span><br><span class="line">      → arm_syscall() → dispatch_syscall()→ g_stublookup[] → STUB_mq_send()</span><br><span class="line">        → mq_send()                       [内核实现，sched/mqueue/mq_send.c]</span><br></pre></td></tr></table></figure>
+
+<p>下图展示了从用户态到内核态的完整桥接过程：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="svc"></p>
+<h3 id="3-3-mq-open-：消息队列的创建与打开"><a href="#3-3-mq-open-：消息队列的创建与打开" class="headerlink" title="3.3 mq_open()：消息队列的创建与打开"></a>3.3 mq_open()：消息队列的创建与打开</h3><p><code>mq_open</code> 的核心工作是：将用户给定的名字（如 <code>&quot;/myqueue&quot;</code>）映射到 VFS 中的一个 inode，该 inode 的类型为消息队列（<code>FSNODEFLAG_TYPE_MQUEUE</code>），其 <code>i_private</code> 指向一个 <code>mqueue_inode_s</code> 实例。</p>
+<p><strong>完整流程</strong>（文件：<code>fs/mqueue/mq_open.c:160-344</code>，函数 <code>file_mq_vopen</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">file_mq_vopen</span><span class="params">(FAR <span class="keyword">struct</span> file *mq, FAR <span class="type">const</span> <span class="type">char</span> *mq_name,</span></span><br><span class="line"><span class="params">                         <span class="type">int</span> oflags, <span class="type">mode_t</span> umask, va_list ap, <span class="type">int</span> *created)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">inode</span> *<span class="title">inode</span>;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mqueue_inode_s</span> *<span class="title">msgq</span>;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">inode_search_s</span> <span class="title">desc</span>;</span></span><br><span class="line">  <span class="type">char</span> fullpath[MAX_MQUEUE_PATH];</span><br><span class="line">  <span class="type">mode_t</span> mode = <span class="number">0</span>;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mq_attr</span> *<span class="title">attr</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 1：如果指定了 O_CREAT，从 va_list 中提取 mode 和 attr */</span></span><br><span class="line">  <span class="keyword">if</span> ((oflags &amp; O_CREAT) != <span class="number">0</span>) &#123;</span><br><span class="line">    mode = va_arg(ap, <span class="type">mode_t</span>);</span><br><span class="line">    attr = va_arg(ap, FAR <span class="keyword">struct</span> mq_attr *);</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 2：构造完整路径。所有消息队列统一在 CONFIG_FS_MQUEUE_VFS_PATH 下 */</span></span><br><span class="line">  <span class="keyword">while</span> (*mq_name == <span class="string">&#x27;/&#x27;</span>) mq_name++;           <span class="comment">/* 跳过前导 &#x27;/&#x27; */</span></span><br><span class="line">  <span class="built_in">snprintf</span>(fullpath, MAX_MQUEUE_PATH,</span><br><span class="line">           CONFIG_FS_MQUEUE_VFS_PATH <span class="string">&quot;/%s&quot;</span>, mq_name);  <span class="comment">/* 例如 /var/mqueue/myqueue */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 3：进入临界区——保证 inode 查找和创建是原子的 */</span></span><br><span class="line">  flags = enter_critical_section();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 4：在 VFS 中查找该路径 */</span></span><br><span class="line">  SETUP_SEARCH(&amp;desc, fullpath, <span class="literal">false</span>);</span><br><span class="line">  ret = inode_find(&amp;desc);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (ret &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="comment">/* 队列已存在：验证类型是 MQUEUE，检查 O_EXCL，建立 file 关联 */</span></span><br><span class="line">    inode = desc.node;</span><br><span class="line">    <span class="keyword">if</span> (!INODE_IS_MQUEUE(inode)) <span class="keyword">return</span> -ENXIO;</span><br><span class="line">    <span class="keyword">if</span> ((oflags &amp; (O_CREAT | O_EXCL)) == (O_CREAT | O_EXCL)) <span class="keyword">return</span> -EEXIST;</span><br><span class="line">    mq-&gt;f_inode = inode;</span><br><span class="line">    mq-&gt;f_oflags = oflags;</span><br><span class="line">  &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="comment">/* 不存在 + O_CREAT：创建新 inode 和新 mqueue_inode_s */</span></span><br><span class="line">    <span class="keyword">if</span> ((oflags &amp; O_CREAT) == <span class="number">0</span>) <span class="keyword">return</span> -ENOENT;</span><br><span class="line"></span><br><span class="line">    inode_reserve(fullpath, mode, &amp;inode);     <span class="comment">/* 在 VFS 中预留 inode 节点 */</span></span><br><span class="line">    nxmq_alloc_msgq(attr, &amp;msgq);              <span class="comment">/* 分配并初始化 mqueue_inode_s */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 绑定关系：file → inode → msgq */</span></span><br><span class="line">    mq-&gt;f_inode = inode;</span><br><span class="line">    mq-&gt;f_oflags = oflags;</span><br><span class="line">    INODE_SET_MQUEUE(inode);                   <span class="comment">/* 标记 inode 类型为消息队列 */</span></span><br><span class="line">    inode-&gt;u.i_ops = &amp;g_nxmq_fileops;          <span class="comment">/* 设置文件操作表 */</span></span><br><span class="line">    inode-&gt;i_private = msgq;                   <span class="comment">/* 关键：msgq 挂在 inode 下 */</span></span><br><span class="line">    msgq-&gt;inode = inode;                       <span class="comment">/* 反向引用 */</span></span><br><span class="line">    atomic_fetch_add(&amp;inode-&gt;i_crefs, <span class="number">1</span>);      <span class="comment">/* 初始引用计数 = 1 */</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  leave_critical_section(flags);</span><br><span class="line">  <span class="keyword">return</span> OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>Step 6：分配 fd</strong>。<code>file_mq_vopen</code> 返回后，调用方 <code>nxmq_vopen</code>（<code>mq_open.c:346-374</code>）通过 <code>file_dup()</code> 为这个 <code>struct file</code> 分配用户态文件描述符 fd，返回给用户。因此 <code>mq_open</code> 的返回值 <code>mqd_t</code> 本质上就是一个 fd（整数）。</p>
+<p><strong>小结</strong>：<code>mq_open</code> 做了五件事：</p>
+<ol>
+<li>拼接完整 VFS 路径（<code>CONFIG_FS_MQUEUE_VFS_PATH &quot;/&quot; name</code>）</li>
+<li>在 VFS 中查找或创建 inode</li>
+<li>分配 <code>mqueue_inode_s</code>，初始化 <code>maxmsgs</code>、<code>maxmsgsize</code> 和阻塞队列</li>
+<li>将 <code>msgq</code> 绑定到 <code>inode-&gt;i_private</code></li>
+<li>返回 fd 给用户</li>
+</ol>
+<h3 id="3-4-消息发送：mq-send-完整链路"><a href="#3-4-消息发送：mq-send-完整链路" class="headerlink" title="3.4 消息发送：mq_send() 完整链路"></a>3.4 消息发送：mq_send() 完整链路</h3><p>一条消息从用户进程到达内核消息队列，经历系统调用（3.2 节）后的内核执行路径如下。</p>
+<p><strong>内核入口</strong>（文件：<code>sched/mqueue/mq_send.c:686-746</code>）：</p>
+<p>从 <code>SYS_syscall</code> 路径进来后，<code>mq_send()</code> 本身只做取消点标记和错误码包装：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">mq_send</span><span class="params">(<span class="type">mqd_t</span> mqdes, FAR <span class="type">const</span> <span class="type">char</span> *msg, <span class="type">size_t</span> msglen, <span class="type">unsigned</span> <span class="type">int</span> prio)</span></span><br><span class="line">&#123;</span><br><span class="line">  enter_cancellation_point();</span><br><span class="line">  ret = nxmq_send(mqdes, msg, msglen, prio);   <span class="comment">/* 委托给内核内部函数 */</span></span><br><span class="line">  <span class="keyword">if</span> (ret &lt; <span class="number">0</span>) &#123; set_errno(-ret); ret = ERROR; &#125;</span><br><span class="line">  leave_cancellation_point();</span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>nxmq_send()</code> 通过 <code>file_get(mqdes, &amp;filep)</code> 将 fd 转换为 <code>struct file *</code>，再调用核心函数 <code>file_mq_timedsend_internal()</code>。</p>
+<p><strong>核心发送逻辑</strong>（文件：<code>sched/mqueue/mq_send.c:274-370</code>，函数 <code>file_mq_timedsend_internal</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">file_mq_timedsend_internal</span><span class="params">(FAR <span class="keyword">struct</span> file *mq,</span></span><br><span class="line"><span class="params">    FAR <span class="type">const</span> <span class="type">char</span> *msg, <span class="type">size_t</span> msglen, <span class="type">unsigned</span> <span class="type">int</span> prio, ...)</span></span><br><span class="line">&#123;</span><br><span class="line">  msgq = mq-&gt;f_inode-&gt;i_private;                <span class="comment">/* Step 0：从 inode 取得 msgq */</span></span><br><span class="line"></span><br><span class="line">  mqmsg = nxmq_alloc_msg(msglen);               <span class="comment">/* Step 1：分配消息节点 */</span></span><br><span class="line">  <span class="built_in">memcpy</span>(mqmsg-&gt;mail, msg, msglen);              <span class="comment">/* Step 2：复制数据到内核消息体 */</span></span><br><span class="line">  mqmsg-&gt;priority = prio;</span><br><span class="line">  mqmsg-&gt;msglen = msglen;</span><br><span class="line"></span><br><span class="line">  flags = enter_critical_section();              <span class="comment">/* Step 3：关中断，保护链表 */</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (msgq-&gt;nmsgs &gt;= msgq-&gt;maxmsgs) &#123;            <span class="comment">/* Step 4：队列满了？ */</span></span><br><span class="line">    <span class="keyword">if</span> (O_NONBLOCK) &#123; ret = -EAGAIN; <span class="keyword">goto</span> out; &#125; <span class="comment">/*  非阻塞：立即返回 EAGAIN */</span></span><br><span class="line">    ret = nxmq_wait_send(msgq, abstime, ticks);  <span class="comment">/*  阻塞：挂到 waitfornotfull 等 */</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  nxmq_add_queue(msgq, mqmsg, prio);             <span class="comment">/* Step 5：按优先级插入消息链表 */</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (msgq-&gt;nmsgs++ == <span class="number">0</span>)                        <span class="comment">/* Step 6：从空变非空 */</span></span><br><span class="line">    nxmq_pollnotify(msgq, POLLIN);               <span class="comment">/*   通知 poll() 等待者 */</span></span><br><span class="line"></span><br><span class="line">  nxmq_notify_send(msgq);                        <span class="comment">/* Step 7：唤醒阻塞的接收者 */</span></span><br><span class="line"></span><br><span class="line">out:</span><br><span class="line">  leave_critical_section(flags);</span><br><span class="line">  <span class="keyword">if</span> (ret &lt; <span class="number">0</span>) nxmq_free_msg(mqmsg);             <span class="comment">/*  失败则释放已分配的消息 */</span></span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>优先级插入</strong>（文件：<code>sched/mqueue/mq_send.c:206-240</code>，<code>nxmq_add_queue</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">nxmq_add_queue</span><span class="params">(FAR <span class="keyword">struct</span> mqueue_inode_s *msgq,</span></span><br><span class="line"><span class="params">                           FAR <span class="keyword">struct</span> mqueue_msg_s *mqmsg, <span class="type">unsigned</span> <span class="type">int</span> prio)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mqueue_msg_s</span> *<span class="title">next</span>;</span></span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">mqueue_msg_s</span> *<span class="title">prev</span> =</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 遍历消息链表，找到第一个优先级低于新消息的位置 */</span></span><br><span class="line">  list_for_every_entry(&amp;msgq-&gt;msglist, next, <span class="keyword">struct</span> mqueue_msg_s, node) &#123;</span><br><span class="line">    <span class="keyword">if</span> (prio &gt; next-&gt;priority) <span class="keyword">break</span>;            <span class="comment">/* 找到了插入点 */</span></span><br><span class="line">    prev = next;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (prev)</span><br><span class="line">    list_add_after(&amp;prev-&gt;node, &amp;mqmsg-&gt;node);   <span class="comment">/* 插入中间 */</span></span><br><span class="line">  <span class="keyword">else</span></span><br><span class="line">    list_add_head(&amp;msgq-&gt;msglist, &amp;mqmsg-&gt;node); <span class="comment">/* 插入头部（最高优先级）*/</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>链表是按优先级<strong>降序</strong>排列的。所以 <code>prio=200</code> 的消息排在 <code>prio=100</code> 的前面，<code>mq_receive()</code> 从链表头取消息即可获得最高优先级消息——O(1)取出，开销仅发生在 <code>mq_send</code> 时的 O(n) 插入。</p>
+</blockquote>
+<h3 id="3-5-消息接收：mq-receive-完整链路"><a href="#3-5-消息接收：mq-receive-完整链路" class="headerlink" title="3.5 消息接收：mq_receive() 完整链路"></a>3.5 消息接收：mq_receive() 完整链路</h3><p><strong>内核入口</strong>（文件：<code>sched/mqueue/mq_receive.c:525-599</code>）：</p>
+<p>与发送对称，<code>mq_receive()</code> 委托给 <code>nxmq_receive() -&gt; file_mq_receive()</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">ssize_t</span> <span class="title function_">nxmq_receive</span><span class="params">(<span class="type">mqd_t</span> mqdes, FAR <span class="type">char</span> *msg, <span class="type">size_t</span> msglen,</span></span><br><span class="line"><span class="params">                     FAR <span class="type">unsigned</span> <span class="type">int</span> *prio)</span></span><br><span class="line">&#123;</span><br><span class="line">  file_get(mqdes, &amp;filep);                            <span class="comment">/* fd → struct file * */</span></span><br><span class="line">  ret = file_mq_receive(filep, msg, msglen, prio);</span><br><span class="line">  file_put(filep);</span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>核心接收逻辑</strong>（文件：<code>sched/mqueue/mq_receive.c:137-239</code>，<code>file_mq_timedreceive_internal</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> <span class="title function_">file_mq_timedreceive_internal</span><span class="params">(FAR <span class="keyword">struct</span> file *mq,</span></span><br><span class="line"><span class="params">    FAR <span class="type">char</span> *msg, <span class="type">size_t</span> msglen, FAR <span class="type">unsigned</span> <span class="type">int</span> *prio, ...)</span></span><br><span class="line">&#123;</span><br><span class="line">  msgq = mq-&gt;f_inode-&gt;i_private;</span><br><span class="line"></span><br><span class="line">  flags = enter_critical_section();                <span class="comment">/* 关中断 */</span></span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 1：从链表头取出消息（最高优先级，O(1)）*/</span></span><br><span class="line">  mqmsg = (FAR <span class="keyword">struct</span> mqueue_msg_s *)list_remove_head(&amp;msgq-&gt;msglist);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (mqmsg == <span class="literal">NULL</span>) &#123;                             <span class="comment">/* Step 2：队列为空？ */</span></span><br><span class="line">    <span class="keyword">if</span> (O_NONBLOCK || up_interrupt_context())      <span class="comment">/*  不能阻塞的场景 */</span></span><br><span class="line">      &#123; leave_critical_section(flags); <span class="keyword">return</span> -EAGAIN; &#125;</span><br><span class="line">    ret = nxmq_wait_receive(msgq, &amp;mqmsg, ...);    <span class="comment">/*  阻塞：挂到 waitfornotempty 等 */</span></span><br><span class="line">    <span class="comment">/* 被唤醒后 mqmsg 已由 notifier 放入 */</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (msgq-&gt;nmsgs-- == msgq-&gt;maxmsgs)              <span class="comment">/* Step 3：从满变非满 */</span></span><br><span class="line">    nxmq_pollnotify(msgq, POLLOUT);                <span class="comment">/*   通知 poll() 等待者 */</span></span><br><span class="line"></span><br><span class="line">  nxmq_notify_receive(msgq);                       <span class="comment">/* Step 4：唤醒阻塞的发送者 */</span></span><br><span class="line"></span><br><span class="line">  leave_critical_section(flags);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 5：复制消息到用户缓冲区 */</span></span><br><span class="line">  <span class="keyword">if</span> (prio) *prio = mqmsg-&gt;priority;</span><br><span class="line">  <span class="built_in">memcpy</span>(msg, mqmsg-&gt;mail, mqmsg-&gt;msglen);</span><br><span class="line">  ret = mqmsg-&gt;msglen;</span><br><span class="line"></span><br><span class="line">  nxmq_free_msg(mqmsg);                            <span class="comment">/* Step 6：释放消息节点 */</span></span><br><span class="line">  <span class="keyword">return</span> ret;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>发送与接收的对称性</strong>：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>阻塞条件</th>
+<th>阻塞队列</th>
+<th>任务状态</th>
+<th>对端唤醒函数</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>发送方</td>
+<td><code>nmsgs &gt;= maxmsgs</code></td>
+<td><code>waitfornotfull</code></td>
+<td><code>TSTATE_WAIT_MQNOTFULL</code></td>
+<td><code>nxmq_notify_receive</code></td>
+</tr>
+<tr>
+<td>接收方</td>
+<td><code>nmsgs == 0</code></td>
+<td><code>waitfornotempty</code></td>
+<td><code>TSTATE_WAIT_MQNOTEMPTY</code></td>
+<td><code>nxmq_notify_send</code></td>
+</tr>
+</tbody></table>
+<p>这是经典的生产者-消费者同步模式：生产者满则等，消费者取走唤醒之；消费者空则等，生产者放入唤醒之。</p>
+<h3 id="3-6-阻塞与唤醒机制详解"><a href="#3-6-阻塞与唤醒机制详解" class="headerlink" title="3.6 阻塞与唤醒机制详解"></a>3.6 阻塞与唤醒机制详解</h3><p>消息队列的阻塞不是简单的 <code>sleep()</code>——它涉及调度器、优先级排序、<code>while</code> 循环重试和超时看门狗的四方协作。</p>
+<h4 id="3-6-1-发送者阻塞（nxmq-wait-send）"><a href="#3-6-1-发送者阻塞（nxmq-wait-send）" class="headerlink" title="3.6.1 发送者阻塞（nxmq_wait_send）"></a>3.6.1 发送者阻塞（<code>nxmq_wait_send</code>）</h4><p>文件：<code>sched/mqueue/mq_sndinternal.c:127-218</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nxmq_wait_send</span><span class="params">(FAR <span class="keyword">struct</span> mqueue_inode_s *msgq,</span></span><br><span class="line"><span class="params">                   FAR <span class="type">const</span> <span class="keyword">struct</span> timespec *abstime, <span class="type">clock_t</span> ticks)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step A：设置超时看门狗（如果指定了超时）*/</span></span><br><span class="line">  <span class="keyword">if</span> (abstime)</span><br><span class="line">    wd_start_realtime(&amp;rtcb-&gt;waitdog, abstime, nxmq_sndtimeout, (<span class="type">wdparm_t</span>)rtcb);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step B：while 循环——因为醒来后队列可能又满了（竞态）*/</span></span><br><span class="line">  <span class="keyword">while</span> (msgq-&gt;nmsgs &gt;= msgq-&gt;maxmsgs)</span><br><span class="line">  &#123;</span><br><span class="line">    rtcb-&gt;waitobj = msgq;                             <span class="comment">/* 记录等待哪个队列 */</span></span><br><span class="line">    msgq-&gt;cmn.nwaitnotfull++;                         <span class="comment">/* 等待计数 +1 */</span></span><br><span class="line"></span><br><span class="line">    nxsched_remove_self(rtcb);                        <span class="comment">/* 从运行队列移除 */</span></span><br><span class="line">    rtcb-&gt;task_state = TSTATE_WAIT_MQNOTFULL;         <span class="comment">/* 标记阻塞状态 */</span></span><br><span class="line">    nxsched_add_prioritized(rtcb, MQ_WNFLIST(msgq-&gt;cmn));  <span class="comment">/* 按优先级插入等待队列 */</span></span><br><span class="line"></span><br><span class="line">    up_switch_context(this_task(), rtcb);             <span class="comment">/* 触发上下文切换 */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* ===== 在此阻塞，CPU 运行其他任务 ===== */</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 被唤醒后回到此处。检查 errcode 判断唤醒原因 */</span></span><br><span class="line">    <span class="keyword">if</span> (rtcb-&gt;errcode != OK) <span class="keyword">break</span>;                   <span class="comment">/* 超时(EAGAIN)或信号中断(EINTR) */</span></span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step C：取消超时看门狗 */</span></span><br><span class="line">  <span class="keyword">if</span> (abstime || ticks &gt;= <span class="number">0</span>) wd_cancel(&amp;rtcb-&gt;waitdog);</span><br><span class="line">  <span class="keyword">return</span> -rtcb-&gt;errcode;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键细节</strong>：</p>
+<ul>
+<li><code>nxsched_add_prioritized()</code> 将 TCB <strong>按优先级</strong>插入 <code>waitfornotfull</code> 链表——高优先级任务排前面，唤醒时先被取出。这与管道的 FIFO 唤醒不同。</li>
+<li><code>while</code> 循环绝对不能省：另一个更高优先级的等待者可能在当前任务重新运行前抢走了槽位，导致队列再次满了。</li>
+<li><code>rtcb-&gt;waitobj = msgq</code> 将当前任务与队列绑定——当任务被 <code>mq_close</code> 意外结束或信号杀死时，内核可通过 <code>waitobj</code> 将其从等待链表中移除。</li>
+</ul>
+<p>下图展示了发送者阻塞与唤醒的完整时序——从 <code>mq_send</code> 发现队列已满开始，经调度器阻塞、接收者取走消息、notify 唤醒、到最后消息入队的全过程：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png" alt="mq_send"></p>
+<h4 id="3-6-2-接收者阻塞（nxmq-wait-receive）"><a href="#3-6-2-接收者阻塞（nxmq-wait-receive）" class="headerlink" title="3.6.2 接收者阻塞（nxmq_wait_receive）"></a>3.6.2 接收者阻塞（<code>nxmq_wait_receive</code>）</h4><p>文件：<code>sched/mqueue/mq_rcvinternal.c:127-207</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">nxmq_wait_receive</span><span class="params">(FAR <span class="keyword">struct</span> mqueue_inode_s *msgq,</span></span><br><span class="line"><span class="params">                      FAR <span class="keyword">struct</span> mqueue_msg_s **rcvmsg, ...)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">rtcb</span> =</span> this_task();</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (abstime)</span><br><span class="line">    wd_start_realtime(&amp;rtcb-&gt;waitdog, abstime, nxmq_rcvtimeout, (<span class="type">wdparm_t</span>)rtcb);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* while 循环体内部也在尝试 list_remove_head()</span></span><br><span class="line"><span class="comment">   * ——消息可能在进入 while 之前已被放入，直接返回，不阻塞 */</span></span><br><span class="line">  <span class="keyword">while</span> ((newmsg = list_remove_head(&amp;msgq-&gt;msglist)) == <span class="literal">NULL</span>)</span><br><span class="line">  &#123;</span><br><span class="line">    msgq-&gt;cmn.nwaitnotempty++;</span><br><span class="line">    rtcb-&gt;waitobj = msgq;</span><br><span class="line">    nxsched_remove_self(rtcb);</span><br><span class="line">    rtcb-&gt;task_state = TSTATE_WAIT_MQNOTEMPTY;        <span class="comment">/* 不同的阻塞状态 */</span></span><br><span class="line">    nxsched_add_prioritized(rtcb, MQ_WNELIST(msgq-&gt;cmn));  <span class="comment">/* 不同的等待队列 */</span></span><br><span class="line"></span><br><span class="line">    up_switch_context(this_task(), rtcb);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (rtcb-&gt;errcode != OK) <span class="keyword">break</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (abstime || ticks &gt;= <span class="number">0</span>) wd_cancel(&amp;rtcb-&gt;waitdog);</span><br><span class="line">  *rcvmsg = newmsg;</span><br><span class="line">  <span class="keyword">return</span> -rtcb-&gt;errcode;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>注意</strong>：与 <code>nxmq_wait_send</code> 不同，接收者 while 循环的<strong>内部</strong>也在尝试 <code>list_remove_head()</code>——消息可能恰好在进入循环的瞬间被放入队列，此时直接拿到消息返回，根本不会阻塞。这是无锁编程中的”乐观尝试”模式。</p>
+</blockquote>
+<p>下图展示了接收者阻塞与唤醒的完整时序——从 <code>mq_receive</code> 发现队列为空开始，经调度器阻塞、发送者放入消息、notify 唤醒，到最终拿到消息的全过程：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ive.png" alt="mq_receive"></p>
+<h4 id="3-6-3-唤醒阻塞者（nxmq-notify-send-nxmq-notify-receive）"><a href="#3-6-3-唤醒阻塞者（nxmq-notify-send-nxmq-notify-receive）" class="headerlink" title="3.6.3 唤醒阻塞者（nxmq_notify_send &#x2F; nxmq_notify_receive）"></a>3.6.3 唤醒阻塞者（<code>nxmq_notify_send</code> &#x2F; <code>nxmq_notify_receive</code>）</h4><p><strong>发送者放入消息后 → 唤醒接收者</strong>（<code>mq_sndinternal.c:239-305</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">nxmq_notify_send</span><span class="params">(FAR <span class="keyword">struct</span> mqueue_inode_s *msgq)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (msgq-&gt;cmn.nwaitnotempty &gt; <span class="number">0</span>)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="comment">/* dq_remfirst：从优先级等待队列取出队首（最高优先级）任务 */</span></span><br><span class="line">    FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">btcb</span> =</span> (FAR <span class="keyword">struct</span> tcb_s *)dq_remfirst(MQ_WNELIST(msgq-&gt;cmn));</span><br><span class="line"></span><br><span class="line">    wd_cancel(&amp;btcb-&gt;waitdog);              <span class="comment">/* 取消超时看门狗 */</span></span><br><span class="line">    msgq-&gt;cmn.nwaitnotempty--;</span><br><span class="line">    btcb-&gt;waitobj = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (nxsched_add_readytorun(btcb))       <span class="comment">/* 加入就绪队列 */</span></span><br><span class="line">      up_switch_context(this_task(), rtcb); <span class="comment">/* 如果优先级更高，立即切换 */</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>接收者取走消息后 → 唤醒发送者</strong>（<code>mq_rcvinternal.c:231-272</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">nxmq_notify_receive</span><span class="params">(FAR <span class="keyword">struct</span> mqueue_inode_s *msgq)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">if</span> (msgq-&gt;cmn.nwaitnotfull &gt; <span class="number">0</span>)</span><br><span class="line">  &#123;</span><br><span class="line">    <span class="comment">/* 从 waitfornotfull 等待队列取队首 */</span></span><br><span class="line">    FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">btcb</span> =</span> (FAR <span class="keyword">struct</span> tcb_s *)dq_remfirst(MQ_WNFLIST(msgq-&gt;cmn));</span><br><span class="line"></span><br><span class="line">    wd_cancel(&amp;btcb-&gt;waitdog);</span><br><span class="line">    msgq-&gt;cmn.nwaitnotfull--;</span><br><span class="line">    btcb-&gt;waitobj = <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (nxsched_add_readytorun(btcb))</span><br><span class="line">      up_switch_context(this_task(), rtcb);</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>两个 notify 函数的对称性</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>触发操作</th>
+<th>调用函数</th>
+<th>扫描的队列</th>
+<th>被唤醒的任务状态</th>
+<th>唤醒后的效果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mq_send</code> 放入消息</td>
+<td><code>nxmq_notify_send</code></td>
+<td><code>waitfornotempty</code></td>
+<td><code>TSTATE_WAIT_MQNOTEMPTY</code></td>
+<td>接收者 <code>while</code> 循环重试，拿到消息</td>
+</tr>
+<tr>
+<td><code>mq_receive</code> 取走消息</td>
+<td><code>nxmq_notify_receive</code></td>
+<td><code>waitfornotfull</code></td>
+<td><code>TSTATE_WAIT_MQNOTFULL</code></td>
+<td>发送者 <code>while</code> 循环重试，队列有空位</td>
+</tr>
+</tbody></table>
+<h4 id="3-6-4-超时机制"><a href="#3-6-4-超时机制" class="headerlink" title="3.6.4 超时机制"></a>3.6.4 超时机制</h4><p>阻塞等待支持两种超时方式：</p>
+<ol>
+<li><strong>绝对时间</strong>（<code>mq_timedsend</code> &#x2F; <code>mq_timedreceive</code>）：通过 <code>wd_start_realtime()</code> 设置截止时间。</li>
+<li><strong>相对 tick</strong>（内部接口）：通过 <code>wd_start()</code> 设置 tick 数。</li>
+</ol>
+<p>超时回调函数（<code>mq_sndinternal.c:68-93</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">nxmq_sndtimeout</span><span class="params">(<span class="type">wdparm_t</span> arg)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">tcb_s</span> *<span class="title">wtcb</span> =</span> (FAR <span class="keyword">struct</span> tcb_s *)(<span class="type">uintptr_t</span>)arg;</span><br><span class="line"></span><br><span class="line">  flags = enter_critical_section();</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (wtcb-&gt;task_state == TSTATE_WAIT_MQNOTFULL)    <span class="comment">/* 仍在等待中（未被正常唤醒）*/</span></span><br><span class="line">    nxmq_wait_irq(wtcb, ETIMEDOUT);                 <span class="comment">/* 设置 errcode 并唤醒 */</span></span><br><span class="line"></span><br><span class="line">  leave_critical_section(flags);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>nxmq_wait_irq()</code> 将任务的 <code>errcode</code> 设为 <code>ETIMEDOUT</code>，从等待队列中移除，再加入就绪队列。任务被调度执行时，<code>while</code> 循环检查 <code>errcode != OK</code>，跳出循环并返回错误。注意回调中重新检查 <code>task_state</code>——任务可能已在超时触发的瞬间被正常唤醒。</p>
+<h3 id="3-7-VFS-集成"><a href="#3-7-VFS-集成" class="headerlink" title="3.7 VFS 集成"></a>3.7 VFS 集成</h3><p>消息队列在 VFS 中以 inode 形式存在，路径形如 <code>/var/mqueue/myqueue</code>，类型为 <code>FSNODEFLAG_TYPE_MQUEUE</code>。关联的文件操作表（<code>fs/mqueue/mq_open.c:58-69</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">const</span> <span class="class"><span class="keyword">struct</span> <span class="title">file_operations</span> <span class="title">g_nxmq_fileops</span> =</span> &#123;</span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* open  — 无需额外 open 操作 */</span></span><br><span class="line">  nxmq_file_close,  <span class="comment">/* close — 引用计数归零时释放 msgq */</span></span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* read  — 不支持 read()，须用 mq_receive() */</span></span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* write — 不支持 write()，须用 mq_send() */</span></span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* seek  — 不支持 */</span></span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* ioctl — 不支持 */</span></span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* mmap  — 不支持 */</span></span><br><span class="line">  <span class="literal">NULL</span>,             <span class="comment">/* truncate — 不支持 */</span></span><br><span class="line">  nxmq_file_poll    <span class="comment">/* poll  — 支持 poll/select */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>注意 <code>read</code> 和 <code>write</code> 操作为 NULL——消息队列必须通过 <code>mq_send()</code> &#x2F; <code>mq_receive()</code> 专用 API 操作，不能用 <code>read()</code> &#x2F; <code>write()</code> 系统调用。VFS 集成的真正意义是：支持 <code>poll()</code> 的统一事件通知（<code>POLLIN</code> &#x2F; <code>POLLOUT</code>）、引用计数管理（<code>close</code> &#x2F; <code>unlink</code>），以及与其他文件系统类型统一的路径管理。</p>
+<h3 id="3-8-对比：消息队列-vs-信号量-vs-管道阻塞机制"><a href="#3-8-对比：消息队列-vs-信号量-vs-管道阻塞机制" class="headerlink" title="3.8 对比：消息队列 vs 信号量 vs 管道阻塞机制"></a>3.8 对比：消息队列 vs 信号量 vs 管道阻塞机制</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>消息队列</th>
+<th>信号量</th>
+<th>管道</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>阻塞队列类型</td>
+<td>按优先级排序的 <code>dq_queue_t</code></td>
+<td>按优先级排序的 <code>dq_queue_t</code></td>
+<td>计数信号量 <code>sem_t</code></td>
+</tr>
+<tr>
+<td>阻塞状态</td>
+<td><code>TSTATE_WAIT_MQNOTEMPTY/FULL</code></td>
+<td><code>TSTATE_WAIT_SEM</code></td>
+<td>信号量内部状态</td>
+</tr>
+<tr>
+<td>唤醒顺序</td>
+<td><strong>按优先级</strong>（高优先级先醒）</td>
+<td><strong>按优先级</strong></td>
+<td><strong>FIFO</strong>（先等先醒）</td>
+</tr>
+<tr>
+<td>超时支持</td>
+<td>是（watchdog timer）</td>
+<td>是（watchdog timer）</td>
+<td>是（信号量超时）</td>
+</tr>
+</tbody></table>
+<p>消息队列和信号量的阻塞机制都属于”调度器级优先级等待队列”——阻塞时将 TCB 按优先级插入到 <code>dq_queue_t</code> 中，唤醒时 <code>dq_remfirst()</code> 取出最高优先级者。这保证了实时系统中紧急任务能优先获得消息。</p>
+<p>消息队列解决了”结构化消息传递”的问题。如果需要更高性能的大数据共享（避免拷贝），则需要共享内存。</p>
+<hr>
+<h2 id="4-深入：共享内存内核实现（KERNEL-模式）"><a href="#4-深入：共享内存内核实现（KERNEL-模式）" class="headerlink" title="4. 深入：共享内存内核实现（KERNEL 模式）"></a>4. 深入：共享内存内核实现（KERNEL 模式）</h2><p>其他 IPC 都需要<strong>数据拷贝</strong>（用户→内核→用户，至少两次）。共享内存通过将<strong>同一物理页映射到多个进程的虚拟地址空间</strong>，实现零拷贝——进程 A 写入的数据，进程 B 立即可见，无需内核介入。</p>
+<p>代价是：需要额外的同步机制（信号量&#x2F;互斥锁）来协调读写时序。</p>
+<p>下图展示了两个进程通过共享内存共享同一物理页的完整流程：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="sm"></p>
+<h3 id="4-1-核心数据结构"><a href="#4-1-核心数据结构" class="headerlink" title="4.1 核心数据结构"></a>4.1 核心数据结构</h3><p>文件：<code>mm/shm/shm.h:83-93</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">shm_region_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">shmid_ds</span> <span class="title">sr_ds</span>;</span>          <span class="comment">/* POSIX shmid_ds（大小、权限、attach 计数）*/</span></span><br><span class="line">  <span class="type">bool</span>    sr_flags;               <span class="comment">/* SRFLAG_INUSE / SRFLAG_UNLINKED */</span></span><br><span class="line">  <span class="type">key_t</span>   sr_key;                 <span class="comment">/* 查找键 */</span></span><br><span class="line">  <span class="type">mutex_t</span> sr_lock;                <span class="comment">/* 保护本区域的互斥锁 */</span></span><br><span class="line">  <span class="type">uintptr_t</span> sr_pages[CONFIG_ARCH_SHM_NPAGES];  <span class="comment">/* 物理页地址数组 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>全局区域表：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">shm_info_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">mutex_t</span> si_lock;</span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">shm_region_s</span> <span class="title">si_region</span>[<span class="title">CONFIG_ARCH_SHM_MAXREGIONS</span>];</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 单例实例 */</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">shm_info_s</span> <span class="title">g_shminfo</span>;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>关键字段 <code>sr_pages[]</code><strong>：存储该共享内存区域所有物理页的地址。多个进程通过各自的页表映射到这些</strong>相同的物理页</strong>——这就是”共享”的本质。</p>
+<h3 id="4-2-shmget-：创建-获取共享内存"><a href="#4-2-shmget-：创建-获取共享内存" class="headerlink" title="4.2 shmget()：创建&#x2F;获取共享内存"></a>4.2 shmget()：创建&#x2F;获取共享内存</h3><p>文件：<code>mm/shm/shmget.c:364-482</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">shmget</span><span class="params">(<span class="type">key_t</span> key, <span class="type">size_t</span> size, <span class="type">int</span> shmflg)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* Step 1: 在全局表中查找 key */</span></span><br><span class="line">  regionid = shm_find(key);   <span class="comment">/* 线性扫描 si_region[] */</span></span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (regionid &lt; <span class="number">0</span> &amp;&amp; (shmflg &amp; IPC_CREAT))</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* Step 2: 找一个空闲 slot */</span></span><br><span class="line">      regionid = shm_reserve();</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* Step 3: 分配物理页 */</span></span><br><span class="line">      shm_extend(regionid, size);</span><br><span class="line">      <span class="comment">/* → 循环调用 mm_pgalloc(1)，每次分配一个 4KB 物理页</span></span><br><span class="line"><span class="comment">       *   存入 sr_pages[] 数组 */</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> regionid;  <span class="comment">/* 返回 shmid（就是数组索引）*/</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-shmat-：映射到进程地址空间"><a href="#4-3-shmat-：映射到进程地址空间" class="headerlink" title="4.3 shmat()：映射到进程地址空间"></a>4.3 shmat()：映射到进程地址空间</h3><p>文件：<code>mm/shm/shmat.c:208-308</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">FAR <span class="type">void</span> *<span class="title function_">shmat</span><span class="params">(<span class="type">int</span> shmid, FAR <span class="type">const</span> <span class="type">void</span> *shmaddr, <span class="type">int</span> shmflg)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">shm_region_s</span> *<span class="title">region</span> =</span> &amp;g_shminfo.si_region[shmid];</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 1: 在进程虚拟地址空间中找一块空闲 VA 区域 */</span></span><br><span class="line">  vaddr = vm_alloc_region(group_mm, <span class="literal">NULL</span>, region-&gt;sr_ds.shm_segsz);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 2: 将物理页映射到该 VA（写 L1/L2 页表）*/</span></span><br><span class="line">  up_shmat(region-&gt;sr_pages, npages, (<span class="type">uintptr_t</span>)vaddr);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 3: 注册映射关系（用于 shmdt 时查找）*/</span></span><br><span class="line">  mm_map_add(group_mm, &amp;entry);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 4: 更新元数据 */</span></span><br><span class="line">  region-&gt;sr_ds.shm_nattch++;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> (FAR <span class="type">void</span> *)vaddr;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-4-up-shmat-：ARMv7-A-MMU-页表操作"><a href="#4-4-up-shmat-：ARMv7-A-MMU-页表操作" class="headerlink" title="4.4 up_shmat()：ARMv7-A MMU 页表操作"></a>4.4 up_shmat()：ARMv7-A MMU 页表操作</h3><p>文件：<code>arch/arm/src/armv7-a/arm_addrenv_shm.c:69-156</code></p>
+<p>这是共享内存的<strong>硬件层核心</strong>——将物理页写入调用进程的 L2 页表：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">up_shmat</span><span class="params">(FAR <span class="type">uintptr_t</span> *pages, <span class="type">unsigned</span> <span class="type">int</span> npages, <span class="type">uintptr_t</span> vaddr)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; npages; i++)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 确保该 VA 对应的 L2 页表存在（不存在则分配）*/</span></span><br><span class="line">      l2table = get_pgtable(addrenv, vaddr);</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 计算 L2 索引 */</span></span><br><span class="line">      index = (vaddr &amp; <span class="number">0x000ff000</span>) &gt;&gt; <span class="number">12</span>;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 写入 L2 PTE：物理页地址 + 用户数据权限 */</span></span><br><span class="line">      l2table[index] = pages[i] | MMU_L2_UDATAFLAGS;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 刷新 D-Cache */</span></span><br><span class="line">      up_flush_dcache(&amp;l2table[index], <span class="keyword">sizeof</span>(<span class="type">uint32_t</span>));</span><br><span class="line"></span><br><span class="line">      vaddr += MM_PGSIZE;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>跨进程共享的本质</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Process A L2 page table:            Process B L2 page table:</span><br><span class="line">+---------------------------------+  +---------------------------------+</span><br><span class="line">| VA 0x80400000 -&gt; PA 0x40350000  |  | VA 0x80500000 -&gt; PA 0x40350000  |  &lt;- same phys page!</span><br><span class="line">| VA 0x80401000 -&gt; PA 0x40351000  |  | VA 0x80501000 -&gt; PA 0x40351000  |  &lt;- same phys page!</span><br><span class="line">+---------------------------------+  +---------------------------------+</span><br><span class="line"></span><br><span class="line">Process A writes to VA 0x80400000 -&gt; actually writes PA 0x40350000</span><br><span class="line">Process B reads from VA 0x80500000 -&gt; actually reads PA 0x40350000 -&gt; sees A&#x27;s data!</span><br></pre></td></tr></table></figure>
+
+<p>虚拟地址可以不同（每个进程的 VA 由 <code>vm_alloc_region()</code> 独立分配），但物理页相同——这就是零拷贝共享的原理。</p>
+<p>虚拟地址可以不同（每个进程的 VA 由 <code>vm_alloc_region()</code> 独立分配），但物理页相同——这就是零拷贝共享的原理。</p>
+<h3 id="4-5-shmdt-：解除映射"><a href="#4-5-shmdt-：解除映射" class="headerlink" title="4.5 shmdt()：解除映射"></a>4.5 shmdt()：解除映射</h3><p>文件：<code>mm/shm/shmdt.c:67-113</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">shmdt</span><span class="params">(FAR <span class="type">const</span> <span class="type">void</span> *shmaddr)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* 查找映射记录 */</span></span><br><span class="line">  entry = mm_map_find(group_mm, shmaddr);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 从 L2 页表中清除 PTE（不释放物理页！）*/</span></span><br><span class="line">  up_shmdt((<span class="type">uintptr_t</span>)shmaddr, npages);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 从映射列表中移除 */</span></span><br><span class="line">  mm_map_remove(group_mm, entry);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 减少 attach 计数 */</span></span><br><span class="line">  region-&gt;sr_ds.shm_nattch--;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 如果标记为删除且无 attach，释放物理页 */</span></span><br><span class="line">  <span class="keyword">if</span> (nattch == <span class="number">0</span> &amp;&amp; (sr_flags &amp; SRFLAG_UNLINKED))</span><br><span class="line">    shm_destroy(shmid);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意</strong>：<code>up_shmdt()</code> 清除 PTE 但<strong>不释放物理页</strong>——物理页由 <code>shm_destroy()</code> 在最后一个 detach 且标记删除后统一释放。这确保了其他进程的映射不会失效。</p>
+<h3 id="4-6-POSIX-shm-open-风格（通过-VFS）"><a href="#4-6-POSIX-shm-open-风格（通过-VFS）" class="headerlink" title="4.6 POSIX shm_open 风格（通过 VFS）"></a>4.6 POSIX shm_open 风格（通过 VFS）</h3><p>除了 System V <code>shmget</code>&#x2F;<code>shmat</code>，NuttX 也支持 POSIX <code>shm_open()</code> + <code>mmap()</code> 风格。它在 VFS 中以 <code>/dev/shm/name</code> 路径注册 inode，通过 <code>shmfs</code> 文件系统（<code>fs/shm/shmfs.c</code>）提供 <code>read</code>&#x2F;<code>write</code>&#x2F;<code>mmap</code>&#x2F;<code>truncate</code> 操作。<code>mmap()</code> 内部调用相同的 MMU 映射逻辑。</p>
+<p>共享内存实现了零拷贝高性能共享。如果只需简单的流式字节传输，管道是更轻量的选择。</p>
+<hr>
+<h2 id="5-深入：管道内核实现"><a href="#5-深入：管道内核实现" class="headerlink" title="5. 深入：管道内核实现"></a>5. 深入：管道内核实现</h2><p>管道是最简单的 IPC——一端写入字节流，另一端读取。没有消息边界、没有优先级、没有MMU操作。核心就是一个<strong>环形缓冲区 + 两个信号量</strong>。开销极低，适合大量小数据的顺序传递（如 shell 管道 <code>ls | grep</code>）。</p>
+<h3 id="5-1-核心数据结构"><a href="#5-1-核心数据结构" class="headerlink" title="5.1 核心数据结构"></a>5.1 核心数据结构</h3><p>文件：<code>drivers/pipes/pipe_common.h:118-140</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">pipe_dev_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  <span class="type">rmutex_t</span>         d_bflock;     <span class="comment">/* 缓冲区互斥锁 */</span></span><br><span class="line">  <span class="type">sem_t</span>            d_rdsem;      <span class="comment">/* 读阻塞信号量（缓冲区空时读者等待）*/</span></span><br><span class="line">  <span class="type">sem_t</span>            d_wrsem;      <span class="comment">/* 写阻塞信号量（缓冲区满时写者等待）*/</span></span><br><span class="line">  <span class="type">pipe_ndx_t</span>       d_bufsize;    <span class="comment">/* 缓冲区大小 */</span></span><br><span class="line">  <span class="type">uint8_t</span>          d_nwriters;   <span class="comment">/* 写端引用计数 */</span></span><br><span class="line">  <span class="type">uint8_t</span>          d_nreaders;   <span class="comment">/* 读端引用计数 */</span></span><br><span class="line">  <span class="class"><span class="keyword">struct</span> <span class="title">circbuf_s</span> <span class="title">d_buffer</span>;</span>     <span class="comment">/* 环形缓冲区 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>文件：<code>include/nuttx/circbuf.h:52-59</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">circbuf_s</span></span></span><br><span class="line"><span class="class">&#123;</span></span><br><span class="line">  FAR <span class="type">void</span> *base;    <span class="comment">/* 缓冲区基地址 */</span></span><br><span class="line">  <span class="type">size_t</span>    size;    <span class="comment">/* 缓冲区总大小 */</span></span><br><span class="line">  <span class="type">size_t</span>    head;    <span class="comment">/* 写指针 */</span></span><br><span class="line">  <span class="type">size_t</span>    tail;    <span class="comment">/* 读指针 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>环形缓冲区的可用空间 &#x3D; <code>size - (head - tail) - 1</code>（保留 1 字节区分满&#x2F;空）。</p>
+<h3 id="5-2-pipe-创建流程"><a href="#5-2-pipe-创建流程" class="headerlink" title="5.2 pipe() 创建流程"></a>5.2 pipe() 创建流程</h3><p>文件：<code>drivers/pipes/pipe.c:258-311</code></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">pipe2</span><span class="params">(<span class="type">int</span> pipefd[<span class="number">2</span>], <span class="type">int</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">  <span class="comment">/* Step 1: 在 VFS 注册一个临时设备节点（如 /dev/pipe/0）*/</span></span><br><span class="line">  pipe_register(CONFIG_DEV_PIPE_SIZE, flags, devname);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 2: 打开写端和读端 */</span></span><br><span class="line">  pipefd[<span class="number">1</span>] = open(devname, O_WRONLY);</span><br><span class="line">  pipefd[<span class="number">0</span>] = open(devname, O_RDONLY);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* Step 3: 从 VFS 注销路径（匿名管道，打开后路径消失）*/</span></span><br><span class="line">  unregister_pipedriver(devname);</span><br><span class="line">  <span class="comment">/* fd 仍然有效，因为 inode 的引用计数 &gt; 0 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>FIFO 的区别</strong>：<code>mkfifo()</code> 注册的设备节点<strong>不会被注销</strong>——它持久存在于 VFS 中，任何进程都可以通过路径名打开。</p>
+<h3 id="5-3-写入：pipecommon-write"><a href="#5-3-写入：pipecommon-write" class="headerlink" title="5.3 写入：pipecommon_write()"></a>5.3 写入：pipecommon_write()</h3><p>文件：<code>drivers/pipes/pipe_common.c:506-656</code>（关键逻辑摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> <span class="title function_">pipecommon_write</span><span class="params">(FAR <span class="keyword">struct</span> file *filep,</span></span><br><span class="line"><span class="params">                                FAR <span class="type">const</span> <span class="type">char</span> *buffer, <span class="type">size_t</span> len)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">pipe_dev_s</span> *<span class="title">dev</span> =</span> filep-&gt;f_inode-&gt;i_private;</span><br><span class="line">  <span class="type">ssize_t</span> nwritten = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">  nxrmutex_lock(&amp;dev-&gt;d_bflock);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">while</span> (nwritten &lt; len)</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 如果没有读者，返回 EPIPE（broken pipe）*/</span></span><br><span class="line">      <span class="keyword">if</span> (dev-&gt;d_nreaders == <span class="number">0</span>) &#123; ret = -EPIPE; <span class="keyword">break</span>; &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 尝试写入环形缓冲区 */</span></span><br><span class="line">      nwrite = circbuf_write(&amp;dev-&gt;d_buffer, buffer + nwritten, len - nwritten);</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (nwrite &gt; <span class="number">0</span>)</span><br><span class="line">        &#123;</span><br><span class="line">          nwritten += nwrite;</span><br><span class="line">          <span class="comment">/* 唤醒等待的读者 */</span></span><br><span class="line">          pipecommon_wakeup(&amp;dev-&gt;d_rdsem);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (nwritten &lt; len)   <span class="comment">/* 缓冲区满，需要等待 */</span></span><br><span class="line">        &#123;</span><br><span class="line">          <span class="keyword">if</span> (filep-&gt;f_oflags &amp; O_NONBLOCK)</span><br><span class="line">            <span class="keyword">break</span>;          <span class="comment">/* 非阻塞：返回已写字节数 */</span></span><br><span class="line"></span><br><span class="line">          <span class="comment">/* 解锁缓冲区，在写信号量上等待 */</span></span><br><span class="line">          nxrmutex_unlock(&amp;dev-&gt;d_bflock);</span><br><span class="line">          nxsem_wait(&amp;dev-&gt;d_wrsem);     <span class="comment">/* 阻塞直到读者取走数据 */</span></span><br><span class="line">          nxrmutex_lock(&amp;dev-&gt;d_bflock);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  nxrmutex_unlock(&amp;dev-&gt;d_bflock);</span><br><span class="line">  <span class="keyword">return</span> nwritten;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-读取：pipecommon-read"><a href="#5-4-读取：pipecommon-read" class="headerlink" title="5.4 读取：pipecommon_read()"></a>5.4 读取：pipecommon_read()</h3><p>文件：<code>drivers/pipes/pipe_common.c:415-500</code>（关键逻辑摘录）</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">ssize_t</span> <span class="title function_">pipecommon_read</span><span class="params">(FAR <span class="keyword">struct</span> file *filep,</span></span><br><span class="line"><span class="params">                               FAR <span class="type">char</span> *buffer, <span class="type">size_t</span> len)</span></span><br><span class="line">&#123;</span><br><span class="line">  FAR <span class="class"><span class="keyword">struct</span> <span class="title">pipe_dev_s</span> *<span class="title">dev</span> =</span> filep-&gt;f_inode-&gt;i_private;</span><br><span class="line"></span><br><span class="line">  nxrmutex_lock(&amp;dev-&gt;d_bflock);</span><br><span class="line"></span><br><span class="line">  <span class="keyword">while</span> (circbuf_is_empty(&amp;dev-&gt;d_buffer))</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="comment">/* 缓冲区空 + 无写者 = EOF */</span></span><br><span class="line">      <span class="keyword">if</span> (dev-&gt;d_nwriters == <span class="number">0</span>) &#123; ret = <span class="number">0</span>; <span class="keyword">goto</span> out; &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 非阻塞模式 */</span></span><br><span class="line">      <span class="keyword">if</span> (filep-&gt;f_oflags &amp; O_NONBLOCK) &#123; ret = -EAGAIN; <span class="keyword">goto</span> out; &#125;</span><br><span class="line"></span><br><span class="line">      <span class="comment">/* 解锁，等待写者写入数据 */</span></span><br><span class="line">      nxrmutex_unlock(&amp;dev-&gt;d_bflock);</span><br><span class="line">      nxsem_wait(&amp;dev-&gt;d_rdsem);</span><br><span class="line">      nxrmutex_lock(&amp;dev-&gt;d_bflock);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 从环形缓冲区读取 */</span></span><br><span class="line">  nread = circbuf_read(&amp;dev-&gt;d_buffer, buffer, len);</span><br><span class="line"></span><br><span class="line">  <span class="comment">/* 唤醒等待空间的写者 */</span></span><br><span class="line">  pipecommon_wakeup(&amp;dev-&gt;d_wrsem);</span><br><span class="line"></span><br><span class="line">  nxrmutex_unlock(&amp;dev-&gt;d_bflock);</span><br><span class="line">  <span class="keyword">return</span> nread;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-5-阻塞机制"><a href="#5-5-阻塞机制" class="headerlink" title="5.5 阻塞机制"></a>5.5 阻塞机制</h3><p>管道使用两个<strong>计数信号量</strong>（不是按优先级排序的等待队列）：</p>
+<table>
+<thead>
+<tr>
+<th>信号量</th>
+<th>阻塞条件</th>
+<th>唤醒时机</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>d_rdsem</code></td>
+<td>缓冲区空，读者等待</td>
+<td>写者写入数据后 post</td>
+</tr>
+<tr>
+<td><code>d_wrsem</code></td>
+<td>缓冲区满，写者等待</td>
+<td>读者取走数据后 post</td>
+</tr>
+</tbody></table>
+<p><strong>与消息队列阻塞的区别</strong>：消息队列用调度器级别的优先级等待队列（高优先级任务先被唤醒），管道用简单的计数信号量（FIFO 唤醒顺序）。</p>
+<h3 id="5-6-关闭语义"><a href="#5-6-关闭语义" class="headerlink" title="5.6 关闭语义"></a>5.6 关闭语义</h3><ul>
+<li><strong>最后一个写端关闭</strong>：读者收到 EOF（<code>read()</code> 返回 0）+ POLLHUP</li>
+<li><strong>最后一个读端关闭</strong>：写者收到 <code>-EPIPE</code> + POLLERR + 可能收到 SIGPIPE</li>
+</ul>
+<hr>
+<h2 id="6-选择指南：何时用哪种-IPC"><a href="#6-选择指南：何时用哪种-IPC" class="headerlink" title="6. 选择指南：何时用哪种 IPC"></a>6. 选择指南：何时用哪种 IPC</h2><table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐 IPC</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>保护临界区</td>
+<td>mutex &#x2F; semaphore</td>
+<td>最低开销，无数据传输</td>
+</tr>
+<tr>
+<td>小消息传递（&lt; 1KB）</td>
+<td>mqueue</td>
+<td>带优先级、带边界、阻塞语义完善</td>
+</tr>
+<tr>
+<td>大数据共享（缓冲区&#x2F;帧）</td>
+<td>shared memory + mutex</td>
+<td>零拷贝，性能最高</td>
+</tr>
+<tr>
+<td>流式字节传输</td>
+<td>pipe &#x2F; FIFO</td>
+<td>简单、符合 Unix 哲学</td>
+</tr>
+<tr>
+<td>跨进程通知（无数据）</td>
+<td>signal</td>
+<td>异步、不需要接收方主动等待</td>
+</tr>
+<tr>
+<td>生产者&#x2F;消费者队列</td>
+<td>mqueue 或 pipe</td>
+<td>mqueue 有优先级；pipe 更简单</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="7-对比分析"><a href="#7-对比分析" class="headerlink" title="7. 对比分析"></a>7. 对比分析</h2><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>Semaphore</th>
+<th>Mqueue</th>
+<th>Shared Memory</th>
+<th>Pipe</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数据传输</td>
+<td>无</td>
+<td>有（结构化消息）</td>
+<td>有（任意内存）</td>
+<td>有（字节流）</td>
+</tr>
+<tr>
+<td>拷贝次数</td>
+<td>0</td>
+<td>2（用户→内核→用户）</td>
+<td>0（零拷贝）</td>
+<td>2（用户→内核→用户）</td>
+</tr>
+<tr>
+<td>优先级排序</td>
+<td>—</td>
+<td>有（消息按 prio 排）</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>消息边界</td>
+<td>—</td>
+<td>有</td>
+<td>—</td>
+<td>无</td>
+</tr>
+<tr>
+<td>跨进程可用</td>
+<td>命名信号量可</td>
+<td>是</td>
+<td>是（仅 KERNEL 模式）</td>
+<td>FIFO 可</td>
+</tr>
+<tr>
+<td>VFS 集成</td>
+<td><code>/sem/name</code></td>
+<td><code>/var/mqueue/name</code></td>
+<td><code>/dev/shm/name</code></td>
+<td><code>/dev/pipe/N</code></td>
+</tr>
+<tr>
+<td>阻塞机制</td>
+<td>调度器优先级队列</td>
+<td>调度器优先级队列</td>
+<td>无（需用户同步）</td>
+<td>计数信号量</td>
+</tr>
+<tr>
+<td>KERNEL 模式要求</td>
+<td>无</td>
+<td>无</td>
+<td><strong>必须</strong></td>
+<td>无</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="8-关键要点"><a href="#8-关键要点" class="headerlink" title="8. 关键要点"></a>8. 关键要点</h2><ol>
+<li><p><strong>消息队列按优先级排序</strong>——<code>mq_send()</code> 将消息插入到有序链表中正确位置，<code>mq_receive()</code> 总是取出链表头（最高优先级）。</p>
+</li>
+<li><p><strong>共享内存是唯一的零拷贝 IPC</strong>——通过将同一物理页映射到多个进程的 L2 页表实现，仅在 KERNEL 模式（有 MMU）下可用。</p>
+</li>
+<li><p><strong>管道用环形缓冲区 + 两个信号量实现读写阻塞</strong>——缓冲区空时读者在 <code>d_rdsem</code> 等待，满时写者在 <code>d_wrsem</code> 等待。</p>
+</li>
+<li><p><strong>消息队列的阻塞使用调度器级优先级等待队列</strong>（<code>TSTATE_WAIT_MQNOTEMPTY/FULL</code>），高优先级任务优先被唤醒；管道用简单信号量（FIFO 顺序）。</p>
+</li>
+<li><p><strong>共享内存的 <code>shmat()</code> 不分配物理页</strong>——物理页在 <code>shmget()</code> 时已分配。<code>shmat()</code> 只是将已有物理页映射到调用进程的页表中。</p>
+</li>
+<li><p><strong>匿名管道在 <code>pipe()</code> 后立即从 VFS 注销路径</strong>——只有持有 fd 的进程能访问，体现了”匿名”语义。FIFO 的路径持久存在。</p>
+</li>
+<li><p><strong>KERNEL 模式下所有 IPC 调用都走 SVC 系统调用路径</strong>——<code>sys_call4</code> 宏触发 <code>svc</code> 指令，<code>arm_syscall()</code> → <code>dispatch_syscall()</code> → <code>g_stublookup[]</code> → STUB → 内核实现，形成完整的用户态到内核态的桥接。</p>
+</li>
+<li><p><strong>所有 IPC 的阻塞等待都支持超时</strong>——<code>mq_timedreceive()</code>、<code>sem_timedwait()</code> 通过 watchdog timer 实现。</p>
+</li>
+</ol>
+<hr>
+<h2 id="9-参考文件索引"><a href="#9-参考文件索引" class="headerlink" title="9. 参考文件索引"></a>9. 参考文件索引</h2><table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>关键内容</th>
+<th>引用行号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>include/nuttx/mqueue.h</code></td>
+<td>mqueue_inode_s, mqueue_cmn_s</td>
+<td>103-131</td>
+</tr>
+<tr>
+<td><code>sched/mqueue/mqueue.h</code></td>
+<td>mqueue_msg_s, 全局消息池</td>
+<td>68-105</td>
+</tr>
+<tr>
+<td><code>sched/mqueue/mq_send.c</code></td>
+<td>mq_send(), nxmq_add_queue()</td>
+<td>206-369</td>
+</tr>
+<tr>
+<td><code>sched/mqueue/mq_receive.c</code></td>
+<td>mq_receive(), file_mq_timedreceive_internal()</td>
+<td>137-239</td>
+</tr>
+<tr>
+<td><code>sched/mqueue/mq_sndinternal.c</code></td>
+<td>nxmq_wait_send(), nxmq_notify_send()</td>
+<td>127-306</td>
+</tr>
+<tr>
+<td><code>sched/mqueue/mq_rcvinternal.c</code></td>
+<td>nxmq_wait_receive(), nxmq_notify_receive()</td>
+<td>127-273</td>
+</tr>
+<tr>
+<td><code>fs/mqueue/mq_open.c</code></td>
+<td>mq_open() VFS 集成, file_mq_vopen()</td>
+<td>160-520</td>
+</tr>
+<tr>
+<td><code>arch/arm/include/syscall.h</code></td>
+<td>sys_call4 宏（SVC 内联汇编）</td>
+<td>306-323</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_syscall.c</code></td>
+<td>arm_syscall(), dispatch_syscall()</td>
+<td>123-556</td>
+</tr>
+<tr>
+<td><code>syscall/syscall_stublookup.c</code></td>
+<td>g_stublookup[] 存根表</td>
+<td>88-95</td>
+</tr>
+<tr>
+<td><code>syscall/syscall.csv</code></td>
+<td>系统调用签名定义（mksyscall 输入）</td>
+<td>74-76</td>
+</tr>
+<tr>
+<td><code>mm/shm/shm.h</code></td>
+<td>shm_region_s, shm_info_s</td>
+<td>83-103</td>
+</tr>
+<tr>
+<td><code>mm/shm/shmget.c</code></td>
+<td>shmget(), shm_extend(), g_shminfo</td>
+<td>47-482</td>
+</tr>
+<tr>
+<td><code>mm/shm/shmat.c</code></td>
+<td>shmat(), munmap_shm()</td>
+<td>208-308</td>
+</tr>
+<tr>
+<td><code>mm/shm/shmdt.c</code></td>
+<td>shmdt()</td>
+<td>67-113</td>
+</tr>
+<tr>
+<td><code>mm/shm/shmctl.c</code></td>
+<td>shmctl(), shm_destroy()</td>
+<td>108-248</td>
+</tr>
+<tr>
+<td><code>arch/arm/src/armv7-a/arm_addrenv_shm.c</code></td>
+<td>up_shmat(), up_shmdt() (MMU 操作)</td>
+<td>69-242</td>
+</tr>
+<tr>
+<td><code>fs/shm/shmfs.c</code></td>
+<td>shmfs 文件操作（read&#x2F;write&#x2F;mmap）</td>
+<td>65-368</td>
+</tr>
+<tr>
+<td><code>drivers/pipes/pipe_common.h</code></td>
+<td>pipe_dev_s, circbuf_s</td>
+<td>118-140</td>
+</tr>
+<tr>
+<td><code>drivers/pipes/pipe_common.c</code></td>
+<td>pipecommon_read&#x2F;write&#x2F;open&#x2F;close</td>
+<td>134-952</td>
+</tr>
+<tr>
+<td><code>drivers/pipes/pipe.c</code></td>
+<td>pipe2(), pipe_register()</td>
+<td>60-311</td>
+</tr>
+<tr>
+<td><code>drivers/pipes/fifo.c</code></td>
+<td>nx_mkfifo()</td>
+<td>100-120</td>
+</tr>
+<tr>
+<td><code>include/nuttx/circbuf.h</code></td>
+<td>circbuf_s, circbuf_read&#x2F;write</td>
+<td>52-320</td>
+</tr>
+</tbody></table>
+<p><strong>外部参考文档：</strong></p>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IEEE Std 1003.1 (POSIX.1-2017)</td>
+<td>mqueue, shm, semaphore, pipe 标准接口定义</td>
+</tr>
+<tr>
+<td>NuttX Documentation: <a target="_blank" rel="noopener" href="https://nuttx.apache.org/docs/latest/">https://nuttx.apache.org/docs/latest/</a></td>
+<td>官方 API 参考和配置指南</td>
+</tr>
+<tr>
+<td>ARM Architecture Reference Manual (ARMv7-A&#x2F;R)</td>
+<td>L2 页表映射（共享内存 MMU 操作）</td>
+</tr>
+</tbody></table>
+<hr>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/Nuttx/" rel="tag"># Nuttx</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/15/Nuttx-VFS/" rel="prev" title="Nuttx - VFS">
+                  <i class="fa fa-angle-left"></i> Nuttx - VFS
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
