@@ -324,7 +324,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>从 exec() 系统调用到 ELF 文件解析、段加载、符号重定位、地址环境创建，完整解析 NuttX 如何将文件系统中的 ELF 可执行文件变为一个独立运行的任务。</p>
+<p>一个 ELF 文件躺在文件系统里，NuttX 怎么把它变成一块可运行的内存、一个独立的任务？本文从 <code>exec()</code> 开始，逐函数追踪——打开文件、解析 header、分配内存、修正符号引用，直到第一条用户指令执行。</p>
 </blockquote>
 <p><strong>
           <!--noindex-->
