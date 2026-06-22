@@ -26,17 +26,17 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="拆解 NuttX 如何将单核 RTOS 改造为对称多处理器操作系统——从 CPU 启动、任务分配、跨核 IPI、自旋锁到临界区的完整实现路径。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ng">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E8%B0%83%E5%BA%A6.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2026/06/16/Nuttx-SMP/SMP%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png">
+<meta property="og:image" content="http://yoursite.com/2026/06/16/Nuttx-SMP/SMP%E5%90%AF%E5%8A%A8.png">
+<meta property="og:image" content="http://yoursite.com/2026/06/16/Nuttx-SMP/SMP%E8%B7%A8%E6%A0%B8%E4%BB%BB%E5%8A%A1%E8%B0%83%E5%BA%A6.png">
+<meta property="og:image" content="http://yoursite.com/2026/06/16/Nuttx-SMP/SMP%E8%87%AA%E6%97%8B%E9%94%81.png">
+<meta property="og:image" content="http://yoursite.com/2026/06/16/Nuttx-SMP/SMP%E4%B8%B4%E7%95%8C%E5%8C%BA.png">
 <meta property="article:published_time" content="2026-06-16T13:25:27.000Z">
-<meta property="article:modified_time" content="2026-06-22T12:35:18.639Z">
+<meta property="article:modified_time" content="2026-06-22T12:48:06.211Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="Nuttx">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png">
+<meta name="twitter:image" content="http://yoursite.com/2026/06/16/Nuttx-SMP/SMP%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/06/16/Nuttx-SMP/">
@@ -289,7 +289,7 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">单核：g_readytorun = [Task A(运行)] -&gt; [Task B] -&gt; [Task C] -&gt; [IDLE]</span><br><span class="line">SMP： g_readytorun = [Task E] -&gt; [Task F]      (未分配CPU的就绪任务)</span><br><span class="line">      g_assignedtasks[0] = Task A (CPU0 正在运行)</span><br><span class="line">      g_assignedtasks[1] = Task B (CPU1 正在运行)</span><br><span class="line">      g_assignedtasks[2] = Task C (CPU2 正在运行)</span><br><span class="line">      g_assignedtasks[3] = IDLE3  (CPU3 空闲)</span><br></pre></td></tr></table></figure>
 
 <p>下图可视化了 <code>g_readytorun</code> 和 <code>g_assignedtasks[]</code> 的关系：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/.png" alt="SMP数据结构"></p>
+<p><img src="/2026/06/16/Nuttx-SMP/SMP%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84.png" alt="SMP数据结构"></p>
 <blockquote>
 <p>注：IDLE0（优先级 0）仍然保留在 <code>g_readytorun</code> 尾部保持链表非空，但它已被分配给了 CPU0，其状态为 <code>TSTATE_TASK_ASSIGNED</code>。</p>
 </blockquote>
@@ -413,7 +413,7 @@
 
 <p><code>OSINIT_IDLELOOP()</code> 是 <code>nx_start()</code> 末尾设置的一个全局标志。次级 CPU 在这个 <code>while</code> 循环上自旋等待，直到 CPU0 完成所有初始化（包括启动 init 进程）进入 IDLE 循环后才释放。</p>
 <p>以下是完整的 CPU 启动时序图：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ng" alt="SMP启动"></p>
+<p><img src="/2026/06/16/Nuttx-SMP/SMP%E5%90%AF%E5%8A%A8.png" alt="SMP启动"></p>
 <p><strong>与 Linux 的对比：</strong> Linux 使用 <code>cpu_up()</code> → <code>smp_ops.smp_boot_secondary()</code> → 次级 CPU 执行 <code>secondary_start_kernel()</code>，其中包含一个自旋等待 <code>cpu_startup_entry()</code> 的准备过程。NuttX 的模式更简单：次级 CPU 直接跳转到 IDLE trampoline，等待 CPU0 完成初始化后释放调度锁。</p>
 <hr>
 <p>所有 CPU 都启动后进入 IDLE 循环等待任务。那么当第一个非 IDLE 任务就绪时，NuttX 如何决定它该在哪个 CPU 上运行？答案在下一节。</p>
@@ -497,7 +497,7 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">场景：CPU0 上的中断例程释放了一个信号量，唤醒 Task X (pri=80, affinity=0x0F)</span><br><span class="line">     当前状态：CPU1=Task A(pri=70), CPU2=Task B(pri=60), CPU3=IDLE3(pri=0)</span><br><span class="line"></span><br><span class="line">CPU0 (中断上下文):</span><br><span class="line">  nxsched_add_readytorun(Task X)</span><br><span class="line">    └─ nxsched_select_cpu(0x0F) → 扫描:</span><br><span class="line">        CPU0? 当前 CPU 在中断中，不参与选择</span><br><span class="line">        CPU1? pri=70, minprio=70, cpu=1</span><br><span class="line">        CPU2? pri=60 &lt; 70, 跳过</span><br><span class="line">        CPU3? IDLE! 立即选 CPU3</span><br><span class="line">    结果: target_cpu = 3</span><br><span class="line">    └─ btcb-&gt;cpu = 3</span><br><span class="line">    └─ IDLE3.pri(0) &lt; TaskX.pri(80) → nxsched_deliver_task(0, 3, SWITCH_HIGHER)</span><br><span class="line">        └─ cpu(0) != target(3) → g_delivertasks[3] = SWITCH_HIGHER</span><br><span class="line">        └─ up_send_smp_sched(3) → GICv2 SGI #3 to CPU3</span><br><span class="line"></span><br><span class="line">CPU3 (收到 IPI):</span><br><span class="line">  arm_smp_sched_handler() → nxsched_process_delivered(3)</span><br><span class="line">    └─ spin_lock_notrace(&amp;g_cpu_irqlock)</span><br><span class="line">    └─ g_delivertasks[3] == SWITCH_HIGHER → nxsched_switch_running(3, false)</span><br><span class="line">        └─ IDLE3 未 locked → 扫描 g_readytorun</span><br><span class="line">        └─ 找到 Task X (pri=80, affinity 含 CPU3)</span><br><span class="line">        └─ dq_rem(TaskX) → g_assignedtasks[3] = TaskX</span><br><span class="line">        └─ TaskX: TSTATE_TASK_RUNNING, cpu=3</span><br><span class="line">    └─ IRQ 返回 → 上下文切换到 Task X</span><br><span class="line"></span><br><span class="line">结果：Task X 在 CPU3 上开始运行，整个过程只有一次 IPI。</span><br></pre></td></tr></table></figure>
 
 <p>下图展示了跨核调度中各组件的交互：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/%E8%B0%83%E5%BA%A6.png" alt="SMP跨核任务调度"></p>
+<p><img src="/2026/06/16/Nuttx-SMP/SMP%E8%B7%A8%E6%A0%B8%E4%BB%BB%E5%8A%A1%E8%B0%83%E5%BA%A6.png" alt="SMP跨核任务调度"></p>
 <hr>
 <p>跨核调度解决了”让远程 CPU 执行任务”的问题，但没有解决”多个 CPU 同时修改共享数据”的问题。IPI 通知本身需要原子性保证——不能多个 CPU 同时写入 <code>g_delivertasks[]</code>。这就需要自旋锁。</p>
 <h2 id="6-自旋锁：SMP-核心同步原语"><a href="#6-自旋锁：SMP-核心同步原语" class="headerlink" title="6. 自旋锁：SMP 核心同步原语"></a>6. 自旋锁：SMP 核心同步原语</h2><h3 id="6-1-为什么需要自旋锁？"><a href="#6-1-为什么需要自旋锁？" class="headerlink" title="6.1 为什么需要自旋锁？"></a>6.1 为什么需要自旋锁？</h3><p>在单核 NuttX 中，<code>enter_critical_section()</code> 关本地中断就足以保护内核数据结构，因为没有其他 CPU 会同时访问。在多核下，关本地中断只能阻止当前 CPU 上的上下文切换和中断——CPU1 仍然可以自由地修改同一数据结构。</p>
@@ -582,7 +582,7 @@
 <h2 id="7-临界区：enter-critical-section-的多核重构"><a href="#7-临界区：enter-critical-section-的多核重构" class="headerlink" title="7. 临界区：enter_critical_section 的多核重构"></a>7. 临界区：enter_critical_section 的多核重构</h2><h3 id="7-1-单核-vs-多核的语义变化"><a href="#7-1-单核-vs-多核的语义变化" class="headerlink" title="7.1 单核 vs 多核的语义变化"></a>7.1 单核 vs 多核的语义变化</h3><p>在单核 NuttX 中，临界区的语义很简单：关本地中断 → 临界区成立。因为只有一个 CPU，关中断就消除了所有竞争。</p>
 <p>多核下的语义必须扩展：<strong>关本地中断 + 获取全局 IRQ 自旋锁</strong>。关中断防止当前 CPU 上的上下文切换和中断重入；全局自旋锁防止其他 CPU 同时进入临界区。</p>
 <h3 id="7-2-enter-critical-section-notrace-：双路径处理"><a href="#7-2-enter-critical-section-notrace-：双路径处理" class="headerlink" title="7.2 enter_critical_section_notrace()：双路径处理"></a>7.2 enter_critical_section_notrace()：双路径处理</h3><p>自旋锁的状态转换如下图所示。状态机有两个核心状态——<code>SP_UNLOCKED (0)</code> 表示锁空闲，任何 CPU 都可以通过 <code>up_testset()</code> 原子操作将其翻转为 <code>SP_LOCKED (1)</code>。当 CPU0 持有锁时，<code>g_cpu_irqset</code> 的第 0 位被置位，标记”CPU0 正在临界区”。其他 CPU 尝试获取锁时会进入自旋循环：反复调用 <code>up_testset()</code> 直到其返回 <code>SP_UNLOCKED</code>，每次失败后执行 <code>UP_WFE()</code> 进入低功耗等待。当 CPU0 调用 <code>cpu_irqlock_clear()</code> 释放锁时，<code>g_cpu_irqset</code> 被清零，<code>spin_unlock()</code> 发送 SEV 事件唤醒等待者。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="SMP自旋锁"></p>
+<p><img src="/2026/06/16/Nuttx-SMP/SMP%E8%87%AA%E6%97%8B%E9%94%81.png" alt="SMP自旋锁"></p>
 <p>这是 NuttX SMP 中最复杂的同步逻辑之一（<code>sched/irq/irq_csection.c:92-254</code>）。它必须处理两种调用场景：</p>
 <p><strong>路径 A：从中断处理函数调用（<code>up_interrupt_context()</code> 为真）</strong></p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// sched/irq/irq_csection.c:117-193 — 中断上下文路径</span></span><br><span class="line"><span class="keyword">if</span> (up_interrupt_context())</span><br><span class="line">  &#123;</span><br><span class="line">    cpu = this_cpu();</span><br><span class="line">    <span class="keyword">if</span> (g_cpu_nestcount[cpu] &gt; <span class="number">0</span>)</span><br><span class="line">      &#123;</span><br><span class="line">        <span class="comment">/* 嵌套调用：只需递增计数 */</span></span><br><span class="line">        g_cpu_nestcount[cpu]++;</span><br><span class="line">      &#125;</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">      &#123;</span><br><span class="line">        <span class="comment">/* 首次调用：如果此 CPU 尚未持有自旋锁，尝试获取 */</span></span><br><span class="line">        <span class="keyword">if</span> ((g_cpu_irqset &amp; (<span class="number">1</span> &lt;&lt; cpu)) == <span class="number">0</span>)</span><br><span class="line">          &#123;</span><br><span class="line">            spin_lock_notrace(&amp;g_cpu_irqlock);  <span class="comment">// 自旋等待全局锁</span></span><br><span class="line">            cpu_irqlock_set(cpu);               <span class="comment">// 在 g_cpu_irqset 中标记此 CPU</span></span><br><span class="line">          &#125;</span><br><span class="line">        g_cpu_nestcount[cpu] = <span class="number">1</span>;</span><br><span class="line">      &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
@@ -600,7 +600,7 @@
 
 <p><strong>注意：</strong> <code>cpu_irqlock_clear()</code> 将 <code>g_cpu_irqset</code> 整体清零（而非仅清除当前 CPU 的位），因为它假设同一时刻只有一个 CPU 能释放锁。这种设计在嵌套使用中依赖于 <code>irqcount</code> 来保证正确性。</p>
 <h3 id="7-4-临界区对抢占的副作用"><a href="#7-4-临界区对抢占的副作用" class="headerlink" title="7.4 临界区对抢占的副作用"></a>7.4 临界区对抢占的副作用</h3><p>完整的临界区进入&#x2F;退出时序图：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="SMP临界区"></p>
+<p><img src="/2026/06/16/Nuttx-SMP/SMP%E4%B8%B4%E7%95%8C%E5%8C%BA.png" alt="SMP临界区"></p>
 <p>进入临界区不仅关中断，还会修改抢占控制行为。NuttX 官方文档 <code>Documentation/implementation/smp.rst:742-776</code> 指出：</p>
 <blockquote>
 <p>“The basic result of this modification is that new tasks are not permitted to be started or resumed if:</p>
