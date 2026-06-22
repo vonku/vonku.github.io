@@ -412,7 +412,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>从 sigaction 注册到 kill 发送，从内核态 trampoline 到用户态 handler 执行，完整解析 NuttX POSIX 信号在 CONFIG_BUILD_KERNEL 模式下的投递链路。</p>
+<p> <code>kill(pid, SIGUSR1)</code> 之后，信号数据怎么跨进程投递？handler 怎么在用户态被调用，执行完又怎么回到被中断的代码？本文从 sigaction 注册出发，穿越 sigqueue、trampoline 和上下文恢复，完整还原 NuttX POSIX 信号的投递链路。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -499,7 +499,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>从信号量到消息队列、从共享内存到管道，全面解析 NuttX KERNEL 模式下的 IPC 机制，深入剖析消息队列、共享内存和管道的内核实现。</p>
+<p>进程 A 怎么把一条带优先级的消息发给进程 B？共享内存又为什么能做到零拷贝？本文从信号量到消息队列、从管道到共享内存，用源码回答每种 IPC 的内核实现——不只看 API，看完数据结构、阻塞队列和 MMU 映射。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -586,7 +586,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>从伪文件系统 inode 树到设备驱动注册、从 open() 路径查找到 mount() 文件系统接入，完整解析 NuttX 虚拟文件系统的统一 I&#x2F;O 抽象机制。</p>
+<p> <code>open(&quot;/dev/ttyS0&quot;)</code> 背后发生了什么？为什么 <code>/dev</code> 下的设备节点不需要格式化磁盘也能读写？本文从伪文件系统的 inode 树入手，穿过设备驱动注册和文件操作表派发，再到 mount() 接入真实文件系统，拆解 NuttX 统一 I&#x2F;O 抽象层的内核实现。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -673,7 +673,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>从 GIC 硬件中断触发到 ISR 执行再到中断级上下文切换，完整解析 NuttX 如何在 ARMv7-A 上管理中断的注册、分发、响应与任务调度联动。</p>
+<p> 串口收到一个字节后，CPU 怎么从用户态代码跳进内核 ISR？中断完成后又怎么决定”继续跑当前任务”还是”切到刚被唤醒的高优先级任务”？本文从 GICv2 硬件分发器出发，穿越向量表、irq_dispatch、中断级上下文切换，拆解 NuttX 中断处理的完整调用链路。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -760,7 +760,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>从用户 malloc() 到物理页分配再到 L2 页表写入，完整解析 CONFIG_BUILD_KERNEL 模式下 NuttX 四层内存分配器的协作机制。</p>
+<p> 用户态的 <code>malloc(100)</code> 在 KERNEL 模式下经历了什么？本文从用户堆管理往下追踪，穿过 kmm_malloc → pgalloc → L2 页表写入，拆解四层内存分配器如何协作——每一层的算法、数据结构和临界区。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -847,7 +847,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>基于 ARMv7-A MMU，从进程地址空间隔离、系统调用陷入、双栈切换到调度器核心算法，完整解析 NuttX KERNEL 构建模式下的任务生命周期管理。</p>
+<p>NuttX 怎么做到”每个进程有独立地址空间”？用户态函数调用怎么穿过 SVC 陷阱进入内核？高优先级任务就绪后，调度器如何当场抢走 CPU？本文基于 ARMv7-A MMU，从地址环境、系统调用陷入、双栈切换到优先级继承，完整拆解 KERNEL 模式下的任务生命周期。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">

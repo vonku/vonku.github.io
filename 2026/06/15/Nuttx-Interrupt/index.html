@@ -19,17 +19,17 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
 
-    <meta name="description" content="从 GIC 硬件中断触发到 ISR 执行再到中断级上下文切换，完整解析 NuttX 如何在 ARMv7-A 上管理中断的注册、分发、响应与任务调度联动。">
+    <meta name="description" content="串口收到一个字节后，CPU 怎么从用户态代码跳进内核 ISR？中断完成后又怎么决定”继续跑当前任务”还是”切到刚被唤醒的高优先级任务”？本文从 GICv2 硬件分发器出发，穿越向量表、irq_dispatch、中断级上下文切换，拆解 NuttX 中断处理的完整调用链路。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Nuttx - Interrupt">
 <meta property="og:url" content="http://yoursite.com/2026/06/15/Nuttx-Interrupt/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="从 GIC 硬件中断触发到 ISR 执行再到中断级上下文切换，完整解析 NuttX 如何在 ARMv7-A 上管理中断的注册、分发、响应与任务调度联动。">
+<meta property="og:description" content="串口收到一个字节后，CPU 怎么从用户态代码跳进内核 ISR？中断完成后又怎么决定”继续跑当前任务”还是”切到刚被唤醒的高优先级任务”？本文从 GICv2 硬件分发器出发，穿越向量表、irq_dispatch、中断级上下文切换，拆解 NuttX 中断处理的完整调用链路。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://yoursite.com/2026/06/15/Nuttx-Interrupt/%E4%B8%AD%E6%96%AD%E5%8E%8B%E6%A0%88.png">
 <meta property="og:image" content="http://yoursite.com/2026/06/15/Nuttx-Interrupt/%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B.png">
 <meta property="article:published_time" content="2026-06-15T14:01:21.000Z">
-<meta property="article:modified_time" content="2026-06-15T14:10:34.572Z">
+<meta property="article:modified_time" content="2026-06-22T13:03:21.594Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="Nuttx">
 <meta name="twitter:card" content="summary">
@@ -246,7 +246,7 @@
     
     
     <div class="post-body" itemprop="articleBody"><blockquote>
-<p>从 GIC 硬件中断触发到 ISR 执行再到中断级上下文切换，完整解析 NuttX 如何在 ARMv7-A 上管理中断的注册、分发、响应与任务调度联动。</p>
+<p> 串口收到一个字节后，CPU 怎么从用户态代码跳进内核 ISR？中断完成后又怎么决定”继续跑当前任务”还是”切到刚被唤醒的高优先级任务”？本文从 GICv2 硬件分发器出发，穿越向量表、irq_dispatch、中断级上下文切换，拆解 NuttX 中断处理的完整调用链路。</p>
 </blockquote>
 <span id="more"></span>
 

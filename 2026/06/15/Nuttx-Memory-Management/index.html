@@ -19,18 +19,18 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
 
-    <meta name="description" content="从用户 malloc() 到物理页分配再到 L2 页表写入，完整解析 CONFIG_BUILD_KERNEL 模式下 NuttX 四层内存分配器的协作机制。">
+    <meta name="description" content="用户态的 malloc(100) 在 KERNEL 模式下经历了什么？本文从用户堆管理往下追踪，穿过 kmm_malloc → pgalloc → L2 页表写入，拆解四层内存分配器如何协作——每一层的算法、数据结构和临界区。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Nuttx - Memory Management">
 <meta property="og:url" content="http://yoursite.com/2026/06/15/Nuttx-Memory-Management/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="从用户 malloc() 到物理页分配再到 L2 页表写入，完整解析 CONFIG_BUILD_KERNEL 模式下 NuttX 四层内存分配器的协作机制。">
+<meta property="og:description" content="用户态的 malloc(100) 在 KERNEL 模式下经历了什么？本文从用户堆管理往下追踪，穿过 kmm_malloc → pgalloc → L2 页表写入，拆解四层内存分配器如何协作——每一层的算法、数据结构和临界区。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://yoursite.com/2026/06/15/Nuttx-Memory-Management/%E5%9B%9B%E5%B1%82%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B.jpg">
 <meta property="og:image" content="http://yoursite.com/2026/06/15/Nuttx-Memory-Management/mm_heap.png">
 <meta property="og:image" content="http://yoursite.com/2026/06/15/Nuttx-Memory-Management/malloc%E5%AE%8C%E6%95%B4%E8%B7%AF%E5%BE%84.png">
 <meta property="article:published_time" content="2026-06-15T14:00:59.000Z">
-<meta property="article:modified_time" content="2026-06-15T14:11:39.409Z">
+<meta property="article:modified_time" content="2026-06-22T13:03:30.344Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="Nuttx">
 <meta name="twitter:card" content="summary">
@@ -247,7 +247,7 @@
     
     
     <div class="post-body" itemprop="articleBody"><blockquote>
-<p>从用户 malloc() 到物理页分配再到 L2 页表写入，完整解析 CONFIG_BUILD_KERNEL 模式下 NuttX 四层内存分配器的协作机制。</p>
+<p> 用户态的 <code>malloc(100)</code> 在 KERNEL 模式下经历了什么？本文从用户堆管理往下追踪，穿过 kmm_malloc → pgalloc → L2 页表写入，拆解四层内存分配器如何协作——每一层的算法、数据结构和临界区。</p>
 </blockquote>
 <span id="more"></span>
 
