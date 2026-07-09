@@ -26,21 +26,21 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文基于 ARM AMBA AXI Protocol Specification v1.0 (ARM IHI 0022B) 编写，面向固件&#x2F;驱动开发者。文中用 DMA 描述符、内存屏障、scatter-gather 等软件概念做类比，帮助快速建立对 AXI 总线协议的直观理解。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606509644_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606522096_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606535317_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606535317_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606554055_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606562539_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606574091_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606605718_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606605718_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606605718_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606509644_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606522096_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606535317_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606544671_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606554055_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606562539_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606574091_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606605718_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606605718_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606605718_d.png">
 <meta property="article:published_time" content="2026-07-09T14:08:52.000Z">
-<meta property="article:modified_time" content="2026-07-09T14:34:54.897Z">
+<meta property="article:modified_time" content="2026-07-09T14:40:47.278Z">
 <meta property="article:author" content="Vonku">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606509644_d.png">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606509644_d.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
@@ -314,9 +314,9 @@
 <li><strong>Out-of-order 完成</strong>：不同 ID 的事务可以乱序返回</li>
 </ul>
 <h3 id="1-3-五通道架构"><a href="#1-3-五通道架构" class="headerlink" title="1.3 五通道架构"></a>1.3 五通道架构</h3><p>AXI 协议的核心创新是<strong>五通道分离设计</strong>：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606509644_d.png" alt="1783606509644_d"></p>
+<p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606509644_d.png" alt="1783606509644_d"></p>
 <p><em>图 1-1：读事务的通道架构 — Read Address Channel (AR) + Read Data Channel (R)</em></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606522096_d.png" alt="1783606522096_d"></p>
+<p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606522096_d.png" alt="1783606522096_d"></p>
 <p><em>图 1-2：写事务的通道架构 — Write Address Channel (AW) + Write Data Channel (W) + Write Response Channel (B)</em></p>
 <p><strong>五个通道一览</strong>：</p>
 <table>
@@ -658,7 +658,7 @@
 <p><strong>记忆技巧</strong>：AW → W → B 是写流程三步走（地址→数据→响应）；AR → R 是读流程两步走（地址→数据）。B 通道之所以叫 B 是因为它是”反向”的（Slave→Master）。</p>
 </blockquote>
 <hr>
-<h2 id="3-Read-Write-Transfers-Walkthrough"><a href="#3-Read-Write-Transfers-Walkthrough" class="headerlink" title="3. Read &amp; Write Transfers Walkthrough"></a>3. Read &amp; Write Transfers Walkthrough</h2><h3 id="3-1-Read-Burst-示例"><a href="#3-1-Read-Burst-示例" class="headerlink" title="3.1 Read Burst 示例"></a>3.1 Read Burst 示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606535317_d.png" alt="1783606535317_d"></p>
+<h2 id="3-Read-Write-Transfers-Walkthrough"><a href="#3-Read-Write-Transfers-Walkthrough" class="headerlink" title="3. Read &amp; Write Transfers Walkthrough"></a>3. Read &amp; Write Transfers Walkthrough</h2><h3 id="3-1-Read-Burst-示例"><a href="#3-1-Read-Burst-示例" class="headerlink" title="3.1 Read Burst 示例"></a>3.1 Read Burst 示例</h3><p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606535317_d.png" alt="1783606535317_d"></p>
 <p><em>图 1-4：4 拍读 burst — 地址 + 4 拍数据返回，最后一拍 RLAST&#x3D;HIGH</em></p>
 <p><strong>逐周期解析</strong>：</p>
 <table>
@@ -691,7 +691,7 @@
 <li>读数据在地址接受后才返回（T4 开始，T7 结束）</li>
 <li>RLAST 标志 burst 的结束</li>
 </ul>
-<h3 id="3-2-Overlapping-Read-Burst-示例"><a href="#3-2-Overlapping-Read-Burst-示例" class="headerlink" title="3.2 Overlapping Read Burst 示例"></a>3.2 Overlapping Read Burst 示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606535317_d.png" alt="1783606535317_d"></p>
+<h3 id="3-2-Overlapping-Read-Burst-示例"><a href="#3-2-Overlapping-Read-Burst-示例" class="headerlink" title="3.2 Overlapping Read Burst 示例"></a>3.2 Overlapping Read Burst 示例</h3><p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606544671_d.png" alt="1783606544671_d"></p>
 <p><em>图 1-5：重叠读 burst — 地址 B 在地址 A 的数据未完成前就发出</em></p>
 <p><strong>逐周期解析</strong>：</p>
 <table>
@@ -722,7 +722,7 @@
 <blockquote>
 <p><strong>软件类比</strong>：就像 DMA 多通道——可以同时排队多个 descriptor，引擎逐个处理，不用等第一个传输结束后才开始准备第二个。</p>
 </blockquote>
-<h3 id="3-3-Write-Burst-示例"><a href="#3-3-Write-Burst-示例" class="headerlink" title="3.3 Write Burst 示例"></a>3.3 Write Burst 示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606554055_d.png" alt="1783606554055_d"></p>
+<h3 id="3-3-Write-Burst-示例"><a href="#3-3-Write-Burst-示例" class="headerlink" title="3.3 Write Burst 示例"></a>3.3 Write Burst 示例</h3><p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606554055_d.png" alt="1783606554055_d"></p>
 <p><em>图 1-6：写 burst — 地址 + 4 拍数据 + 写响应</em></p>
 <p><strong>逐周期解析</strong>：</p>
 <table>
@@ -776,24 +776,24 @@
 <li><strong>传输发生时</strong>：VALID&#x3D;HIGH <strong>且</strong> READY&#x3D;HIGH 的时钟周期</li>
 </ul>
 <h3 id="4-2-三种握手场景"><a href="#4-2-三种握手场景" class="headerlink" title="4.2 三种握手场景"></a>4.2 三种握手场景</h3><p><strong>场景 1：VALID before READY（源等宿）</strong></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606562539_d.png" alt="1783606562539_d"></p>
+<p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606562539_d.png" alt="1783606562539_d"></p>
 <p><em>图 3-1：VALID 先于 READY — 源先准备好，等待目的地就绪</em></p>
 <p>源先驱出 VALID 和数据，等待 READY 拉高后完成传输。数据在等待期间保持稳定。</p>
 <p><strong>场景 2：READY before VALID（宿等源）</strong></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606574091_d.png" alt="1783606574091_d"></p>
+<p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606574091_d.png" alt="1783606574091_d"></p>
 <p><em>图 3-2：READY 先于 VALID — 目的地提前准备好，源驱动数据后立即传输</em></p>
 <p>目的地提前示好”我准备好了”，一旦源驱动了 VALID，同一个周期即可完成传输（零等待）。</p>
 <p><strong>场景 3：VALID with READY（同时就绪）</strong></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606605718_d.png" alt="1783606605718_d"></p>
+<p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606605718_d.png" alt="1783606605718_d"></p>
 <p><em>图 3-3：VALID 和 READY 同时拉高 — 单周期完成传输</em></p>
 <p>最快的握手方式——双方同时就绪，一个周期完成。</p>
 <blockquote>
 <p><strong>软件类比</strong>：VALID-READY ≈ 生产者-消费者模型的单槽 buffer。VALID 表示”buffer 有数据”，READY 表示”消费者空闲”。只有同时为 true 才发生传递。</p>
 </blockquote>
 <h3 id="4-3-死锁避免规则"><a href="#4-3-死锁避免规则" class="headerlink" title="4.3 死锁避免规则"></a>4.3 死锁避免规则</h3><p><strong>核心原则</strong>：VALID 不能依赖于 READY，但 READY 可以依赖于 VALID。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606605718_d.png" alt="1783606605718_d"></p>
+<p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606605718_d.png" alt="1783606605718_d"></p>
 <p><em>图 3-4：读事务握手依赖图</em></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606605718_d.png" alt="1783606605718_d"></p>
+<p><img src="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606605718_d.png" alt="1783606605718_d"></p>
 <p><em>图 3-5：写事务握手依赖图</em></p>
 <table>
 <thead>

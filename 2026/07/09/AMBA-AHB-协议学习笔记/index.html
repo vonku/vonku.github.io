@@ -26,26 +26,26 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文基于 ARM AMBA 5 AHB Protocol Specification (IHI 0033C) 编写，面向有软件开发背景、需要理解 SoC 总线协议的读者。文中用 CPU 流水线、内存总线等概念做类比，帮助快速建立直观理解。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606814399_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606867401_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606923614_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606973043_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606874546_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606930357_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606856374_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606841177_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606846674_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606956096_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606814399_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606867401_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606923614_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606886089_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606886089_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606893625_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606973043_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606874546_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606930357_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606856374_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606841177_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606846674_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606956096_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606948231_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606941582_d.png">
 <meta property="article:published_time" content="2026-07-09T14:08:37.000Z">
-<meta property="article:modified_time" content="2026-07-09T14:34:57.551Z">
+<meta property="article:modified_time" content="2026-07-09T14:39:48.922Z">
 <meta property="article:author" content="Vonku">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606814399_d.png">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606814399_d.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
@@ -304,15 +304,15 @@
 <li><strong>Subordinate（从设备）</strong>：响应传输，返回数据或完成状态（RAM、外设控制器）</li>
 <li><strong>Interconnect（互连）</strong>：地址译码器 + 读数据多路复用器，将 Manager 的请求路由到正确的 Subordinate</li>
 </ul>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606814399_d.png" alt="1783606814399_d"></p>
+<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606814399_d.png" alt="1783606814399_d"></p>
 <p><em>图 1-1：AHB 系统框图 — 一个 Manager 连接三个 Subordinate，Decoder 根据地址选择目标，Multiplexor 汇集读取数据</em></p>
 <h3 id="1-3-Manager-接口"><a href="#1-3-Manager-接口" class="headerlink" title="1.3 Manager 接口"></a>1.3 Manager 接口</h3><p>Manager（管理器）是发起传输的组件，负责提供地址和控制信息。下图展示了 Manager 与总线交互的完整接口：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606867401_d.png" alt="1783606867401_d"></p>
+<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606867401_d.png" alt="1783606867401_d"></p>
 <p><em>图 1-2：Manager 接口 — 左侧为全局&#x2F;反馈信号（输入），右侧为 Manager 驱动到 Subordinate 的地址、控制和写数据信号</em></p>
 <p><strong>Manager 输出侧</strong>（M→S）：地址 HADDR、控制信号（HWRITE&#x2F;HSIZE&#x2F;HBURST&#x2F;HTRANS&#x2F;HPROT&#x2F;HMASTLOCK）、写数据 HWDATA。</p>
 <p><strong>Manager 输入侧</strong>（S→M）：<code>HCLK</code> 和 <code>HRESETn</code> 为全局信号，<code>HREADY</code> 和 <code>HRESP</code> 为传输完成与状态反馈，<code>HRDATA</code> 为读回的数据。</p>
 <h3 id="1-4-Subordinate-接口"><a href="#1-4-Subordinate-接口" class="headerlink" title="1.4 Subordinate 接口"></a>1.4 Subordinate 接口</h3><p>Subordinate（从设备）响应 Manager 发起的传输。它通过 <code>HSELx</code> 选通信号来判断当前传输是否寻址到自己：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606923614_d.png" alt="1783606923614_d"></p>
+<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606923614_d.png" alt="1783606923614_d"></p>
 <p><em>图 1-3：Subordinate 接口 — Subordinate 接收 Manager 的地址&#x2F;控制&#x2F;数据信号，返回读数据和状态</em></p>
 <p><strong>Subordinate 输出侧</strong>（S→M）：<code>HREADYOUT</code>（通过 Interconnect 合并为全局 HREADY）、<code>HRESP</code>（传输状态）、<code>HRDATA</code>（读数据）。</p>
 <p><strong>Subordinate 输入侧</strong>（M→S）：除全局时钟复位外，还包括选通信号 <code>HSELx</code>、地址 HADDR、所有控制信号，以及写数据 HWDATA。</p>
@@ -437,7 +437,7 @@
 </blockquote>
 <hr>
 <h2 id="2-无等待状态的读写传输"><a href="#2-无等待状态的读写传输" class="headerlink" title="2. 无等待状态的读写传输"></a>2. 无等待状态的读写传输</h2><h3 id="2-1-最简单的读传输"><a href="#2-1-最简单的读传输" class="headerlink" title="2.1 最简单的读传输"></a>2.1 最简单的读传输</h3><p>当一个 Subordinate 足够快时，传输在 2 个时钟周期内完成（无等待）：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png" alt="1783606886089_d"></p>
+<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606886089_d.png" alt="1783606886089_d"></p>
 <p><em>图 3-1：无等待读传输 — 注意 HADDR(A) 和 HRDATA(A) 差一个时钟周期</em></p>
 <p><strong>时序步骤</strong>：</p>
 <table>
@@ -465,7 +465,7 @@
 </tr>
 </tbody></table>
 <p>关键点：<strong>地址 A 在 T1 采样，数据 A 在 T2 采样——地址和数据的时钟周期不同</strong>。</p>
-<h3 id="2-2-最简单的写传输"><a href="#2-2-最简单的写传输" class="headerlink" title="2.2 最简单的写传输"></a>2.2 最简单的写传输</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png" alt="1783606886089_d"></p>
+<h3 id="2-2-最简单的写传输"><a href="#2-2-最简单的写传输" class="headerlink" title="2.2 最简单的写传输"></a>2.2 最简单的写传输</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606886089_d.png" alt="1783606886089_d"></p>
 <p><em>图 3-2：无等待写传输 — Manager 同时驱动 HADDR + HWDATA</em></p>
 <p><strong>时序步骤</strong>：</p>
 <table>
@@ -511,7 +511,7 @@
 <blockquote>
 <p><strong>软件类比</strong>：HREADY ≈ 内存控制器的 <code>ready</code> 信号。就像 DDR 控制器在未就绪时向 CPU 插入 stall 周期，AHB 通过 HREADY 实现同样的流控。</p>
 </blockquote>
-<h3 id="3-2-带等待的读传输"><a href="#3-2-带等待的读传输" class="headerlink" title="3.2 带等待的读传输"></a>3.2 带等待的读传输</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png" alt="1783606886089_d"></p>
+<h3 id="3-2-带等待的读传输"><a href="#3-2-带等待的读传输" class="headerlink" title="3.2 带等待的读传输"></a>3.2 带等待的读传输</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606893625_d.png" alt="1783606893625_d"></p>
 <p><em>图 3-3：带两个等待状态的读传输 — HREADY 在数据阶段拉低两次</em></p>
 <table>
 <thead>
@@ -543,7 +543,7 @@
 </tr>
 </tbody></table>
 <p><strong>读传输等待时的规则</strong>：Subordinate 不需要在等待期间提供有效数据，只有在 HREADY 即将拉高的那个周期才必须提供有效的 HRDATA。</p>
-<h3 id="3-3-带等待的写传输"><a href="#3-3-带等待的写传输" class="headerlink" title="3.3 带等待的写传输"></a>3.3 带等待的写传输</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606973043_d.png" alt="1783606973043_d"></p>
+<h3 id="3-3-带等待的写传输"><a href="#3-3-带等待的写传输" class="headerlink" title="3.3 带等待的写传输"></a>3.3 带等待的写传输</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606973043_d.png" alt="1783606973043_d"></p>
 <p><em>图 3-4：带一个等待状态的写传输</em></p>
 <p><strong>写传输等待时的规则</strong>（与读不同）：</p>
 <ul>
@@ -557,7 +557,7 @@
 <h2 id="4-多传输下的流水线-Multiple-Transfers"><a href="#4-多传输下的流水线-Multiple-Transfers" class="headerlink" title="4. 多传输下的流水线 (Multiple Transfers)"></a>4. 多传输下的流水线 (Multiple Transfers)</h2><h3 id="4-1-连续传输示例"><a href="#4-1-连续传输示例" class="headerlink" title="4.1 连续传输示例"></a>4.1 连续传输示例</h3><p>当一个传输被延长时，它会影响<strong>下一个传输的地址阶段</strong>：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">地址 A（读, 0 wait） → 地址 B（读, 1 wait） → 地址 C（写, 0 wait）</span><br></pre></td></tr></table></figure>
 
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606874546_d.png" alt="1783606874546_d"></p>
+<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606874546_d.png" alt="1783606874546_d"></p>
 <h3 id="4-2-级联效应"><a href="#4-2-级联效应" class="headerlink" title="4.2 级联效应"></a>4.2 级联效应</h3><table>
 <thead>
 <tr>
@@ -652,7 +652,7 @@
 <blockquote>
 <p><strong>软件类比</strong>：SEQ ≈ 数组顺序访问（<code>ptr++</code>）；NONSEQ ≈ 随机访问（新地址）；BUSY ≈ NOP（占位但后续关联）；IDLE ≈ 真正的 NOP（无关联）。</p>
 </blockquote>
-<h3 id="5-2-综合示例"><a href="#5-2-综合示例" class="headerlink" title="5.2 综合示例"></a>5.2 综合示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606930357_d.png" alt="1783606930357_d"></p>
+<h3 id="5-2-综合示例"><a href="#5-2-综合示例" class="headerlink" title="5.2 综合示例"></a>5.2 综合示例</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606930357_d.png" alt="1783606930357_d"></p>
 <p><em>图 3-6：一个 4-beat 读 burst 中的 HTRANS 使用示例</em></p>
 <p><strong>逐周期分析</strong>（从 T0 到 T7）：</p>
 <table>
@@ -811,7 +811,7 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wrap_addr = start_addr + ((start_addr + N × transfer_size) % boundary)</span><br></pre></td></tr></table></figure>
 
 <p>其中 <code>boundary = burst_beats × transfer_size</code>，<code>N</code> 是当前拍号（0 起始）。</p>
-<h3 id="7-2-WRAP4-示例"><a href="#7-2-WRAP4-示例" class="headerlink" title="7.2 WRAP4 示例"></a>7.2 WRAP4 示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606856374_d.png" alt="1783606856374_d"></p>
+<h3 id="7-2-WRAP4-示例"><a href="#7-2-WRAP4-示例" class="headerlink" title="7.2 WRAP4 示例"></a>7.2 WRAP4 示例</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606856374_d.png" alt="1783606856374_d"></p>
 <p><em>图 3-8：WRAP4 word burst，起始地址 0x38，16 字节边界回绕</em></p>
 <p>**起始地址 0x38，word 传输，boundary &#x3D; 4 × 4 &#x3D; 16 (0x10)**：</p>
 <table>
@@ -847,7 +847,7 @@
 <blockquote>
 <p><strong>软件类比</strong>：Wrap ≈ ring buffer 中的索引回绕。就像 <code>(head + offset) % buffer_size</code>，AHB 的 wrap 在硬件层面实现了同样的循环寻址。</p>
 </blockquote>
-<h3 id="7-3-WRAP8-示例"><a href="#7-3-WRAP8-示例" class="headerlink" title="7.3 WRAP8 示例"></a>7.3 WRAP8 示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606841177_d.png" alt="1783606841177_d"></p>
+<h3 id="7-3-WRAP8-示例"><a href="#7-3-WRAP8-示例" class="headerlink" title="7.3 WRAP8 示例"></a>7.3 WRAP8 示例</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606841177_d.png" alt="1783606841177_d"></p>
 <p><em>图 3-10：WRAP8 word burst，起始地址 0x34，32 字节边界回绕</em></p>
 <p>**起始地址 0x34，word 传输，boundary &#x3D; 8 × 4 &#x3D; 32 (0x20)**：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">地址序列: 0x34 → 0x38 → 0x3C → 0x20 → 0x24 → 0x28 → 0x2C → 0x30</span><br></pre></td></tr></table></figure>
@@ -857,20 +857,20 @@
 <blockquote>
 <p><strong>软件类比</strong>：就像 HTTP Range 请求中的 multipart 响应——先返回用户请求的偏移量对应的数据，再补全前后的数据块。</p>
 </blockquote>
-<h3 id="7-4-INCR4-对比"><a href="#7-4-INCR4-对比" class="headerlink" title="7.4 INCR4 对比"></a>7.4 INCR4 对比</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606846674_d.png" alt="1783606846674_d"></p>
+<h3 id="7-4-INCR4-对比"><a href="#7-4-INCR4-对比" class="headerlink" title="7.4 INCR4 对比"></a>7.4 INCR4 对比</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606846674_d.png" alt="1783606846674_d"></p>
 <p><em>图 3-9：INCR4 — 与 WRAP4 相同的起始地址，但不回绕</em></p>
 <p>INCR4 从 0x38 开始：<code>0x38 → 0x3C → 0x40 → 0x44</code>（简单递增，不回绕）。</p>
 <hr>
 <h2 id="8-等待状态下的传输类型变化"><a href="#8-等待状态下的传输类型变化" class="headerlink" title="8. 等待状态下的传输类型变化"></a>8. 等待状态下的传输类型变化</h2><p>当 HREADY &#x3D; LOW 时，Manager <strong>禁止</strong>改变 HTRANS，但以下三种场景是例外：</p>
-<h3 id="8-1-场景一：IDLE-→-NONSEQ"><a href="#8-1-场景一：IDLE-→-NONSEQ" class="headerlink" title="8.1 场景一：IDLE → NONSEQ"></a>8.1 场景一：IDLE → NONSEQ</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606956096_d.png" alt="1783606956096_d"></p>
+<h3 id="8-1-场景一：IDLE-→-NONSEQ"><a href="#8-1-场景一：IDLE-→-NONSEQ" class="headerlink" title="8.1 场景一：IDLE → NONSEQ"></a>8.1 场景一：IDLE → NONSEQ</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606956096_d.png" alt="1783606956096_d"></p>
 <p><em>图 3-13：等待状态下，从 IDLE 切换到 NONSEQ 启动新传输</em></p>
 <p><strong>规则</strong>：Manager 可以在 wait 期间将 HTRANS 从 IDLE 改为 NONSEQ，然后保持 NONSEQ 直到 HREADY&#x3D;HIGH。</p>
 <p><strong>场景</strong>：完成一个 SINGLE burst 后，Manager 想在等待期间立即发起一个新 burst，不等当前传输完成就可以”预告”下一个传输。</p>
-<h3 id="8-2-场景二：固定长度-Burst-中-BUSY-→-SEQ"><a href="#8-2-场景二：固定长度-Burst-中-BUSY-→-SEQ" class="headerlink" title="8.2 场景二：固定长度 Burst 中 BUSY → SEQ"></a>8.2 场景二：固定长度 Burst 中 BUSY → SEQ</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png" alt="1783606948231_d"></p>
+<h3 id="8-2-场景二：固定长度-Burst-中-BUSY-→-SEQ"><a href="#8-2-场景二：固定长度-Burst-中-BUSY-→-SEQ" class="headerlink" title="8.2 场景二：固定长度 Burst 中 BUSY → SEQ"></a>8.2 场景二：固定长度 Burst 中 BUSY → SEQ</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606948231_d.png" alt="1783606948231_d"></p>
 <p><em>图 3-14：固定长度 burst 中，BUSY 切换到 SEQ</em></p>
 <p><strong>规则</strong>：在 INCR4&#x2F;8&#x2F;16 或 WRAP4&#x2F;8&#x2F;16 中，BUSY → SEQ 是合法的。改为 SEQ 后保持直到 HREADY&#x3D;HIGH。</p>
 <p><strong>场景</strong>：burst 中 Manager 本来需要 BUSY 暂停，但 Subordinate 也拉低了 HREADY。在等待期间 Manager 准备好了，可以直接改为 SEQ 开始下一拍。</p>
-<h3 id="8-3-场景三：不定长度-Burst-中-BUSY-→-任意类型"><a href="#8-3-场景三：不定长度-Burst-中-BUSY-→-任意类型" class="headerlink" title="8.3 场景三：不定长度 Burst 中 BUSY → 任意类型"></a>8.3 场景三：不定长度 Burst 中 BUSY → 任意类型</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png" alt="1783606948231_d"></p>
+<h3 id="8-3-场景三：不定长度-Burst-中-BUSY-→-任意类型"><a href="#8-3-场景三：不定长度-Burst-中-BUSY-→-任意类型" class="headerlink" title="8.3 场景三：不定长度 Burst 中 BUSY → 任意类型"></a>8.3 场景三：不定长度 Burst 中 BUSY → 任意类型</h3><p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/1783606941582_d.png" alt="1783606941582_d"></p>
 <p><em>图 3-15：INCR burst 中，BUSY 切换到 NONSEQ 提前结束 burst</em></p>
 <p><strong>规则</strong>：仅在 INCR（不定长度）burst 中，BUSY 可以改为 SEQ（继续）、NONSEQ（新 burst）或 IDLE（结束）。</p>
 <p><strong>场景</strong>：Manager 发起了 INCR burst，但在中途决定不再需要更多数据，直接切换到 NONSEQ 开始新的传输。</p>
