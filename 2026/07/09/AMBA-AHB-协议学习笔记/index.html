@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文基于 ARM AMBA 5 AHB Protocol Specification (IHI 0033C) 编写，面向有软件开发背景、需要理解 SoC 总线协议的读者。文中用 CPU 流水线、内存总线等概念做类比，帮助快速建立直观理解。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AMBA AHB 协议学习笔记">
+<meta property="og:url" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文基于 ARM AMBA 5 AHB Protocol Specification (IHI 0033C) 编写，面向有软件开发背景、需要理解 SoC 总线协议的读者。文中用 CPU 流水线、内存总线等概念做类比，帮助快速建立直观理解。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606814399_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606867401_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606923614_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606973043_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606874546_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606930357_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606856374_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606841177_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606846674_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606956096_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png">
+<meta property="article:published_time" content="2026-07-09T14:08:37.000Z">
+<meta property="article:modified_time" content="2026-07-09T14:34:57.551Z">
+<meta property="article:author" content="Vonku">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606814399_d.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/","path":"2026/07/09/AMBA-AHB-协议学习笔记/","title":"AMBA AHB 协议学习笔记"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AMBA AHB 协议学习笔记 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-AHB-%E5%8D%8F%E8%AE%AE%E6%A6%82%E8%BF%B0%E4%B8%8E-Manager-%E6%8E%A5%E5%8F%A3%E4%BF%A1%E5%8F%B7"><span class="nav-text">1. AHB 协议概述与 Manager 接口信号</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E4%BB%80%E4%B9%88%E6%98%AF-AHB"><span class="nav-text">1.1 什么是 AHB</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E7%B3%BB%E7%BB%9F%E7%BB%84%E6%88%90"><span class="nav-text">1.2 系统组成</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-Manager-%E6%8E%A5%E5%8F%A3"><span class="nav-text">1.3 Manager 接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-Subordinate-%E6%8E%A5%E5%8F%A3"><span class="nav-text">1.4 Subordinate 接口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-5-%E4%BC%A0%E8%BE%93%E7%9A%84%E4%B8%A4%E4%B8%AA%E9%98%B6%E6%AE%B5"><span class="nav-text">1.5 传输的两个阶段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-6-Manager-%E6%8E%A5%E5%8F%A3%E6%A0%B8%E5%BF%83%E4%BF%A1%E5%8F%B7%E4%B8%80%E8%A7%88"><span class="nav-text">1.6 Manager 接口核心信号一览</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%97%A0%E7%AD%89%E5%BE%85%E7%8A%B6%E6%80%81%E7%9A%84%E8%AF%BB%E5%86%99%E4%BC%A0%E8%BE%93"><span class="nav-text">2. 无等待状态的读写传输</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%9C%80%E7%AE%80%E5%8D%95%E7%9A%84%E8%AF%BB%E4%BC%A0%E8%BE%93"><span class="nav-text">2.1 最简单的读传输</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E6%9C%80%E7%AE%80%E5%8D%95%E7%9A%84%E5%86%99%E4%BC%A0%E8%BE%93"><span class="nav-text">2.2 最简单的写传输</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E6%B5%81%E6%B0%B4%E7%BA%BF%E6%9C%AC%E8%B4%A8"><span class="nav-text">2.3 流水线本质</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%B8%A6%E7%AD%89%E5%BE%85%E7%8A%B6%E6%80%81%E7%9A%84%E8%AF%BB%E5%86%99%E4%BC%A0%E8%BE%93"><span class="nav-text">3. 带等待状态的读写传输</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Wait-States-%E7%9A%84%E6%9C%BA%E5%88%B6"><span class="nav-text">3.1 Wait States 的机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%B8%A6%E7%AD%89%E5%BE%85%E7%9A%84%E8%AF%BB%E4%BC%A0%E8%BE%93"><span class="nav-text">3.2 带等待的读传输</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%B8%A6%E7%AD%89%E5%BE%85%E7%9A%84%E5%86%99%E4%BC%A0%E8%BE%93"><span class="nav-text">3.3 带等待的写传输</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%A4%9A%E4%BC%A0%E8%BE%93%E4%B8%8B%E7%9A%84%E6%B5%81%E6%B0%B4%E7%BA%BF-Multiple-Transfers"><span class="nav-text">4. 多传输下的流水线 (Multiple Transfers)</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%BF%9E%E7%BB%AD%E4%BC%A0%E8%BE%93%E7%A4%BA%E4%BE%8B"><span class="nav-text">4.1 连续传输示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E7%BA%A7%E8%81%94%E6%95%88%E5%BA%94"><span class="nav-text">4.2 级联效应</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-HTRANS-%E4%BF%A1%E5%8F%B7%E4%B8%8E%E4%BC%A0%E8%BE%93%E7%B1%BB%E5%9E%8B"><span class="nav-text">5. HTRANS 信号与传输类型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%9B%9B%E7%A7%8D%E4%BC%A0%E8%BE%93%E7%B1%BB%E5%9E%8B"><span class="nav-text">5.1 四种传输类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E7%BB%BC%E5%90%88%E7%A4%BA%E4%BE%8B"><span class="nav-text">5.2 综合示例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-AHB-Burst-%E4%BC%A0%E8%BE%93"><span class="nav-text">6. AHB Burst 传输</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-Burst-%E6%A6%82%E5%BF%B5"><span class="nav-text">6.1 Burst 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-Burst-%E7%B1%BB%E5%9E%8B%E7%BC%96%E7%A0%81"><span class="nav-text">6.2 Burst 类型编码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-Incrementing-vs-Wrapping"><span class="nav-text">6.3 Incrementing vs Wrapping</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E5%85%B3%E9%94%AE%E7%BA%A6%E6%9D%9F"><span class="nav-text">6.4 关键约束</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-Wrap-Burst-%E8%AF%A6%E8%A7%A3"><span class="nav-text">7. Wrap Burst 详解</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E5%9C%B0%E5%9D%80%E5%9B%9E%E7%BB%95%E6%9C%BA%E5%88%B6"><span class="nav-text">7.1 地址回绕机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-WRAP4-%E7%A4%BA%E4%BE%8B"><span class="nav-text">7.2 WRAP4 示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-WRAP8-%E7%A4%BA%E4%BE%8B"><span class="nav-text">7.3 WRAP8 示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-INCR4-%E5%AF%B9%E6%AF%94"><span class="nav-text">7.4 INCR4 对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E7%AD%89%E5%BE%85%E7%8A%B6%E6%80%81%E4%B8%8B%E7%9A%84%E4%BC%A0%E8%BE%93%E7%B1%BB%E5%9E%8B%E5%8F%98%E5%8C%96"><span class="nav-text">8. 等待状态下的传输类型变化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%9C%BA%E6%99%AF%E4%B8%80%EF%BC%9AIDLE-%E2%86%92-NONSEQ"><span class="nav-text">8.1 场景一：IDLE → NONSEQ</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E5%9C%BA%E6%99%AF%E4%BA%8C%EF%BC%9A%E5%9B%BA%E5%AE%9A%E9%95%BF%E5%BA%A6-Burst-%E4%B8%AD-BUSY-%E2%86%92-SEQ"><span class="nav-text">8.2 场景二：固定长度 Burst 中 BUSY → SEQ</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E5%9C%BA%E6%99%AF%E4%B8%89%EF%BC%9A%E4%B8%8D%E5%AE%9A%E9%95%BF%E5%BA%A6-Burst-%E4%B8%AD-BUSY-%E2%86%92-%E4%BB%BB%E6%84%8F%E7%B1%BB%E5%9E%8B"><span class="nav-text">8.3 场景三：不定长度 Burst 中 BUSY → 任意类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-4-%E8%A7%84%E5%88%99%E6%80%BB%E7%BB%93"><span class="nav-text">8.4 规则总结</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%85%B6%E4%BB%96%E7%89%B9%E6%80%A7%E7%AE%80%E4%BB%8B"><span class="nav-text">9. 其他特性简介</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#9-1-Locked-Transfers%EF%BC%88%E9%94%81%E5%AE%9A%E4%BC%A0%E8%BE%93%EF%BC%89"><span class="nav-text">9.1 Locked Transfers（锁定传输）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-2-Transfer-Size%EF%BC%88%E4%BC%A0%E8%BE%93%E5%A4%A7%E5%B0%8F%EF%BC%89"><span class="nav-text">9.2 Transfer Size（传输大小）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-3-Write-Strobes%EF%BC%88%E5%86%99%E5%AD%97%E8%8A%82%E4%BD%BF%E8%83%BD%EF%BC%89"><span class="nav-text">9.3 Write Strobes（写字节使能）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-4-Protection-Control%EF%BC%88%E4%BF%9D%E6%8A%A4%E6%8E%A7%E5%88%B6%EF%BC%89"><span class="nav-text">9.4 Protection Control（保护控制）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-5-Memory-Types%EF%BC%88%E5%86%85%E5%AD%98%E7%B1%BB%E5%9E%8B%EF%BC%89"><span class="nav-text">9.5 Memory Types（内存类型）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#9-6-Secure-Transfers%EF%BC%88%E5%AE%89%E5%85%A8%E4%BC%A0%E8%BE%93%EF%BC%89"><span class="nav-text">9.6 Secure Transfers（安全传输）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%86%85%E5%AE%B9%E5%9B%9E%E9%A1%BE"><span class="nav-text">10. 内容回顾</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-%E6%80%BB%E7%BA%BF%E5%9F%BA%E7%A1%80"><span class="nav-text">10.1 总线基础</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-2-%E6%A0%B8%E5%BF%83%E4%BF%A1%E5%8F%B7"><span class="nav-text">10.2 核心信号</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-3-%E4%BC%A0%E8%BE%93%E4%B8%8E%E7%AD%89%E5%BE%85%E7%8A%B6%E6%80%81"><span class="nav-text">10.3 传输与等待状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-4-Burst-%E4%BC%A0%E8%BE%93"><span class="nav-text">10.4 Burst 传输</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-5-%E4%BC%A0%E8%BE%93%E7%B1%BB%E5%9E%8B-HTRANS"><span class="nav-text">10.5 传输类型 (HTRANS)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-6-%E5%85%B6%E4%BB%96%E7%89%B9%E6%80%A7%E9%80%9F%E6%9F%A5"><span class="nav-text">10.6 其他特性速查</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%99%84%E5%BD%95%EF%BC%9A%E5%85%B3%E9%94%AE%E6%9C%AF%E8%AF%AD%E9%80%9F%E6%9F%A5"><span class="nav-text">附录：关键术语速查</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">47</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">17</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AMBA AHB 协议学习笔记 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AMBA AHB 协议学习笔记
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-09 22:08:37" itemprop="dateCreated datePublished" datetime="2026-07-09T22:08:37+08:00">2026-07-09</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文基于 ARM AMBA 5 AHB Protocol Specification (IHI 0033C) 编写，面向有软件开发背景、需要理解 SoC 总线协议的读者。文中用 CPU 流水线、内存总线等概念做类比，帮助快速建立直观理解。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-AHB-协议概述与-Manager-接口信号"><a href="#1-AHB-协议概述与-Manager-接口信号" class="headerlink" title="1. AHB 协议概述与 Manager 接口信号"></a>1. AHB 协议概述与 Manager 接口信号</h2><h3 id="1-1-什么是-AHB"><a href="#1-1-什么是-AHB" class="headerlink" title="1.1 什么是 AHB"></a>1.1 什么是 AHB</h3><p><strong>AHB (Advanced High-performance Bus)</strong> 是 ARM AMBA 总线家族中的高性能总线，用于连接 SoC 内部的高速组件，如 CPU、DMA 控制器、片上内存、外部内存接口等。</p>
+<p>AHB 的核心特性：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>单时钟沿操作</strong></td>
+<td>所有信号在 HCLK 上升沿采样&#x2F;驱动</td>
+</tr>
+<tr>
+<td><strong>非三态实现</strong></td>
+<td>使用独立读写总线 + 多路复用器，而非三态门</td>
+</tr>
+<tr>
+<td><strong>流水线传输</strong></td>
+<td>地址阶段与上一传输的数据阶段重叠（类似 CPU 流水线）</td>
+</tr>
+<tr>
+<td><strong>Burst 传输</strong></td>
+<td>支持 1&#x2F;4&#x2F;8&#x2F;16 拍的突发传输</td>
+</tr>
+<tr>
+<td><strong>可配置数据宽度</strong></td>
+<td>8&#x2F;16&#x2F;32&#x2F;64&#x2F;128&#x2F;256&#x2F;512&#x2F;1024 位</td>
+</tr>
+<tr>
+<td><strong>Split 事务</strong></td>
+<td>支持 Subordinate 在未就绪时释放总线</td>
+</tr>
+</tbody></table>
+<h3 id="1-2-系统组成"><a href="#1-2-系统组成" class="headerlink" title="1.2 系统组成"></a>1.2 系统组成</h3><p>AHB 系统由三种组件构成：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">┌──────────┐      ┌──────────────────┐      ┌──────────────────┐</span><br><span class="line">│ Manager  │ ──── │   Interconnect   │ ──── │ Subordinate      │</span><br><span class="line">│ (CPU/DMA)│      │ Decoder + Mux    │      │ (RAM/peripheral) │</span><br><span class="line">└──────────┘      └──────────────────┘      └──────────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>Manager（管理器）</strong>：发起读写传输，提供地址和控制信号（CPU、DMA）</li>
+<li><strong>Subordinate（从设备）</strong>：响应传输，返回数据或完成状态（RAM、外设控制器）</li>
+<li><strong>Interconnect（互连）</strong>：地址译码器 + 读数据多路复用器，将 Manager 的请求路由到正确的 Subordinate</li>
+</ul>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606814399_d.png" alt="1783606814399_d"></p>
+<p><em>图 1-1：AHB 系统框图 — 一个 Manager 连接三个 Subordinate，Decoder 根据地址选择目标，Multiplexor 汇集读取数据</em></p>
+<h3 id="1-3-Manager-接口"><a href="#1-3-Manager-接口" class="headerlink" title="1.3 Manager 接口"></a>1.3 Manager 接口</h3><p>Manager（管理器）是发起传输的组件，负责提供地址和控制信息。下图展示了 Manager 与总线交互的完整接口：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606867401_d.png" alt="1783606867401_d"></p>
+<p><em>图 1-2：Manager 接口 — 左侧为全局&#x2F;反馈信号（输入），右侧为 Manager 驱动到 Subordinate 的地址、控制和写数据信号</em></p>
+<p><strong>Manager 输出侧</strong>（M→S）：地址 HADDR、控制信号（HWRITE&#x2F;HSIZE&#x2F;HBURST&#x2F;HTRANS&#x2F;HPROT&#x2F;HMASTLOCK）、写数据 HWDATA。</p>
+<p><strong>Manager 输入侧</strong>（S→M）：<code>HCLK</code> 和 <code>HRESETn</code> 为全局信号，<code>HREADY</code> 和 <code>HRESP</code> 为传输完成与状态反馈，<code>HRDATA</code> 为读回的数据。</p>
+<h3 id="1-4-Subordinate-接口"><a href="#1-4-Subordinate-接口" class="headerlink" title="1.4 Subordinate 接口"></a>1.4 Subordinate 接口</h3><p>Subordinate（从设备）响应 Manager 发起的传输。它通过 <code>HSELx</code> 选通信号来判断当前传输是否寻址到自己：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606923614_d.png" alt="1783606923614_d"></p>
+<p><em>图 1-3：Subordinate 接口 — Subordinate 接收 Manager 的地址&#x2F;控制&#x2F;数据信号，返回读数据和状态</em></p>
+<p><strong>Subordinate 输出侧</strong>（S→M）：<code>HREADYOUT</code>（通过 Interconnect 合并为全局 HREADY）、<code>HRESP</code>（传输状态）、<code>HRDATA</code>（读数据）。</p>
+<p><strong>Subordinate 输入侧</strong>（M→S）：除全局时钟复位外，还包括选通信号 <code>HSELx</code>、地址 HADDR、所有控制信号，以及写数据 HWDATA。</p>
+<blockquote>
+<p><strong>对比记忆</strong>：Manager 主动发起（输出地址+控制），Subordinate 被动响应（输出状态+读数据）。Manager 不知道有多少个 Subordinate，是 Interconnect 的 Decoder 通过 <code>HSELx</code> 信号完成寻址路由。</p>
+</blockquote>
+<h3 id="1-5-传输的两个阶段"><a href="#1-5-传输的两个阶段" class="headerlink" title="1.5 传输的两个阶段"></a>1.5 传输的两个阶段</h3><p>每个 AHB 传输分为两个阶段，<strong>重叠执行</strong>（这是理解 AHB 性能的关键）：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>耗时</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Address Phase（地址阶段）</strong></td>
+<td>1 个 HCLK 周期</td>
+<td>Manager 驱动地址 + 控制信号</td>
+</tr>
+<tr>
+<td><strong>Data Phase（数据阶段）</strong></td>
+<td>1+ 个 HCLK 周期</td>
+<td>Subordinate 返回&#x2F;接收数据，可用 HREADY 延长</td>
+</tr>
+</tbody></table>
+<p><strong>核心流水线特性</strong>：当前传输的地址阶段与<strong>上一个传输的数据阶段</strong>发生在同一个时钟周期内。这意味着 AHB 可以在每个时钟周期启动一个新传输，同时完成前一个传输的数据收发。</p>
+<blockquote>
+<p><strong>软件类比</strong>：就像 CPU 的五级流水线——取指的同时，前一条指令正在执行。地址阶段是”前端”，数据阶段是”后端”。</p>
+</blockquote>
+<h3 id="1-6-Manager-接口核心信号一览"><a href="#1-6-Manager-接口核心信号一览" class="headerlink" title="1.6 Manager 接口核心信号一览"></a>1.6 Manager 接口核心信号一览</h3><p>所有 AHB 信号以 <code>H</code> 为前缀。<strong>Manager 输出的关键信号</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>信号</th>
+<th>宽度</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>HCLK</strong></td>
+<td>1</td>
+<td>全局</td>
+<td>总线时钟，所有信号在上升沿采样</td>
+</tr>
+<tr>
+<td><strong>HRESETn</strong></td>
+<td>1</td>
+<td>全局</td>
+<td>异步复位，低有效（唯一低有效信号）</td>
+</tr>
+<tr>
+<td><strong>HADDR</strong></td>
+<td>10-64</td>
+<td>M→S</td>
+<td>字节地址。<strong>地址阶段</strong>信号</td>
+</tr>
+<tr>
+<td><strong>HWRITE</strong></td>
+<td>1</td>
+<td>M→S</td>
+<td>HIGH &#x3D; 写传输，LOW &#x3D; 读传输</td>
+</tr>
+<tr>
+<td><strong>HSIZE[2:0]</strong></td>
+<td>3</td>
+<td>M→S</td>
+<td>传输宽度：8&#x2F;16&#x2F;32&#x2F;64&#x2F;128&#x2F;256&#x2F;512&#x2F;1024 bit</td>
+</tr>
+<tr>
+<td><strong>HBURST[2:0]</strong></td>
+<td>3</td>
+<td>M→S</td>
+<td>突发类型（见第 6 章）</td>
+</tr>
+<tr>
+<td><strong>HTRANS[1:0]</strong></td>
+<td>2</td>
+<td>M→S</td>
+<td>传输类型：IDLE&#x2F;BUSY&#x2F;NONSEQ&#x2F;SEQ（见第 5 章）</td>
+</tr>
+<tr>
+<td><strong>HPROT[3:0]</strong></td>
+<td>4&#x2F;7</td>
+<td>M→S</td>
+<td>保护控制：cacheable&#x2F;bufferable&#x2F;privileged&#x2F;data</td>
+</tr>
+<tr>
+<td><strong>HMASTLOCK</strong></td>
+<td>1</td>
+<td>M→S</td>
+<td>锁定传输指示（原子操作）</td>
+</tr>
+<tr>
+<td><strong>HWDATA</strong></td>
+<td>8-1024</td>
+<td>M→S</td>
+<td>写数据总线</td>
+</tr>
+<tr>
+<td><strong>HRDATA</strong></td>
+<td>8-1024</td>
+<td>S→M</td>
+<td>读数据总线</td>
+</tr>
+<tr>
+<td><strong>HREADY</strong></td>
+<td>1</td>
+<td>S→M</td>
+<td>传输完成指示。LOW &#x3D; 插入等待</td>
+</tr>
+<tr>
+<td><strong>HRESP</strong></td>
+<td>1</td>
+<td>S→M</td>
+<td>传输响应：LOW &#x3D; OKAY，HIGH &#x3D; ERROR</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>软件类比</strong>：HADDR + HWRITE + HSIZE ≈ 一次函数调用参数；HREADY ≈ 返回值就绪信号；HWDATA&#x2F;HRDATA ≈ 调用&#x2F;返回的数据。</p>
+</blockquote>
+<hr>
+<h2 id="2-无等待状态的读写传输"><a href="#2-无等待状态的读写传输" class="headerlink" title="2. 无等待状态的读写传输"></a>2. 无等待状态的读写传输</h2><h3 id="2-1-最简单的读传输"><a href="#2-1-最简单的读传输" class="headerlink" title="2.1 最简单的读传输"></a>2.1 最简单的读传输</h3><p>当一个 Subordinate 足够快时，传输在 2 个时钟周期内完成（无等待）：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png" alt="1783606886089_d"></p>
+<p><em>图 3-1：无等待读传输 — 注意 HADDR(A) 和 HRDATA(A) 差一个时钟周期</em></p>
+<p><strong>时序步骤</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>时钟沿</th>
+<th>事件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>T0 上升沿后</strong></td>
+<td>Manager 驱动地址 A + HWRITE&#x3D;LOW + 控制信号到总线</td>
+</tr>
+<tr>
+<td><strong>T1 上升沿</strong></td>
+<td>Subordinate 采样地址和控制信息</td>
+</tr>
+<tr>
+<td><strong>T1 上升沿后</strong></td>
+<td>Subordinate 驱动 HREADYOUT + HRDATA(A)</td>
+</tr>
+<tr>
+<td><strong>T2 上升沿</strong></td>
+<td>Manager 采样 HREADY&#x3D;HIGH + HRDATA(A)，传输完成</td>
+</tr>
+</tbody></table>
+<p>关键点：<strong>地址 A 在 T1 采样，数据 A 在 T2 采样——地址和数据的时钟周期不同</strong>。</p>
+<h3 id="2-2-最简单的写传输"><a href="#2-2-最简单的写传输" class="headerlink" title="2.2 最简单的写传输"></a>2.2 最简单的写传输</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png" alt="1783606886089_d"></p>
+<p><em>图 3-2：无等待写传输 — Manager 同时驱动 HADDR + HWDATA</em></p>
+<p><strong>时序步骤</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>时钟沿</th>
+<th>事件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>T0 上升沿后</strong></td>
+<td>Manager 驱动地址 A + HWRITE&#x3D;HIGH + HWDATA(A)</td>
+</tr>
+<tr>
+<td><strong>T1 上升沿</strong></td>
+<td>Subordinate 采样地址和数据</td>
+</tr>
+<tr>
+<td><strong>T1 上升沿后</strong></td>
+<td>Subordinate 驱动 HREADYOUT&#x3D;HIGH</td>
+</tr>
+<tr>
+<td><strong>T2 上升沿</strong></td>
+<td>Manager 采样 HREADY&#x3D;HIGH，写传输完成</td>
+</tr>
+</tbody></table>
+<p><strong>读写关键区别</strong>：</p>
+<ul>
+<li>读：数据由 Subordinate 驱动（T1-T2 之间），Manager 在 T2 采样</li>
+<li>写：数据由 Manager 驱动（T0-T2 之间，因为提前一个周期），Subordinate 在 T1 采样</li>
+</ul>
+<h3 id="2-3-流水线本质"><a href="#2-3-流水线本质" class="headerlink" title="2.3 流水线本质"></a>2.3 流水线本质</h3><p>从时序图可以清楚地看到：<strong>地址 T0→T1 的地址阶段与上一个传输 T0→T1 的数据阶段同时进行</strong>。AHB 正是利用这种重叠实现了”每周期一个传输”的高吞吐量。</p>
+<blockquote>
+<p><strong>软件类比</strong>：这就像 HTTP pipelining — 不等上一个响应返回就发出下一个请求。每个请求（地址）和上个请求的响应（数据）在同一条总线上交错传输。</p>
+</blockquote>
+<hr>
+<h2 id="3-带等待状态的读写传输"><a href="#3-带等待状态的读写传输" class="headerlink" title="3. 带等待状态的读写传输"></a>3. 带等待状态的读写传输</h2><h3 id="3-1-Wait-States-的机制"><a href="#3-1-Wait-States-的机制" class="headerlink" title="3.1 Wait States 的机制"></a>3.1 Wait States 的机制</h3><p>当 Subordinate 需要更多时间处理传输时，通过 <strong><code>HREADY</code></strong> 信号插入等待：</p>
+<ul>
+<li>每个 Subordinate 有自己的 <strong><code>HREADYOUT</code></strong> 信号</li>
+<li>Interconnect 将所有 HREADYOUT 组合成一个全局 <strong><code>HREADY</code></strong></li>
+<li><code>HREADY = LOW</code> → 当前传输未完成，Manager 和所有 Subordinate 必须等待</li>
+</ul>
+<blockquote>
+<p><strong>软件类比</strong>：HREADY ≈ 内存控制器的 <code>ready</code> 信号。就像 DDR 控制器在未就绪时向 CPU 插入 stall 周期，AHB 通过 HREADY 实现同样的流控。</p>
+</blockquote>
+<h3 id="3-2-带等待的读传输"><a href="#3-2-带等待的读传输" class="headerlink" title="3.2 带等待的读传输"></a>3.2 带等待的读传输</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606886089_d.png" alt="1783606886089_d"></p>
+<p><em>图 3-3：带两个等待状态的读传输 — HREADY 在数据阶段拉低两次</em></p>
+<table>
+<thead>
+<tr>
+<th>时钟沿</th>
+<th>HREADY</th>
+<th>事件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>T0→T1</td>
+<td>HIGH</td>
+<td>地址阶段：Manager 驱动 A</td>
+</tr>
+<tr>
+<td>T1→T2</td>
+<td>LOW</td>
+<td>第 1 个等待：Subordinate 未就绪</td>
+</tr>
+<tr>
+<td>T2→T3</td>
+<td>LOW</td>
+<td>第 2 个等待：Subordinate 仍未就绪</td>
+</tr>
+<tr>
+<td>T3→T4</td>
+<td>HIGH</td>
+<td>数据阶段完成：Manager 采样 HREADY&#x3D;HIGH + HRDATA(A)</td>
+</tr>
+</tbody></table>
+<p><strong>读传输等待时的规则</strong>：Subordinate 不需要在等待期间提供有效数据，只有在 HREADY 即将拉高的那个周期才必须提供有效的 HRDATA。</p>
+<h3 id="3-3-带等待的写传输"><a href="#3-3-带等待的写传输" class="headerlink" title="3.3 带等待的写传输"></a>3.3 带等待的写传输</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606973043_d.png" alt="1783606973043_d"></p>
+<p><em>图 3-4：带一个等待状态的写传输</em></p>
+<p><strong>写传输等待时的规则</strong>（与读不同）：</p>
+<ul>
+<li>Manager 必须在<strong>整个等待期间</strong>保持 HWDATA 稳定不变</li>
+<li>Subordinate 在 HREADY&#x3D;HIGH 的那个上升沿采样数据</li>
+</ul>
+<blockquote>
+<p><strong>记忆技巧</strong>：写 &#x3D; Manager 保持数据不变（”我等你，数据不会跑”）；读 &#x3D; Subordinate 最后关头给数据（”你别催，好了就给你”）。</p>
+</blockquote>
+<hr>
+<h2 id="4-多传输下的流水线-Multiple-Transfers"><a href="#4-多传输下的流水线-Multiple-Transfers" class="headerlink" title="4. 多传输下的流水线 (Multiple Transfers)"></a>4. 多传输下的流水线 (Multiple Transfers)</h2><h3 id="4-1-连续传输示例"><a href="#4-1-连续传输示例" class="headerlink" title="4.1 连续传输示例"></a>4.1 连续传输示例</h3><p>当一个传输被延长时，它会影响<strong>下一个传输的地址阶段</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">地址 A（读, 0 wait） → 地址 B（读, 1 wait） → 地址 C（写, 0 wait）</span><br></pre></td></tr></table></figure>
+
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606874546_d.png" alt="1783606874546_d"></p>
+<h3 id="4-2-级联效应"><a href="#4-2-级联效应" class="headerlink" title="4.2 级联效应"></a>4.2 级联效应</h3><table>
+<thead>
+<tr>
+<th>时间槽</th>
+<th>地址阶段</th>
+<th>数据阶段</th>
+<th>HREADY</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>T0→T1</td>
+<td>A</td>
+<td>—</td>
+<td>HIGH</td>
+</tr>
+<tr>
+<td>T1→T2</td>
+<td>B</td>
+<td>A</td>
+<td>HIGH</td>
+</tr>
+<tr>
+<td>T2→T3</td>
+<td>B（保持）</td>
+<td>B（等待）</td>
+<td>LOW</td>
+</tr>
+<tr>
+<td>T3→T4</td>
+<td>C（等待！）</td>
+<td>B</td>
+<td>LOW</td>
+</tr>
+<tr>
+<td>T4→T5</td>
+<td>C</td>
+<td>B（完成）</td>
+<td>HIGH</td>
+</tr>
+<tr>
+<td>T5→T6</td>
+<td>—</td>
+<td>C</td>
+<td>HIGH</td>
+</tr>
+</tbody></table>
+<p><strong>关键观察</strong>：T3→T4 时，地址 C 本应进入地址阶段，但因为 HREADY&#x3D;LOW，地址阶段被<strong>被迫延长</strong>。这是 AHB 流水线的核心行为：</p>
+<ol>
+<li>B 的数据阶段延长（HREADY&#x3D;LOW）</li>
+<li>导致 C 的地址阶段<strong>不能开始</strong>（因为 AHB 的地址信号只有在数据阶段进行时才更新）</li>
+<li>C 的地址阶段随着 B 的数据阶段延长而一起延长</li>
+</ol>
+<blockquote>
+<p><strong>软件类比</strong>：就像 CPU 流水线的 stall 会级联到后续指令。一条 <code>load</code> 指令 cache miss → 后续 <code>add</code> 等依赖指令被 stall → 再后续的非依赖指令也可能被阻塞。</p>
+</blockquote>
+<hr>
+<h2 id="5-HTRANS-信号与传输类型"><a href="#5-HTRANS-信号与传输类型" class="headerlink" title="5. HTRANS 信号与传输类型"></a>5. HTRANS 信号与传输类型</h2><h3 id="5-1-四种传输类型"><a href="#5-1-四种传输类型" class="headerlink" title="5.1 四种传输类型"></a>5.1 四种传输类型</h3><p><strong><code>HTRANS[1:0]</code></strong> 指示当前传输的类型：</p>
+<table>
+<thead>
+<tr>
+<th>HTRANS[1:0]</th>
+<th>类型</th>
+<th>含义</th>
+<th>Subordinate 行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0b00</code></td>
+<td><strong>IDLE</strong></td>
+<td>无数据需要传输</td>
+<td>必须返回 OKAY（0 等待），忽略该传输</td>
+</tr>
+<tr>
+<td><code>0b01</code></td>
+<td><strong>BUSY</strong></td>
+<td>在 burst 中间插入空闲周期</td>
+<td>必须返回 OKAY（0 等待），忽略该传输</td>
+</tr>
+<tr>
+<td><code>0b10</code></td>
+<td><strong>NONSEQ</strong></td>
+<td>单次传输 &#x2F; burst 的第一拍</td>
+<td>正常处理，地址与上次无关</td>
+</tr>
+<tr>
+<td><code>0b11</code></td>
+<td><strong>SEQ</strong></td>
+<td>burst 中的后续拍</td>
+<td>正常处理，地址 &#x3D; 上一地址 + size</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>软件类比</strong>：SEQ ≈ 数组顺序访问（<code>ptr++</code>）；NONSEQ ≈ 随机访问（新地址）；BUSY ≈ NOP（占位但后续关联）；IDLE ≈ 真正的 NOP（无关联）。</p>
+</blockquote>
+<h3 id="5-2-综合示例"><a href="#5-2-综合示例" class="headerlink" title="5.2 综合示例"></a>5.2 综合示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606930357_d.png" alt="1783606930357_d"></p>
+<p><em>图 3-6：一个 4-beat 读 burst 中的 HTRANS 使用示例</em></p>
+<p><strong>逐周期分析</strong>（从 T0 到 T7）：</p>
+<table>
+<thead>
+<tr>
+<th>时间段</th>
+<th>HTRANS</th>
+<th>HADDR</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>T0→T1</strong></td>
+<td>NONSEQ</td>
+<td>0x20</td>
+<td>burst 第一拍</td>
+</tr>
+<tr>
+<td><strong>T1→T2</strong></td>
+<td><strong>BUSY</strong></td>
+<td>0x24</td>
+<td>Manager 还没准备好第二拍，插入 BUSY</td>
+</tr>
+<tr>
+<td><strong>T2→T3</strong></td>
+<td>SEQ</td>
+<td>0x24</td>
+<td>第二拍开始（地址 0x24）</td>
+</tr>
+<tr>
+<td><strong>T3→T4</strong></td>
+<td>SEQ</td>
+<td>0x28</td>
+<td>第三拍开始（地址 0x28）</td>
+</tr>
+<tr>
+<td><strong>T4→T5</strong></td>
+<td>SEQ</td>
+<td>0x2C</td>
+<td>第四拍开始（地址 0x2C），但 Subordinate 插入等待</td>
+</tr>
+<tr>
+<td><strong>T5→T6</strong></td>
+<td>SEQ（保持）</td>
+<td>0x2C（保持）</td>
+<td>HREADY&#x3D;LOW，信号不变</td>
+</tr>
+<tr>
+<td><strong>T6→T7</strong></td>
+<td>—</td>
+<td>—</td>
+<td>最后一拍完成</td>
+</tr>
+</tbody></table>
+<p><strong>重要规则</strong>：</p>
+<ul>
+<li>IDLE 和 BUSY 传输阶段，Subordinate <strong>必须</strong>返回零等待 OKAY 响应</li>
+<li>BUSY 只能出现在 burst 的中间拍（不能是第一拍或最后一拍，INCR 除外）</li>
+<li>NONSEQ 启动一个新的传输序列</li>
+</ul>
+<hr>
+<h2 id="6-AHB-Burst-传输"><a href="#6-AHB-Burst-传输" class="headerlink" title="6. AHB Burst 传输"></a>6. AHB Burst 传输</h2><h3 id="6-1-Burst-概念"><a href="#6-1-Burst-概念" class="headerlink" title="6.1 Burst 概念"></a>6.1 Burst 概念</h3><p>Burst（突发）是一次传输多个连续数据单元的机制。**<code>HBURST[2:0]</code>** 控制 burst 类型。</p>
+<blockquote>
+<p><strong>软件类比</strong>：Burst ≈ DMA 传输中的 scatter-gather。一次设置地址和长度，硬件自动完成多拍数据搬运，开销远低于逐拍单独发起。</p>
+</blockquote>
+<h3 id="6-2-Burst-类型编码"><a href="#6-2-Burst-类型编码" class="headerlink" title="6.2 Burst 类型编码"></a>6.2 Burst 类型编码</h3><table>
+<thead>
+<tr>
+<th>HBURST[2:0]</th>
+<th>类型</th>
+<th>拍数</th>
+<th>地址行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0b000</code></td>
+<td><strong>SINGLE</strong></td>
+<td>1</td>
+<td>单次传输</td>
+</tr>
+<tr>
+<td><code>0b001</code></td>
+<td><strong>INCR</strong></td>
+<td>不限</td>
+<td>递增，地址连续</td>
+</tr>
+<tr>
+<td><code>0b010</code></td>
+<td><strong>WRAP4</strong></td>
+<td>4</td>
+<td>边界回绕</td>
+</tr>
+<tr>
+<td><code>0b011</code></td>
+<td><strong>INCR4</strong></td>
+<td>4</td>
+<td>递增</td>
+</tr>
+<tr>
+<td><code>0b100</code></td>
+<td><strong>WRAP8</strong></td>
+<td>8</td>
+<td>边界回绕</td>
+</tr>
+<tr>
+<td><code>0b101</code></td>
+<td><strong>INCR8</strong></td>
+<td>8</td>
+<td>递增</td>
+</tr>
+<tr>
+<td><code>0b110</code></td>
+<td><strong>WRAP16</strong></td>
+<td>16</td>
+<td>边界回绕</td>
+</tr>
+<tr>
+<td><code>0b111</code></td>
+<td><strong>INCR16</strong></td>
+<td>16</td>
+<td>递增</td>
+</tr>
+</tbody></table>
+<h3 id="6-3-Incrementing-vs-Wrapping"><a href="#6-3-Incrementing-vs-Wrapping" class="headerlink" title="6.3 Incrementing vs Wrapping"></a>6.3 Incrementing vs Wrapping</h3><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>地址行为</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Incrementing</strong> (INCR)</td>
+<td>每一拍地址 &#x3D; 前一拍地址 + 传输大小</td>
+<td>顺序访问内存块</td>
+</tr>
+<tr>
+<td><strong>Wrapping</strong> (WRAP)</td>
+<td>到达边界时地址回绕到边界起点</td>
+<td>Cache line 填充</td>
+</tr>
+</tbody></table>
+<p><strong>计算回绕边界</strong>：<code>boundary = burst_beats × transfer_size</code></p>
+<ul>
+<li>4-beat word burst（每拍 4 字节）：<code>boundary = 4 × 4 = 16</code> 字节</li>
+<li>8-beat word burst：<code>boundary = 8 × 4 = 32</code> 字节</li>
+</ul>
+<h3 id="6-4-关键约束"><a href="#6-4-关键约束" class="headerlink" title="6.4 关键约束"></a>6.4 关键约束</h3><ul>
+<li><strong>1KB 地址边界</strong>：递增 burst <strong>不能跨过 1KB 地址边界</strong></li>
+<li><strong>地址对齐</strong>：每拍的地址必须对齐到传输大小（word 传输 → 4 字节对齐，HADDR[1:0]&#x3D;0b00）</li>
+<li><strong>固定长度 burst 必须使用 SEQ 结束</strong>（不能用 BUSY）</li>
+</ul>
+<hr>
+<h2 id="7-Wrap-Burst-详解"><a href="#7-Wrap-Burst-详解" class="headerlink" title="7. Wrap Burst 详解"></a>7. Wrap Burst 详解</h2><h3 id="7-1-地址回绕机制"><a href="#7-1-地址回绕机制" class="headerlink" title="7.1 地址回绕机制"></a>7.1 地址回绕机制</h3><p>Wrapping burst 是 AHB 中一个独特的设计。当地址到达 burst 边界时，下一个地址会<strong>回绕</strong>到 burst 的起始边界，而非继续递增。</p>
+<p><strong>回绕地址公式</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wrap_addr = start_addr + ((start_addr + N × transfer_size) % boundary)</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>boundary = burst_beats × transfer_size</code>，<code>N</code> 是当前拍号（0 起始）。</p>
+<h3 id="7-2-WRAP4-示例"><a href="#7-2-WRAP4-示例" class="headerlink" title="7.2 WRAP4 示例"></a>7.2 WRAP4 示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606856374_d.png" alt="1783606856374_d"></p>
+<p><em>图 3-8：WRAP4 word burst，起始地址 0x38，16 字节边界回绕</em></p>
+<p>**起始地址 0x38，word 传输，boundary &#x3D; 4 × 4 &#x3D; 16 (0x10)**：</p>
+<table>
+<thead>
+<tr>
+<th>拍号</th>
+<th>地址</th>
+<th>计算</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>第 0 拍 (NONSEQ)</td>
+<td><strong>0x38</strong></td>
+<td>&#x3D; start_addr</td>
+</tr>
+<tr>
+<td>第 1 拍 (SEQ)</td>
+<td><strong>0x3C</strong></td>
+<td>&#x3D; 0x38 + 4</td>
+</tr>
+<tr>
+<td>第 2 拍 (SEQ)</td>
+<td><strong>0x30</strong></td>
+<td>&#x3D; 0x38 + 8 - 16（回绕！跨过 0x40 边界）</td>
+</tr>
+<tr>
+<td>第 3 拍 (SEQ)</td>
+<td><strong>0x34</strong></td>
+<td>&#x3D; 0x38 + 12 - 16</td>
+</tr>
+</tbody></table>
+<p>注意 0x3C → 0x30 的跳变：<code>0x3C + 4 = 0x40</code>，超过 16 字节边界 <code>0x30-0x3F</code>，所以回绕到 <code>0x30</code>。</p>
+<blockquote>
+<p><strong>软件类比</strong>：Wrap ≈ ring buffer 中的索引回绕。就像 <code>(head + offset) % buffer_size</code>，AHB 的 wrap 在硬件层面实现了同样的循环寻址。</p>
+</blockquote>
+<h3 id="7-3-WRAP8-示例"><a href="#7-3-WRAP8-示例" class="headerlink" title="7.3 WRAP8 示例"></a>7.3 WRAP8 示例</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606841177_d.png" alt="1783606841177_d"></p>
+<p><em>图 3-10：WRAP8 word burst，起始地址 0x34，32 字节边界回绕</em></p>
+<p>**起始地址 0x34，word 传输，boundary &#x3D; 8 × 4 &#x3D; 32 (0x20)**：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">地址序列: 0x34 → 0x38 → 0x3C → 0x20 → 0x24 → 0x28 → 0x2C → 0x30</span><br></pre></td></tr></table></figure>
+
+<p>到达 0x3C 后，<code>0x3C + 4 = 0x40</code> 超过 32 字节边界，回绕到 <code>0x20</code>。</p>
+<p><strong>为什么用 Wrap Burst？</strong> 当 CPU 需要从地址 0x34 开始加载一个 cache line（32 字节），如果顺序递增会访问 0x34<del>0x54，这意味着跨了两个 cache line 边界。Wrap burst 从 0x34 开始填充 cache line 的后半部分 0x30</del>0x3F，然后回绕到 0x20 填充前半部分——<strong>先返回”关键数据”（0x34）</strong>。</p>
+<blockquote>
+<p><strong>软件类比</strong>：就像 HTTP Range 请求中的 multipart 响应——先返回用户请求的偏移量对应的数据，再补全前后的数据块。</p>
+</blockquote>
+<h3 id="7-4-INCR4-对比"><a href="#7-4-INCR4-对比" class="headerlink" title="7.4 INCR4 对比"></a>7.4 INCR4 对比</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606846674_d.png" alt="1783606846674_d"></p>
+<p><em>图 3-9：INCR4 — 与 WRAP4 相同的起始地址，但不回绕</em></p>
+<p>INCR4 从 0x38 开始：<code>0x38 → 0x3C → 0x40 → 0x44</code>（简单递增，不回绕）。</p>
+<hr>
+<h2 id="8-等待状态下的传输类型变化"><a href="#8-等待状态下的传输类型变化" class="headerlink" title="8. 等待状态下的传输类型变化"></a>8. 等待状态下的传输类型变化</h2><p>当 HREADY &#x3D; LOW 时，Manager <strong>禁止</strong>改变 HTRANS，但以下三种场景是例外：</p>
+<h3 id="8-1-场景一：IDLE-→-NONSEQ"><a href="#8-1-场景一：IDLE-→-NONSEQ" class="headerlink" title="8.1 场景一：IDLE → NONSEQ"></a>8.1 场景一：IDLE → NONSEQ</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606956096_d.png" alt="1783606956096_d"></p>
+<p><em>图 3-13：等待状态下，从 IDLE 切换到 NONSEQ 启动新传输</em></p>
+<p><strong>规则</strong>：Manager 可以在 wait 期间将 HTRANS 从 IDLE 改为 NONSEQ，然后保持 NONSEQ 直到 HREADY&#x3D;HIGH。</p>
+<p><strong>场景</strong>：完成一个 SINGLE burst 后，Manager 想在等待期间立即发起一个新 burst，不等当前传输完成就可以”预告”下一个传输。</p>
+<h3 id="8-2-场景二：固定长度-Burst-中-BUSY-→-SEQ"><a href="#8-2-场景二：固定长度-Burst-中-BUSY-→-SEQ" class="headerlink" title="8.2 场景二：固定长度 Burst 中 BUSY → SEQ"></a>8.2 场景二：固定长度 Burst 中 BUSY → SEQ</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png" alt="1783606948231_d"></p>
+<p><em>图 3-14：固定长度 burst 中，BUSY 切换到 SEQ</em></p>
+<p><strong>规则</strong>：在 INCR4&#x2F;8&#x2F;16 或 WRAP4&#x2F;8&#x2F;16 中，BUSY → SEQ 是合法的。改为 SEQ 后保持直到 HREADY&#x3D;HIGH。</p>
+<p><strong>场景</strong>：burst 中 Manager 本来需要 BUSY 暂停，但 Subordinate 也拉低了 HREADY。在等待期间 Manager 准备好了，可以直接改为 SEQ 开始下一拍。</p>
+<h3 id="8-3-场景三：不定长度-Burst-中-BUSY-→-任意类型"><a href="#8-3-场景三：不定长度-Burst-中-BUSY-→-任意类型" class="headerlink" title="8.3 场景三：不定长度 Burst 中 BUSY → 任意类型"></a>8.3 场景三：不定长度 Burst 中 BUSY → 任意类型</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/783606948231_d.png" alt="1783606948231_d"></p>
+<p><em>图 3-15：INCR burst 中，BUSY 切换到 NONSEQ 提前结束 burst</em></p>
+<p><strong>规则</strong>：仅在 INCR（不定长度）burst 中，BUSY 可以改为 SEQ（继续）、NONSEQ（新 burst）或 IDLE（结束）。</p>
+<p><strong>场景</strong>：Manager 发起了 INCR burst，但在中途决定不再需要更多数据，直接切换到 NONSEQ 开始新的传输。</p>
+<h3 id="8-4-规则总结"><a href="#8-4-规则总结" class="headerlink" title="8.4 规则总结"></a>8.4 规则总结</h3><table>
+<thead>
+<tr>
+<th>当前 HTRANS</th>
+<th>允许改为</th>
+<th>适用范围</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IDLE</td>
+<td>NONSEQ</td>
+<td>任意场景</td>
+</tr>
+<tr>
+<td>BUSY</td>
+<td>SEQ</td>
+<td>固定长度 burst（INCR4&#x2F;8&#x2F;16, WRAP4&#x2F;8&#x2F;16）</td>
+</tr>
+<tr>
+<td>BUSY</td>
+<td>SEQ &#x2F; NONSEQ &#x2F; IDLE</td>
+<td>不定长度 burst（INCR）</td>
+</tr>
+<tr>
+<td>其他情况</td>
+<td><strong>禁止改变</strong></td>
+<td>—</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>关键原则</strong>：一旦 HTRANS 改为非 IDLE&#x2F;BUSY 的有效传输类型，就必须保持该类型直到 HREADY&#x3D;HIGH。</p>
+</blockquote>
+<hr>
+<h2 id="9-其他特性简介"><a href="#9-其他特性简介" class="headerlink" title="9. 其他特性简介"></a>9. 其他特性简介</h2><h3 id="9-1-Locked-Transfers（锁定传输）"><a href="#9-1-Locked-Transfers（锁定传输）" class="headerlink" title="9.1 Locked Transfers（锁定传输）"></a>9.1 Locked Transfers（锁定传输）</h3><p>通过 <code>HMASTLOCK</code> 信号实现。当 Manager 需要在多个传输之间保持对总线的独占访问时（例如原子 RMW 操作），断言 HMASTLOCK。总线在锁定的第一个传输完成后被锁住，直到 HMASTLOCK 取消断言。</p>
+<p><strong>典型用途</strong>：实现信号量（semaphore），确保 read-modify-write 的原子性。</p>
+<blockquote>
+<p><strong>软件类比</strong>：相当于数据库的行锁（SELECT … FOR UPDATE）— 读取 → 修改 → 写入期间，其他 Manager 无法访问同一资源。</p>
+</blockquote>
+<h3 id="9-2-Transfer-Size（传输大小）"><a href="#9-2-Transfer-Size（传输大小）" class="headerlink" title="9.2 Transfer Size（传输大小）"></a>9.2 Transfer Size（传输大小）</h3><p><code>HSIZE[2:0]</code> 控制每拍传输的数据宽度：8&#x2F;16&#x2F;32&#x2F;64&#x2F;128&#x2F;256&#x2F;512&#x2F;1024 位。传输大小必须小于等于数据总线宽度。<strong>HSIZE 在整个 burst 中保持不变。</strong></p>
+<h3 id="9-3-Write-Strobes（写字节使能）"><a href="#9-3-Write-Strobes（写字节使能）" class="headerlink" title="9.3 Write Strobes（写字节使能）"></a>9.3 Write Strobes（写字节使能）</h3><p><code>HWSTRB</code> 信号允许 Manager 在写传输中<strong>只更新部分字节</strong>而非整个数据宽度。每 bit 对应 HWDATA 的 8 位。这是可选特性（<code>Write_Strobes</code> 属性控制）。</p>
+<blockquote>
+<p><strong>软件类比</strong>：相当于 C 语言的 bitfield 写入 — 通过掩码控制哪些字节被真正写入内存。</p>
+</blockquote>
+<h3 id="9-4-Protection-Control（保护控制）"><a href="#9-4-Protection-Control（保护控制）" class="headerlink" title="9.4 Protection Control（保护控制）"></a>9.4 Protection Control（保护控制）</h3><p><code>HPROT[3:0]</code> 提供传输的访问属性：</p>
+<table>
+<thead>
+<tr>
+<th>位</th>
+<th>名称</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>HPROT[0]</td>
+<td>Data&#x2F;Opcode</td>
+<td>数据访问 &#x2F; 指令取指</td>
+</tr>
+<tr>
+<td>HPROT[1]</td>
+<td>Privileged</td>
+<td>特权模式 &#x2F; 用户模式访问</td>
+</tr>
+<tr>
+<td>HPROT[2]</td>
+<td>Bufferable</td>
+<td>是否允许缓冲</td>
+</tr>
+<tr>
+<td>HPROT[3]</td>
+<td>Cacheable&#x2F;Modifiable</td>
+<td>是否可缓存 &#x2F; 修改</td>
+</tr>
+</tbody></table>
+<h3 id="9-5-Memory-Types（内存类型）"><a href="#9-5-Memory-Types（内存类型）" class="headerlink" title="9.5 Memory Types（内存类型）"></a>9.5 Memory Types（内存类型）</h3><p>AHB5 扩展了 HPROT 到 7 位（<code>HPROT[6:0]</code>），增加了 Allocate、Lookup 和 Shareable 属性，支持更精细的缓存策略：</p>
+<ul>
+<li><strong>Device-nE &#x2F; Device-E</strong>：设备内存（不可缓存，不可合并）</li>
+<li><strong>Normal Non-cacheable</strong>：普通不可缓存内存</li>
+<li><strong>Write-through &#x2F; Write-back</strong>：透写 &#x2F; 回写缓存策略</li>
+<li><strong>Shareable</strong>：多核共享内存</li>
+</ul>
+<h3 id="9-6-Secure-Transfers（安全传输）"><a href="#9-6-Secure-Transfers（安全传输）" class="headerlink" title="9.6 Secure Transfers（安全传输）"></a>9.6 Secure Transfers（安全传输）</h3><p>通过 <code>HNONSEC</code> 信号区分 <strong>Secure</strong> 和 <strong>Non-secure</strong> 传输。这是 AHB5 的可选特性（<code>Secure_Transfers</code> 属性），用于 TrustZone 安全扩展——确保 Non-secure 的 Manager 不能访问 Secure 的地址空间。</p>
+<blockquote>
+<p><strong>软件类比</strong>：相当于操作系统的用户态&#x2F;内核态内存隔离，但在硬件层面强制执行。</p>
+</blockquote>
+<hr>
+<h2 id="10-内容回顾"><a href="#10-内容回顾" class="headerlink" title="10. 内容回顾"></a>10. 内容回顾</h2><p>本文从零开始介绍了 AHB 协议的核心概念，以下是关键知识点回顾：</p>
+<h3 id="10-1-总线基础"><a href="#10-1-总线基础" class="headerlink" title="10.1 总线基础"></a>10.1 总线基础</h3><table>
+<thead>
+<tr>
+<th>知识点</th>
+<th>一句话总结</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>AHB 定位</strong></td>
+<td>SoC 内部的高性能总线，连接 CPU &#x2F; DMA 与高速外设</td>
+</tr>
+<tr>
+<td><strong>三组件模型</strong></td>
+<td>Manager 发起传输 → Interconnect 路由 → Subordinate 响应</td>
+</tr>
+<tr>
+<td><strong>流水线特性</strong></td>
+<td>当前传输的地址阶段与上一传输的数据阶段<strong>同时进行</strong>，实现每周期一个传输</td>
+</tr>
+</tbody></table>
+<h3 id="10-2-核心信号"><a href="#10-2-核心信号" class="headerlink" title="10.2 核心信号"></a>10.2 核心信号</h3><table>
+<thead>
+<tr>
+<th>信号</th>
+<th>角色</th>
+<th>记忆要点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>HCLK</strong></td>
+<td>时钟</td>
+<td>所有信号在上升沿采样</td>
+</tr>
+<tr>
+<td><strong>HADDR</strong></td>
+<td>地址</td>
+<td>字节地址，地址阶段有效</td>
+</tr>
+<tr>
+<td><strong>HWRITE</strong></td>
+<td>方向</td>
+<td>HIGH&#x3D;写, LOW&#x3D;读</td>
+</tr>
+<tr>
+<td><strong>HTRANS</strong></td>
+<td>传输类型</td>
+<td><code>IDLE(00)</code> &#x2F; <code>BUSY(01)</code> &#x2F; <code>NONSEQ(10)</code> &#x2F; <code>SEQ(11)</code></td>
+</tr>
+<tr>
+<td><strong>HREADY</strong></td>
+<td>流控</td>
+<td>LOW &#x3D; 插入等待；HIGH &#x3D; 传输完成</td>
+</tr>
+<tr>
+<td><strong>HRESP</strong></td>
+<td>状态</td>
+<td>LOW &#x3D; OKAY；HIGH &#x3D; ERROR</td>
+</tr>
+<tr>
+<td><strong>HWDATA&#x2F;HRDATA</strong></td>
+<td>数据</td>
+<td>写数据总线和读数据总线</td>
+</tr>
+</tbody></table>
+<h3 id="10-3-传输与等待状态"><a href="#10-3-传输与等待状态" class="headerlink" title="10.3 传输与等待状态"></a>10.3 传输与等待状态</h3><table>
+<thead>
+<tr>
+<th>知识点</th>
+<th>一句话总结</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>无等待传输</strong></td>
+<td>地址阶段 1 周期 + 数据阶段 1 周期 &#x3D; <strong>2 周期完成</strong></td>
+</tr>
+<tr>
+<td><strong>等待状态</strong></td>
+<td>Subordinate 拉低 <code>HREADY</code> → Manager 保持当前信号不变 → 等同 CPU pipeline stall</td>
+</tr>
+<tr>
+<td><strong>等待级联</strong></td>
+<td>前一个传输的等待会<strong>自动延长</strong>后一个传输的地址阶段</td>
+</tr>
+<tr>
+<td><strong>等待时 HTRANS 变化</strong></td>
+<td>仅三种例外：<code>IDLE→NONSEQ</code>、固定长度 burst 中 <code>BUSY→SEQ</code>、INCR 中 <code>BUSY→任意</code></td>
+</tr>
+</tbody></table>
+<h3 id="10-4-Burst-传输"><a href="#10-4-Burst-传输" class="headerlink" title="10.4 Burst 传输"></a>10.4 Burst 传输</h3><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>编码</th>
+<th>拍数</th>
+<th>地址行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>SINGLE</strong></td>
+<td><code>0b000</code></td>
+<td>1</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>INCR</strong></td>
+<td><code>0b001</code></td>
+<td>不限</td>
+<td>递增</td>
+</tr>
+<tr>
+<td><strong>INCR4&#x2F;8&#x2F;16</strong></td>
+<td><code>0b011/101/111</code></td>
+<td>固定</td>
+<td>递增</td>
+</tr>
+<tr>
+<td><strong>WRAP4&#x2F;8&#x2F;16</strong></td>
+<td><code>0b010/100/110</code></td>
+<td>固定</td>
+<td>边界回绕</td>
+</tr>
+</tbody></table>
+<p><strong>关键约束</strong>：递增 burst 不跨 1KB 边界；WRAP 边界 &#x3D; <code>beat数 × 传输大小</code>。</p>
+<h3 id="10-5-传输类型-HTRANS"><a href="#10-5-传输类型-HTRANS" class="headerlink" title="10.5 传输类型 (HTRANS)"></a>10.5 传输类型 (HTRANS)</h3><table>
+<thead>
+<tr>
+<th>HTRANS</th>
+<th>含义</th>
+<th>Subordinate 行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>IDLE</code></td>
+<td>无传输</td>
+<td>必须返回 OKAY，忽略</td>
+</tr>
+<tr>
+<td><code>BUSY</code></td>
+<td>暂停一拍</td>
+<td>必须返回 OKAY，忽略（地址已指向下一拍）</td>
+</tr>
+<tr>
+<td><code>NONSEQ</code></td>
+<td>新序列第一拍</td>
+<td>正常处理</td>
+</tr>
+<tr>
+<td><code>SEQ</code></td>
+<td>序列后续拍</td>
+<td>地址 &#x3D; 上一地址 + size</td>
+</tr>
+</tbody></table>
+<p><strong>记忆技巧</strong>：一个 burst 的典型 HTRANS 序列 &#x3D; <code>NONSEQ → (BUSY?) → SEQ → SEQ → ... → SEQ</code></p>
+<h3 id="10-6-其他特性速查"><a href="#10-6-其他特性速查" class="headerlink" title="10.6 其他特性速查"></a>10.6 其他特性速查</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>信号</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Locked Transfer</strong></td>
+<td>HMASTLOCK</td>
+<td>原子 RMW，相当于 SWP 指令的硬件锁</td>
+</tr>
+<tr>
+<td><strong>Write Strobes</strong></td>
+<td>HWSTRB</td>
+<td>按字节掩码写入，只更新部分数据位</td>
+</tr>
+<tr>
+<td><strong>Protection</strong></td>
+<td>HPROT</td>
+<td>标记 cacheable&#x2F;bufferable&#x2F;privileged 属性</td>
+</tr>
+<tr>
+<td><strong>TrustZone</strong></td>
+<td>HNONSEC</td>
+<td>Secure &#x2F; Non-secure 访问隔离</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="附录：关键术语速查"><a href="#附录：关键术语速查" class="headerlink" title="附录：关键术语速查"></a>附录：关键术语速查</h2><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Manager</td>
+<td>发起传输的组件（原 Master）</td>
+</tr>
+<tr>
+<td>Subordinate</td>
+<td>响应传输的组件（原 Slave）</td>
+</tr>
+<tr>
+<td>Interconnect</td>
+<td>地址译码 + 读数据多路复用</td>
+</tr>
+<tr>
+<td>Address Phase</td>
+<td>地址和控制信号有效的时钟周期</td>
+</tr>
+<tr>
+<td>Data Phase</td>
+<td>数据有效的时钟周期</td>
+</tr>
+<tr>
+<td>HREADY</td>
+<td>传输完成信号，LOW &#x3D; 插入等待</td>
+</tr>
+<tr>
+<td>HTRANS</td>
+<td>传输类型：IDLE&#x2F;BUSY&#x2F;NONSEQ&#x2F;SEQ</td>
+</tr>
+<tr>
+<td>HBURST</td>
+<td>突发类型：SINGLE&#x2F;INCR&#x2F;WRAP&#x2F;INCR4&#x2F;8&#x2F;16&#x2F;WRAP4&#x2F;8&#x2F;16</td>
+</tr>
+<tr>
+<td>Burst</td>
+<td>一次多拍连续传输</td>
+</tr>
+<tr>
+<td>Beat</td>
+<td>Burst 中的单次传输</td>
+</tr>
+<tr>
+<td>Wait State</td>
+<td>HREADY&#x3D;LOW 时的扩展时钟周期</td>
+</tr>
+<tr>
+<td>Wrapping</td>
+<td>地址到达边界后回绕到起始处</td>
+</tr>
+</tbody></table>
+<hr>
+<blockquote>
+<p><strong>参考资料</strong>：ARM AMBA 5 AHB Protocol Specification (ARM IHI 0033C, Issue C, September 2021)</p>
+<p>本文中所有时序图均来自规范原文截图。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/06/16/Nuttx-SMP/" rel="prev" title="Nuttx - SMP">
+                  <i class="fa fa-angle-left"></i> Nuttx - SMP
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" rel="next" title="AMBA AXI 协议学习笔记">
+                  AMBA AXI 协议学习笔记 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
