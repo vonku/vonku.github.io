@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="基于 Arm 官方文档 “Learn the architecture - Introducing AMBA CHI” (Issue 01, June 2025, 102页) 整理。面向对象：芯片固件工程师、BSP 工程师、SoC 验证工程师、驱动开发人员。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AMBA CHI 协议学习笔记">
+<meta property="og:url" content="http://yoursite.com/2026/07/11/AMBA-CHI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="基于 Arm 官方文档 “Learn the architecture - Introducing AMBA CHI” (Issue 01, June 2025, 102页) 整理。面向对象：芯片固件工程师、BSP 工程师、SoC 验证工程师、驱动开发人员。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-11T02:36:15.000Z">
+<meta property="article:modified_time" content="2026-07-11T02:39:17.375Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="AMBA">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/11/AMBA-CHI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/11/AMBA-CHI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/","path":"2026/07/11/AMBA-CHI-协议学习笔记/","title":"AMBA CHI 协议学习笔记"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AMBA CHI 协议学习笔记 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%80%E3%80%81%E5%89%8D%E8%A8%80%EF%BC%9A%E4%BB%8E-ACE-%E5%88%B0-CHI"><span class="nav-text">一、前言：从 ACE 到 CHI</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%BC%94%E8%BF%9B%E8%83%8C%E6%99%AF"><span class="nav-text">1.1 演进背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E6%9C%AF%E8%AF%AD%E6%9B%B4%E6%96%B0"><span class="nav-text">1.2 术语更新</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E5%8D%8F%E8%AE%AE%E8%BF%AD%E4%BB%A3%E5%85%A8%E6%99%AF"><span class="nav-text">1.3 协议迭代全景</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%8C%E3%80%81CHI-%E5%8D%8F%E8%AE%AE%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="nav-text">二、CHI 协议核心概念</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%B8%89%E7%A7%8D%E7%BD%91%E7%BB%9C%E6%8B%93%E6%89%91%E4%B8%8E%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-text">2.1 三种网络拓扑与适用场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E8%8A%82%E7%82%B9%E5%88%86%E7%B1%BB%E4%BD%93%E7%B3%BB"><span class="nav-text">2.2 节点分类体系</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Cache-Line-%E4%B8%83%E6%80%81%E6%A8%A1%E5%9E%8B"><span class="nav-text">2.3 Cache Line 七态模型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-System-Address-Map-SAM"><span class="nav-text">2.4 System Address Map (SAM)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-%E5%9B%9B%E5%A4%A7%E9%80%9A%E9%81%93-REQ-RSP-SNP-DAT-%E4%B8%8E-Flit-%E6%8A%A5%E6%96%87%E7%BB%93%E6%9E%84"><span class="nav-text">2.5 四大通道 (REQ &#x2F; RSP &#x2F; SNP &#x2F; DAT) 与 Flit 报文结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-6-Flit-%E5%85%B3%E9%94%AE%E6%A0%87%E8%AF%86%E5%AD%97%E6%AE%B5"><span class="nav-text">2.6 Flit 关键标识字段</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%89%E3%80%81%E4%BA%8B%E5%8A%A1%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B"><span class="nav-text">三、事务处理流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-ReadNoSnp-%E4%BA%8B%E5%8A%A1%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B"><span class="nav-text">3.1 ReadNoSnp 事务完整流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-WriteNoSnp-%E4%BA%8B%E5%8A%A1%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B"><span class="nav-text">3.2 WriteNoSnp 事务完整流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-Completion-Acknowledgment"><span class="nav-text">3.3 Completion Acknowledgment</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BC%9A%E6%9C%89%E8%BF%99%E4%B8%AA%E5%8D%B1%E6%9C%BA%EF%BC%9F%EF%BC%88%E5%A6%82%E6%9E%9C%E6%B2%A1%E6%9C%89-CompAck-%E4%BC%9A%E5%8F%91%E7%94%9F%E4%BB%80%E4%B9%88%EF%BC%89"><span class="nav-text">3.3.1 为什么会有这个危机？（如果没有 CompAck 会发生什么）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-2-CompAck-%E6%9C%BA%E5%88%B6%E6%98%AF%E5%A6%82%E4%BD%95%E5%8C%96%E8%A7%A3%E5%8D%B1%E6%9C%BA%E7%9A%84%EF%BC%9F"><span class="nav-text">3.3.2 CompAck 机制是如何化解危机的？</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-3-3-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%B9%B6%E9%9D%9E%E6%89%80%E6%9C%89%E4%BA%8B%E5%8A%A1%E9%83%BD%E9%9C%80%E8%A6%81-CompAck%EF%BC%9F"><span class="nav-text">3.3.3 为什么并非所有事务都需要 CompAck？</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-Endpoint-Order-vs-Request-Order"><span class="nav-text">3.4 Endpoint Order vs Request Order</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-1-Request-Order-%E2%80%94-%E5%AF%B9%E5%90%8C%E4%B8%80%E5%9C%B0%E5%9D%80%E7%9A%84%E4%BF%9D%E5%BA%8F"><span class="nav-text">3.4.1 Request Order — 对同一地址的保序</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-2-Endpoint-Order-%E2%80%94-%E5%AF%B9%E5%90%8C%E4%B8%80-Subordinate-%E7%9A%84%E4%BF%9D%E5%BA%8F"><span class="nav-text">3.4.2 Endpoint Order — 对同一 Subordinate 的保序</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-3-%E4%BB%85%E5%AF%B9-Non-Cacheable-%E4%BA%8B%E5%8A%A1%E7%94%9F%E6%95%88"><span class="nav-text">3.4.3 仅对 Non-Cacheable 事务生效</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-4-%E4%BB%8E-MMU-%E9%A1%B5%E8%A1%A8%E5%B1%9E%E6%80%A7%E5%88%B0-Order-%E5%AD%97%E6%AE%B5%E7%9A%84%E6%98%A0%E5%B0%84"><span class="nav-text">3.4.4 从 MMU 页表属性到 Order 字段的映射</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-Request-Retry-%E4%B8%8E-Protocol-Credit-%E6%9C%BA%E5%88%B6"><span class="nav-text">3.5 Request Retry 与 Protocol Credit 机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%9B%9B%E3%80%81%E5%88%86%E5%B8%83%E5%BC%8F%E8%99%9A%E6%8B%9F%E5%86%85%E5%AD%98-DVM-%E6%93%8D%E4%BD%9C"><span class="nav-text">四、分布式虚拟内存 (DVM) 操作</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-DVM-%E6%93%8D%E4%BD%9C%E6%9C%BA%E5%88%B6"><span class="nav-text">4.1 DVM 操作机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-DVM-Non-Sync-vs-DVM-Sync"><span class="nav-text">4.2 DVM Non-Sync vs DVM Sync</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-DVM-%E6%93%8D%E4%BD%9C%E7%9A%84%E5%AE%8C%E6%95%B4%E4%BA%8B%E5%8A%A1%E7%A4%BA%E4%BE%8B"><span class="nav-text">4.3 DVM 操作的完整事务示例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%BA%94%E3%80%81%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96%E7%89%B9%E6%80%A7%EF%BC%88%E9%80%89%E8%AF%BB%EF%BC%89"><span class="nav-text">五、性能优化特性（选读）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-Cache-Stashing-%E2%80%94-%E5%B0%86-I-O-%E6%95%B0%E6%8D%AE%E7%9B%B4%E6%8E%A5%E6%B3%A8%E5%85%A5%E7%9B%AE%E6%A0%87-CPU-%E7%BC%93%E5%AD%98"><span class="nav-text">5.1 Cache Stashing — 将 I&#x2F;O 数据直接注入目标 CPU 缓存</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#5-1-1-%E5%B8%A6%E5%86%99%E6%95%B0%E6%8D%AE%E7%9A%84-Stash-%E2%80%94-WriteUniqueStash"><span class="nav-text">5.1.1 带写数据的 Stash — WriteUniqueStash</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-1-2-%E6%97%A0%E5%86%99%E6%95%B0%E6%8D%AE%E7%9A%84-Stash-%E2%80%94-StashOnceShared-StashOnceUnique"><span class="nav-text">5.1.2 无写数据的 Stash — StashOnceShared &#x2F; StashOnceUnique</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-I-O-Deallocation-%E2%80%94-%E8%AF%BB%E5%8F%96%E5%90%8C%E6%97%B6%E6%B8%85%E9%99%A4%E7%BC%93%E5%AD%98%E6%B1%A1%E6%9F%93"><span class="nav-text">5.2 I&#x2F;O Deallocation — 读取同时清除缓存污染</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Direct-Memory-Transfer-DMT-%E2%80%94-%E8%AF%BB%E6%95%B0%E6%8D%AE%E7%BB%95%E8%A1%8C-Home-Node"><span class="nav-text">5.3 Direct Memory Transfer (DMT) — 读数据绕行 Home Node</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-Direct-Cache-Transfer-DCT-%E2%80%94-%E7%BC%93%E5%AD%98%E9%97%B4%E6%95%B0%E6%8D%AE%E7%9B%B4%E9%80%9A"><span class="nav-text">5.4 Direct Cache Transfer (DCT) — 缓存间数据直通</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-PrefetchTgt-%E2%80%94-%E7%BB%95%E8%BF%87-HN-F-%E7%9A%84%E9%A2%84%E5%8F%96%E6%8F%90%E7%A4%BA"><span class="nav-text">5.5 PrefetchTgt — 绕过 HN-F 的预取提示</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-Direct-Write-Transfer-DWT-%E2%80%94-%E5%86%99%E6%95%B0%E6%8D%AE%E7%9B%B4%E9%80%9A"><span class="nav-text">5.6 Direct Write Transfer (DWT) — 写数据直通</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AD%E3%80%81%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C%E4%B8%8E-RAS-%E7%89%B9%E6%80%A7%EF%BC%88%E9%80%89%E8%AF%BB%EF%BC%89"><span class="nav-text">六、原子操作与 RAS 特性（选读）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E7%A1%AC%E4%BB%B6%E5%8E%9F%E5%AD%90%E4%BA%8B%E5%8A%A1-%E2%80%94-%E4%BB%8E%E8%87%AA%E6%97%8B%E9%87%8D%E8%AF%95%E5%88%B0%E5%8D%95%E6%AC%A1%E5%AE%8C%E6%88%90"><span class="nav-text">6.1 硬件原子事务 — 从自旋重试到单次完成</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-Data-Poisoning-%E2%80%94-%E8%AE%A9%E9%94%99%E8%AF%AF%E5%BB%B6%E5%90%8E%E3%80%81%E4%B8%8D%E7%AB%8B%E5%8D%B3%E5%B4%A9%E6%BA%83"><span class="nav-text">6.2 Data Poisoning — 让错误延后、不立即崩溃</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-Trace-Tag-%E2%80%94-%E8%B4%AF%E7%A9%BF%E4%BA%8B%E5%8A%A1%E9%93%BE%E7%9A%84-1-bit-%E8%BF%BD%E8%B8%AA%E6%A0%87%E8%AE%B0"><span class="nav-text">6.3 Trace Tag — 贯穿事务链的 1-bit 追踪标记</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E4%B8%83%E3%80%81%E6%80%BB%E7%BB%93%E4%B8%8E%E5%AD%A6%E4%B9%A0%E8%B7%AF%E5%BE%84%E5%BB%BA%E8%AE%AE"><span class="nav-text">七、总结与学习路径建议</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AF%B9%E8%8A%AF%E7%89%87%E8%BD%AF%E4%BB%B6%E5%BC%80%E5%8F%91%E4%BA%BA%E5%91%98%E7%9A%84%E5%AE%9E%E8%B7%B5%E5%BB%BA%E8%AE%AE"><span class="nav-text">对芯片软件开发人员的实践建议</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%AD%A6%E4%B9%A0%E8%B5%84%E6%BA%90"><span class="nav-text">学习资源</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%A0%B8%E5%BF%83%E8%A6%81%E7%82%B9"><span class="nav-text">核心要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%AB%E3%80%81%E4%B8%AD%E8%8B%B1%E6%96%87%E6%9C%AF%E8%AF%AD%E5%AF%B9%E7%85%A7%E8%A1%A8"><span class="nav-text">八、中英文术语对照表</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">48</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">12</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">18</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/11/AMBA-CHI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AMBA CHI 协议学习笔记 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AMBA CHI 协议学习笔记
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-11 10:36:15" itemprop="dateCreated datePublished" datetime="2026-07-11T10:36:15+08:00">2026-07-11</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>基于 Arm 官方文档 <em>“Learn the architecture - Introducing AMBA CHI”</em> (Issue 01, June 2025, 102页) 整理。<br>面向对象：芯片固件工程师、BSP 工程师、SoC 验证工程师、驱动开发人员。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="一、前言：从-ACE-到-CHI"><a href="#一、前言：从-ACE-到-CHI" class="headerlink" title="一、前言：从 ACE 到 CHI"></a>一、前言：从 ACE 到 CHI</h2><h3 id="1-1-演进背景"><a href="#1-1-演进背景" class="headerlink" title="1.1 演进背景"></a>1.1 演进背景</h3><p>AMBA CHI (Coherent Hub Interface) 是 AXI Coherency Extensions (ACE) 协议的继任者。ACE 为多核一致性提供了良好的基础，但随着 CPU 核数增加、异构计算（GPU &#x2F; NPU &#x2F; PCIe 子系统）引入，ACE 的两个根本瓶颈暴露出来：</p>
+<ol>
+<li><strong>总线式拓扑</strong>：ACE 基于点对点总线，当组件数增长时带宽无法线性扩展。</li>
+<li><strong>Master&#x2F;Slave 的语义局限</strong>：难以描述多级缓存、Snoop Filter、目录式一致性等复杂场景。</li>
+</ol>
+<p>CHI 直接在协议层引入了<strong>拓扑无关</strong>的抽象——将片上网络 (NoC) 的组织（Ring &#x2F; Mesh &#x2F; Crossbar）交给实现方，协议只定义节点角色、通道分工和事务语义。这一设计哲学类似于网络栈中 TCP&#x2F;IP 对物理层透明：不管你跑 Ethernet 还是 Wi-Fi，我只看 packet。</p>
+<h3 id="1-2-术语更新"><a href="#1-2-术语更新" class="headerlink" title="1.2 术语更新"></a>1.2 术语更新</h3><p>Arm 在 CHI 中彻底废弃了 Master&#x2F;Slave 称谓：</p>
+<table>
+<thead>
+<tr>
+<th>旧术语 (ACE&#x2F;AXI)</th>
+<th>新术语 (CHI)</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Master</td>
+<td>Requester</td>
+<td>发起事务的节点</td>
+</tr>
+<tr>
+<td>Slave</td>
+<td>Subordinate</td>
+<td>响应事务的节点</td>
+</tr>
+<tr>
+<td>Slave</td>
+<td>Completer</td>
+<td>完成事务的节点</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>软件视角</strong>：如果你在 bare-metal 或 RTOS 下编写过 AXI DMA 驱动，你一定见过 <code>DMA_SRC_ADDR</code> &#x2F; <code>DMA_DST_ADDR</code> 这类寄存器。切换到 CHI 后，需要理解的是 Node ID、TxnID、DBID 这三元组而不是 AXI 的 AWID&#x2F;WID&#x2F;BID。</p>
+</blockquote>
+<h3 id="1-3-协议迭代全景"><a href="#1-3-协议迭代全景" class="headerlink" title="1.3 协议迭代全景"></a>1.3 协议迭代全景</h3><p>CHI 目前有七个 Issue：A → B → C → D → E → F → G，相邻 Issue 之间<strong>都不向后兼容</strong>（各通道字段宽度不同）。它们对应的 Arm 架构版本如下：</p>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th>对应架构</th>
+<th>核心新增特性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A</td>
+<td>Armv8.0</td>
+<td>基础 CHI：四通道、Flit 格式、一致性流</td>
+</tr>
+<tr>
+<td>B</td>
+<td>Armv8.1&#x2F;8.2</td>
+<td>原子事务、RAS、DMT&#x2F;DCT、Cache Stashing、I&#x2F;O Deallocation、MESI 支持</td>
+</tr>
+<tr>
+<td>C</td>
+<td>—</td>
+<td>CompAck 提前、DataSepResp、NCBWrDataCompAck</td>
+</tr>
+<tr>
+<td>D</td>
+<td>Armv8.4</td>
+<td>MPAM、DVM 提前完成、TxnID 扩至 10-bit、接口奇偶保护</td>
+</tr>
+<tr>
+<td>E</td>
+<td>Armv8.4&#x2F;8.5</td>
+<td>MTE、DWT、WriteZero、Combined Write+CMO、TLBI Range</td>
+</tr>
+<tr>
+<td>F</td>
+<td>Armv9.2</td>
+<td>RME、CAH、PBHA、Deferrable Write</td>
+</tr>
+<tr>
+<td>G</td>
+<td>Armv9.3</td>
+<td>MEC、PrefetchTgtHint、MTE_Support 属性、12-bit PartID、Limited Data Elision</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="二、CHI-协议核心概念"><a href="#二、CHI-协议核心概念" class="headerlink" title="二、CHI 协议核心概念"></a>二、CHI 协议核心概念</h2><h3 id="2-1-三种网络拓扑与适用场景"><a href="#2-1-三种网络拓扑与适用场景" class="headerlink" title="2.1 三种网络拓扑与适用场景"></a>2.1 三种网络拓扑与适用场景</h3><p>CHI 不规定连接方式，但定义了三种典型拓扑：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">图 2.1 — Ring 拓扑 (中规模系统)</span><br><span class="line">  ┌───┐     ┌───┐</span><br><span class="line">  │RN0│─────│RN1│</span><br><span class="line">  └─┬─┘     └─┬─┘</span><br><span class="line">    │  ┌───┐  │</span><br><span class="line">    └──│HN │──┘</span><br><span class="line">    ┌──│   │──┐</span><br><span class="line">    │  └───┘  │</span><br><span class="line">  ┌─┴─┐     ┌─┴─┐</span><br><span class="line">  │SN0│─────│SN1│</span><br><span class="line">  └───┘     └───┘</span><br><span class="line">  延迟随节点数线性增长，适合 ~8-16 个节点。</span><br><span class="line"></span><br><span class="line">图 2.2 — Mesh 拓扑 (大规模系统)</span><br><span class="line">  RN0 ──┬── RN1 ──┬── RN2</span><br><span class="line">   │    │    │    │    │</span><br><span class="line">   ├────┼────┼────┼────┤</span><br><span class="line">   │    │    │    │    │</span><br><span class="line">  HN0 ──┴── HN1 ──┴── HN2</span><br><span class="line">   │    │    │    │    │</span><br><span class="line">   ├────┼────┼────┼────┤</span><br><span class="line">   │    │    │    │    │</span><br><span class="line">  SN0 ──┴── SN1 ──┴── SN2</span><br><span class="line">  多路径提供更高带宽，面积代价大，适合 16+ 节点、数据中心芯片。</span><br><span class="line"></span><br><span class="line">图 2.3 — Crossbar 拓扑 (小规模系统)</span><br><span class="line">        ┌─ RN0</span><br><span class="line">  HN ───┼─ RN1</span><br><span class="line">        └─ RN2</span><br><span class="line">  每对节点直连，性能最优但布线成本 O(n²)，适合 ≤ 8 个节点。</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-节点分类体系"><a href="#2-2-节点分类体系" class="headerlink" title="2.2 节点分类体系"></a>2.2 节点分类体系</h3><p>CHI 定义了三类主节点，每类又按一致性能力细分：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">图 2.4 — CHI 节点分类树</span><br><span class="line">                          ┌── RN-F  (Full Coherent, 有缓存, 接受 Snoop)</span><br><span class="line">  Request Node (RN) ──────┼── RN-I  (I/O Coherent, 无缓存, 不接受 Snoop)</span><br><span class="line">                          └── RN-D  (I/O Coherent + DVM 支持)</span><br><span class="line"></span><br><span class="line">  Home Node (HN) ─────────┼── HN-F  (Full Coherent, 给 RN-F 的请求排序/发 Snoop)</span><br><span class="line">                          └── HN-I  (Non-Coherent, 处理 I/O 子系统请求)</span><br><span class="line"></span><br><span class="line">  Subordinate Node (SN) ──┼── SN-F  (内存控制器, 连接 coherent 内存空间)</span><br><span class="line">                          └── SN    (I/O 外设 / Non-Coherent 内存)</span><br><span class="line"></span><br><span class="line">  Miscellaneous Node (MN) ─── 处理 DVM 事务 (有时被实现为 HN-D)</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>软件视角</strong>：在 BSP 开发中，HNF 的 System Address Map (SAM) 直接决定了物理地址到 Node ID 的映射。当你配置一个外设的 DMA 缓冲区地址时，这个地址在 SAM 中必须命中正确的 HN-I 对应的地址范围，否则写数据会发到错误的目标节点。理解 Node ID 分配是调试 coherency 问题（尤其是 cache 一致性问题）的第一步。</p>
+</blockquote>
+<h3 id="2-3-Cache-Line-七态模型"><a href="#2-3-Cache-Line-七态模型" class="headerlink" title="2.3 Cache Line 七态模型"></a>2.3 Cache Line 七态模型</h3><p>CHI 在 ACE 的 MOESI 基础上扩展出七种状态。关键是新增了 <strong>Partial</strong> 和 <strong>Empty</strong> 维度：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">图 2.5 — CHI 缓存行状态层次树</span><br><span class="line"></span><br><span class="line">                    Invalid</span><br><span class="line">                       │</span><br><span class="line">                    Valid</span><br><span class="line">                    /     \</span><br><span class="line">              Unique       Shared</span><br><span class="line">              /    \       /    \</span><br><span class="line">          Dirty   Clean  Dirty  Clean</span><br><span class="line">           /  \           |</span><br><span class="line">      Full  Partial     Full</span><br><span class="line">             /   \</span><br><span class="line">          Full   Empty</span><br></pre></td></tr></table></figure>
+
+<p>七态完整定义：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>全称</th>
+<th>缓存行特征</th>
+<th>写权限</th>
+<th>其他缓存中?</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>I</strong></td>
+<td>Invalid</td>
+<td>行不存在于本缓存</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>UD</strong></td>
+<td>Unique Dirty</td>
+<td>仅本缓存持有，已被修改</td>
+<td>✅ (无需通知)</td>
+<td>否</td>
+</tr>
+<tr>
+<td><strong>UDP</strong></td>
+<td>Unique Dirty Partial</td>
+<td>仅本缓存持有，部分字节有效（可能全无效或全有效）</td>
+<td>✅</td>
+<td>否</td>
+</tr>
+<tr>
+<td><strong>SD</strong></td>
+<td>Shared Dirty</td>
+<td>被修改过，本缓存负责写回内存</td>
+<td>❌ (需获取 Unique)</td>
+<td>可能</td>
+</tr>
+<tr>
+<td><strong>UC</strong></td>
+<td>Unique Clean</td>
+<td>未修改，仅本缓存持有</td>
+<td>✅ (无需通知)</td>
+<td>否</td>
+</tr>
+<tr>
+<td><strong>UCE</strong></td>
+<td>Unique Clean Empty</td>
+<td>仅本缓存持有，无有效字节（仅有所有权）</td>
+<td>✅</td>
+<td>否</td>
+</tr>
+<tr>
+<td><strong>SC</strong></td>
+<td>Shared Clean</td>
+<td>未修改 (或不在本缓存)，可能存在于多缓存</td>
+<td>❌ (需获取 Unique)</td>
+<td>可能</td>
+</tr>
+</tbody></table>
+<p><strong>关键规则：</strong></p>
+<ul>
+<li><strong>写操作只允许在 Unique 状态</strong>下本地执行。</li>
+<li>UDP 状态的缓存行<strong>不能直接转发</strong>给原始 Requester（即使 Snoop 要求），必须等全部字节写入有效或转为其他状态。</li>
+<li>UCE 的 Snoop 响应也<strong>不能返回数据</strong>给 HN 或 Requestor。</li>
+</ul>
+<blockquote>
+<p><strong>软件视角</strong>：如果你在调试一个 “dirty cache line lost” 或 “write data corruption” 问题，理解 UDP 和 UCE 状态尤其重要。当你看到 CPU 写了一个 partial store（比如 <code>strb</code> 写 1 字节），缓存控制器会进入 UDP 状态。如果此时另一个 CPU 发起对该地址的 Snoop，HN-F 必须 stall，不能直接用 Stash 机制获取数据。</p>
+</blockquote>
+<h3 id="2-4-System-Address-Map-SAM"><a href="#2-4-System-Address-Map-SAM" class="headerlink" title="2.4 System Address Map (SAM)"></a>2.4 System Address Map (SAM)</h3><p>SAM 的作用是物理地址到 Node ID 的映射。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">图 2.6 — SAM 两阶段地址转换</span><br><span class="line"></span><br><span class="line">  [RN 0 发出地址 0x8000_0000 的事务]</span><br><span class="line">              │</span><br><span class="line">              ▼</span><br><span class="line">        ┌──────────┐</span><br><span class="line">        │  RN SAM  │ ──── 查表: 0x8000_0000 → HN Node ID = 5</span><br><span class="line">        └──────────┘</span><br><span class="line">              │</span><br><span class="line">              ▼  路由到 Node 5</span><br><span class="line">        ┌──────────┐</span><br><span class="line">        │  HN SAM  │ ──── 查表: 0x8000_0000 → SN Node ID = 2</span><br><span class="line">        └──────────┘</span><br><span class="line">              │</span><br><span class="line">              ▼  路由到 Node 2</span><br><span class="line">          [SN (内存控制器)]</span><br></pre></td></tr></table></figure>
+
+<p>SAM 的三个硬性要求：</p>
+<ol>
+<li>必须完整描述整个系统地址空间。</li>
+<li>未对应物理组件的地址必须映射到能返回错误响应的节点。</li>
+<li><strong>所有 RN 的 SAM 必须一致</strong>——无论哪个 RN 发起请求，同一物理地址必须到达同一 HN。</li>
+</ol>
+<blockquote>
+<p><strong>软件视角</strong>：SAM 的格式是 IMPLEMENTATION DEFINED，由硬件设计决定。但在设备树 (Device Tree) 或 ACPI 表的 _CRS &#x2F; _DMA 描述中，地址范围划分隐含了 SAM 的拓扑。当你为新 SoC 编写 Trusted Firmware-A (TF-A) 的地址转换表 (xlat table) 或配置 SMMU Stream Table Entry 时，必须保证地址编码与 SAM 对齐。</p>
+</blockquote>
+<h3 id="2-5-四大通道-REQ-RSP-SNP-DAT-与-Flit-报文结构"><a href="#2-5-四大通道-REQ-RSP-SNP-DAT-与-Flit-报文结构" class="headerlink" title="2.5 四大通道 (REQ &#x2F; RSP &#x2F; SNP &#x2F; DAT) 与 Flit 报文结构"></a>2.5 四大通道 (REQ &#x2F; RSP &#x2F; SNP &#x2F; DAT) 与 Flit 报文结构</h3><p>CHI 使用四个独立通道传递协议消息——这和 ACE 的五个通道 (AW&#x2F;W&#x2F;B&#x2F;AR&#x2F;R) 完全不同：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">图 2.7 — RN-F 的 CHI 接口通道</span><br><span class="line"></span><br><span class="line">            TXREQ ────────────────► (发送 Read/Write/Cache Maintenance 请求)</span><br><span class="line">            TXRSP ────────────────► (发送 CompAck / Snoop 响应)</span><br><span class="line">            TXDAT ────────────────► (发送 Write Data / Snoop 响应数据)</span><br><span class="line">            TXSNP ────────────────► (只有 HN-F / MN 发送 Snoop / DVM)</span><br><span class="line"></span><br><span class="line">            RXREQ ◄──────────────── (接收来自其他节点的请求)</span><br><span class="line">            RXRSP ◄──────────────── (接收 Completion / DBIDResp)</span><br><span class="line">            RXDAT ◄──────────────── (接收 Read Data)</span><br><span class="line">            RXSNP ◄──────────────── (RN-F 接收 Snoop)</span><br></pre></td></tr></table></figure>
+
+<p>TX 前缀 &#x3D; 本节点<strong>发送</strong>方向；RX 前缀 &#x3D; 本节点<strong>接收</strong>方向。</p>
+<p><strong>Flit 概念</strong>：所有协议消息以 Flit (Flow Control Unit) 形式传输，所有字段<strong>并行发送</strong>（不是 PCIe &#x2F; Ethernet 的串行化方式）。Flit 传输采用 credit-based 流控：</p>
+<ol>
+<li>Transmitter 拉高 FLITV 指示 Flit 有效。</li>
+<li>下一个 Clock 上升沿完成传输。</li>
+<li>只有预先收到接收方 LCRDV 信号（credit）才能发送。</li>
+</ol>
+<h3 id="2-6-Flit-关键标识字段"><a href="#2-6-Flit-关键标识字段" class="headerlink" title="2.6 Flit 关键标识字段"></a>2.6 Flit 关键标识字段</h3><p>以 Request Flit (REQ) 为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">图 2.8 — Request Flit 关键字段 (示例布局)</span><br><span class="line"></span><br><span class="line">  位范围(示例*)   | 字段           | 位宽   | 说明</span><br><span class="line">  ────────────────┼────────────────┼────────┼─────────────────────────────</span><br><span class="line">     3 : 0        | QoS            | 4      | 服务质量等级</span><br><span class="line">    14 : 4        | TgtID          | 11     | 目标 Node ID (路由用)</span><br><span class="line">    25 : 15       | SrcID          | 11     | 源 Node ID</span><br><span class="line">    33 : 26       | TxnID          | 8      | 事务 ID (每个 SrcID 下唯一)</span><br><span class="line">    59 : 54       | Opcode         | 6      | 请求类型 (ReadNoSnp=0x04 等)</span><br><span class="line">    62 : 60       | Size           | 3      | 数据大小 (0=1B, 7=64B)</span><br><span class="line">   110 : 63       | Addr           | 48     | 物理地址</span><br><span class="line">   111 : 111      | NS             | 1      | Non-Secure 标记</span><br><span class="line">   123 : 120      | MemAttr        | 4      | 内存属性 (Cacheable / Device 等)</span><br><span class="line">   124 : 124      | SnpAttr        | 1      | 是否可 Snoop</span><br><span class="line">   129 : 125      | LPID           | 5      | 逻辑处理器 ID</span><br><span class="line">   130 : 130      | Excl / SnoopMe | 1      | Exclusive Access / SnoopMe</span><br><span class="line">  ────────────────┴────────────────┴────────┴─────────────────────────────</span><br><span class="line">  * 实际位范围根据 NodeID / Address / RSVDC 宽度而不同</span><br></pre></td></tr></table></figure>
+
+<p><strong>DBID (Data Buffer ID) 的关键作用</strong>：</p>
+<ul>
+<li><strong>写事务</strong>：Requester 必须收到 Completer 的 DBIDResp 后才能发送写数据。</li>
+<li>**读事务 (需要 CompAck)**：Data Flit 携带 DBID，Requester 用此 DBID 作为 TxnID 发 CompAck。</li>
+</ul>
+<p>引用原文的一句话：”The Target Node uses this identifier to signal availability to receive Write Data, and to deallocate transactions that require Completion Acknowledgement.” — 这句话概括了 DBID 的全部语义。</p>
+<p><strong>各通道使用的标识符总结：</strong></p>
+<table>
+<thead>
+<tr>
+<th>Identifier</th>
+<th>REQ</th>
+<th>RSP</th>
+<th>DAT</th>
+<th>SNP</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SrcID</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>TgtID</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>—*</td>
+</tr>
+<tr>
+<td>TxnID</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DBID</td>
+<td>—</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>*SNP 通道不含 TgtID。因为 CHI 允许 IMPLEMENTATION DEFINED 的 snoop 路由方式（广播 vs Snoop Filter）。当 Snoop Flit 离开 interconnect 时，它已经确定了目标节点。</p>
+</blockquote>
+<blockquote>
+<p><strong>软件视角 — Crashdump 分析</strong>：当你在 EL3 固件中遇到总线错误需要解析 CHI Transaction Trace 时，第一件事就是定位 Flit 的 SrcID &#x2F; TgtID &#x2F; TxnID &#x2F; Opcode 四元组。TxnID 8-bit 意味着一个 Requester 最多 256 个未完成事务（CHI-D 后扩展到 1024）。如果固件日志里看到 TxnID 复用冲突或未等待的 DBID，基本就是 protocol violation。</p>
+</blockquote>
+<hr>
+<h2 id="三、事务处理流程"><a href="#三、事务处理流程" class="headerlink" title="三、事务处理流程"></a>三、事务处理流程</h2><h3 id="3-1-ReadNoSnp-事务完整流程"><a href="#3-1-ReadNoSnp-事务完整流程" class="headerlink" title="3.1 ReadNoSnp 事务完整流程"></a>3.1 ReadNoSnp 事务完整流程</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">图 3.1 — ReadNoSnp 事务时序</span><br><span class="line"></span><br><span class="line">  [RN-0, NodeID=0]    [Interconnect]    [HN-3, NodeID=3]    [SN-5, NodeID=5]</span><br><span class="line">        │                                       │                   │</span><br><span class="line">        │  TXREQ: ReadNoSnp                     │                   │</span><br><span class="line">        │  &#123;SrcID=0,TgtID=3,TxnID=A&#125;            │                   │</span><br><span class="line">        │───────────────────────────────────────►                   │</span><br><span class="line">        │                                       │  TXREQ:ReadNoSnp  │</span><br><span class="line">        │                                       │  &#123;SrcID=3,TgtID=5,│</span><br><span class="line">        │                                       │   TxnID=B&#125;        │</span><br><span class="line">        │                                       │───────────────────►</span><br><span class="line">        │                                       │                   │</span><br><span class="line">        │                                       │   TXDAT:CompData  │</span><br><span class="line">        │                                       │   &#123;SrcID=5,       │</span><br><span class="line">        │                                       │    TgtID=3,       │</span><br><span class="line">        │                                       │    TxnID=B,       │</span><br><span class="line">        │                                       │    Data&#125;          │</span><br><span class="line">        │                                       │◄──────────────────│</span><br><span class="line">        │                                       │                   │</span><br><span class="line">        │       RXDAT: CompData                 │                   │</span><br><span class="line">        │       &#123;SrcID=3,TgtID=0,               │                   │</span><br><span class="line">        │        TxnID=A,Data&#125;                  │                   │</span><br><span class="line">        │◄──────────────────────────────────────│                   │</span><br></pre></td></tr></table></figure>
+
+<p>步骤拆解：</p>
+<ol>
+<li>RN-0 通过 SAM 确定地址对应 HN-3，发送 ReadNoSnp 到其 TXREQ。</li>
+<li>HN-3 通过自己的 HN SAM 确定对应 SN-5，发起下游 ReadNoSnp。</li>
+<li>SN-5 返回数据给 HN-3。</li>
+<li>HN-3 转发数据给 RN-0。</li>
+</ol>
+<h3 id="3-2-WriteNoSnp-事务完整流程"><a href="#3-2-WriteNoSnp-事务完整流程" class="headerlink" title="3.2 WriteNoSnp 事务完整流程"></a>3.2 WriteNoSnp 事务完整流程</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">图 3.2 — WriteNoSnp 事务时序</span><br><span class="line"></span><br><span class="line">  [RN-0, NodeID=0]        [HN-3, NodeID=3]        [SN-5, NodeID=5]</span><br><span class="line">        │                       │                       │</span><br><span class="line">        │ TXREQ:WriteNoSnp      │                       │</span><br><span class="line">        │ &#123;TxnID=A&#125;             │                       │</span><br><span class="line">        │──────────────────────►│                       │</span><br><span class="line">        │                       │                       │</span><br><span class="line">        │    TXRSP:DBIDResp     │                       │</span><br><span class="line">        │    &#123;TxnID=A, DBID=0&#125;  │                       │</span><br><span class="line">        │◄──────────────────────│                       │</span><br><span class="line">        │                       │                       │</span><br><span class="line">        │                       ├─── 以下两步骤可并行  ────┤</span><br><span class="line">        │                       │                       │</span><br><span class="line">        │  TXDAT:NCBWrData      │   TXREQ:WriteNoSnp    │</span><br><span class="line">        │  &#123;TxnID=0, Data&#125;      │   &#123;TxnID=B&#125;           │</span><br><span class="line">        │──────────────────────►│──────────────────────►│</span><br><span class="line">        │                       │                       │</span><br><span class="line">        │                       │    TXRSP:DBIDResp     │</span><br><span class="line">        │                       │    &#123;TxnID=B,DBID=C&#125;   │</span><br><span class="line">        │                       │◄──────────────────────│</span><br><span class="line">        │                       │                       │</span><br><span class="line">        │                       │   TXDAT:NCBWrData     │</span><br><span class="line">        │                       │   &#123;TxnID=C, Data&#125;     │</span><br><span class="line">        │                       │──────────────────────►│</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>软件视角</strong>：关键点在于 <strong>DBIDResp 后数据步骤可与下游 WriteNoSnp 并行</strong>。这意味着如果固件在配置 DMA descriptor 时连续写出多个 WriteNoSnp 事务，CHI 硬件可以在收到第一个 DBIDResp 后立即开始数据传输，无需等待下游内存控制器响应。</p>
+</blockquote>
+<h3 id="3-3-Completion-Acknowledgment"><a href="#3-3-Completion-Acknowledgment" class="headerlink" title="3.3 Completion Acknowledgment"></a>3.3 Completion Acknowledgment</h3><p>这段内容直击 CHI 协议中<strong>分布式缓存一致性设计最核心、也最难搞的”时序竞争（Race Condition）”问题</strong>。</p>
+<p>先说大白话结论：**<code>CompAck</code> 的本质，是 RN-F（CPU）给 HN-F（总管）发的一张”安全收货回执”。在总管拿到这张回执之前，它会强行把该地址的”窥探（Snoop）通道”锁死，不准任何人来打扰这个 CPU。**</p>
+<p>我们把它拆解为以下三个核心问题来理解。</p>
+<hr>
+<h4 id="3-3-1-为什么会有这个危机？（如果没有-CompAck-会发生什么）"><a href="#3-3-1-为什么会有这个危机？（如果没有-CompAck-会发生什么）" class="headerlink" title="3.3.1 为什么会有这个危机？（如果没有 CompAck 会发生什么）"></a>3.3.1 为什么会有这个危机？（如果没有 <code>CompAck</code> 会发生什么）</h4><p>CHI 是一套网络化（NoC）总线，<strong>数据包在总线里飞是有延迟的，而且不同通道（REQ、DAT、SNP）走的物理路径不同，速度也不同</strong>。</p>
+<p>如果没有 <code>CompAck</code>，会发生下面这个灾难性的时序冲突：</p>
+<ol>
+<li><strong>CPU 0 (RN-F)</strong> 的 Cache 里没有地址 X 的数据。它发出一个读请求 <code>ReadShared</code>。</li>
+<li><strong>总管 (HN-F)</strong> 收到后，从内存里捞出了最新数据，通过 <code>CompData</code> 发送给 CPU 0。</li>
+<li><strong>【危机发生】</strong>：在数据包还在总线铜线里”飞”的途中，<strong>CPU 1</strong> 突然发起了一笔写请求，想要修改地址 X。</li>
+<li><strong>总管 (HN-F)</strong> 一看，既然有人要写，那我得把所有持有地址 X 的人的 Cache 擦除（Snoop Invalidate）。HN-F 查表发现，刚才已经把数据发给 CPU 0 了。于是 HN-F 立刻顺着 SNP 通道轰了一个 <code>Snoop</code> 信号给 CPU 0。</li>
+<li><strong>【灾难降临】</strong>：由于 SNP 通道（走控制线）可能比 DAT 通道（走数据线，数据大，延迟高）跑得快，结果 <strong><code>Snoop</code> 信号比 <code>CompData</code> 数据包更早到达了 CPU 0！</strong></li>
+</ol>
+<blockquote>
+<p>💥 <strong>CPU 0 此时彻底懵了</strong>：我的状态机还在苦苦等待数据（过渡态），根本还没拿到这笔数据，你现在居然来收缴（Snoop）我的数据？我是该拒绝你，还是该接收你？硬件状态机直接陷入死锁（Deadlock）或协议违规（Protocol Violation）。</p>
+</blockquote>
+<hr>
+<h4 id="3-3-2-CompAck-机制是如何化解危机的？"><a href="#3-3-2-CompAck-机制是如何化解危机的？" class="headerlink" title="3.3.2 CompAck 机制是如何化解危机的？"></a>3.3.2 <code>CompAck</code> 机制是如何化解危机的？</h4><p>引入 <code>CompAck</code> 后，时序图里的三步构成了一个完美的<strong>闭环保护锁</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">图 3.3 — CompAck 三步闭锁流程</span><br><span class="line"></span><br><span class="line">    RN-F (CPU)                                              HN-F (总管)</span><br><span class="line">      │                                                       │</span><br><span class="line">      │ ─── REQ: Read* &#123;ExpCompAck=1&#125; ──────────────────────&gt; │ (1) 显式声明：我要回执</span><br><span class="line">      │                                                       │     【HN-F 锁死地址 X 的 Snoop】</span><br><span class="line">      │                                                       │</span><br><span class="line">      │ &lt;─── CompData &#123;DBID=Z, Data&#125; ──────────────────────── │ (2) 数据送达</span><br><span class="line">      │                                                       │</span><br><span class="line">      │ ─── RSP: CompAck &#123;TxnID=Z&#125; ─────────────────────────&gt; │ (3) 报告总管：我已安全收货</span><br><span class="line">      │                                                       │     【HN-F 解锁地址 X 的 Snoop】</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p><strong>第一步：占坑挂锁</strong><br>RN-F 发送读请求时，带上一个标志位 <strong><code>ExpCompAck=1</code><strong>（Expect Completion Acknowledgment，意思是”我这次传输需要回执”）。HN-F 收到后，</strong>立刻把地址 X 放进黑名单（阻塞后续到地址 X 的 Snoop）</strong>。这意味着，哪怕此时 CPU 1 急着要写地址 X，HN-F 也会把 CPU 1 的请求按住，绝对不往 RN-F 发 Snoop。</p>
+</li>
+<li><p><strong>第二步：安全收货</strong><br>RN-F 顺利、安全地收到了 <code>CompData</code>，把数据妥妥地锁进了自己的 L2 Cache，状态机安全退出过渡态。</p>
+</li>
+<li><p><strong>第三步：解锁放行</strong><br>RN-F 通过 <code>RSP</code> 通道给 HN-F 发送 <strong><code>CompAck</code><strong>。HN-F 收到这个回执后，悬着的心放下了，这才</strong>释放地址 X 的 Snoop 阻塞</strong>，允许后续的 Snoop 飞向 RN-F。此时 RN-F 已经处于稳定态，完全具备了处理 Snoop 的能力。</p>
+</li>
+</ul>
+<hr>
+<h4 id="3-3-3-为什么并非所有事务都需要-CompAck？"><a href="#3-3-3-为什么并非所有事务都需要-CompAck？" class="headerlink" title="3.3.3 为什么并非所有事务都需要 CompAck？"></a>3.3.3 为什么并非所有事务都需要 <code>CompAck</code>？</h4><p>这是为了<strong>兼顾系统性能</strong>。如果每一笔总线传输都要强行多走一步 <code>CompAck</code> 握手，总线带宽就会被无意义的回执信号占满（就像你每网购一个小物件，都要强制给快递员手写一份纸质回执一样）。</p>
+<ul>
+<li><p><strong>需要 <code>CompAck</code> 的场景</strong>：涉及到 <strong>Coherent（缓存一致性）</strong> 的操作。因为 RN-F 内部有 Cache 状态机，它对时序先后顺序极其敏感，绝对不能出现”未娶先休（没收到数据先收到 Snoop）”的情况。</p>
+</li>
+<li><p><strong>不需要 <code>CompAck</code> 的场景</strong>：比如 <code>WriteNoSnp</code>（非一致性写）或者对 MMIO 外设寄存器的读写。这些操作不经过 CPU 的一致性 Cache，数据砸过去或者读回来就完事了，根本没有状态机过渡态，也没有人会去 Snoop 它，因此 <code>ExpCompAck</code> 直接置 <code>0</code>，省去了 <code>CompAck</code> 的开销，总线效率最高。</p>
+</li>
+</ul>
+<blockquote>
+<p><strong>软件视角</strong>：在调试多核一致性问题时，CompAck 机制解释了为什么某些 CPU 的 <code>SEV</code> (Send Event) &#x2F; <code>WFE</code> (Wait For Event) 同步原语在 CHI 上可以安全工作。当 CPU 0 用 Exclusive Store 写入一个同步变量后发 SEV，如果 CPU 1 在 CPU 0 发出 CompAck 之前就尝试读这个变量，HN-F 对地址的 Snoop 阻塞会强制 CPU 1 的读等待——这和软件的 spinlock 在硬件层面形成了一道”协议级 gate”。</p>
+</blockquote>
+<h3 id="3-4-Endpoint-Order-vs-Request-Order"><a href="#3-4-Endpoint-Order-vs-Request-Order" class="headerlink" title="3.4 Endpoint Order vs Request Order"></a>3.4 Endpoint Order vs Request Order</h3><p>CHI 网络中各通道（REQ &#x2F; RSP &#x2F; SNP &#x2F; DAT）彼此物理独立，事务无需共享同一路径即可到达同一目标。这意味着两个先后发出的请求，可能在网络中走不同的路由、经历不同的拥塞，最终以与发出顺序相反的顺序到达 Subordinate。对 Coherent 事务而言，缓存一致性状态机与 CompAck（见 3.3 节）已经约束了语义——Snoop 阻塞、事务串行化等手段保证写入的可见性顺序。但对于 Device 类型或 Non-Cacheable 内存的访问，<strong>没有缓存状态机参与</strong>，如果硬件不做任何约束，<code>ioread32()</code> 完全可能读到上一个 <code>iowrite32()</code> 之前的状态值。</p>
+<p>这就是 <code>REQ.Order</code> 字段存在的理由：<strong>由 Requester 显式声明每条 Non-Cacheable 事务的排序约束</strong>，让 CHI 网络在需要严格顺序时阻塞请求、在无需顺序时放行以换取吞吐。</p>
+<p><code>Order</code> 字段有三种编码：</p>
+<table>
+<thead>
+<tr>
+<th>编码</th>
+<th>名称</th>
+<th>语义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>2&#39;b00</code></td>
+<td>None</td>
+<td>无排序保证，允许任意重排序</td>
+</tr>
+<tr>
+<td><code>2&#39;b01</code></td>
+<td>ReqOrder</td>
+<td>请求顺序 — 同一 Requester 对同一地址的事务必须按发出顺序到达</td>
+</tr>
+<tr>
+<td><code>2&#39;b10</code></td>
+<td>EndpointOrder</td>
+<td>端点顺序 — 同一 Requester 对同一 Subordinate 地址范围内的事务严格保序</td>
+</tr>
+</tbody></table>
+<h4 id="3-4-1-Request-Order-—-对同一地址的保序"><a href="#3-4-1-Request-Order-—-对同一地址的保序" class="headerlink" title="3.4.1 Request Order — 对同一地址的保序"></a>3.4.1 Request Order — 对同一地址的保序</h4><p>请求顺序约束的是<strong>同一 Requester 对同一地址</strong>的连续访问。这里的”同一地址”匹配粒度是 IMPLEMENTATION DEFINED，不必精确到字节——例如可能以 4KB 为窗口。</p>
+<p>保序机制依靠 Subordinate 的显式确认：Requester 发出 <code>Order=1</code> 的请求后，<strong>在收到 Subordinate 的 <code>ReadReceipt</code>（读）或 <code>DBIDResp</code>（写）之前，该 Requester 对该地址的下一个请求将被硬件阻塞</strong>。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">图 3.4 — Request Order 时序</span><br><span class="line"></span><br><span class="line">  [Requester]                                    [Subordinate]</span><br><span class="line">       │                                               │</span><br><span class="line">       │ TXREQ: ReadNoSnp &#123;TxnID=A, Addr=X, Order=1&#125;   │</span><br><span class="line">       │──────────────────────────────────────────────►│</span><br><span class="line">       │                                               │</span><br><span class="line">       │   (Requester 准备发出 Read#2 到地址 X,          │</span><br><span class="line">       │    但 Read#1 尚未收到 ReadReceipt → 阻塞!)      │</span><br><span class="line">       │                                               │</span><br><span class="line">       │          RXRSP: ReadReceipt &#123;TxnID=A&#125;         │</span><br><span class="line">       │◄──────────────────────────────────────────────│  Subordinate:</span><br><span class="line">       │                                               │    &quot;#1 已接收, 保序保证已建立&quot;</span><br><span class="line">       │                                               │</span><br><span class="line">       │ TXREQ: ReadNoSnp &#123;TxnID=B, Addr=X, Order=1&#125;   │</span><br><span class="line">       │──────────────────────────────────────────────►│  Read#2 放行</span><br><span class="line">       │                                               │</span><br><span class="line">       │          RXDAT: CompData &#123;TxnID=A&#125;            │</span><br><span class="line">       │◄──────────────────────────────────────────────│</span><br><span class="line">       │          RXDAT: CompData &#123;TxnID=B&#125;            │</span><br><span class="line">       │◄──────────────────────────────────────────────│</span><br></pre></td></tr></table></figure>
+
+<p>典型场景：对同一 Non-Cacheable 地址执行 FIFO 式交互。Requester 先写 <code>0xAA</code> 到设备控制寄存器以触发某个操作，随后立即从同一地址读取状态——若写入尚未被 Subordinate 确认接收、读取已返回旧状态值，驱动将据此做出错误判断。</p>
+<h4 id="3-4-2-Endpoint-Order-—-对同一-Subordinate-的保序"><a href="#3-4-2-Endpoint-Order-—-对同一-Subordinate-的保序" class="headerlink" title="3.4.2 Endpoint Order — 对同一 Subordinate 的保序"></a>3.4.2 Endpoint Order — 对同一 Subordinate 的保序</h4><p>Endpoint Order 约束的是<strong>同一 Requester 对同一 Subordinate 地址范围内的所有事务</strong>。范围比 Request Order 更宽（同一目标节点、不需要同一地址），开销也更高——前一个事务收到响应前，后续所有事务都被阻塞。</p>
+<p>典型场景：NVMe 驱动发起一次 I&#x2F;O 操作的时间线：</p>
+<ol>
+<li><code>WriteNoSnp</code> 到提交队列 (Submission Queue)，填入命令条目。</li>
+<li><code>WriteNoSnp</code> 到 Doorbell 寄存器，通知控制器有新命令。</li>
+</ol>
+<p>这两笔写目标地址不同（一个在 SQ 缓冲区地址，一个在 Doorbell 寄存器地址），但因发往同一 Subordinate（NVMe 控制器），Endpoint Order 可保证它们按序到达。如果 Doorbell 写先于 SQ 写被控制器观察到，控制器将读取尚未完整填充的队列——结果是全零命令条目或 stale data。</p>
+<p><strong>CHI-D 起，Endpoint Order 不再隐含 Request Order。</strong>此前（CHI-A&#x2F;B&#x2F;C）设置 Endpoint Order 会自动同时满足 Request Order 约束；但 CHI-D 将二者解耦，允许实现方在 Endpoint Order 场景中只保证端点级顺序、不保证地址级顺序（虽然后者通常仍是前者的子集）。</p>
+<h4 id="3-4-3-仅对-Non-Cacheable-事务生效"><a href="#3-4-3-仅对-Non-Cacheable-事务生效" class="headerlink" title="3.4.3 仅对 Non-Cacheable 事务生效"></a>3.4.3 仅对 Non-Cacheable 事务生效</h4><p>Order 字段<strong>只适用于以下请求类型</strong>：</p>
+<ul>
+<li><code>ReadNoSnp</code> &#x2F; <code>ReadOnce*</code> 系列</li>
+<li><code>WriteNoSnp*</code> &#x2F; <code>WriteUnique*</code> 系列</li>
+</ul>
+<p>为什么 Coherent 事务（<code>ReadShared</code>、<code>ReadUnique</code>、<code>MakeUnique</code> 等）不在此列？因为它们的目标地址在缓存中，一致性协议已经通过 <strong>CompAck + Snoop 阻塞（见 3.3 节）</strong> 提供了更强的排序保证。只有 Device &#x2F; Normal Non-Cacheable 属性的访问——这些绕开缓存、由 Requester 直接打到 Subordinate 的事务——才必须依赖软件通过 MMU 页表属性间接设置的 Order 字段来显式约束。</p>
+<h4 id="3-4-4-从-MMU-页表属性到-Order-字段的映射"><a href="#3-4-4-从-MMU-页表属性到-Order-字段的映射" class="headerlink" title="3.4.4 从 MMU 页表属性到 Order 字段的映射"></a>3.4.4 从 MMU 页表属性到 Order 字段的映射</h4><p>驱动工程师在代码中使用 <code>ioremap()</code> &#x2F; <code>ioremap_nocache()</code> 或 DTS 中声明 <code>reg</code> 属性时，实际上在指定 MMU 页表条目的内存类型。CHI Requester 根据页表属性自动填充 Request Flit 的 Order 字段：</p>
+<table>
+<thead>
+<tr>
+<th>MMU 内存类型 (Arm)</th>
+<th>CHI Order 编码</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Device-nGnRnE &#x2F; Strongly-Ordered</td>
+<td><code>Order=2&#39;b10</code> (EndpointOrder)</td>
+<td>同端点所有访问严格保序</td>
+</tr>
+<tr>
+<td>Normal Non-Cacheable</td>
+<td><code>Order=2&#39;b01</code> (ReqOrder)</td>
+<td>同地址访问保序</td>
+</tr>
+<tr>
+<td>Normal Cacheable (WriteBack &#x2F; WriteThrough)</td>
+<td><code>Order=2&#39;b00</code> (None)</td>
+<td>不做排序约束, 一致性协议兜底</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>软件视角</strong>：Linux 内核的 <code>iowrite32()</code> &#x2F; <code>ioread32()</code> 系列通过 Device 内存属性生成 CHI 上的 <code>WriteNoSnp</code> &#x2F; <code>ReadNoSnp</code> 事务，Order 由页表属性确定。如果你使用 <code>dma_alloc_coherent()</code> 分配的 Non-Cacheable 缓冲区（在 coherent DMA 系统中实为 Cacheable，由硬件维护一致性），则对应 <code>Order=0</code>——排序由 cache coherency 保证而非 Order 字段。如果你在 bare-metal 固件中手动配置 MMU 页表的 MAIR 寄存器，务必将设备寄存器区域的 AttrIdx 指向 Device 编码——错误地映射为 Normal Non-Cacheable 将只施加 ReqOrder（同地址保证），但不同寄存器间的写入不保证到达顺序，可能导致设备接收到错误的编程序列。</p>
+</blockquote>
+<h3 id="3-5-Request-Retry-与-Protocol-Credit-机制"><a href="#3-5-Request-Retry-与-Protocol-Credit-机制" class="headerlink" title="3.5 Request Retry 与 Protocol Credit 机制"></a>3.5 Request Retry 与 Protocol Credit 机制</h3><p>当目标节点资源不足时，CHI 不会阻塞 REQ 通道，而是使用 Request Retry + Protocol Credit 机制：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">图 3.5 — Retry 流程</span><br><span class="line"></span><br><span class="line">  [Requester]                         [Completer]</span><br><span class="line">      │                                    │</span><br><span class="line">      │ REQ &#123;AllowRetry=YES, PCrdType=0&#125;   │</span><br><span class="line">      │───────────────────────────────────►│  (Completer 的 Buffer 满)</span><br><span class="line">      │                                    │</span><br><span class="line">      │  RSP: RetryAck &#123;PCrdType=2&#125;        │</span><br><span class="line">      │◄───────────────────────────────────│</span><br><span class="line">      │                                    │</span><br><span class="line">      │         ... WAIT ...               │  (Buffer 可用)</span><br><span class="line">      │                                    │</span><br><span class="line">      │  RSP: PCrdGrant &#123;PCrdType=2&#125;       │</span><br><span class="line">      │◄───────────────────────────────────│</span><br><span class="line">      │                                    │</span><br><span class="line">      │ REQ &#123;AllowRetry=NO, PCrdType=2&#125;    │</span><br><span class="line">      │───────────────────────────────────►│  (重发请求, 被保证接受)</span><br></pre></td></tr></table></figure>
+
+<p>PCrdType 由实现方定义（例如不同的 Credit 类对应 Read Buffer 和 Write Buffer）。</p>
+<hr>
+<h2 id="四、分布式虚拟内存-DVM-操作"><a href="#四、分布式虚拟内存-DVM-操作" class="headerlink" title="四、分布式虚拟内存 (DVM) 操作"></a>四、分布式虚拟内存 (DVM) 操作</h2><h3 id="4-1-DVM-操作机制"><a href="#4-1-DVM-操作机制" class="headerlink" title="4.1 DVM 操作机制"></a>4.1 DVM 操作机制</h3><p>在多核系统中，每个 CPU 都有独立的 TLB、指令缓存和分支预测器。当某个 CPU 修改页表（例如 <code>munmap</code> 释放一段虚拟地址、或 <code>mprotect</code> 改变权限）后，其他 CPU 的 TLB 中可能仍缓存着旧的虚拟地址映射。DVM (Distributed Virtual Memory) 就是 CHI 协议中负责<strong>跨 CPU 广播 TLB&#x2F;ICache&#x2F;Branch Predictor 无效化</strong>的机制。</p>
+<p>DVM 事务由一个专用的 MN (Miscellaneous Node) 节点集中调度，而非交由 HN-F 处理——这避免了 Home Node 同时管理缓存一致性和 DVM 排序的复杂度。</p>
+<p><strong>DVM 两段传输的原因</strong>：一条 DVM 操作需要传输的信息量（操作类型、VMID、ASID、地址、TLBI 级别等）超过单个 Flit Addr 字段的承载能力。CHI 因此要求所有 DVM 操作分两段发送：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">图 4.1 — DVM 事务两阶段结构</span><br><span class="line"></span><br><span class="line">  [RN-0 (Initiator)]              [MN]                  [RN-1 (Target)]</span><br><span class="line">       │                            │                           │</span><br><span class="line">    Phase 1 — Initiator → MN:                                   │</span><br><span class="line">       │ TXREQ: DVMOp &#123;Addr=op_type, VMID, addr_hi&#125;             │</span><br><span class="line">       │───────────────────────────►                            │</span><br><span class="line">       │          RXRSP: DBIDResp ◄ │                           │</span><br><span class="line">       │                            │                           │</span><br><span class="line">       │ TXDAT: &#123;addr_lo&#125;           │                           │</span><br><span class="line">       │───────────────────────────►                            │</span><br><span class="line">       │                            │                           │</span><br><span class="line">    Phase 2 — MN → Targets (broadcast Snoop):                   │</span><br><span class="line">       │                            │ TXSNP: SnpDVMOp Part1     │</span><br><span class="line">       │                            │ &#123;Addr=op_type+addr_hi&#125;    │</span><br><span class="line">       │                            │──────────────────────────►│</span><br><span class="line">       │                            │ TXSNP: SnpDVMOp Part2     │</span><br><span class="line">       │                            │ &#123;Addr=addr_lo&#125;            │</span><br><span class="line">       │                            │        SnoopResp ◄────────│</span><br><span class="line">       │         Completion ◄───────│                           │</span><br></pre></td></tr></table></figure>
+
+<p>Phase 1 的 Part1 走 REQ 通道，携带操作属性（是什么操作、哪个 VMID 下的）和地址高位；Part2 走 DAT 通道，携带地址低位。MN 拼接两段后，在 Phase 2 中通过 SNP 通道以 Part1+Part2 的同样分拆方式广播到所有目标 RN。Part1 用 Addr[3]&#x3D;0 标识、Part2 用 Addr[3]&#x3D;1 标识，且 Part2 <strong>可以先于 Part1 到达目标</strong>——接收方硬件必须缓存并等齐两段后再执行。</p>
+<h3 id="4-2-DVM-Non-Sync-vs-DVM-Sync"><a href="#4-2-DVM-Non-Sync-vs-DVM-Sync" class="headerlink" title="4.2 DVM Non-Sync vs DVM Sync"></a>4.2 DVM Non-Sync vs DVM Sync</h3><table>
+<thead>
+<tr>
+<th>类型</th>
+<th>行为</th>
+<th>软件触发源</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DVM Non-Sync</td>
+<td>收到后立即 Ack，后延执行</td>
+<td>TLBI &#x2F; IC IALLU &#x2F; BP IALL</td>
+</tr>
+<tr>
+<td>DVM Sync</td>
+<td>必须等所有在它之前的 Non-Sync 全部执行完毕</td>
+<td>DSB 指令</td>
+</tr>
+</tbody></table>
+<p>DVM Sync 流程：</p>
+<ol>
+<li>RN 发出 DVM Sync 到 MN。</li>
+<li>MN 向所有 RN-F &#x2F; RN-D 广播 Sync Snoop。</li>
+<li>每个目标 RN 确保其所有待执行 DVM 操作完成。</li>
+<li>每个 RN 回复 SnoopResp。</li>
+<li>MN 汇总后向发起 RN 发 Completion。</li>
+</ol>
+<blockquote>
+<p><strong>软件视角 — 最大的实际意义</strong>：Arm 处理器的一条 <code>DSB ISH</code> 指令在 CHI 系统上会触发 DVM Sync。如果你在内核中调用 <code>flush_tlb_all()</code>，最终会转化为一条 TLBI + DSB ISH 的序列。理解 DVM Sync 的时序对于调试 “TLB 无效化后读到 stale data” 这类问题至关重要——如果 DVM Sync 的 Completion 还没返回，后续的页表修改访问可能使用旧的 TLB 映射。</p>
+</blockquote>
+<h3 id="4-3-DVM-操作的完整事务示例"><a href="#4-3-DVM-操作的完整事务示例" class="headerlink" title="4.3 DVM 操作的完整事务示例"></a>4.3 DVM 操作的完整事务示例</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">图 4.2 — TLB 无效化 + DVM Sync 完整时序</span><br><span class="line"></span><br><span class="line">  [RN-0]             [MN]             [RN-1]</span><br><span class="line">    │                  │                 │</span><br><span class="line">    │ TLBI DVM Req ───►                  │</span><br><span class="line">    │ DBIDResp ◄───────│                 │</span><br><span class="line">    │ Write Data ─────►                  │</span><br><span class="line">    │                  │ SnpDVMOp ──────►</span><br><span class="line">    │                  │ SnpDVMOp Part2 ►</span><br><span class="line">    │                  │ SnoopResp ◄─────│  (ACK, 未执行)</span><br><span class="line">    │ Completion ◄─────│                 │</span><br><span class="line">    │                  │                 │</span><br><span class="line">    │ DVM Sync Req ───►                  │</span><br><span class="line">    │ DBIDResp ◄───────│                 │</span><br><span class="line">    │ Write Data ─────►                  │</span><br><span class="line">    │                  │ SnpDVMOp(Sync) ►│</span><br><span class="line">    │                  │                 │  ← 等待所有 DVM 执行完毕</span><br><span class="line">    │                  │ SnoopResp ◄─────│  (确认执行完毕)</span><br><span class="line">    │ Sync Complete ◄──│                 │</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="五、性能优化特性（选读）"><a href="#五、性能优化特性（选读）" class="headerlink" title="五、性能优化特性（选读）"></a>五、性能优化特性（选读）</h2><h3 id="5-1-Cache-Stashing-—-将-I-O-数据直接注入目标-CPU-缓存"><a href="#5-1-Cache-Stashing-—-将-I-O-数据直接注入目标-CPU-缓存" class="headerlink" title="5.1 Cache Stashing — 将 I&#x2F;O 数据直接注入目标 CPU 缓存"></a>5.1 Cache Stashing — 将 I&#x2F;O 数据直接注入目标 CPU 缓存</h3><p>传统 DMA 写入流程中，以网卡接收数据包为例：网卡通过 DMA 将数据写入 DDR 内存 → 产生中断通知 CPU → CPU 从内存地址读取数据 → 发生 Cache Miss → 总线穿透至 DDR 控制器取回缓存行（上百个时钟周期延迟）→ CPU 方能开始处理。在 100G&#x2F;200G 高吞吐网卡场景下，这个”先落内存、再等 CPU 捞”的往返延迟直接导致丢包。</p>
+<p>Cache Stashing（CHI-B 引入）的设计意图是消除这段延迟：<strong>既然 I&#x2F;O 设备在发起 DMA 时已经知道目标数据最终由哪个 CPU 核心消费，就让数据在写入内存的同时、甚至先于内存写入，直接注入该 CPU 的缓存中。</strong> CPU 后续访问该地址时将命中本地缓存，DDR 往返延迟被剪除。</p>
+<h4 id="5-1-1-带写数据的-Stash-—-WriteUniqueStash"><a href="#5-1-1-带写数据的-Stash-—-WriteUniqueStash" class="headerlink" title="5.1.1 带写数据的 Stash — WriteUniqueStash"></a>5.1.1 带写数据的 Stash — <code>WriteUniqueStash</code></h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">图 5.1 — WriteUniqueStash 事务流程（SN-F 不参与）</span><br><span class="line"></span><br><span class="line">  [RN-I (DMA Device)]        [HN-F]                  [RN-F (Target CPU)]</span><br><span class="line">       │                        │                            │</span><br><span class="line">       │ TXREQ: WriteUniqueStash│                            │</span><br><span class="line">       │ &#123;StashNID=RN-F&#125;        │                            │</span><br><span class="line">       │───────────────────────►│                            │</span><br><span class="line">       │                        │ TXSNP: SnpMakeInvalidStash │</span><br><span class="line">       │                        │───────────────────────────►│</span><br><span class="line">       │                        │      RXSNP: SnoopResp ◄────│</span><br><span class="line">       │                        │                            │</span><br><span class="line">       │ TXDAT: WriteData       │                            │</span><br><span class="line">       │───────────────────────►│                            │</span><br><span class="line">       │                        │ TXDAT: WriteData           │</span><br><span class="line">       │                        │ (routed to stash target)   │</span><br><span class="line">       │                        │───────────────────────────►│</span><br><span class="line">       │                        │           RXRSP: Comp ◄────│</span><br><span class="line">       │         RXRSP: Comp ◄──│                            │</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li>RN-I 发出 <code>WriteUniqueStash</code>，<code>StashNID</code> 字段携带目标 RN-F 的 Node ID——此字段告诉 HN-F：”写操作完成后，将数据安装到该节点缓存中”。</li>
+<li>HN-F 向目标 RN-F 发出 <code>SnpMakeInvalidStash</code> Snoop，要求无效化该地址的旧缓存行（如果存在），为新数据腾出缓存空间。</li>
+<li>RN-F 返回 <code>SnoopResp</code>，确认缓存行已无效或本就不存在。</li>
+<li><strong>步骤 4 与步骤 2-3 可并行</strong>——RN-I 不等 Snoop 完成即可通过 TXDAT 向 HN-F 发送写数据。</li>
+<li>HN-F 将写数据转发给 RN-F。数据进入 RN-F 的本地缓存——此时 RN-F <strong>未执行任何读指令</strong>，数据已被硬件强行安装。</li>
+<li>RN-F 返回 <code>Comp</code> 确认收到数据。</li>
+<li>HN-F 向 RN-I 返回 <code>Comp</code>，事务结束。</li>
+</ol>
+<p>在整个流程中 SN-F（内存控制器）不参与——数据是否同步写入内存取决于 HN-F 的缓存替换策略，写入内存的操作被推迟到该缓存行后续被 HN-F 逐出时。如果 CPU 在数据被逐出前就已经消费了它，DDR 访问被完全消除。</p>
+<h4 id="5-1-2-无写数据的-Stash-—-StashOnceShared-StashOnceUnique"><a href="#5-1-2-无写数据的-Stash-—-StashOnceShared-StashOnceUnique" class="headerlink" title="5.1.2 无写数据的 Stash — StashOnceShared &#x2F; StashOnceUnique"></a>5.1.2 无写数据的 Stash — <code>StashOnceShared</code> &#x2F; <code>StashOnceUnique</code></h4><p>5.1.1 的场景是 I&#x2F;O 设备<strong>手里有数据、顺便塞进 CPU 缓存</strong>。但还有另一种情况：设备手里没有数据，它只想帮 CPU 做一次”缓存预热”——预测 CPU 即将访问地址 X，提前替它把 X 的数据从 DDR 拉进 CPU 缓存。</p>
+<p>此时发起 <code>StashOnceUnique</code> 或 <code>StashOnceShared</code>，Request Flit 不含写数据。HN-F 收到后需要自己去 DDR 取数据，再安装到目标 CPU 缓存。因此 SN-F <strong>必须参与</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">图 5.2 — StashOnceUnique 事务流程</span><br><span class="line"></span><br><span class="line">  [RN-I]            [HN-F]                  [RN-F (Target)]        [SN-F]</span><br><span class="line">    │                  │                         │                    │</span><br><span class="line">    │① StashOnceUnique │                         │                    │</span><br><span class="line">    │  &#123;StashNID=RN-F&#125; │                         │                    │</span><br><span class="line">    │─────────────────►│                         │                    │</span><br><span class="line">    │                  │                         │                    │</span><br><span class="line">    │                  │②a ReadNoSnp             │                    │</span><br><span class="line">    │                  │─────────────────────────────────────────────►│</span><br><span class="line">    │                  │                         │                    │</span><br><span class="line">    │                  │②b SnpStashUnique        │                    │</span><br><span class="line">    │                  │────────────────────────►│                    │</span><br><span class="line">    │                  │                         │                    │</span><br><span class="line">    │                  │        ③a CompData ◄─────────────────────────│</span><br><span class="line">    │                  │         (cache line)    │                    │</span><br><span class="line">    │                  │                         │                    │</span><br><span class="line">    │                  │  ③b SnpResp_I_Read      │                    │</span><br><span class="line">    │                  │  &#123;DataPull=1, DBID=Y&#125;   │                    │</span><br><span class="line">    │                  │◄────────────────────────│                    │</span><br><span class="line">    │                  │                         │                    │</span><br><span class="line">    │                  │④ CompData_UC            │                    │</span><br><span class="line">    │                  │  &#123;TxnID=Y, data&#125;        │                    │</span><br><span class="line">    │                  │────────────────────────►│  ← 数据安装到 RN-F 缓存</span><br><span class="line">    │                  │                         │                    │</span><br><span class="line">    │                  │        ⑤ CompAck ◄───── │                    │</span><br><span class="line">    │  ⑥ Comp ◄────────│                         │                    │</span><br></pre></td></tr></table></figure>
+
+<p>① RN-I 发出不带写数据的 Stash 请求，<code>StashNID</code> 指向目标 CPU。</p>
+<p>②a 和 ②b <strong>同时启动</strong>：</p>
+<ul>
+<li>②a — HN-F 向 SN-F 发 <code>ReadNoSnp</code>，从 DDR 拉取该缓存行的最新数据。因为 HN-F 自己没有这份数据。</li>
+<li>②b — HN-F 向目标 RN-F 发 <code>SnpStashUnique</code> Snoop，通知它”有一份数据要装进你的缓存，旧数据请无效化”。</li>
+</ul>
+<p>③a 和 ③b <strong>可以以任意顺序到达 HN-F</strong>：</p>
+<ul>
+<li>③a — SN-F 将缓存行数据以 <code>CompData</code> 返回。</li>
+<li>③b — RN-F 在 Snoop 响应中设 <code>DataPull=1</code>，附带一个 <code>DBID</code>（相当于说”我接受 Stash，数据直接发给我，TxnID 用 Y”）。这就是 DataPull——RN-F 不必另发 Read 请求，Snoop 响应本身等同于隐式读请求。如果 RN-F 设 <code>DataPull=0</code>，则它需要后续自己发 Read 事务，多走一次总线往返。</li>
+</ul>
+<p>④ HN-F 将缓存行以 <code>CompData_UC</code> 发给 RN-F（TxnID 使用 ③b 中 RN-F 给的 DBID&#x3D;Y）。数据被安装到 RN-F 的本地缓存。</p>
+<p>⑤ RN-F 发 <code>CompAck</code> 给 HN-F。⑥ HN-F 发 <code>Comp</code> 给 RN-I。</p>
+<p><strong>核心要点</strong>：<code>StashOnceUnique</code> 安装后缓存行为 Unique 状态（目标 CPU 可直接写入），<code>StashOnceShared</code> 对应 Shared 状态（只读共享）。<code>DataPull</code> 仅在 HN-F 未通过 <code>DoNotDataPull</code> 字段禁止时可用，且只适用于 Stash Snoop——普通一致性 Snoop 不能使用此机制。</p>
+<p>四种 Stash 事务类型：</p>
+<table>
+<thead>
+<tr>
+<th>事务</th>
+<th>用途</th>
+<th>带写数据?</th>
+<th>SN-F 参与?</th>
+<th>目标缓存状态</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>WriteUniquePtlStash</code></td>
+<td>部分行写入 + Stash</td>
+<td>✅</td>
+<td>❌</td>
+<td>Unique</td>
+</tr>
+<tr>
+<td><code>WriteUniqueFullStash</code></td>
+<td>整行写入 + Stash</td>
+<td>✅</td>
+<td>❌</td>
+<td>Unique</td>
+</tr>
+<tr>
+<td><code>StashOnceShared</code></td>
+<td>读缓存预热</td>
+<td>❌</td>
+<td>✅ (拉数据)</td>
+<td>Shared</td>
+</tr>
+<tr>
+<td><code>StashOnceUnique</code></td>
+<td>写缓存预热</td>
+<td>❌</td>
+<td>✅ (拉数据)</td>
+<td>Unique</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>软件视角</strong>：高性能网卡驱动（DPDK 等）在配置 DMA 描述符或 PCIe 控制器属性时，可通过寄存器指定 “Stash Enable” 和 “Stash Target Core ID”，硬件据此填充 CHI Flit 的 <code>StashNID</code> 和 <code>StashLPID</code> 字段。对于不指定 Stash Target 的请求（<code>StashNIDValid=0</code>），HN-F 本身可作为 Stash 目标，选择性地将数据分配给其系统缓存——这是一种”不精确”但无额外硬件配置开销的折中方案。</p>
+</blockquote>
+<h3 id="5-2-I-O-Deallocation-—-读取同时清除缓存污染"><a href="#5-2-I-O-Deallocation-—-读取同时清除缓存污染" class="headerlink" title="5.2 I&#x2F;O Deallocation — 读取同时清除缓存污染"></a>5.2 I&#x2F;O Deallocation — 读取同时清除缓存污染</h3><p>当 I&#x2F;O 设备读取一块内存后，这块数据对 I&#x2F;O 设备自身已经没有后续用途。如果该缓存行恰好驻留在某个 CPU 的缓存中（且可能处于 Dirty 状态），传统的 <code>ReadOnce</code> 会保持 CPU 缓存中的副本不变——CPU 的缓存被一份自己不再需要的数据占据，这是缓存污染。</p>
+<p>I&#x2F;O Deallocation 为此提供两个带 Invalidation Hint 的读事务，在读取的同时通知 HN-F 无效化 CPU 端的副本：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">图 5.3 — ReadOnceCleanInvalid 事务流程</span><br><span class="line"></span><br><span class="line">  [RN-I]              [HN-F]                 [RN-F (holds Dirty)]        [SN-F]</span><br><span class="line">    │                    │                         │                       │</span><br><span class="line">    │① ReadOnceCleanInv  │                         │                       │</span><br><span class="line">    │───────────────────►│                         │                       │</span><br><span class="line">    │                    │② SnpUnique              │                       │</span><br><span class="line">    │                    │ (Invalidate + Get Data) │                       │</span><br><span class="line">    │                    │────────────────────────►│                       │</span><br><span class="line">    │                    │                         │③ Invalidate local copy│</span><br><span class="line">    │                    │   ④ SnpRespData ◄───────│ (return Dirty data)   │</span><br><span class="line">    │                    │                         │                       │</span><br><span class="line">    │                    │⑤ WriteBack ────────────────────────────────────►│</span><br><span class="line">    │                    │   (Dirty data to DDR)   │                       │</span><br><span class="line">    │                    │                         │                       │</span><br><span class="line">    │  ⑥ CompData ◄───── │                         │                       │</span><br><span class="line">    │   (data returned   │                         │                       │</span><br><span class="line">    │    to I/O device)  │                         │                       │</span><br></pre></td></tr></table></figure>
+
+<p>① RN-I 发出 <code>ReadOnceCleanInvalid</code>——它需要数据，但同时要求 HN-F 将 CPU 端的副本无效化。</p>
+<p>② HN-F 向持有该缓存行的 RN-F 发出 <code>SnpUnique</code> Snoop。Snoop 的目的有两个：获取最新数据（可能是 Dirty），并要求 RN-F 无效化本地副本。</p>
+<p>③ RN-F 无效化自己的缓存行。</p>
+<p>④ RN-F 通过 <code>SnpRespData</code> 将数据（Dirty 状态）返回给 HN-F。</p>
+<p>⑤ HN-F 将 Dirty 数据写回 SN-F（DDR 内存）。因为 <code>CleanInvalid</code> 要求保证数据持久化。</p>
+<p>⑥ HN-F 将数据转发给 RN-I。此时 CPU 缓存中该行已被无效化——数据被 I&#x2F;O 设备消费后不会继续占据 CPU 缓存空间。</p>
+<p><code>ReadOnceMakeInvalid</code> 流程相同，但步骤 ⑤ 被跳过——Dirty 数据直接丢弃、不写回内存。这适用于数据即将被 I&#x2F;O 设备覆写的场景（例如接收新的网络数据包到同一缓冲区），但使用它必须确保该数据不会被其他使用者再次读取，否则造成数据丢失。</p>
+<blockquote>
+<p><strong>软件视角</strong>：NVMe 驱动的 read completion path 中，bio page 作为 DMA target buffer 接收数据。如果该 page 在 CPU 缓存中恰好 Dirty（上一个用户写过但未 evict），<code>ReadOnceCleanInvalid</code> 会在 DMA 数据到达前先写回旧 Dirty 数据。在 coherent DMA 系统中硬件自动处理；在 non-coherent 系统中驱动必须在 DMA 之前通过 <code>dma_map_single(DMA_FROM_DEVICE)</code> 的底层 CMO 操作（如 <code>DC CIVAC</code>）显式清空。</p>
+</blockquote>
+<h3 id="5-3-Direct-Memory-Transfer-DMT-—-读数据绕行-Home-Node"><a href="#5-3-Direct-Memory-Transfer-DMT-—-读数据绕行-Home-Node" class="headerlink" title="5.3 Direct Memory Transfer (DMT) — 读数据绕行 Home Node"></a>5.3 Direct Memory Transfer (DMT) — 读数据绕行 Home Node</h3><p>CHI-A 中任何读事务的返回数据都必须经过 HN-F 中转：<code>RN → HN → SN → HN → RN</code>。HN-F 在这条路径上是纯中转节点——它不消费数据，但数据必须穿过它，增加一级 NoC 路由延迟。</p>
+<p>DMT（CHI-B）允许 SN-F 将读数据<strong>绕过 HN-F、直接发往原始 Requester</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">图 5.4 — DMT 事务流程（对比传统路径）</span><br><span class="line"></span><br><span class="line">  传统路径:</span><br><span class="line">    RN-F ────► HN-F ────► SN-F</span><br><span class="line">      ▲                     │</span><br><span class="line">      └─────────────────────┘  (数据经 HN-F 中转, 多一级路由)</span><br><span class="line"></span><br><span class="line">  DMT 路径:</span><br><span class="line">    RN-F ────► HN-F ────► SN-F</span><br><span class="line">      ▲                     │</span><br><span class="line">      └─────────────────────┘  (数据直达 RN-F, 绕过 HN-F)</span><br><span class="line">                            │</span><br><span class="line">                    HN-F ◄── CompAck (仅确认, 不走数据)</span><br></pre></td></tr></table></figure>
+
+<p>DMT 的核心机制依靠两组新增字段：</p>
+<p>① HN-F 向 SN-F 发 <code>ReadNoSnp</code> 时，携带 <code>ReturnNID</code>（填入原始 RN-F 的 Node ID）和 <code>ReturnTxnID</code>（填入原始 Request 的 TxnID）。</p>
+<p>② SN-F 返回数据时，<code>CompData</code> 的 <code>TgtID</code> 设为 <code>ReturnNID</code>（直接路由到 RN-F），<code>TxnID</code> 设为 <code>ReturnTxnID</code>（RN-F 据此匹配到原始请求）。同时 <code>HomeNID</code> 填入 HN-F 的 Node ID，<code>DBID</code> 填入 HN-F 发出的 <code>ReadNoSnp</code> 的 TxnID。</p>
+<p>③ RN-F 收到数据后，用 <code>HomeNID</code> 作为 <code>TgtID</code>、<code>DBID</code> 作为 <code>TxnID</code>，向 HN-F 发出 <code>CompAck</code>。HN-F 据此释放对该事务的跟踪。</p>
+<p><strong>优化变体（CHI-B）</strong>：当 <code>ReadNoSnp</code> 的 <code>Order=0x01</code> 时，SN-F 额外发送 <code>ReadReceipt</code> 给 HN-F。HN-F 收到 <code>ReadReceipt</code>（而非等到 <code>CompAck</code>）即可释放事务跟踪——进一步缩短 HN-F 的资源占用窗口。</p>
+<p>不适用 DMT 的事务：Exclusive Access、<code>Order≠0</code> 且 <code>ExpCompAck=0</code> 的 <code>ReadNoSnp</code>&#x2F;<code>ReadOnce</code>。</p>
+<h3 id="5-4-Direct-Cache-Transfer-DCT-—-缓存间数据直通"><a href="#5-4-Direct-Cache-Transfer-DCT-—-缓存间数据直通" class="headerlink" title="5.4 Direct Cache Transfer (DCT) — 缓存间数据直通"></a>5.4 Direct Cache Transfer (DCT) — 缓存间数据直通</h3><p>DCT 是 DMT 在 Snoop 场景中的等价机制。当 CPU A 发起读请求、数据恰好在 CPU B 的缓存中时，传统路径要求 CPU B 将 Snoop 数据先发给 HN-F、再由 HN-F 转给 CPU A。DCT 允许 CPU B 绕过 HN-F，直接将缓存行发给 CPU A：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">图 5.5 — DCT 事务流程 (RetToSrc=0)</span><br><span class="line"></span><br><span class="line">  [RN-F1 (Requester)]        [HN-F]                [RN-F2 (Snoopee, holds data)]</span><br><span class="line">       │                        │                              │</span><br><span class="line">       │① ReadNotSharedDirty    │                              │</span><br><span class="line">       │   &#123;TxnID=A&#125;            │                              │</span><br><span class="line">       │───────────────────────►│                              │</span><br><span class="line">       │                        │② SnpNotSharedDirtyFwd        │</span><br><span class="line">       │                        │   &#123;TxnID=B,                  │</span><br><span class="line">       │                        │    FwdNID=1,   ← RN-F1 NodeID│</span><br><span class="line">       │                        │    FwdTxnID=A, ← 原始 TxnID   │</span><br><span class="line">       │                        │    RetToSrc=0&#125;               │</span><br><span class="line">       │                        │─────────────────────────────►│</span><br><span class="line">       │                        │                              │</span><br><span class="line">       │                        │        ③ SnpRespFwded        │</span><br><span class="line">       │                        │◄─────────────────────────────│</span><br><span class="line">       │                        │                              │</span><br><span class="line">       │  ④ CompData ═════════════════════════════════ (Data bypasses HN-F!)</span><br><span class="line">       │  &#123;TxnID=A,             │                              │</span><br><span class="line">       │   HomeNID=3, ← HN-F ID │                              │</span><br><span class="line">       │   DBID=B,    ← Snoop TxnID                            │</span><br><span class="line">       │   RESP=SC&#125;             │                              │</span><br><span class="line">       │                        │                              │</span><br><span class="line">       │⑤ CompAck &#123;TxnID=B&#125;     │                              │</span><br><span class="line">       │───────────────────────►│                              │</span><br></pre></td></tr></table></figure>
+
+<p>① RN-F1 发起 <code>ReadNotSharedDirty</code> 请求。</p>
+<p>② HN-F 缓存未命中，向持有该行的 RN-F2 发出 <strong>Forwarding Snoop</strong>（<code>SnpNotSharedDirtyFwd</code>）。Snoop Flit 中 <code>FwdNID</code> 指向原始 Requester（RN-F1），<code>FwdTxnID</code> 填入原始事务的 TxnID——这两个字段告诉 RN-F2：”数据别给我，直接发给 Node 1”。</p>
+<p>③ RN-F2 向 HN-F 回复 <code>SnpRespFwded</code>，告知 Snoop 执行结果和 <code>FwdState</code>（发给 Requester 的缓存状态）。</p>
+<p>④ RN-F2 <strong>直接</strong>向 RN-F1 发送 <code>CompData</code>，绕过 HN-F。数据包的 <code>TxnID=FwdTxnID=A</code>（让 RN-F1 匹配原始请求）、<code>HomeNID=3</code>（让 RN-F1 知道该向谁发 CompAck）、<code>DBID=B</code>（Snoop 的 TxnID，用于 CompAck）。</p>
+<p>⑤ RN-F1 向 HN-F 发 <code>CompAck</code>，完成事务。</p>
+<p><code>RetToSrc</code> 字段控制数据是否同时写回 HN-F：<code>RetToSrc=0</code> 时数据仅给 RN-F1（HN-F 不缓存）；<code>RetToSrc=1</code> 时数据同时发给 HN-F 一份，后续对同一地址的读可能命中 HN-F 缓存而无需再次 Snoop。</p>
+<blockquote>
+<p><strong>软件视角</strong>：DMT 和 DCT 对生产者-消费者模式直接生效。CPU A 写入一块数据（缓存中 UD 态）→ CPU A 通知 CPU B → CPU B 发起 <code>ReadShared</code> → HN-F 向 CPU A 发 Forwarding Snoop → CPU A 通过 DCT 直接将缓存行发给 CPU B。数据从未离开缓存层，延迟从经 HN-F 中转的 ~50ns 降至 cache-to-cache 的 ~20ns。这正是 <code>futex</code> &#x2F; <code>sem_post</code> 等同步原语能在多核间快速完成的硬件基础。</p>
+</blockquote>
+<h3 id="5-5-PrefetchTgt-—-绕过-HN-F-的预取提示"><a href="#5-5-PrefetchTgt-—-绕过-HN-F-的预取提示" class="headerlink" title="5.5 PrefetchTgt — 绕过 HN-F 的预取提示"></a>5.5 PrefetchTgt — 绕过 HN-F 的预取提示</h3><p>PrefetchTgt 是一种特殊的事务：Requester 预测自己即将通过正常路径（RN → HN → SN）请求地址 X 的数据，于是提前向 SN-F 直接发送一个预取提示。SN-F 可据此提前从 DDR 取出数据并暂存在 local buffer 中。当后续 <code>ReadNoSnp</code>（经 HN-F 的正常路径）到达时，SN-F 直接命中 buffer 中的数据，DDR 读取延迟被消除。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">图 5.6 — PrefetchTgt + DMT 联合优化</span><br><span class="line"></span><br><span class="line">  [CPU (RN-F)]             [HN-F]               [DDR Controller (SN-F)]</span><br><span class="line">       │                      │                          │</span><br><span class="line">       │① PrefetchTgt ──────────────────────────────────►│</span><br><span class="line">       │   &#123;TxnID=0&#125;          │                          │ ② Pre-fetch from DDR</span><br><span class="line">       │   (no response)      │                          │    buffer the data</span><br><span class="line">       │                      │                          │</span><br><span class="line">       │③ ReadOnce ──────────►│                          │</span><br><span class="line">       │                      │④ ReadNoSnp (DMT) ───────►│</span><br><span class="line">       │                      │   &#123;ReturnNID=CPU&#125;        │ ⑤ Buffer hit!</span><br><span class="line">       │                      │                          │    DDR access ≈ 0</span><br><span class="line">       │  ⑥ CompData (DMT) ◄═══════════════════════════ (direct to CPU)</span><br></pre></td></tr></table></figure>
+
+<p>① RN-F 直接向 SN-F 发 <code>PrefetchTgt</code>，TxnID 固定为 0（该事务不被追踪、无响应）。RN-F 需要 HN SAM 而非仅 RN SAM——因为它必须知道 SN-F 的 Node ID 才能绕开 HN-F。</p>
+<p>② SN-F 可选择忽略该 hint，或从 DDR 取数据并暂存。</p>
+<p>③-④ CPU 随后通过正常路径（经 HN-F，可结合 DMT 优化）发出读请求。</p>
+<p>⑤-⑥ SN-F 从 buffer 中命中数据，通过 DMT 直接返回给 CPU。</p>
+<p>PrefetchTgt 的生效判断：DAT 通道的 <code>DataSource</code> 字段指示返回数据是否来自预取 buffer（<code>0x6</code> &#x3D; 受益于 PrefetchTgt，<code>0x7</code> &#x3D; 未受益）。RN-F 据此统计命中率，动态决定是否继续发送 PrefetchTgt。</p>
+<blockquote>
+<p><strong>软件视角</strong>：<code>madvise(MADV_WILLNEED)</code> 或硬件 stride prefetcher 的 pattern 检测可能在 CHI 层生成 PrefetchTgt 事务。驱动工程师不应依赖 PrefetchTgt 的语义保证——它是 hint，SN-F 可以随时丢弃。需要确定性预取时使用 Cache Maintenance 或软件 prefetch 指令。</p>
+</blockquote>
+<h3 id="5-6-Direct-Write-Transfer-DWT-—-写数据直通"><a href="#5-6-Direct-Write-Transfer-DWT-—-写数据直通" class="headerlink" title="5.6 Direct Write Transfer (DWT) — 写数据直通"></a>5.6 Direct Write Transfer (DWT) — 写数据直通</h3><p>CHI-E 引入的 DWT 是 DMT 的写操作等价物（RN → HN → SN 变为 RN → HN 发 WriteNoSnp 添加 <code>DoDWT=1</code> 到 SN → SN 直接接收 RN 的数据）。这用于 WriteUnique&#x2F;WriteNoSnp 场景，但不支持 Ordered Write Observation。</p>
+<hr>
+<h2 id="六、原子操作与-RAS-特性（选读）"><a href="#六、原子操作与-RAS-特性（选读）" class="headerlink" title="六、原子操作与 RAS 特性（选读）"></a>六、原子操作与 RAS 特性（选读）</h2><h3 id="6-1-硬件原子事务-—-从自旋重试到单次完成"><a href="#6-1-硬件原子事务-—-从自旋重试到单次完成" class="headerlink" title="6.1 硬件原子事务 — 从自旋重试到单次完成"></a>6.1 硬件原子事务 — 从自旋重试到单次完成</h3><p>在 AXI &#x2F; CHI-A 时代，多核系统实现原子读写的方式是 <strong>Exclusive Access</strong>（<code>LDREX</code> &#x2F; <code>STREX</code> 指令对）。这带来两个性能瓶颈：</p>
+<ol>
+<li><strong>三次总线往返</strong>：CPU 先发 <code>LDREX</code> 从内存拉数据 → CPU 在寄存器中修改 → CPU 发 <code>STREX</code> 尝试写回。如果中间有其他写入者，<code>STREX</code> 失败 → CPU 必须重试整个序列。</li>
+<li><strong>数据锁定窗口长</strong>：从 <code>LDREX</code> 到 <code>STREX</code> 之间，被读取的地址需要被总线监视（Exclusive Monitor 跟踪），其他写入者被阻塞或被要求重试。CPU 间的高竞争会拉长这个窗口，导致级联重试。</li>
+</ol>
+<p>CHI-B 的原子事务将 RMW 序列直接编码为一条 CHI 协议消息，交由 HN 或 SN 中的 ALU 在<strong>数据所在位置</strong>就地执行：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">图 6.1 — Atomic Transaction flow</span><br><span class="line"></span><br><span class="line">  [Requester (CPU)]          [HN (with ALU)]          [SN (DDR)]</span><br><span class="line">       │                          │                      │</span><br><span class="line">       │① TXREQ: AtomicOp         │                      │</span><br><span class="line">       │   &#123;opcode, operand, addr&#125;│                      │</span><br><span class="line">       │─────────────────────────►│                      │</span><br><span class="line">       │                          │② HN checks cache:    │</span><br><span class="line">       │                          │   Hit → RMW in HN    │</span><br><span class="line">       │                          │   Miss → forward to  │</span><br><span class="line">       │                          │   SN (if ALU) or     │</span><br><span class="line">       │                          │   fetch first        │</span><br><span class="line">       │                          │                      │</span><br><span class="line">       │   ③ CompData             │                      │</span><br><span class="line">       │     (original val, opt)  │                      │</span><br><span class="line">       │◄─────────────────────────│                      │</span><br><span class="line">       │                          │                      │</span><br><span class="line">       │④ Done. Single bus round- │                      │</span><br><span class="line">       │   trip. No retry loop.   │                      │</span><br></pre></td></tr></table></figure>
+
+<p>① CPU 发出一条 <code>AtomicOp</code> 请求，Flit 中携带操作码、操作数和目标地址。无需事先 <code>LDREX</code> 拉数据——操作码和操作数随 Request 一起提交。</p>
+<p>② HN（若含 ALU）在缓存命中时就地执行 RMW。若未命中，HN 将 AtomicOp 转发至 SN（若 SN 含 ALU），由 SN 在内存控制器端执行。操作由硬件保证原子性——无需锁，不存在 “另一 CPU 插入写操作” 的时间窗口。</p>
+<p>③ 根据操作类型，HN 可选择通过 <code>CompData</code> 返回操作前的原始值。</p>
+<p>④ 与 Exclusive Access 的关键区别：AtomicOp 是一次事务、一次总线往返。Exclusive Access 需要两次（<code>LDREX</code> + <code>STREX</code>），且 <code>STREX</code> 可能失败触发重试。高竞争下 Exclusive 吞吐可降至接近零；AtomicOp 的吞吐恒定。</p>
+<p>CHI-B 的原子事务通过 <code>BROADCASTATOMIC</code> 配置引脚控制。当该引脚为低时，Requester 不得生成 AtomicOp——必须退回到 Exclusive Access 模式。这保证了与不支持 ALU 的下游 SN 的向后兼容。</p>
+<blockquote>
+<p><strong>软件视角</strong>：Armv8.1 LSE（Large System Extensions）引入 <code>LDADD</code>、<code>STADD</code>、<code>CAS</code>、<code>SWP</code> 等硬件原子指令。在 CHI-B+ 系统上，Linux 内核的 <code>atomic_add_return()</code> &#x2F; <code>atomic_cmpxchg()</code> 被编译器直接映射为 LSE 指令（如 <code>stadd</code>），硬件层面转化为单次 AtomicOp 事务。而在老旧系统（或不启用 LSE 时），内核必须用 LDXR&#x2F;STXR 指令对实现——伴随自旋重试循环和 cache line bouncing。判断方法：<code>/proc/cpuinfo</code> 中 <code>Features</code> 字段若包含 <code>atomics</code>，则 LSE 可用。</p>
+</blockquote>
+<h3 id="6-2-Data-Poisoning-—-让错误延后、不立即崩溃"><a href="#6-2-Data-Poisoning-—-让错误延后、不立即崩溃" class="headerlink" title="6.2 Data Poisoning — 让错误延后、不立即崩溃"></a>6.2 Data Poisoning — 让错误延后、不立即崩溃</h3><p>考虑一个场景：DDR 控制器报告某 64 字节缓存行发生了不可纠正的多 bit ECC 错误。传统做法是立即触发数据 Abort——但如果该缓存行对应的页面实际已不再被任何进程使用（例如刚被 <code>munmap</code> 释放、尚未被覆盖），那么这次 Abort 是不必要的，进程本应正常结束。</p>
+<p>Arm RAS 规范为此定义了 Data Poisoning 机制：<strong>标记数据已损坏，但不立即报错；错误跟随数据在系统中传播，直到数据被真正”消费”时才触发异常</strong>。</p>
+<p>CHI 中的具体实现：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">图 6.2 — Data Poisoning propagation</span><br><span class="line"></span><br><span class="line">  [DDR Controller]         [HN-F (system cache)]          [CPU (RN-F)]</span><br><span class="line">       │                          │                            │</span><br><span class="line">       │① ECC multi-bit error     │                            │</span><br><span class="line">       │   detected for line X    │                            │</span><br><span class="line">       │                          │                            │</span><br><span class="line">       │   TXDAT: CompData        │                            │</span><br><span class="line">       │   &#123;Data=line X,          │                            │</span><br><span class="line">       │    Poison=0b0001_        │                            │</span><br><span class="line">       │    bit0 → 64b corrupted&#125; │                            │</span><br><span class="line">       │─────────────────────────►│                            │</span><br><span class="line">       │                          │② Poison stored alongside   │</span><br><span class="line">       │                          │   cache line in HN-F.      │</span><br><span class="line">       │                          │   No error raised yet.     │</span><br><span class="line">       │                          │                            │</span><br><span class="line">       │                          │③ Later, CPU reads line X: │</span><br><span class="line">       │                          │   TXDAT: CompData         │</span><br><span class="line">       │                          │   &#123;Poison=0b0001&#125;          │</span><br><span class="line">       │                          │───────────────────────────►│</span><br><span class="line">       │                          │                            │</span><br><span class="line">       │                          │                            │④ Poison stored in CPU cache.</span><br><span class="line">       │                          │                            │   Still no error.</span><br><span class="line">       │                          │                            │</span><br><span class="line">       │                          │                            │⑤ CPU executes ADD on</span><br><span class="line">       │                          │                            │   the corrupted 64b chunk</span><br><span class="line">       │                          │                            │   → Data is CONSUMED</span><br><span class="line">       │                          │                            │   → Exception raised!</span><br></pre></td></tr></table></figure>
+
+<p>① DDR 控制器在读取时发现不可纠正 ECC 错误。不是立即发 Error Response——而是用 <code>CompData</code> 正常返回数据，同时在 DAT Flit 的 <code>Poison</code> 字段中标记损坏位置。</p>
+<p>② HN-F 将缓存行连带 Poison 位一起存入系统缓存。此时系统继续正常运行——没有异常、没有 Abort。</p>
+<p>③-④ 后续 CPU 读取该行时，Poison 位随数据一起进入 CPU 本地缓存。错误仍未触发。</p>
+<p>⑤ 只有当 CPU <strong>实际使用</strong>这段数据时（ALU 运算、作为指针解引用、或写入到不支持 Poison 的外设），才触发异常。如果该页面在 ⑤ 之前被回收释放（且从未被使用），则 Poison 随缓存行被逐出而自然消失——一次可能的崩溃被避免了。</p>
+<p><strong>Poison 粒度</strong>：每 64-bit 数据对应 1-bit Poison 标记。若 256-bit DAT 通道，Poison 字段即为 4-bit。</p>
+<p><strong>DataCheck</strong> 是另一套独立的保护机制：每 8-bit 数据对应 1-bit 奇偶校验，用于 interconnect 内部各节点被动检测数据损坏——它是<strong>发现</strong>错误的手段，Poison 是<strong>传播</strong>错误的手段。两者在 CHI-B 中可互操作转换。</p>
+<h3 id="6-3-Trace-Tag-—-贯穿事务链的-1-bit-追踪标记"><a href="#6-3-Trace-Tag-—-贯穿事务链的-1-bit-追踪标记" class="headerlink" title="6.3 Trace Tag — 贯穿事务链的 1-bit 追踪标记"></a>6.3 Trace Tag — 贯穿事务链的 1-bit 追踪标记</h3><p>调试一个 64 核 SoC 上的 cache coherency 竞态问题时，总线 trace 工具会抓到海量事务——每秒数百万条 Flit。你只关心一条特定的 <code>MakeUnique</code> 事务以及由此触发的所有 Snoop、Snoop 响应和数据流。TraceTag 就是为这个需求设计的：<strong>在所有相关 Flit 上打一个贯穿事务链的标记位，让 trace 工具只过滤标记位为 1 的 Flit</strong>。</p>
+<p>TraceTag 宽度仅 1 bit，但出现在 <strong>全部四个通道</strong>上——REQ、RSP、SNP、DAT。一旦某个 Flit 的 TraceTag 被设置为 1，规则只一条：</p>
+<blockquote>
+<p>该事务触发的<strong>所有后续 Flit</strong>也必须将 TraceTag 设为 1，直到整个事务链结束。</p>
+</blockquote>
+<p>这意味着一个初始 Request 被打标后，由此衍生的 Snoop（HN-F → 其他 CPU）、下级 ReadNoSnp（HN-F → SN-F）、所有 CompData、所有 CompAck —— 全部携带 TraceTag&#x3D;1。</p>
+<p>TraceTag 可以由两个位置设置：</p>
+<table>
+<thead>
+<tr>
+<th>设置位置</th>
+<th>方式</th>
+<th>范围</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Requester (RN)</td>
+<td>初始 Request Flit 中 <code>TraceTag=1</code></td>
+<td>本事务及所有衍生事务</td>
+</tr>
+<tr>
+<td>Interconnect 中间节点</td>
+<td>硬件 watchpoint 匹配特定地址&#x2F;Opcode</td>
+<td>从被命中节点起的所有下游 Flit</td>
+</tr>
+</tbody></table>
+<p>第二种方式尤为重要：interconnect 可被编程为”凡是在 HN-F 处对地址 0x8000 的 <code>MakeUnique</code> 请求，一律设 TraceTag&#x3D;1”。初始 Request 从 RN 到 HN-F 时 TraceTag 是 0——但在 HN-F 命中 watchpoint 后，HN-F 发出的所有下游 Flit（Snoop、下级读）都会被标记。</p>
+<blockquote>
+<p><strong>软件视角</strong>：CoreSight ETM 和总线 trace 解码器可利用 TraceTag 作为过滤条件，只捕获被标记的事务链。BSP 工程师可在 bootrom 阶段通过 interconnect 的编程接口设置 watchpoint（地址 + Opcode 组合），无需修改任何 CPU 端代码即可追踪特定内存区域的访问行为。</p>
+</blockquote>
+<hr>
+<h2 id="七、总结与学习路径建议"><a href="#七、总结与学习路径建议" class="headerlink" title="七、总结与学习路径建议"></a>七、总结与学习路径建议</h2><h3 id="对芯片软件开发人员的实践建议"><a href="#对芯片软件开发人员的实践建议" class="headerlink" title="对芯片软件开发人员的实践建议"></a>对芯片软件开发人员的实践建议</h3><ol>
+<li><strong>理解 Node ID 分配</strong>：SoC 启动代码中，SAM 的配置通常由 BootROM 或 TF-A 完成。修改地址映射时，务必确认 SAM 一致性。</li>
+<li><strong>掌握 DBID&#x2F;TxnID 生命周期</strong>：这是调试 CHI 协议级错误（如未释放 DBID、TxnID 重映射冲突）的基础。</li>
+<li><strong>理解 Coherency 状态机</strong>：UD&#x2F;UDP&#x2F;SD&#x2F;UC&#x2F;UCE&#x2F;SC&#x2F;I 这七个状态决定了你的 DMA buffer 是否需要 cache maintenance。在 coherent DMA 系统中，硬件管理状态转换；在 non-coherent 系统中，你需要用 CMO (Cache Maintenance Operations) 显式管理。</li>
+<li><strong>区分 Request Order 和 Endpoint Order</strong>：对于设备驱动中需要保证写入顺序的场景（例如 NVMe SQ Tail Doorbell），确保硬件 bridge 支持对应的 Order 语义。</li>
+<li><strong>关注 MTE 和 RME</strong>：对于机密计算和内存安全敏感的现代应用，理解 MTE 的 Tag 传播机制和 RME 的 PAS 分离是未来 SoC 开发的必备知识。</li>
+</ol>
+<h3 id="学习资源"><a href="#学习资源" class="headerlink" title="学习资源"></a>学习资源</h3><table>
+<thead>
+<tr>
+<th>资源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>AMBA 5 CHI Architecture Specification (Issue A-G)</td>
+<td>协议层完整参考</td>
+</tr>
+<tr>
+<td>AMBA AXI and ACE Protocol Specification</td>
+<td>CHI 的前身理解</td>
+</tr>
+<tr>
+<td>Arm Architecture Reference Manual (Armv8-A &#x2F; Armv9-A)</td>
+<td>指令与内存模型映射到 CHI</td>
+</tr>
+<tr>
+<td>Arm Community (community.arm.com)</td>
+<td>实践问题讨论</td>
+</tr>
+<tr>
+<td>Introduction to AMBA CHI Protocol Training (Arm 官方培训)</td>
+<td>结构化学习</td>
+</tr>
+</tbody></table>
+<h3 id="核心要点"><a href="#核心要点" class="headerlink" title="核心要点"></a>核心要点</h3><ol>
+<li><p><strong>四个通道、四类节点</strong>：REQ（请求）&#x2F; RSP（响应）&#x2F; SNP（Snoop）&#x2F; DAT（数据）；RN-F → HN-F → SN-F 构成一次完整事务的典型路径。MN 单独处理 DVM 操作。</p>
+</li>
+<li><p><strong>读事务路径</strong>：<code>RN → HN → SN → HN → RN</code>。DMT 让 SN 的数据绕过 HN 直接到 RN。DCT 让 Snoop 数据绕过 HN 直接到 Requestor。</p>
+</li>
+<li><p><strong>写事务必须先拿 DBIDResp</strong>：写请求发出后，Requester 必须收到 Completer 的 <code>DBIDResp</code>（写入数据缓冲区的令牌），才能通过 DAT 通道发送写数据。<code>DBID</code> 同时也是 CompAck 的 TxnID 来源。</p>
+</li>
+<li><p><strong>CompAck 的用途是锁 Snoop、不是锁数据</strong>：<code>ExpCompAck=1</code> 的目的是在 Coherent 事务完成前阻止 HN-F 对该地址发出 Snoop——防止 Snoop 比 CompData 更早到达 RN-F 导致状态机崩溃。Non-Coherent 事务不需要。</p>
+</li>
+<li><p><strong>Order 字段只对 Non-Cacheable 事务生效</strong>：<code>Order=1</code> 保同一地址顺序，<code>Order=2</code> 保同一端点所有事务顺序。Coherent 事务的顺序由缓存状态机 + CompAck 保证，不走 Order 字段。</p>
+</li>
+<li><p><strong>DVM 是 TLB shootdown 的硬件承载层</strong>：CPU 修改页表后广播 TLB 无效化给其他核，通过 MN 分两段传输（属性 + 地址），以 DVM Sync 保证所有核完成无效化后才返回。<code>DSB ISH</code> 触发 DVM Sync。</p>
+</li>
+<li><p><strong>Cache Stashing 分两种</strong>：带写数据时 SN-F 不参与（<code>WriteUniqueStash</code>），无写数据时 HN-F 从 SN-F 拉数据再装进 RN-F（<code>StashOnce*</code>）。DataPull 让 RN-F 在 Snoop 响应中隐式发起读请求，省一次总线往返。</p>
+</li>
+<li><p><strong>AtomicOp 替代 LDREX&#x2F;STREX 的一往返优势</strong>：CHI-B 将 RMW 操作直接提交给 HN&#x2F;SN 的 ALU 就地执行，从两次往返 + 可能重试变为一次往返 + 保证完成。<code>BROADCASTATOMIC</code> 引脚控制是否启用。</p>
+</li>
+<li><p><strong>Poison 是传播、不是响应</strong>：ECC 发现不可纠正错误时，在 DAT Flit 的 Poison 字段中标记损坏的 64-bit 块，数据继续传递直到被 ALU 消费时才触发异常。这避免了 <code>munmap</code> 后尚未使用的脏页引发不必要的 Abort。</p>
+</li>
+<li><p><strong>TraceTag 贯穿事务链</strong>：1-bit 标记在四个通道上传播，一个 Request 被打标后所有衍生 Flit 也必须打标。Interconnect 可通过 watchpoint 按地址+Opcode 匹配实现零侵入的事务追踪。</p>
+</li>
+</ol>
+<hr>
+<h2 id="八、中英文术语对照表"><a href="#八、中英文术语对照表" class="headerlink" title="八、中英文术语对照表"></a>八、中英文术语对照表</h2><table>
+<thead>
+<tr>
+<th>英文</th>
+<th>中文</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CHI (Coherent Hub Interface)</td>
+<td>一致性集线器接口</td>
+<td>AMBA 互联协议</td>
+</tr>
+<tr>
+<td>Requester</td>
+<td>发起节点</td>
+<td>事务发起方</td>
+</tr>
+<tr>
+<td>Subordinate &#x2F; Completer</td>
+<td>目标节点 &#x2F; 完成节点</td>
+<td>事务响应方</td>
+</tr>
+<tr>
+<td>RN-F (Fully Coherent Request Node)</td>
+<td>全一致性请求节点</td>
+<td>带缓存的 CPU &#x2F; GPU 等</td>
+</tr>
+<tr>
+<td>RN-I (I&#x2F;O Coherent Request Node)</td>
+<td>I&#x2F;O 一致性请求节点</td>
+<td>无缓存，如 DMA 引擎</td>
+</tr>
+<tr>
+<td>RN-D (I&#x2F;O Coherent DVM Request Node)</td>
+<td>I&#x2F;O 一致性 DVM 请求节点</td>
+<td>支持 DVM 的 I&#x2F;O 节点</td>
+</tr>
+<tr>
+<td>HN-F (Fully Coherent Home Node)</td>
+<td>全一致性 Home 节点</td>
+<td>管理 coherent 地址空间</td>
+</tr>
+<tr>
+<td>HN-I (Non-Coherent Home Node)</td>
+<td>非一致性 Home 节点</td>
+<td>管理 I&#x2F;O 地址空间</td>
+</tr>
+<tr>
+<td>SN-F (Fully Coherent Subordinate Node)</td>
+<td>全一致性从节点</td>
+<td>内存控制器</td>
+</tr>
+<tr>
+<td>MN (Miscellaneous Node)</td>
+<td>混合节点</td>
+<td>处理 DVM 事务</td>
+</tr>
+<tr>
+<td>SAM (System Address Map)</td>
+<td>系统地址映射表</td>
+<td>物理地址 → Node ID</td>
+</tr>
+<tr>
+<td>Flit (Flow Control Unit)</td>
+<td>流控单元</td>
+<td>CHI 协议消息基本单位</td>
+</tr>
+<tr>
+<td>DBID (Data Buffer ID)</td>
+<td>数据缓冲区 ID</td>
+<td>写数据分配 &#x2F; CompAck 标识</td>
+</tr>
+<tr>
+<td>TxnID (Transaction ID)</td>
+<td>事务 ID</td>
+<td>SrcID 下的唯一事务标识</td>
+</tr>
+<tr>
+<td>CompAck (Completion Acknowledgment)</td>
+<td>完成确认</td>
+<td>事务完成后的 ACK</td>
+</tr>
+<tr>
+<td>DVM (Distributed Virtual Memory)</td>
+<td>分布式虚拟内存</td>
+<td>TLB&#x2F;ICache 维护操作</td>
+</tr>
+<tr>
+<td>DMT (Direct Memory Transfer)</td>
+<td>直接内存传输</td>
+<td>读数据绕行 HN</td>
+</tr>
+<tr>
+<td>DCT (Direct Cache Transfer)</td>
+<td>直接缓存传输</td>
+<td>Snoop 数据直通</td>
+</tr>
+<tr>
+<td>DWT (Direct Write Transfer)</td>
+<td>直接写传输</td>
+<td>写数据绕行 HN</td>
+</tr>
+<tr>
+<td>CAH (CopyAtHome)</td>
+<td>Home 处副本</td>
+<td>HN-F 持有副本时的传输优化</td>
+</tr>
+<tr>
+<td>MPAM (Memory System Resource Partitioning and Monitoring)</td>
+<td>内存系统资源分区与监控</td>
+<td>缓存&#x2F;带宽隔离</td>
+</tr>
+<tr>
+<td>MTE (Memory Tagging Extension)</td>
+<td>内存标签扩展</td>
+<td>运行时内存安全检查</td>
+</tr>
+<tr>
+<td>RME (Realm Management Extension)</td>
+<td>Realm 管理扩展</td>
+<td>机密计算安全扩展</td>
+</tr>
+<tr>
+<td>MEC (Memory Encryption Context)</td>
+<td>内存加密上下文</td>
+<td>Realm 级加密隔离</td>
+</tr>
+<tr>
+<td>PAS (Physical Address Space)</td>
+<td>物理地址空间</td>
+<td>RME 安全状态标识</td>
+</tr>
+<tr>
+<td>PoPA (Point of Physical Aliasing)</td>
+<td>物理别名点</td>
+<td>PAS 合并点</td>
+</tr>
+<tr>
+<td>RAS (Reliability, Availability, Serviceability)</td>
+<td>可靠性&#x2F;可用性&#x2F;可维护性</td>
+<td>错误检测与恢复</td>
+</tr>
+<tr>
+<td>PBHA (Page-Based Hardware Attributes)</td>
+<td>基于页表的硬件属性</td>
+<td>页表传播的 QoS&#x2F;缓存属性</td>
+</tr>
+<tr>
+<td>DataCheck</td>
+<td>数据校验</td>
+<td>按字节奇偶校验</td>
+</tr>
+<tr>
+<td>PCrd (Protocol Credit)</td>
+<td>协议信用</td>
+<td>Retry 机制中的资源令牌</td>
+</tr>
+</tbody></table>
+<hr>
+<blockquote>
+<p><strong>文档版本</strong>: v1.0 | <strong>基于</strong>: Arm “Learn the architecture - Introducing AMBA CHI” Issue 01, June 2025 | <strong>适用</strong>: CHI Issue A-G</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AMBA/" rel="tag"># AMBA</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/09/AMBA-AXI-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/" rel="prev" title="AMBA AXI 协议学习笔记">
+                  <i class="fa fa-angle-left"></i> AMBA AXI 协议学习笔记
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
