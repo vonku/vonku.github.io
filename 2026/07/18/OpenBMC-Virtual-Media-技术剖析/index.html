@@ -26,34 +26,34 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文是对OpenBMC虚拟介质从浏览器到USB总线的全链路源码解读。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340946925_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340952917_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340957925_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340962804_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340969493_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340974384_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340979462_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340983672_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340989165_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340995831_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341041960_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341049507_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341055951_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341061046_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341067274_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341071792_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341076346_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341080867_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341084990_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341089390_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341096430_d.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341100596_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340946925_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340952917_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340957925_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340962804_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340969493_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340974384_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340979462_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340983672_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340989165_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340995831_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341041960_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341049507_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341055951_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341061046_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341067274_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341071792_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341076346_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341080867_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341084990_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341089390_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341096430_d.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341100596_d.png">
 <meta property="article:published_time" content="2026-07-18T02:05:45.000Z">
 <meta property="article:modified_time" content="2026-07-18T02:47:07.169Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="OpenBMC">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340946925_d.png">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340946925_d.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/">
@@ -269,28 +269,28 @@
 </blockquote>
 <span id="more"></span>
 
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340946925_d.png" alt="1784340946925_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340952917_d.png" alt="1784340952917_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340957925_d.png" alt="1784340957925_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340962804_d.png" alt="1784340962804_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340969493_d.png" alt="1784340969493_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340974384_d.png" alt="1784340974384_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340979462_d.png" alt="1784340979462_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340983672_d.png" alt="1784340983672_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340989165_d.png" alt="1784340989165_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340995831_d.png" alt="1784340995831_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341041960_d.png" alt="1784341041960_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341049507_d.png" alt="1784341049507_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341055951_d.png" alt="1784341055951_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341061046_d.png" alt="1784341061046_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341067274_d.png" alt="1784341067274_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341071792_d.png" alt="1784341071792_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341076346_d.png" alt="1784341076346_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341080867_d.png" alt="1784341080867_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341084990_d.png" alt="1784341084990_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341089390_d.png" alt="1784341089390_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341096430_d.png" alt="1784341096430_d"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/edia-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341100596_d.png" alt="1784341100596_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340946925_d.png" alt="1784340946925_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340952917_d.png" alt="1784340952917_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340957925_d.png" alt="1784340957925_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340962804_d.png" alt="1784340962804_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340969493_d.png" alt="1784340969493_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340974384_d.png" alt="1784340974384_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340979462_d.png" alt="1784340979462_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340983672_d.png" alt="1784340983672_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340989165_d.png" alt="1784340989165_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784340995831_d.png" alt="1784340995831_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341041960_d.png" alt="1784341041960_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341049507_d.png" alt="1784341049507_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341055951_d.png" alt="1784341055951_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341061046_d.png" alt="1784341061046_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341067274_d.png" alt="1784341067274_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341071792_d.png" alt="1784341071792_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341076346_d.png" alt="1784341076346_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341080867_d.png" alt="1784341080867_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341084990_d.png" alt="1784341084990_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341089390_d.png" alt="1784341089390_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341096430_d.png" alt="1784341096430_d"></p>
+<p><img src="/2026/07/18/OpenBMC-Virtual-Media-%E6%8A%80%E6%9C%AF%E5%89%96%E6%9E%90/1784341100596_d.png" alt="1784341100596_d"></p>
 
     </div>
 
