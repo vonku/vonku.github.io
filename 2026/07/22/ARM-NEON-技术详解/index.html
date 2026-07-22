@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="深入掌握 ARM NEON 技术，解析 SIMD 向量化运算、专用寄存器架构及其高效编程模型。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM NEON 技术详解">
+<meta property="og:url" content="http://yoursite.com/2026/07/22/ARM-NEON-%E6%8A%80%E6%9C%AF%E8%AF%A6%E8%A7%A3/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="深入掌握 ARM NEON 技术，解析 SIMD 向量化运算、专用寄存器架构及其高效编程模型。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-22T12:39:01.000Z">
+<meta property="article:modified_time" content="2026-07-22T12:52:51.310Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM, ARMv7-a">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/22/ARM-NEON-%E6%8A%80%E6%9C%AF%E8%AF%A6%E8%A7%A3/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM-NEON-%E6%8A%80%E6%9C%AF%E8%AF%A6%E8%A7%A3/","path":"2026/07/22/ARM-NEON-技术详解/","title":"ARM NEON 技术详解"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM NEON 技术详解 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-SIMD-%E7%9A%84%E5%B9%B6%E8%A1%8C%E5%8C%96%E5%8E%9F%E7%90%86"><span class="nav-text">1. SIMD 的并行化原理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-Flynn-%E5%88%86%E7%B1%BB%E4%B8%AD%E7%9A%84-SIMD"><span class="nav-text">1.1 Flynn 分类中的 SIMD</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E5%9B%9B%E8%B7%AF-8-bit-%E5%8A%A0%E6%B3%95%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-text">1.2 四路 8-bit 加法的对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-NEON-%E4%B8%8E-ARMv6-SIMD-%E7%9A%84%E6%9C%AC%E8%B4%A8%E5%8C%BA%E5%88%AB"><span class="nav-text">1.3 NEON 与 ARMv6 SIMD 的本质区别</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-NEON-%E5%AF%84%E5%AD%98%E5%99%A8%E7%BB%84%E4%B8%8E-VFP-%E5%85%B1%E4%BA%AB"><span class="nav-text">2. NEON 寄存器组与 VFP 共享</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%AF%84%E5%AD%98%E5%99%A8%E6%9E%B6%E6%9E%84"><span class="nav-text">2.1 寄存器架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-D-Q-%E5%8F%8C%E8%A7%86%E5%9B%BE"><span class="nav-text">2.2 D&#x2F;Q 双视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%9B%9B%E7%A7%8D%E6%8C%87%E4%BB%A4%E5%BD%A2%E7%8A%B6"><span class="nav-text">2.3 四种指令形状</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B%E4%B8%8E-NEON-%E6%8C%87%E4%BB%A4%E6%A0%BC%E5%BC%8F"><span class="nav-text">3. 数据类型与 NEON 指令格式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B%E6%A0%87%E8%AF%86"><span class="nav-text">3.1 数据类型标识</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%8C%87%E4%BB%A4%E6%A0%BC%E5%BC%8F%E5%85%A8%E8%A7%A3%E6%9E%90"><span class="nav-text">3.2 指令格式全解析</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-NEON-%E6%8C%87%E4%BB%A4%E9%9B%86%E9%80%9F%E8%A7%88"><span class="nav-text">4. NEON 指令集速览</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E7%AE%97%E6%9C%AF%E7%B1%BB"><span class="nav-text">4.1 算术类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E9%80%BB%E8%BE%91%E4%B8%8E%E6%AF%94%E8%BE%83%E7%B1%BB"><span class="nav-text">4.2 逻辑与比较类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E6%95%B0%E6%8D%AE%E6%90%AC%E8%BF%90%E4%B8%8E%E6%8E%92%E5%88%97"><span class="nav-text">4.3 数据搬运与排列</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-C-%E8%AF%AD%E8%A8%80%E4%B8%AD%E7%9A%84-NEON-%E7%BC%96%E7%A8%8B"><span class="nav-text">5. C 语言中的 NEON 编程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E8%87%AA%E5%8A%A8%E5%90%91%E9%87%8F%E5%8C%96"><span class="nav-text">5.1 自动向量化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-NEON-%E5%8F%AF%E7%94%A8%E6%80%A7%E6%A3%80%E6%B5%8B"><span class="nav-text">5.2 NEON 可用性检测</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-NEON-Intrinsics-%E5%86%85%E7%BD%AE%E5%87%BD%E6%95%B0-%E7%BC%96%E7%A8%8B"><span class="nav-text">5.3 NEON Intrinsics (内置函数) 编程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E5%AE%9E%E9%99%85%E4%BC%98%E5%8C%96%E6%A1%88%E4%BE%8B%EF%BC%9ARGB-%E8%BD%AC%E7%81%B0%E5%BA%A6%E5%9B%BE%E5%83%8F"><span class="nav-text">5.4 实际优化案例：RGB 转灰度图像</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%AD%A6%E4%B9%A0%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">6. 学习要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">60</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/22/ARM-NEON-%E6%8A%80%E6%9C%AF%E8%AF%A6%E8%A7%A3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM NEON 技术详解 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM NEON 技术详解
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-22 20:39:01" itemprop="dateCreated datePublished" datetime="2026-07-22T20:39:01+08:00">2026-07-22</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>深入掌握 ARM NEON 技术，解析 SIMD 向量化运算、专用寄存器架构及其高效编程模型。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-SIMD-的并行化原理"><a href="#1-SIMD-的并行化原理" class="headerlink" title="1. SIMD 的并行化原理"></a>1. SIMD 的并行化原理</h2><p>NEON 的价值只有在理解了标量运算的浪费之后才能真正体会——32-bit 寄存器处理 8-bit 数据时，高 24 位只是闲置。本节从 Flynn 分类开始，量化 SIMD 相比标量计算的实际加速效果，并厘清 NEON 与 ARMv6 整数 SIMD 的继承关系。</p>
+<h3 id="1-1-Flynn-分类中的-SIMD"><a href="#1-1-Flynn-分类中的-SIMD" class="headerlink" title="1.1 Flynn 分类中的 SIMD"></a>1.1 Flynn 分类中的 SIMD</h3><p>手册 §8.1 首先给出了 Flynn 分类的四种架构定义：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>全称</th>
+<th>含义</th>
+<th>ARM 示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>SISD</strong></td>
+<td>Single Instruction, Single Data</td>
+<td>单指令流处理单数据流</td>
+<td>ARMv6 之前的处理器</td>
+</tr>
+<tr>
+<td><strong>SIMD</strong></td>
+<td>Single Instruction, Multiple Data</td>
+<td>单条指令同时操作多份数据</td>
+<td>NEON、x86 SSE、PowerPC AltiVec</td>
+</tr>
+<tr>
+<td><strong>MISD</strong></td>
+<td>Multiple Instruction, Single Data</td>
+<td>多指令流处理同一数据（容错计算机）</td>
+<td>航天飞机飞行控制计算机</td>
+</tr>
+<tr>
+<td><strong>MIMD</strong></td>
+<td>Multiple Instruction, Multiple Data</td>
+<td>多指令流多数据流</td>
+<td>多核超标量处理器</td>
+</tr>
+</tbody></table>
+<p>SIMD 的思想很简单：现代处理器的 ALU 和数据通路是为 32-bit 设计的，但大量实际数据（像素 8-bit、音频采样 16-bit）远不够 32 位宽。用标量指令一个个处理这些窄数据，寄存器高位全浪费了。SIMD 把单个寄存器当作<strong>多个窄元素的容器</strong>，一条指令对所有元素并行执行相同操作。</p>
+<h3 id="1-2-四路-8-bit-加法的对比"><a href="#1-2-四路-8-bit-加法的对比" class="headerlink" title="1.2 四路 8-bit 加法的对比"></a>1.2 四路 8-bit 加法的对比</h3><p>手册用一个经典例子说明了 SIMD 的优势——在不使用 SIMD 的情况下，完成四组 8-bit 加法需要四条 <code>ADD</code> 指令，且必须额外插入指令防止溢出从一个字节蔓延到相邻字节：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Scalar (SISD) — 4 条指令:</span><br><span class="line">  A0+B0=C0, A1+B1=C1, A2+B2=C2, A3+B3=C3</span><br><span class="line">  每次只用一个寄存器的低 8 位，高 24 位闲置</span><br><span class="line"></span><br><span class="line">SIMD (UADD8) — 1 条指令:</span><br><span class="line">  [A3|A2|A1|A0] + [B3|B2|B1|B0] = [C3|C2|C1|C0]</span><br><span class="line">  四个 8-bit 通道（lane）独立并行计算，进位互不干扰</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">UADD8  R0, R1, R2    ; 4 路 8-bit 并行加法，单条指令替代四条 ADD</span><br></pre></td></tr></table></figure>
+
+<p>关键设计：各 lane 的计算是<strong>完全独立</strong>的——lane 0 的 bit[7] 进位不会影响 lane 1 的 bit[8]，各通道之间不存在进位链。这需要 ALU 在每个 byte 边界插入隔离逻辑，代价是额外的硬件，但收益是 4 倍吞吐。</p>
+<h3 id="1-3-NEON-与-ARMv6-SIMD-的本质区别"><a href="#1-3-NEON-与-ARMv6-SIMD-的本质区别" class="headerlink" title="1.3 NEON 与 ARMv6 SIMD 的本质区别"></a>1.3 NEON 与 ARMv6 SIMD 的本质区别</h3><p>ARMv6 已经有了整数 SIMD，但那是在 32-bit 通用寄存器内的窄向量操作。NEON 的提升是跨越式的：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>ARMv6 整数 SIMD</th>
+<th>ARMv7 NEON</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>寄存器宽度</td>
+<td>32-bit（通用寄存器 R0-R15）</td>
+<td>64&#x2F;128-bit（独立寄存器组）</td>
+</tr>
+<tr>
+<td>寄存器数量</td>
+<td>复用通用寄存器（16 个）</td>
+<td>32×64-bit（&#x3D;16×128-bit）</td>
+</tr>
+<tr>
+<td>支持类型</td>
+<td>8&#x2F;16-bit 整数</td>
+<td>8&#x2F;16&#x2F;32&#x2F;64-bit 整数 + 32-bit 浮点</td>
+</tr>
+<tr>
+<td>典型加速比</td>
+<td>2–4×</td>
+<td>≥2× vs ARMv6 SIMD</td>
+</tr>
+</tbody></table>
+<p>SIMD 原理讲清楚了，接下来看 NEON 如何通过独立的宽寄存器组把这些并行操作落地——以及在硬件层面与 VFP 的微妙关系。</p>
+<hr>
+<h2 id="2-NEON-寄存器组与-VFP-共享"><a href="#2-NEON-寄存器组与-VFP-共享" class="headerlink" title="2. NEON 寄存器组与 VFP 共享"></a>2. NEON 寄存器组与 VFP 共享</h2><p>NEON 最反直觉的设计可能是：它没有自己的独立寄存器文件——而是与浮点单元共用 32 个 64-bit 寄存器。这个决策深刻影响了上下文切换、编译器分配和指令宽度扩展的硬件实现。本节从寄存器架构切入，随后展开 D&#x2F;Q 双视图和四种指令形状。</p>
+<h3 id="2-1-寄存器架构"><a href="#2-1-寄存器架构" class="headerlink" title="2.1 寄存器架构"></a>2.1 寄存器架构</h3><p>NEON 拥有 32 个 64-bit 寄存器。与 VFPv3 共享同一套物理寄存器文件——这意味着实现 NEON 的处理器必须支持 VFPv3-D32 变体（32 个双精度寄存器）。这一设计决策有两个后果：</p>
+<ul>
+<li><strong>上下文切换简单</strong>：保存和恢复 VFP 上下文的同时自动覆盖 NEON 上下文——操作系统不需要单独处理 NEON 寄存器。</li>
+<li><strong>寄存器可以混用</strong>：编译器在同一个函数中既可以用这些寄存器存浮点值（VFP），也可以用来装 NEON 向量数据，EABI 调用约定规定了哪些寄存器可被破坏、哪些必须保留。</li>
+</ul>
+<h3 id="2-2-D-Q-双视图"><a href="#2-2-D-Q-双视图" class="headerlink" title="2.2 D&#x2F;Q 双视图"></a>2.2 D&#x2F;Q 双视图</h3><p>NEON 寄存器有两种视角，由指令形式决定，<strong>软件无需显式切换</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Q0 (128-bit)  ──┬── D0 (64-bit, 低半)</span><br><span class="line">                └── D1 (64-bit, 高半)</span><br><span class="line">Q1 (128-bit)  ──┬── D2</span><br><span class="line">                └── D3</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>视图</th>
+<th>位宽</th>
+<th>数量</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>D 寄存器</strong> (D0–D31)</td>
+<td>64-bit</td>
+<td>32 个</td>
+<td>8×8-bit &#x2F; 4×16-bit &#x2F; 2×32-bit &#x2F; 1×64-bit</td>
+</tr>
+<tr>
+<td><strong>Q 寄存器</strong> (Q0–Q15)</td>
+<td>128-bit</td>
+<td>16 个（映射到 D0–D31）</td>
+<td>16×8-bit &#x2F; 8×16-bit &#x2F; 4×32-bit &#x2F; 2×64-bit</td>
+</tr>
+</tbody></table>
+<p>D&#x2F;Q 双视图的主要价值在于支持<strong>结果宽度变化</strong>的操作。例如，两条 D 寄存器做乘法，结果需要 Q 寄存器的宽度来容纳：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VMULL.S16  Q2, D8, D9    ; 4 路 16-bit 乘法 → 4 路 32-bit 结果，需要 128-bit Q 寄存器</span><br></pre></td></tr></table></figure>
+
+<p>这里 <code>L</code> 后缀即 Long 指令——D 寄存器输入，Q 寄存器输出，结果宽度翻倍。这个模式贯穿了 NEON 指令集的所有算术运算，是接下来要讨论的四类指令形状中的第一类。</p>
+<h3 id="2-3-四种指令形状"><a href="#2-3-四种指令形状" class="headerlink" title="2.3 四种指令形状"></a>2.3 四种指令形状</h3><p>NEON 数据处理指令按操作数和结果的宽度关系分为四类——这是理解 NEON 指令集的关键组织原则：</p>
+<table>
+<thead>
+<tr>
+<th>形状</th>
+<th>后缀</th>
+<th>操作数</th>
+<th>结果</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Normal</strong></td>
+<td>（无）</td>
+<td>N-bit</td>
+<td>N-bit</td>
+<td>常规向量运算，结果与操作数同宽</td>
+</tr>
+<tr>
+<td><strong>Long</strong></td>
+<td><code>L</code></td>
+<td>64-bit (D)</td>
+<td>128-bit (Q)</td>
+<td>结果宽度翻倍（如 D×D→Q 乘法）</td>
+</tr>
+<tr>
+<td><strong>Wide</strong></td>
+<td><code>W</code></td>
+<td>64-bit + 128-bit</td>
+<td>128-bit (Q)</td>
+<td>混合宽度操作数，宽结果</td>
+</tr>
+<tr>
+<td><strong>Narrow</strong></td>
+<td><code>N</code></td>
+<td>128-bit (Q)</td>
+<td>64-bit (D)</td>
+<td>结果宽度减半（如加法后取高位）</td>
+</tr>
+</tbody></table>
+<p><strong>实例：Long 指令的运算流程</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">VMULL.S16 Q0, D1, D2</span><br><span class="line"></span><br><span class="line">D1: [ a3 | a2 | a1 | a0 ]    4 个 16-bit 有符号整数</span><br><span class="line">D2: [ b3 | b2 | b1 | b0 ]    4 个 16-bit 有符号整数</span><br><span class="line">        ↓     ↓     ↓     ↓</span><br><span class="line">Q0: [ a3×b3 | a2×b2 | a1×b1 | a0×b0 ]   4 个 32-bit 乘积，结果放进 128-bit Q 寄存器</span><br></pre></td></tr></table></figure>
+
+<p>单个 16-bit×16-bit 乘积需要 32-bit 来存储，四个乘积共需 128-bit——正好一个 Q 寄存器。这就是双视图存在的原因。</p>
+<p>寄存器的物理形态讲完了，下一个问题是：这些寄存器里到底装什么数据？</p>
+<hr>
+<h2 id="3-数据类型与-NEON-指令格式"><a href="#3-数据类型与-NEON-指令格式" class="headerlink" title="3. 数据类型与 NEON 指令格式"></a>3. 数据类型与 NEON 指令格式</h2><p>上节讲了寄存器”容器”的大小和形状，本节回答”容器里装什么”——NEON 支持的数据类型涵盖整数、浮点和多项式，每种都由助记符后缀显式编码。有了类型和寄存器，最后一节将这两者组合为完整的指令格式语法。</p>
+<h3 id="3-1-数据类型标识"><a href="#3-1-数据类型标识" class="headerlink" title="3.1 数据类型标识"></a>3.1 数据类型标识</h3><p>NEON 指令通过<strong>点号后缀</strong>指定数据类型，格式为 <code>&lt;类型字母&gt;&lt;位宽&gt;</code>：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>字母</th>
+<th>可用位宽</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>无符号整数</td>
+<td><code>U</code></td>
+<td>8, 16, 32, 64</td>
+<td>—</td>
+</tr>
+<tr>
+<td>有符号整数</td>
+<td><code>S</code></td>
+<td>8, 16, 32, 64</td>
+<td>—</td>
+</tr>
+<tr>
+<td>未指定符号整数</td>
+<td><code>I</code></td>
+<td>8, 16, 32, 64</td>
+<td>符号无关的操作（如加法）</td>
+</tr>
+<tr>
+<td>浮点</td>
+<td><code>F</code></td>
+<td>16, 32</td>
+<td>F16 仅用于格式转换，不作数据运算</td>
+</tr>
+<tr>
+<td>多项式</td>
+<td><code>P</code></td>
+<td>8</td>
+<td>用于加密&#x2F;数据完整性算法</td>
+</tr>
+</tbody></table>
+<p><strong>实例：数据类型后缀在实际指令中的体现</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">VADD.I8   D0, D1, D2      @ I8  = 未指定符号 8-bit 整数，8 路并行加法</span><br><span class="line">VADD.U16  Q0, Q1, Q2      @ U16 = 无符号 16-bit，8 路并行加法 (Q=128-bit)</span><br><span class="line">VADD.F32  Q0, Q1, Q2      @ F32 = 单精度浮点，4 路并行加法</span><br><span class="line">VMUL.P8   D0, D1, D2      @ P8  = GF(2) 域多项式，8 路并行乘法</span><br></pre></td></tr></table></figure>
+
+<p>三条 <code>VADD</code> 的指令操作码完全相同（<code>VADD</code>），唯一区分数据类型的就是后缀——<code>.I8</code> 做 8 个并行的 8-bit 加法，<code>.F32</code> 做 4 个 32-bit 浮点加法，硬件根据后缀选择不同的 ALU 通路。</p>
+<p>多项式算术在 GF(2) 域上定义——加法即按位异或，乘法需要计算部分积后用异或合并。这与常规整数乘法的进位加法完全不同，专用于 CRC 校验和某些加密算法。</p>
+<p>NEON 遵循 IEEE 754-1985 标准，但<strong>只支持 round-to-nearest 舍入模式</strong>（C 和 Java 的默认模式），且<strong>始终将非规格化数视为零</strong>。</p>
+<h3 id="3-2-指令格式全解析"><a href="#3-2-指令格式全解析" class="headerlink" title="3.2 指令格式全解析"></a>3.2 指令格式全解析</h3><p>NEON 指令的通用格式（以 <code>V</code> 开头，与 VFP 共享助记符前缀）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">V&#123;&lt;mod&gt;&#125;&lt;op&gt;&#123;&lt;shape&gt;&#125;&#123;&lt;cond&gt;&#125;.&lt;dt&gt;  &lt;dest&gt;, &lt;src1&gt;, &lt;src2&gt;</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+<th>取值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>&lt;mod&gt;</code></td>
+<td>修饰符</td>
+<td>Q（饱和）、H（折半）、D（翻倍+饱和）、R（舍入）</td>
+</tr>
+<tr>
+<td><code>&lt;op&gt;</code></td>
+<td>操作</td>
+<td>ADD, SUB, MUL, MLA…</td>
+</tr>
+<tr>
+<td><code>&lt;shape&gt;</code></td>
+<td>形状</td>
+<td>L（Long）、W（Wide）、N（Narrow）</td>
+</tr>
+<tr>
+<td><code>&lt;cond&gt;</code></td>
+<td>条件码</td>
+<td>配合 IT 指令使用</td>
+</tr>
+<tr>
+<td><code>.&lt;dt&gt;</code></td>
+<td>数据类型</td>
+<td>.S8, .I16, .F32 等</td>
+</tr>
+</tbody></table>
+<p><strong>实例：逐字段解码</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">VQADD.S8  Q0, Q1, Q2</span><br><span class="line">│││││  ││  │   │   └── 源操作数 2</span><br><span class="line">│││││  ││  │   └────── 源操作数 1</span><br><span class="line">│││││  ││  └────────── 目的寄存器</span><br><span class="line">│││││  │└───────────── 数据类型：有符号 8-bit 整数</span><br><span class="line">│││││  └────────────── 条件码（此处无）</span><br><span class="line">││││└──────────────── 形状（此处 Normal，无后缀）</span><br><span class="line">│││└───────────────── 操作：加法</span><br><span class="line">││└────────────────── 修饰符：饱和运算</span><br><span class="line">│└─────────────────── Q = 饱和（溢出时钳位而非回绕）</span><br><span class="line">└──────────────────── V = 向量指令（NEON/VFP 共用前缀）</span><br></pre></td></tr></table></figure>
+
+<p>这条指令的含义：<strong>16 路有符号 8-bit 饱和加法</strong>——Q0 和 Q1 都是 128-bit 寄存器，每个包含 16 个 8-bit 有符号数，16 对数值同时相加。如果任何 lane 的加法结果溢出 8-bit 有符号范围（-128～+127），结果饱和到最值，且 FPSCR 中的粘滞 QC 位被置位。</p>
+<p>这条指令展示的只是 NEON 指令集的一个点。接下来按算术、逻辑、比较、数据搬运四大类快速遍历整个指令集。</p>
+<hr>
+<h2 id="4-NEON-指令集速览"><a href="#4-NEON-指令集速览" class="headerlink" title="4. NEON 指令集速览"></a>4. NEON 指令集速览</h2><p>前面的章节覆盖了寄存器、类型和指令格式——现在进入具体指令。NEON 的指令集庞大但组织清晰：按功能划分为算术、逻辑、比较、数据搬运四大块，每块内部的修饰符和形状后缀遵循统一命名规则。</p>
+<h3 id="4-1-算术类"><a href="#4-1-算术类" class="headerlink" title="4.1 算术类"></a>4.1 算术类</h3><table>
+<thead>
+<tr>
+<th>类别</th>
+<th>代表指令</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>加法&#x2F;减法</td>
+<td><code>VADD</code>, <code>VSUB</code></td>
+<td>基本向量加减；<code>VPADD</code> 对相邻元素做成对加法</td>
+</tr>
+<tr>
+<td>乘法</td>
+<td><code>VMUL</code>, <code>VMLA</code>, <code>VMLS</code></td>
+<td>乘、乘累加、乘减；<code>VMULL</code> 做 Long 乘法</td>
+</tr>
+<tr>
+<td>倒数估算</td>
+<td><code>VRECPE</code>, <code>VRSQRTE</code></td>
+<td>倒数估算和平方根倒数估算（配合牛顿迭代实现除法）</td>
+</tr>
+<tr>
+<td>平方根</td>
+<td><code>VSQRT</code>, <code>VRSQRTS</code></td>
+<td>平方根直接计算或迭代辅助</td>
+</tr>
+<tr>
+<td>移位</td>
+<td><code>VSHL</code>, <code>VSHR</code></td>
+<td>左移&#x2F;右移；<code>VSLI</code> 移位后插入</td>
+</tr>
+</tbody></table>
+<p>以下通过四个实例展示核心算术指令的实际运算行为。</p>
+<p><strong>实例一：基本向量加法与成对加法</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">VMOV.I32  D0, #1, #2          ; D0 = 0x00000002 00000001 (两个 32-bit lane)</span><br><span class="line">VMOV.I32  D1, #10, #20        ; D1 = 0x00000014 0000000A</span><br><span class="line">VADD.I32  D2, D0, D1          ; D2 = [1+10=11 | 2+20=22]  逐 lane 独立加法</span><br><span class="line"></span><br><span class="line">; VPADD 的差别——相邻 lane 之间做加法：</span><br><span class="line">VPADD.I32 D3, D0, D1          ; D3 = [1+2=3 | 10+20=30]</span><br><span class="line">                               ; 注意：D0 内部一对、D1 内部一对——不是跨寄存器配对</span><br></pre></td></tr></table></figure>
+
+<p><code>VADD</code> 和 <code>VPADD</code> 的差别决定了向量归约（reduction）的效率——<code>VPADD</code> 是水平方向求和，单独一条 <code>VADD</code> 是垂直方向。要把整个向量所有元素求和，通常需要多次 <code>VPADD</code> 级联。</p>
+<p><strong>实例二：乘累加——DSP 核心操作</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">; 计算 FIR 滤波器的一个 tap: acc += coeff × sample</span><br><span class="line">VMOV.I16  D0, #0x03, #0x02, #0x01, #0x00    ; D0 = [3 | 2 | 1 | 0] 系数(4路16-bit)</span><br><span class="line">VMOV.I16  D1, #0x30, #0x20, #0x10, #0x00    ; D1 = [48|32|16| 0] 采样(4路16-bit)</span><br><span class="line">VMOV.I16  D2, #1                             ; D2 = [1 | 1 | 1 | 1] 累加器初值(看作acc)</span><br><span class="line"></span><br><span class="line">VMLA.I16  D2, D0, D1</span><br><span class="line">; D2 = D2 + D0 × D1 (逐lane)</span><br><span class="line">;   = [1+3×48=145 | 1+2×32=65 | 1+1×16=17 | 1+0×0=1]</span><br><span class="line">;   = [145 | 65 | 17 | 1]   4 路乘累加在一条指令内完成</span><br><span class="line"></span><br><span class="line">; 如果需要 32-bit 精度的乘累加（避免 16-bit 溢出），用 Long 版本：</span><br><span class="line">VMULL.S16 Q0, D0, D1         ; Q0 = D0 × D1, 每路 16×16→32 (结果在 128-bit Q 寄存器)</span><br><span class="line">VADD.I32  Q2, Q0, Q1         ; 再独立做 32-bit 累加</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例三：牛顿-拉弗森除法——用乘法替代除法</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">; 场景：8 个 float 数据 a[i] / b[i]</span><br><span class="line">; 假设：</span><br><span class="line">;   Q1 = b</span><br><span class="line">;   Q4 = a</span><br><span class="line">;   Q0/Q2 为临时寄存器</span><br><span class="line"></span><br><span class="line">VRECPE.F32  Q0, Q1           ; Step 1: 粗略估算倒数</span><br><span class="line">                              ; Q0 ≈ 1 / Q1（约 8 bit 精度）</span><br><span class="line"></span><br><span class="line">VRECPS.F32  Q2, Q0, Q1       ; Step 2: 计算修正因子</span><br><span class="line">                              ; Q2 = 2.0 - Q0 × Q1</span><br><span class="line"></span><br><span class="line">VMUL.F32    Q0, Q0, Q2       ; Step 3: 牛顿迭代</span><br><span class="line">                              ; Q0 = Q0 × (2.0 - Q0 × Q1)</span><br><span class="line">                              ; 精度提升到约 16 bit</span><br><span class="line"></span><br><span class="line">; 若需要 IEEE-754 单精度精度，再重复一次：</span><br><span class="line">VRECPS.F32  Q2, Q0, Q1</span><br><span class="line">VMUL.F32    Q0, Q0, Q2</span><br><span class="line">                              ; 精度接近完整单精度</span><br><span class="line"></span><br><span class="line">VMUL.F32    Q3, Q4, Q0       ; Step 4: a × (1/b)</span><br><span class="line">                              ; Q3 = Q4 × Q0 = a / b</span><br></pre></td></tr></table></figure>
+
+<p>四条指令完成了 8 路并行的浮点除法。关键是 <strong>VRECPS 不产生最终结果，而是输出 Newton-Raphson 公式所需的中间修正量</strong>——它本身是一个专用的数学辅助指令。</p>
+<p><strong>实例四：移位操作</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">VSHL.S16  Q0, Q1, #4        ; 每 lane 算术左移 4 位 (×16), 符号位不参与移位</span><br><span class="line">VSHR.U16  Q0, Q1, #3        ; 每 lane 逻辑右移 3 位 (÷8), 高位补零</span><br><span class="line"></span><br><span class="line">; 移位后插入——用于拼接位域</span><br><span class="line">VSLI.16   Q0, Q1, #4        ; Q0 每 lane 左移 4 位, 再将 Q1 每 lane 的低 4 位插入 Q0 低位</span><br><span class="line">                             ; 典型用途: RGBA 颜色分量重排</span><br></pre></td></tr></table></figure>
+
+<p>NEON 没有 SIMD 除法指令。除法和平方根的精确值通过牛顿-拉弗森迭代获取：先用 <code>VRECPE</code> 快速估算倒数（精度约 8-bit），再用 <code>VRECPS</code>（倒数迭代步指令）多轮逼近。</p>
+<h3 id="4-2-逻辑与比较类"><a href="#4-2-逻辑与比较类" class="headerlink" title="4.2 逻辑与比较类"></a>4.2 逻辑与比较类</h3><table>
+<thead>
+<tr>
+<th>类别</th>
+<th>代表指令</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>逻辑运算</td>
+<td><code>VAND</code>, <code>VORR</code>, <code>VEOR</code>, <code>VBIC</code>, <code>VNOT</code>, <code>VORN</code></td>
+</tr>
+<tr>
+<td>比较</td>
+<td><code>VCEQ</code>, <code>VCGT</code>, <code>VCGE</code> 等（输出全 1 或全 0 掩码）</td>
+</tr>
+<tr>
+<td>最值</td>
+<td><code>VMAX</code>, <code>VMIN</code>（逐 lane 取最大&#x2F;最小值）</td>
+</tr>
+<tr>
+<td>位计数</td>
+<td><code>VCNT</code>（统计每 lane 的置位 bit 数），<code>VCLZ</code>（前导零计数）</td>
+</tr>
+</tbody></table>
+<p>以下通过三个实例展示比较、最值和位计数指令的实际效果。</p>
+<p><strong>实例一：比较生成掩码 + 位选择（无分支条件赋值）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">; 场景：将向量中所有小于 0 的元素钳位为 0</span><br><span class="line"></span><br><span class="line">VMOV.I32  Q0, #-5, #3, #-2, #8   ; Q0 = [-5  | 3  | -2 | 8 ] 4 路有符号 32-bit</span><br><span class="line">VMOV.I32  Q1, #0                   ; Q1 = [ 0  | 0  |  0 | 0 ] 全零常量</span><br><span class="line"></span><br><span class="line">VCGT.S32  Q2, Q0, Q1              ; Q2 = Q0 &gt; Q1? (逐 lane 比较)</span><br><span class="line">                                   ; Q2 = [ 0 | -1 |  0 | -1]</span><br><span class="line">                                   ; 条件成立→全 1 (0xFFFFFFFF)，不成立→全 0</span><br><span class="line"></span><br><span class="line">VBIT      Q1, Q0, Q2              ; Bitwise Insert if True:</span><br><span class="line">                                   ; Q2 某位=1 → 该位取 Q0 对应位的值</span><br><span class="line">                                   ; Q2 某位=0 → 该位保留 Q1 对应位的值</span><br><span class="line">                                   ; 结果: Q1 = [ 0  | 3  |  0 | 8 ]</span><br></pre></td></tr></table></figure>
+
+<p><code>VCGT</code> + <code>VBIT</code> 的组合是无分支向量化的关键模式：<code>VCGT</code> 生成掩码（每个 lane 要么全 1 要么全 0），<code>VBIT</code> 根据掩码按位选择新旧值——这比循环内的 <code>if (x &lt; 0) x = 0</code> 快 4-8 倍，因为<strong>没有分支预测失败的开销</strong>。</p>
+<p><strong>实例二：逐 lane 最大&#x2F;最小值</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">VMOV.I16  D0, #10, #50, #30, #20    ; D0 = [10 | 50 | 30 | 20] 4 路 16-bit</span><br><span class="line">VMOV.I16  D1, #40, #25, #35, #15    ; D1 = [40 | 25 | 35 | 15]</span><br><span class="line"></span><br><span class="line">VMAX.S16  D2, D0, D1                ; D2 = [max(10,40)=40 | max(50,25)=50 |</span><br><span class="line">                                    ;        max(30,35)=35 | max(20,15)=20]</span><br><span class="line">                                    ;    = [40 | 50 | 35 | 20]</span><br><span class="line"></span><br><span class="line">VMIN.S16  D3, D0, D1                ; D3 = [min(10,40)=10 | min(50,25)=25 |</span><br><span class="line">                                    ;        min(30,35)=30 | min(20,15)=15]</span><br><span class="line">                                    ;    = [10 | 25 | 30 | 15]</span><br></pre></td></tr></table></figure>
+
+<p>在图像处理中，<code>VMAX</code>&#x2F;<code>VMIN</code> 常用于形态学膨胀&#x2F;腐蚀操作、图层 alpha 合成（<code>max(src, dst)</code>）和颜色空间钳位。</p>
+<p><strong>实例三：位计数与前导零</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">VMOV.I8   D0, #0x0F, #0x00, #0xFF, #0xAA, #0x55, #0x7B, #0x80, #0xFC</span><br><span class="line"></span><br><span class="line">VCNT.I8   D1, D0     ; 逐 byte 统计置位 bit 数:</span><br><span class="line">                      ; [popcount(0x0F)=4 | popcount(0x00)=0 | popcount(0xFF)=8 |</span><br><span class="line">                      ;  popcount(0xAA)=4 | popcount(0x55)=4 | popcount(0x7B)=6 |</span><br><span class="line">                      ;  popcount(0x80)=1 | popcount(0xFC)=6]</span><br><span class="line"></span><br><span class="line">VCLZ.I8   D2, D0     ; 逐 byte 统计前导零:</span><br><span class="line">                      ; [clz(0x0F)=4 | clz(0x00)=8 | clz(0xFF)=0 |</span><br><span class="line">                      ;  clz(0xAA)=1 | clz(0x55)=1 | clz(0x7B)=1 |</span><br><span class="line">                      ;  clz(0x80)=0 | clz(0xFC)=0]</span><br></pre></td></tr></table></figure>
+
+<p><code>VCNT</code> 在密码学（汉明权重计算）和图像二值化统计中常用。<code>VCLZ</code> 是浮点规格化的基础——将非规格化数转换为规格化形式前需要知道”前面有多少个零”。</p>
+<h3 id="4-3-数据搬运与排列"><a href="#4-3-数据搬运与排列" class="headerlink" title="4.3 数据搬运与排列"></a>4.3 数据搬运与排列</h3><p>NEON 支持结构化的访存指令，可在加载&#x2F;存储的同时完成交织与解交织：</p>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>VLD1</code> &#x2F; <code>VST1</code></td>
+<td>连续加载&#x2F;存储单寄存器或多寄存器</td>
+</tr>
+<tr>
+<td><code>VLD2</code> &#x2F; <code>VST2</code></td>
+<td>双路交织加载&#x2F;存储（如交错读取 RGB 的 R 和 G）</td>
+</tr>
+<tr>
+<td><code>VLD3</code> &#x2F; <code>VST3</code></td>
+<td>三路交织（RGB 三通道分离）</td>
+</tr>
+<tr>
+<td><code>VLD4</code> &#x2F; <code>VST4</code></td>
+<td>四路交织（RGBA 四通道分离）</td>
+</tr>
+</tbody></table>
+<p>寄存器间数据操作包括：</p>
+<ul>
+<li><strong>复制</strong>：<code>VDUP</code> 将标量复制到向量所有 lane</li>
+<li><strong>交换</strong>：<code>VSWP</code> 交换两个寄存器</li>
+<li><strong>反转</strong>：<code>VREV</code> 按字&#x2F;半字&#x2F;字节反转元素顺序</li>
+<li><strong>转置</strong>：<code>VTRN</code>, <code>VZIP</code>, <code>VUZP</code> 等矩阵重排操作</li>
+<li><strong>提取</strong>：<code>VEXT</code> 从两个寄存器的拼接中提取任意偏移的向量</li>
+</ul>
+<p>以下三个实例覆盖从内存加载、寄存器间重排到向量提取的完整数据搬运模式。</p>
+<p><strong>实例一：VLD3 — RGB 三通道分离（解交织）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">; 内存中 RGB 像素按交错方式存储: R0 G0 B0 R1 G1 B1 R2 G2 B2 R3 G3 B3 ...</span><br><span class="line">; 目标: 将 R、G、B 分离到三个独立的 D 寄存器中</span><br><span class="line"></span><br><span class="line">; 假设 r0 指向像素数组首地址</span><br><span class="line">VLD3.8   &#123;D0, D1, D2&#125;, [r0]!</span><br><span class="line">; 加载后:</span><br><span class="line">; D0 = [R7 R6 R5 R4 R3 R2 R1 R0]  ← 所有 R 分量</span><br><span class="line">; D1 = [G7 G6 G5 G4 G3 G2 G1 G0]  ← 所有 G 分量</span><br><span class="line">; D2 = [B7 B6 B5 B4 B3 B2 B1 B0]  ← 所有 B 分量</span><br><span class="line">;</span><br><span class="line">; 后缀 ! 表示 r0 自动递增 (r0 += 24), 准备指向下一组 8 个像素</span><br><span class="line"></span><br><span class="line">; 对 G 通道做亮度调整（R 和 B 不变）</span><br><span class="line">VADD.I8   D1, D1, #16             ; G += 16 (每 lane 并行加)</span><br><span class="line"></span><br><span class="line">; 写回时重新交织:</span><br><span class="line">VST3.8   &#123;D0, D1, D2&#125;, [r1]!</span><br></pre></td></tr></table></figure>
+
+<p>在一条 <code>VLD3</code> 指令内完成了 24 字节的加载和通道分离——如果用标量指令需要约 72 条 <code>LDRB</code> + 位操作。这就是 NEON 结构化访存的最大价值。</p>
+<p><strong>实例二：VTRN 和 VZIP — 矩阵转置的基石</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">; 2×2 矩阵转置: [A B] → [A C]</span><br><span class="line">;               [C D]   [B D]</span><br><span class="line"></span><br><span class="line">VMOV.I32  D0, #1, #2      ; D0 = [1 | 2]</span><br><span class="line">VMOV.I32  D1, #3, #4      ; D1 = [3 | 4]</span><br><span class="line"></span><br><span class="line">VTRN.32   D0, D1</span><br><span class="line">; 执行后:</span><br><span class="line">; D0 = [1 | 3]             ← A, C 被交换到同一个寄存器</span><br><span class="line">; D1 = [2 | 4]             ← B, D 被交换到同一个寄存器</span><br><span class="line">; 结果: D0 和 D1 的对应 lane 被互换——D0[lane0]↔D1[lane0], D0[lane1]↔D1[lane1]</span><br><span class="line"></span><br><span class="line">; VZIP 与 VTRN 的差别:</span><br><span class="line">VMOV.I32  D0, #1, #2      ; 重置 D0 = [1 | 2]</span><br><span class="line">VMOV.I32  D1, #3, #4      ; 重置 D1 = [3 | 4]</span><br><span class="line"></span><br><span class="line">VZIP.32   D0, D1</span><br><span class="line">; 执行后:</span><br><span class="line">; D0 = [1 | 3]             ← 交错的低半部分</span><br><span class="line">; D1 = [2 | 4]             ← 交错的高半部分</span><br><span class="line">; 对于 2×2 矩阵, VZIP 和 VTRN 结果相同。但在 &gt;2 路时行为不同:</span><br><span class="line">; VTRN: 偶/奇下标互换</span><br><span class="line">; VZIP: 像拉链一样交错 (类似 C 的 interleave)</span><br></pre></td></tr></table></figure>
+
+<p>对于 4×4 矩阵转置，通常需要组合 <code>VTRN</code> + <code>VZIP</code> 两次来完成：第一次转置 2×2 子块，第二次交换子块。</p>
+<p><strong>实例三：VEXT — 窗口滑动提取</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">; 场景：从连续信号中提取 3 个重叠窗口</span><br><span class="line">; D0 = [A7 A6 A5 A4 A3 A2 A1 A0]  (8 个 8-bit 采样值)</span><br><span class="line">; D1 = [B7 B6 B5 B4 B3 B2 B1 B0]  (8 个 8-bit 采样值)</span><br><span class="line">; D0 和 D1 在内存中是连续的, D1 紧跟 D0</span><br><span class="line"></span><br><span class="line">VEXT.8    D2, D0, D1, #3</span><br><span class="line">; 将 D0:D1 拼接为 128-bit 整体:</span><br><span class="line">;   [B7 B6 ... B0 | A7 A6 A5 A4 A3 A2 A1 A0]</span><br><span class="line">; 然后从偏移 3 开始截取 64-bit:</span><br><span class="line">; D2 = [B2 B1 B0 | A7 A6 A5 A4 A3]</span><br><span class="line">;    = 相对于 D0 右移 3 个元素, 空缺位由 D1 的低位补入</span><br><span class="line"></span><br><span class="line">VEXT.8    D3, D0, D1, #5</span><br><span class="line">; D3 = [B4 B3 B2 B1 B0 | A7 A6 A5]</span><br><span class="line">;    = 偏移 5 的另一个窗口</span><br></pre></td></tr></table></figure>
+
+<p><code>VEXT</code> 是 FIR 滤波器实现中的核心指令——每个 tap 对应不同的偏移量，提取出相位的输入窗口后与系数做点积。一次 <code>VEXT</code> 省去了用移位和掩码手动拼接寄存器的复杂操作。</p>
+<p>指令集知识到此为止。但在工程实践中，NEON 的最高效使用方式不是手写汇编——而是让编译器帮你做向量化。手册 §8.3 提供了完整的 C 语言工具链指南。</p>
+<hr>
+<h2 id="5-C-语言中的-NEON-编程"><a href="#5-C-语言中的-NEON-编程" class="headerlink" title="5. C 语言中的 NEON 编程"></a>5. C 语言中的 NEON 编程</h2><p>硬件只是故事的一半。手册 §8.3 专门讨论如何在不写汇编的前提下享用 NEON 加速——从编译器的自动向量化到运行时检测 NEON 硬件是否可用，覆盖了从开发到部署的完整工具链路径。</p>
+<h3 id="5-1-自动向量化"><a href="#5-1-自动向量化" class="headerlink" title="5.1 自动向量化"></a>5.1 自动向量化</h3><p>理想的 NEON 编程方式是不写汇编——让编译器自动向量化 C 代码。手册给出了启动 GCC 自动向量化的选项：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">gcc -ftree-vectorize -mfpu=neon -O2 source.c</span><br></pre></td></tr></table></figure>
+
+<p>ARM Compiler 对应用 <code>--vectorize</code> 结合 <code>-O2/-O3</code> 和 <code>-Otime</code>。</p>
+<p>编译器能自动发现循环中的并行模式，但 C 语言的别名规则会阻碍向量化——编译器必须保守地假设两个指针可能指向重叠内存。编写向量化友好的 C 代码需要：</p>
+<ul>
+<li>用 <code>__restrict</code> 关键字修饰指针，向编译器承诺内存区域不重叠</li>
+<li>将循环迭代次数设为 4 或 8 的倍数（与 NEON 的并行度对齐），避免剩余迭代的标量”尾巴”</li>
+<li>避免循环内包含函数调用、条件分支或跨迭代依赖</li>
+</ul>
+<h3 id="5-2-NEON-可用性检测"><a href="#5-2-NEON-可用性检测" class="headerlink" title="5.2 NEON 可用性检测"></a>5.2 NEON 可用性检测</h3><p>NEON 是可选扩展，程序必须具备回退路径。</p>
+<p><strong>编译期检测：</strong> armcc（RVCT 4.0+）和 GCC 在指定适当的处理器和 FPU 选项时会预定义宏 <code>__ARM_NEON__</code>（armasm 等价的宏是 <code>TARGET_FEATURE_NEON</code>）。可以用 <code>#ifdef __ARM_NEON__</code> 在源码中条件编译 NEON 优化路径和非 NEON 回退路径，切换仅需改编译选项。</p>
+<p><strong>运行时检测：</strong> ARM 架构刻意不对用户模式暴露处理器能力信息，运行时检测必须依赖操作系统。</p>
+<p>在 Linux 上，<code>/proc/cpuinfo</code> 直接可读：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">$ <span class="built_in">cat</span> /proc/cpuinfo</span><br><span class="line">Features : swp half thumb fastmult vfp edsp thumbee neon vfpv3 ...</span><br></pre></td></tr></table></figure>
+
+<p><code>neon</code> 标志明确指示硬件支持。但解析文本效率低，生产代码更常用 <code>/proc/self/auxv</code>——内核导出的二进制辅助向量，包含 <code>AT_HWCAP</code> 记录。检查 <code>HWCAP_NEON</code> 位（bit 4096）即可。</p>
+<p>Ubuntu 09.10 起还利用了 <code>ld.so</code> 的 hwcap 机制：在 <code>/lib/neon/vfp</code> 路径下放置 NEON 优化版的共享库，链接器检测到 NEON 后会优先从该路径加载。应用开发者无需为此做任何代码修改——只要系统上有 NEON 优化库，就会透明使用。</p>
+<h3 id="5-3-NEON-Intrinsics-内置函数-编程"><a href="#5-3-NEON-Intrinsics-内置函数-编程" class="headerlink" title="5.3 NEON Intrinsics (内置函数) 编程"></a>5.3 NEON Intrinsics (内置函数) 编程</h3><p>当编译器的自动向量化无法达到预期性能时，手写汇编又难以维护，<strong>NEON Intrinsics（内置函数）</strong> 是最佳的折中方案。包含 <code>&lt;arm_neon.h&gt;</code> 头文件即可在 C&#x2F;C++ 中像调用普通函数一样执行 NEON 指令，编译器负责处理寄存器分配和指令调度。</p>
+<p><strong>数据类型命名规则：</strong> <code>&lt;基本类型&gt;&lt;位宽&gt;x&lt;通道数&gt;_t</code></p>
+<ul>
+<li><code>uint8x8_t</code>：对应 64-bit D 寄存器（8 个 8-bit 无符号整数）。</li>
+<li><code>float32x4_t</code>：对应 128-bit Q 寄存器（4 个 32-bit 单精度浮点）。</li>
+<li><code>uint8x8x3_t</code>：3 个 D 寄存器的结构体（通常用于 <code>vld3</code> 等结构化加载指令的结果）。</li>
+</ul>
+<p><strong>函数命名规则：</strong> <code>v&lt;指令名&gt;[q]_[标志]&lt;类型&gt;</code></p>
+<ul>
+<li><code>vadd_u16</code>：64-bit 下的加法。</li>
+<li><code>vaddq_u16</code>：带 <code>q</code> 后缀，表示操作 128-bit Q 寄存器。</li>
+<li><code>vmull_u8</code>：长指令（Long），8-bit 乘法输出 16-bit 结果。</li>
+</ul>
+<h3 id="5-4-实际优化案例：RGB-转灰度图像"><a href="#5-4-实际优化案例：RGB-转灰度图像" class="headerlink" title="5.4 实际优化案例：RGB 转灰度图像"></a>5.4 实际优化案例：RGB 转灰度图像</h3><p>图像处理是 NEON 优化的经典场景。假设我们要将 RGB 图像转换为灰度图，经典的整数近似转换公式为：<code>Gray = (R*77 + G*151 + B*28) &gt;&gt; 8</code>。</p>
+<p><strong>标量 C 语言实现：</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">rgb2gray_scalar</span><span class="params">(<span class="type">uint8_t</span> *dest, <span class="type">uint8_t</span> *src, <span class="type">int</span> n)</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; n; i++) &#123;</span><br><span class="line">        <span class="type">int</span> r = src[i * <span class="number">3</span>];</span><br><span class="line">        <span class="type">int</span> g = src[i * <span class="number">3</span> + <span class="number">1</span>];</span><br><span class="line">        <span class="type">int</span> b = src[i * <span class="number">3</span> + <span class="number">2</span>];</span><br><span class="line">        dest[i] = (r * <span class="number">77</span> + g * <span class="number">151</span> + b * <span class="number">28</span>) &gt;&gt; <span class="number">8</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>NEON Intrinsics 向量化实现：</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;arm_neon.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">rgb2gray_neon</span><span class="params">(<span class="type">uint8_t</span> *dest, <span class="type">uint8_t</span> *src, <span class="type">int</span> n)</span> &#123;</span><br><span class="line">    <span class="type">int</span> i;</span><br><span class="line">    <span class="type">uint8x8_t</span> r_fac = vdup_n_u8(<span class="number">77</span>);   <span class="comment">// 将标量复制到 8 个通道</span></span><br><span class="line">    <span class="type">uint8x8_t</span> g_fac = vdup_n_u8(<span class="number">151</span>);</span><br><span class="line">    <span class="type">uint8x8_t</span> b_fac = vdup_n_u8(<span class="number">28</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 每次并行处理 8 个像素</span></span><br><span class="line">    <span class="keyword">for</span> (i = <span class="number">0</span>; i &lt;= n - <span class="number">8</span>; i += <span class="number">8</span>) &#123;</span><br><span class="line">        <span class="comment">// vld3 自动将 RGB 交错的数据分离到三个向量中 (解交织)</span></span><br><span class="line">        <span class="type">uint8x8x3_t</span> rgb = vld3_u8(src + i * <span class="number">3</span>);</span><br><span class="line">        <span class="type">uint16x8_t</span> acc;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// R*77 (8位乘法，16位结果避免溢出，对应 vmull 指令)</span></span><br><span class="line">        acc = vmull_u8(rgb.val[<span class="number">0</span>], r_fac);</span><br><span class="line">        <span class="comment">// 累加上 G*151 和 B*28 (对应 vmlal 指令)</span></span><br><span class="line">        acc = vmlal_u8(acc, rgb.val[<span class="number">1</span>], g_fac);</span><br><span class="line">        acc = vmlal_u8(acc, rgb.val[<span class="number">2</span>], b_fac);</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 右移 8 位并窄化为 8-bit (Narrow 指令)</span></span><br><span class="line">        <span class="type">uint8x8_t</span> res = vshrn_n_u16(acc, <span class="number">8</span>); </span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 交错前不用，直接按照一维顺序存回内存</span></span><br><span class="line">        vst1_u8(dest + i, res);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 尾部不足 8 个像素的边界处理（此处省略）</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>在核心循环中，我们利用 <code>vld3</code> 完美呼应了硬件的解交织加载设计，用 <code>vmull</code> &#x2F; <code>vmlal</code> 并行完成了 8 组像素的 24 次乘法和 16 次累加。因为彻底消灭了冗余运算且充分填充了流水线，其速度通常是标量代码的数倍。</p>
+<p>从硬件架构到指令集再到工具链，NEON 的全景已经展开。以下八条要点是贯穿本章的核心结论。</p>
+<hr>
+<h2 id="6-学习要点总结"><a href="#6-学习要点总结" class="headerlink" title="6. 学习要点总结"></a>6. 学习要点总结</h2><p>从标量浪费到向量并行，从 32-bit 通用寄存器到 128-bit 独立寄存器组，从汇编助记符到 C 编译器的自动向量化——NEON 的全景由以下八条核心结论串联。</p>
+<ol>
+<li><p><strong>NEON &#x3D; 128-bit 独立向量引擎</strong>。不要把它和 ARMv6 的 32-bit 整数 SIMD 搞混——前者有独立寄存器组和流水线，后者只是在通用寄存器内做窄向量操作。NEON 的吞吐是 ARMv6 SIMD 的至少 2 倍以上。</p>
+</li>
+<li><p><strong>D&#x2F;Q 双视图是理解 NEON 寄存器架构的核心</strong>。Q0 &#x3D; D0+D1 的映射关系使得 Normal&#x2F;Long&#x2F;Wide&#x2F;Narrow 四种指令形状可以无缝复用同一套物理寄存器组。</p>
+</li>
+<li><p><strong>数据类型通过指令后缀编码</strong>，不是寄存器属性。同一个 <code>D0</code> 可被一条指令当作 8×8-bit 来用，下一条当成 4×16-bit——灵活性由指令决定，寄存器本身无类型。</p>
+</li>
+<li><p><strong>NEON 和 VFP 共享寄存器</strong>。这意味着上下文切换的开销是统一的——保存 VFP 就同时保存了 NEON。代价是 NEON 不支持双精度浮点（留给 VFP），也不支持除法和平方根的直接计算（需要牛顿迭代）。Cortex-A 系列可配置为无 NEON&#x2F;VFP、仅 VFP 或 NEON+VFP 三种组合。</p>
+</li>
+<li><p><strong>运算修饰符 Q&#x2F;H&#x2F;D&#x2F;R 构成了一套功能层</strong>——饱和（Q）用于音视频的溢出钳位，折半（H）用于均值计算，翻倍（D）用于 Q15 定点数校正，舍入（R）等效于加 0.5 后截断。</p>
+</li>
+<li><p><strong>Auto-vectorization 是 NEON 的首选编程路径</strong>。<code>__restrict</code>、4&#x2F;8 倍数循环、<code>-ftree-vectorize</code> 三个要素配合，能让许多图像和音频循环在零汇编代码的前提下享受 NEON 加速。</p>
+</li>
+<li><p><strong>Linux 的 NEON 检测有三层机制</strong>：编译期 <code>__ARM_NEON__</code> 宏（切换优化路径）、运行时 <code>/proc/cpuinfo</code>（可读性）和 <code>AT_HWCAP</code>（性能）、<code>ld.so</code> hwcap 路径（完全透明）。生产代码建议用 <code>auxv</code> 方式。</p>
+</li>
+<li><p><strong>NEON Intrinsics 是 C&#x2F;C++ 编程的首推利器</strong>：当自动向量化失败时，引入 <code>&lt;arm_neon.h&gt;</code> 编写内置函数，既能拥有和手写汇编相近级的细粒度控制力（如 <code>vld3</code> 解交织、<code>vmlal</code> 乘累加），又能避免手分配寄存器的高昂维护成本。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM-ARMv7-a/" rel="tag"># ARM, ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E7%BB%9F%E4%B8%80%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E6%8C%87%E4%BB%A4%E9%9B%86/" rel="prev" title="ARM统一汇编语言指令集">
+                  <i class="fa fa-angle-left"></i> ARM统一汇编语言指令集
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM-MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91/" rel="next" title="ARM MMU 地址翻译">
+                  ARM MMU 地址翻译 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

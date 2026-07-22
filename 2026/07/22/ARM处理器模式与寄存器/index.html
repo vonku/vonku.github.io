@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="深入解读 ARM 处理器模式与寄存器 的底层原理与最佳实践。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM处理器模式与寄存器">
+<meta property="og:url" content="http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="深入解读 ARM 处理器模式与寄存器 的底层原理与最佳实践。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/pl_and_mode.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/The_ARM_register_set.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/cpsr_bits.png">
+<meta property="article:published_time" content="2026-07-22T12:37:58.000Z">
+<meta property="article:modified_time" content="2026-07-22T12:56:29.651Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM, ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/pl_and_mode.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/","path":"2026/07/22/ARM处理器模式与寄存器/","title":"ARM处理器模式与寄存器"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM处理器模式与寄存器 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E7%89%B9%E6%9D%83%E7%BA%A7"><span class="nav-text">1. 处理器模式与特权级</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%9F%BA%E7%A1%80%E4%B8%83%E6%A8%A1%E5%BC%8F"><span class="nav-text">1.1 基础七模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-TrustZone-%E5%BC%95%E5%85%A5%E7%9A%84%E6%96%B0%E7%BB%B4%E5%BA%A6%EF%BC%9A%E5%AE%89%E5%85%A8%E7%8A%B6%E6%80%81"><span class="nav-text">1.2 TrustZone 引入的新维度：安全状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E8%99%9A%E6%8B%9F%E5%8C%96%E6%89%A9%E5%B1%95%E7%9A%84%E7%AC%AC%E4%B8%89%E5%B1%82%EF%BC%9APL0-PL1-PL2"><span class="nav-text">1.3 虚拟化扩展的第三层：PL0&#x2F;PL1&#x2F;PL2</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%AF%84%E5%AD%98%E5%99%A8%E7%BB%84%E4%B8%8E-Banking%EF%BC%9A%E5%90%8C%E5%90%8D%E5%BC%82%E5%AE%9E"><span class="nav-text">2. 寄存器组与 Banking：同名异实</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%AF%84%E5%AD%98%E5%99%A8%E7%9A%84%E8%A7%92%E8%89%B2%E5%88%86%E5%B7%A5"><span class="nav-text">2.1 寄存器的角色分工</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%AF%84%E5%AD%98%E5%99%A8%E5%85%A8%E8%A7%86%E5%9B%BE"><span class="nav-text">2.2 寄存器全视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%A4%8D%E4%BD%8D%E5%90%8E%E5%AF%84%E5%AD%98%E5%99%A8%E7%8A%B6%E6%80%81%E4%B8%8E%E5%88%9D%E5%A7%8B%E5%8C%96%E8%A6%81%E6%B1%82"><span class="nav-text">2.3 复位后寄存器状态与初始化要求</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E7%A8%8B%E5%BA%8F%E7%8A%B6%E6%80%81%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%9ACPSR-%E4%B8%8E-SPSR"><span class="nav-text">3. 程序状态寄存器：CPSR 与 SPSR</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-CPSR-%E4%BD%8D%E5%AD%97%E6%AE%B5%E5%85%A8%E8%A7%A3"><span class="nav-text">3.1 CPSR 位字段全解</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-SPSR%EF%BC%9A%E5%BC%82%E5%B8%B8%E5%8F%91%E7%94%9F%E6%97%B6%E7%9A%84%E2%80%9D%E7%8A%B6%E6%80%81%E5%BF%AB%E7%85%A7%E2%80%9D"><span class="nav-text">3.2 SPSR：异常发生时的”状态快照”</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E6%A8%A1%E5%BC%8F%E5%88%87%E6%8D%A2%E7%9A%84%E4%B8%A4%E7%A7%8D%E6%96%B9%E5%BC%8F"><span class="nav-text">3.3 模式切换的两种方式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-CP15-%E7%B3%BB%E7%BB%9F%E6%8E%A7%E5%88%B6%E5%8D%8F%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-text">4. CP15 系统控制协处理器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-CP15-%E5%85%B3%E9%94%AE%E5%AF%84%E5%AD%98%E5%99%A8%E9%80%9F%E6%9F%A5"><span class="nav-text">4.1 CP15 关键寄存器速查</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-MIDR-%E8%A7%A3%E8%AF%BB%EF%BC%9A%E5%A4%84%E7%90%86%E5%99%A8%E8%BA%AB%E4%BB%BD%E8%AF%81%E6%98%8E"><span class="nav-text">4.2 MIDR 解读：处理器身份证明</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-SCTLR-%E7%B3%BB%E7%BB%9F%E6%8E%A7%E5%88%B6%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">5. SCTLR 系统控制寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%85%B3%E9%94%AE%E6%8E%A7%E5%88%B6%E4%BD%8D"><span class="nav-text">5.1 关键控制位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Boot-%E4%BB%A3%E7%A0%81%E4%B8%AD%E7%9A%84%E7%BB%8F%E5%85%B8%E5%88%9D%E5%A7%8B%E5%8C%96%E5%BA%8F%E5%88%97"><span class="nav-text">5.2 Boot 代码中的经典初始化序列</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%AD%A6%E4%B9%A0%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">6. 学习要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">60</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM处理器模式与寄存器 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM处理器模式与寄存器
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-22 20:37:58" itemprop="dateCreated datePublished" datetime="2026-07-22T20:37:58+08:00">2026-07-22</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>深入解读 ARM 处理器模式与寄存器 的底层原理与最佳实践。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-处理器模式与特权级"><a href="#1-处理器模式与特权级" class="headerlink" title="1. 处理器模式与特权级"></a>1. 处理器模式与特权级</h2><p>ARM 是一个<strong>模态架构</strong>（Modal Architecture）。处理器不在 User 下干活，就在 IRQ&#x2F;FIQ 里处理中断，或者在 SVC 里跑系统调用—每种场景对应一种模式。引入 TrustZone 安全扩展和虚拟化扩展后，模式列表进一步扩大。</p>
+<h3 id="1-1-基础七模式"><a href="#1-1-基础七模式" class="headerlink" title="1.1 基础七模式"></a>1.1 基础七模式</h3><table>
+<thead>
+<tr>
+<th>模式</th>
+<th>全称</th>
+<th>缩写</th>
+<th>触发条件</th>
+<th>特权级</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>User</strong></td>
+<td>User mode</td>
+<td>USR</td>
+<td>应用程序默认运行</td>
+<td><strong>非特权（唯一！）</strong></td>
+</tr>
+<tr>
+<td><strong>FIQ</strong></td>
+<td>Fast Interrupt reQuest</td>
+<td>FIQ</td>
+<td>FIQ 中断异常</td>
+<td>特权</td>
+</tr>
+<tr>
+<td><strong>IRQ</strong></td>
+<td>Interrupt ReQuest</td>
+<td>IRQ</td>
+<td>IRQ 中断异常</td>
+<td>特权</td>
+</tr>
+<tr>
+<td><strong>Supervisor</strong></td>
+<td>Supervisor mode</td>
+<td>SVC</td>
+<td>Reset 或执行 SVC 指令</td>
+<td>特权</td>
+</tr>
+<tr>
+<td><strong>Abort</strong></td>
+<td>Abort mode</td>
+<td>ABT</td>
+<td>内存访问异常（缺页&#x2F;权限错误）</td>
+<td>特权</td>
+</tr>
+<tr>
+<td><strong>Undefined</strong></td>
+<td>Undefined mode</td>
+<td>UND</td>
+<td>执行未定义指令</td>
+<td>特权</td>
+</tr>
+<tr>
+<td><strong>System</strong></td>
+<td>System mode</td>
+<td>SYS</td>
+<td>—（仅有特权软件显式切换）</td>
+<td>特权</td>
+</tr>
+</tbody></table>
+<p>两个值得强调的点：</p>
+<ul>
+<li><strong>User mode 是唯一的非特权模式</strong>。在 User mode 下，不能直接修改 CP15 系统控制寄存器、不能操作 MMU 配置、不能操作缓存。这是操作系统实现进程隔离的硬件基础。</li>
+<li><strong>System mode 很特别</strong>：它是特权模式，但却<strong>与 User mode 共享完全相同的寄存器视图</strong>（不 bank R13&#x2F;R14&#x2F;SPSR）。它通常被操作系统内核用于需要特权访问但不需要独立栈帧的执行上下文。</li>
+</ul>
+<h3 id="1-2-TrustZone-引入的新维度：安全状态"><a href="#1-2-TrustZone-引入的新维度：安全状态" class="headerlink" title="1.2 TrustZone 引入的新维度：安全状态"></a>1.2 TrustZone 引入的新维度：安全状态</h3><p>TrustZone 安全扩展在”模式”之上叠加了第二个维度：<strong>安全状态</strong>。对于实现了 TrustZone 的处理器，系统安全性通过<strong>将所有硬件和软件资源一分为二</strong>来实现：一部分划归 Secure world（安全子系统），其余划归 Normal &#x2F; Non-secure world（普通世界）。处理器处于 Non-secure 状态时，<strong>无法访问分配给 Secure 状态的内存</strong>——这不是软件检查，而是总线上的 NS（Non-Secure）位在物理层面阻断。</p>
+<p>TrustZone 新增了一个独立的 <strong>Monitor 模式</strong>，作为两个世界之间的<strong>唯一网关</strong>。当软件需要从 Normal world 切换到 Secure world（例如访问安全密钥），必须通过 <strong>SMC（Secure Monitor Call）指令</strong>进入 Monitor 模式，由 Monitor 模式的软件验证请求合法性后切换世界并跳转到 Secure world 的入口代码。从 Monitor 返回则使用 <code>ERET</code>（或等价寄存器写回 CPSR）指令。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">              ┌─────────────────────────┐</span><br><span class="line">              │  Monitor Mode (MON)     │  ← gateway between worlds</span><br><span class="line">              │  Secure PL1             │</span><br><span class="line">              └──────────┬──────────────┘</span><br><span class="line">                         │</span><br><span class="line">┌────────────────────────┼─────────────────────────┐</span><br><span class="line">│  Normal World          │  Secure World           │</span><br><span class="line">│  ┌──────────────────┐  │  ┌──────────────────┐   │</span><br><span class="line">│  │ User / FIQ / IRQ │  │  │ User / FIQ / IRQ │   │</span><br><span class="line">│  │ SVC / ABT / UND  │  │  │ SVC / ABT / UND  │   │</span><br><span class="line">│  │ System / Hyp     │  │  │ System           │   │</span><br><span class="line">│  └──────────────────┘  │  └──────────────────┘   │</span><br><span class="line">└────────────────────────┴─────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>关键点：</p>
+<ul>
+<li><strong>Normal World 和 Secure World 各自拥有一套完整的处理器模式</strong>。TrustZone 不是在”模式之上叠加”，而是将模式复制到了两个安全维度中。</li>
+<li><strong>Monitor 模式是唯一的跨世界桥梁</strong>，运行在 Secure PL1，处理 SMC 调用和 world switch。</li>
+<li>普通世界代码无法访问安全世界的内存——这是硬件隔离，不由操作系统控制。</li>
+<li>Linux 等通用操作系统及其应用运行在 Normal World；厂商固件、安全密钥和 DRM 等运行在 Secure World。<strong>在某些情况下，Secure 状态下运行的软件比 Non-secure 状态下的软件拥有更高的特权</strong>。</li>
+</ul>
+<h3 id="1-3-虚拟化扩展的第三层：PL0-PL1-PL2"><a href="#1-3-虚拟化扩展的第三层：PL0-PL1-PL2" class="headerlink" title="1.3 虚拟化扩展的第三层：PL0&#x2F;PL1&#x2F;PL2"></a>1.3 虚拟化扩展的第三层：PL0&#x2F;PL1&#x2F;PL2</h3><p>ARMv7-A 虚拟化扩展引入了<strong>新的特权层级 PL2</strong> 与 <strong>Hyp 模式</strong>，形成三层特权体系。与 TrustZone 不同的是：TrustZone 是<strong>水平隔离</strong>（两个世界彼此分离），虚拟化是<strong>垂直分层</strong>（上层管控下层）。</p>
+<table>
+<thead>
+<tr>
+<th>特权级</th>
+<th>运行什么？</th>
+<th>对应模式</th>
+<th>关键限制</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>PL0</strong></td>
+<td>应用程序</td>
+<td>User mode</td>
+<td>只能非特权内存访问，不能改系统配置</td>
+</tr>
+<tr>
+<td><strong>PL1</strong></td>
+<td>操作系统内核（Guest OS）</td>
+<td>SVC, IRQ, FIQ, ABT, UND, System, Monitor</td>
+<td>可观上操作系统在此执行，横跨多种异常模式</td>
+</tr>
+<tr>
+<td><strong>PL2</strong></td>
+<td>Hypervisor（虚拟机管理器）</td>
+<td>Hyp mode</td>
+<td>仅存在于 Non-secure 世界</td>
+</tr>
+</tbody></table>
+<p>原书明确指出 PL0–PL2 是<strong>与 TrustZone 安全状态正交的维度</strong>——特权级定义的是”在<strong>当前安全状态</strong>内能访问哪些资源”，与另一安全状态无关。例如 Non-secure PL1 不能访问 Secure PL0 的内存，即便它的特权级更高。</p>
+<img src="pl_and_mode.png" alt="pl_and_mode" style="zoom:50%;" />
+
+<p><strong>完整虚拟化栈示意：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">┌──────────────┐  PL0  ← 应用层（无特权，仅非特权内存访问）</span><br><span class="line">│  Application │</span><br><span class="line">├──────────────┤</span><br><span class="line">│  Guest OS    │  PL1  ← 客操作系统，横跨 SVC/IRQ/FIQ/ABT/UND/System</span><br><span class="line">│  (Linux)     │        处理来自 PL0 的 SVC 系统调用</span><br><span class="line">├──────────────┤</span><br><span class="line">│  Hypervisor  │  PL2  ← 管控多个 PL1 Guest OS，处理来自各 OS 的敏感操作</span><br><span class="line">│  (KVM/Xen)   │</span><br><span class="line">└──────────────┘</span><br></pre></td></tr></table></figure>
+
+<p><strong>Hyp 模式特有资源：</strong></p>
+<ul>
+<li><strong>R13_hyp</strong>：独立栈指针，不与其他任何模式共享</li>
+<li><strong>SPSR_hyp</strong>：异常发生时保存 CPSR 快照</li>
+<li><strong>ELR_hyp</strong>（Exception Link Register）：专门存储 Hyp 模式下的异常返回地址（与常规 LR 分离）</li>
+<li>Hyp 模式用 User 模式的 LR（R14_usr）存储函数调用返回地址</li>
+</ul>
+<hr>
+<h2 id="2-寄存器组与-Banking：同名异实"><a href="#2-寄存器组与-Banking：同名异实" class="headerlink" title="2. 寄存器组与 Banking：同名异实"></a>2. 寄存器组与 Banking：同名异实</h2><blockquote>
+<p>出处：原书 §4.1，第 50-52 页</p>
+</blockquote>
+<p>ARM 架构提供 <strong>16 个 32 位通用寄存器</strong>（R0–R15），但这只是”逻辑视图”。物理上，某些寄存器在不同模式下指向<strong>不同的硬件存储单元</strong>——这就是寄存器 Banking。</p>
+<h3 id="2-1-寄存器的角色分工"><a href="#2-1-寄存器的角色分工" class="headerlink" title="2.1 寄存器的角色分工"></a>2.1 寄存器的角色分工</h3><table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>角色</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>R0–R7</td>
+<td>通用数据（低寄存器）</td>
+<td><strong>从不 Bank</strong>，所有模式共用同一物理存储</td>
+</tr>
+<tr>
+<td>R8–R12</td>
+<td>通用数据（高寄存器）</td>
+<td>R8–R12 在 <strong>FIQ 模式下 Bank</strong>；其他模式共用</td>
+</tr>
+<tr>
+<td>R13</td>
+<td>Stack Pointer (SP)</td>
+<td><strong>每个异常模式独立 Bank</strong>：SP_usr ≠ SP_svc ≠ SP_irq …</td>
+</tr>
+<tr>
+<td>R14</td>
+<td>Link Register (LR)</td>
+<td><strong>每个异常模式独立 Bank</strong>：LR_usr ≠ LR_svc ≠ LR_irq …</td>
+</tr>
+<tr>
+<td>R15</td>
+<td>Program Counter (PC)</td>
+<td><strong>从不 Bank</strong></td>
+</tr>
+<tr>
+<td>CPSR</td>
+<td>当前程序状态寄存器</td>
+<td><strong>从不 Bank</strong></td>
+</tr>
+<tr>
+<td>SPSR</td>
+<td>备份状态寄存器</td>
+<td><strong>每个异常模式独立 Bank</strong>：SPSR_fiq, SPSR_irq, SPSR_abt…</td>
+</tr>
+</tbody></table>
+<p>一个 FIQ 中断处理函数用 <code>R8</code> 时，它实际上访问的是 <code>R8_fiq</code> 这个物理寄存器——而不是 User 模式下看到的 <code>R8_usr</code>。这种透明的硬件切换<strong>避免了中断处理程序中保存&#x2F;恢复上下文的开销</strong>，也是 FIQ（Fast Interrupt）之所以”快”的关键设计之一。</p>
+<h3 id="2-2-寄存器全视图"><a href="#2-2-寄存器全视图" class="headerlink" title="2.2 寄存器全视图"></a>2.2 寄存器全视图</h3><p>原书 Figure 4-5 完整展示了 ARM 寄存器的 Banking 机制——浅色寄存器为所有模式共享，着色寄存器在不同模式下映射到独立的物理存储。</p>
+<img src="The_ARM_register_set.png" alt="ARM Register Set — Figure 4-5" style="zoom: 50%;" />
+
+<p>几个重要观察：</p>
+<ol>
+<li><strong>R0–R7 + R15 + CPSR 从不 Bank</strong>，所有模式和上下文看到的都是同一份。</li>
+<li><strong>FIQ 是唯一的 R8–R12 Bank 模式</strong>——FIQ 中断处理程序无需 push&#x2F;pop 这 5 个寄存器，直接拿到独立副本。</li>
+<li><strong>R14（Link Register）在 Hyp 和 SYS 模式下退回使用 LR_usr</strong>——因为它们不需要独立的子程序返回路径。</li>
+<li><strong>R15（PC）有一个历史包袱</strong>：在 ARM 状态读取 PC 时，返回 <code>当前地址 + 8</code>；在 Thumb 状态返回 <code>当前地址 + 4</code>。这是 ARM1 三级流水线的遗产，在 ARMv7 中依然保留。</li>
+</ol>
+<blockquote>
+<p><strong>实例</strong>：SVC 模式下执行 <code>BL sub_routine</code>，LR_svc 自动存入返回地址。执行 <code>BX LR</code> 就能回到调用点。但如果是 IRQ 中断打断了 User 模式的代码，LR_irq 会自动保存中断发生时的返回地址。不同模式的 LR 互不干扰。</p>
+</blockquote>
+<h3 id="2-3-复位后寄存器状态与初始化要求"><a href="#2-3-复位后寄存器状态与初始化要求" class="headerlink" title="2.3 复位后寄存器状态与初始化要求"></a>2.3 复位后寄存器状态与初始化要求</h3><ul>
+<li>R0–R14 复位值<strong>不可预测</strong>（架构未定义）</li>
+<li><strong>SP 必须由 boot 代码显式初始化</strong>：需要为每个模式分别设置栈指针</li>
+<li>AAPCS（ARM Architecture Procedure Call Standard）规定了寄存器的调用约定角色</li>
+</ul>
+<hr>
+<h2 id="3-程序状态寄存器：CPSR-与-SPSR"><a href="#3-程序状态寄存器：CPSR-与-SPSR" class="headerlink" title="3. 程序状态寄存器：CPSR 与 SPSR"></a>3. 程序状态寄存器：CPSR 与 SPSR</h2><p>CPSR（Current Program Status Register）是一个 32 位寄存器，编码了处理器的<strong>当前状态</strong>。User 模式下只能访问其受限版本 <strong>APSR</strong>（只暴露 NZCVQ 和 GE 位）。</p>
+<h3 id="3-1-CPSR-位字段全解"><a href="#3-1-CPSR-位字段全解" class="headerlink" title="3.1 CPSR 位字段全解"></a>3.1 CPSR 位字段全解</h3><img src="cpsr_bits.png" alt="CPSR bit assignments — Figure 4-6" style="zoom:67%;" />
+
+<table>
+<thead>
+<tr>
+<th>位段</th>
+<th>名称</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>N (31)</strong></td>
+<td>Negative</td>
+<td>ALU 运算结果为负</td>
+</tr>
+<tr>
+<td><strong>Z (30)</strong></td>
+<td>Zero</td>
+<td>ALU 运算结果为零</td>
+</tr>
+<tr>
+<td><strong>C (29)</strong></td>
+<td>Carry</td>
+<td>ALU 运算产生进位&#x2F;借位，无符号数</td>
+</tr>
+<tr>
+<td><strong>V (28)</strong></td>
+<td>Overflow</td>
+<td>ALU 运算有符号溢出，有符号数</td>
+</tr>
+<tr>
+<td><strong>Q (27)</strong></td>
+<td>Saturation</td>
+<td>粘滞饱和标志（DSP 指令设置后保持）</td>
+</tr>
+<tr>
+<td><strong>J (24)</strong></td>
+<td>Jazelle</td>
+<td>处理器是否在 Jazelle 状态</td>
+</tr>
+<tr>
+<td><strong>GE[3:0] (19:16)</strong></td>
+<td>Greater-than-or-Equal</td>
+<td>SIMD 指令的大于等于标志</td>
+</tr>
+<tr>
+<td><strong>IT[7:2] (15:10)</strong></td>
+<td>If-Then</td>
+<td>Thumb-2 IT 块的执行条件</td>
+</tr>
+<tr>
+<td><strong>E (9)</strong></td>
+<td>Endianness</td>
+<td>0&#x3D;小端, 1&#x3D;大端</td>
+</tr>
+<tr>
+<td><strong>A (8)</strong></td>
+<td>Async Abort mask</td>
+<td>1&#x3D;屏蔽异步异常</td>
+</tr>
+<tr>
+<td><strong>I (7)</strong></td>
+<td>IRQ mask</td>
+<td>1&#x3D;屏蔽 IRQ 中断</td>
+</tr>
+<tr>
+<td><strong>F (6)</strong></td>
+<td>FIQ mask</td>
+<td>1&#x3D;屏蔽 FIQ 中断</td>
+</tr>
+<tr>
+<td><strong>T (5)</strong></td>
+<td>Thumb</td>
+<td>0&#x3D;ARM 状态, 1&#x3D;Thumb 状态</td>
+</tr>
+<tr>
+<td><strong>M[4:0] (4:0)</strong></td>
+<td>Mode</td>
+<td>当前处理器模式编码</td>
+</tr>
+</tbody></table>
+<p><strong>N&#x2F;Z&#x2F;C&#x2F;V 四条件码</strong>是 ARM 条件执行的基础：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">CMP R0, R1      ; R0 - R1 → 更新 NZCV 标志（不改变 R0 或 R1）</span><br><span class="line">BEQ target      ; 如果 Z=1（相等）则跳转</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例</strong>：User 模式代码执行 <code>CMP R0, #5</code> 后 Z 标志变化，APSR 随之更新；IRQ 中断突然到来，当前 CPSR 被自动保存到 <strong>SPSR_irq</strong>，中断处理完毕后通过 <code>SUBS PC, LR, #4</code> 恢复 CPSR（包含被中断代码的 NZCV 状态）。</p>
+<h3 id="3-2-SPSR：异常发生时的”状态快照”"><a href="#3-2-SPSR：异常发生时的”状态快照”" class="headerlink" title="3.2 SPSR：异常发生时的”状态快照”"></a>3.2 SPSR：异常发生时的”状态快照”</h3><p>每个异常模式拥有一个独立的 <strong>SPSR</strong>（Saved Program Status Register）。当异常发生时：</p>
+<ol>
+<li>硬件自动将<strong>当时的 CPSR</strong> 拷贝到<strong>目标异常模式的 SPSR</strong></li>
+<li>CPSR[4:0] 被改写为异常模式编码</li>
+<li>异常返回时，<code>SPSR → CPSR</code> 恢复原状</li>
+</ol>
+<p>这就是为什么每个模式只需要一个 SPSR——它只在<strong>从该模式返回</strong>时才被读取。</p>
+<h3 id="3-3-模式切换的两种方式"><a href="#3-3-模式切换的两种方式" class="headerlink" title="3.3 模式切换的两种方式"></a>3.3 模式切换的两种方式</h3><ol>
+<li><strong>显式切换</strong>：特权软件通过 <code>MSR CPSR_c, #mode</code> 直接写 CPSR 的 M 字段</li>
+<li><strong>隐式切换</strong>：异常事件自动触发切换（更常见）</li>
+</ol>
+<p><strong>User 模式不能修改 CPSR[4:0]（M 位）和 CPSR[7:6]（I&#x2F;F 中断屏蔽位）</strong>——这是硬件强制执行的保护。</p>
+<hr>
+<h2 id="4-CP15-系统控制协处理器"><a href="#4-CP15-系统控制协处理器" class="headerlink" title="4. CP15 系统控制协处理器"></a>4. CP15 系统控制协处理器</h2><blockquote>
+<p>CP15（System Control Coprocessor）是 ARM 核心特性的<strong>总控面板</strong>。所有系统级操作——MMU 配置、缓存维护、TLB 管理、异常向量表基址——都通过 CP15 完成。16 个主寄存器（c0–c15）各自承担不同的角色。</p>
+</blockquote>
+<h3 id="4-1-CP15-关键寄存器速查"><a href="#4-1-CP15-关键寄存器速查" class="headerlink" title="4.1 CP15 关键寄存器速查"></a>4.1 CP15 关键寄存器速查</h3><table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>全称</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>MIDR</strong> (c0)</td>
+<td>Main ID Register</td>
+<td>处理器身份识别（实现者、架构版本、型号）</td>
+</tr>
+<tr>
+<td><strong>MPIDR</strong> (c0)</td>
+<td>Multiprocessor Affinity Register</td>
+<td>多核集群中唯一标识每个核心</td>
+</tr>
+<tr>
+<td><strong>SCTLR</strong> (c1)</td>
+<td>System Control Register</td>
+<td><strong>主系统控制寄存器</strong>（MMU&#x2F;缓存&#x2F;分支预测开关）</td>
+</tr>
+<tr>
+<td><strong>ACTLR</strong> (c1)</td>
+<td>Auxiliary Control Register</td>
+<td>实现特定的附加控制</td>
+</tr>
+<tr>
+<td><strong>CPACR</strong> (c1)</td>
+<td>Coprocessor Access Control</td>
+<td>控制对 CP10&#x2F;CP11（NEON&#x2F;VFP）的访问权限</td>
+</tr>
+<tr>
+<td><strong>SCR</strong> (c1)</td>
+<td>Secure Configuration Register</td>
+<td>TrustZone 控制</td>
+</tr>
+<tr>
+<td><strong>TTBR0</strong> (c2)</td>
+<td>Translation Table Base Register 0</td>
+<td>一级页表物理基址</td>
+</tr>
+<tr>
+<td><strong>TTBR1</strong> (c2)</td>
+<td>Translation Table Base Register 1</td>
+<td>一级页表物理基址（内核空间）</td>
+</tr>
+<tr>
+<td><strong>TTBCR</strong> (c2)</td>
+<td>Translation Table Base Control</td>
+<td>TTBR0&#x2F;TTBR1 的地址划分控制</td>
+</tr>
+<tr>
+<td><strong>DFSR</strong> (c5)</td>
+<td>Data Fault Status Register</td>
+<td>最近数据异常的详细信息</td>
+</tr>
+<tr>
+<td><strong>IFSR</strong> (c5)</td>
+<td>Instruction Fault Status Register</td>
+<td>最近指令异常的详细信息</td>
+</tr>
+<tr>
+<td><strong>DFAR</strong> (c6)</td>
+<td>Data Fault Address Register</td>
+<td>引起数据异常的目标虚拟地址</td>
+</tr>
+<tr>
+<td><strong>IFAR</strong> (c6)</td>
+<td>Instruction Fault Address Register</td>
+<td>引起指令异常的虚拟地址</td>
+</tr>
+<tr>
+<td><strong>VBAR</strong> (c12)</td>
+<td>Vector Base Address Register</td>
+<td>异常向量表基址</td>
+</tr>
+<tr>
+<td><strong>MVBAR</strong> (c12)</td>
+<td>Monitor Vector Base Address Register</td>
+<td>Monitor 模式异常向量表基址</td>
+</tr>
+<tr>
+<td><strong>CONTEXTIDR</strong> (c13)</td>
+<td>Context ID Register</td>
+<td>ASID 进程标识</td>
+</tr>
+<tr>
+<td><strong>CBAR</strong> (c15)</td>
+<td>Configuration Base Address Register</td>
+<td>GIC 和 Local Timer 外设的基地址</td>
+</tr>
+</tbody></table>
+<p>所有 CP15 访问都通过两条指令完成：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">MRC  p15, &lt;Op1&gt;, &lt;Rt&gt;, &lt;CRn&gt;, &lt;CRm&gt;, &lt;Op2&gt;   ; CP15 → ARM 寄存器</span><br><span class="line">MCR  p15, &lt;Op1&gt;, &lt;Rt&gt;, &lt;CRn&gt;, &lt;CRm&gt;, &lt;Op2&gt;   ; ARM 寄存器 → CP15</span><br></pre></td></tr></table></figure>
+
+<p>各参数含义：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>位宽</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>p15</strong></td>
+<td>—</td>
+<td>协处理器编号，固定为 15（系统控制协处理器）</td>
+</tr>
+<tr>
+<td><strong>Op1</strong></td>
+<td>3-bit</td>
+<td>一级操作码，选择 CRn 内部的寄存器分组（通常为 0）</td>
+</tr>
+<tr>
+<td><strong>Rt</strong></td>
+<td>—</td>
+<td>ARM 通用寄存器（R0–R14），MRC 写入目标 &#x2F; MCR 读取源</td>
+</tr>
+<tr>
+<td><strong>CRn</strong></td>
+<td>4-bit</td>
+<td>主寄存器号（c0–c15），选择功能大类</td>
+</tr>
+<tr>
+<td><strong>CRm</strong></td>
+<td>4-bit</td>
+<td>二级寄存器号，在 CRn 内部进一步子选择</td>
+</tr>
+<tr>
+<td><strong>Op2</strong></td>
+<td>3-bit</td>
+<td>二级操作码，在 CRn + CRm 范围内最终选出一个物理寄存器</td>
+</tr>
+</tbody></table>
+<p>通过 <strong>CRn + Op1 + CRm + Op2</strong> 四个维度的组合，CP15 可以在 16 个主寄存器的名义下容纳远超 16 个物理寄存器。</p>
+<h3 id="4-2-MIDR-解读：处理器身份证明"><a href="#4-2-MIDR-解读：处理器身份证明" class="headerlink" title="4.2 MIDR 解读：处理器身份证明"></a>4.2 MIDR 解读：处理器身份证明</h3><blockquote>
+<p><strong>实例</strong>：读取一颗 Cortex-A8 CPU 的 MIDR：</p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">MCR  p15, 0, R1, c0, c0, 0    ; R1 = MIDR</span><br></pre></td></tr></table></figure>
+
+<p>结果 R1 的各字段含义：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>位段</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Implementer</td>
+<td>[31:24]</td>
+<td><code>0x41</code></td>
+<td>‘A’ &#x3D; ARM 设计</td>
+</tr>
+<tr>
+<td>Variant</td>
+<td>[23:20]</td>
+<td>取决于版本</td>
+<td>处理器修订号</td>
+</tr>
+<tr>
+<td>Architecture</td>
+<td>[19:16]</td>
+<td><code>0xF</code></td>
+<td>ARMv7 架构</td>
+</tr>
+<tr>
+<td>Part Number</td>
+<td>[15:4]</td>
+<td><code>0xC08</code></td>
+<td>Cortex-A8</td>
+</tr>
+<tr>
+<td>Revision</td>
+<td>[3:0]</td>
+<td>取决于批次</td>
+<td>补丁修订号</td>
+</tr>
+</tbody></table>
+<p>这个寄存器是 boot 代码和操作系统用来<strong>确定当前运行在哪个 CPU 上</strong>的基础信息来源。</p>
+<hr>
+<h2 id="5-SCTLR-系统控制寄存器"><a href="#5-SCTLR-系统控制寄存器" class="headerlink" title="5. SCTLR 系统控制寄存器"></a>5. SCTLR 系统控制寄存器</h2><blockquote>
+<p>SCTLR 是 CP15 c1 寄存器中最关键的一个——它是整个 SoC 系统行为的<strong>主控开关</strong>。只能从 <strong>PL1 或更高特权级</strong> 访问。</p>
+</blockquote>
+<h3 id="5-1-关键控制位"><a href="#5-1-关键控制位" class="headerlink" title="5.1 关键控制位"></a>5.1 关键控制位</h3><table>
+<thead>
+<tr>
+<th>位</th>
+<th>符号</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>M [0]</strong></td>
+<td>MMU enable</td>
+<td>1 &#x3D; 启用 MMU（分页翻译）</td>
+</tr>
+<tr>
+<td><strong>A [1]</strong></td>
+<td>Alignment check</td>
+<td>1 &#x3D; 启用对齐检查</td>
+</tr>
+<tr>
+<td><strong>C [2]</strong></td>
+<td>Cache enable (data&#x2F;unified)</td>
+<td>1 &#x3D; 启用数据&#x2F;统一缓存</td>
+</tr>
+<tr>
+<td><strong>Z [11]</strong></td>
+<td>Branch prediction</td>
+<td>1 &#x3D; 启用分支预测</td>
+</tr>
+<tr>
+<td><strong>I [12]</strong></td>
+<td>Instruction cache</td>
+<td>1 &#x3D; 启用指令缓存</td>
+</tr>
+<tr>
+<td><strong>V [13]</strong></td>
+<td>Vector table base</td>
+<td>0 &#x3D; <code>0x00000000</code>, 1 &#x3D; <code>0xFFFF0000</code></td>
+</tr>
+<tr>
+<td><strong>FI [21]</strong></td>
+<td>FIQ config enable</td>
+<td>FIQ 行为配置</td>
+</tr>
+<tr>
+<td><strong>U [22]</strong></td>
+<td>Alignment model</td>
+<td>对齐模型选择</td>
+</tr>
+<tr>
+<td><strong>EE [25]</strong></td>
+<td>Exception endianness</td>
+<td>异常处理时的端序</td>
+</tr>
+<tr>
+<td><strong>NMFI [27]</strong></td>
+<td>Non-Maskable FIQ</td>
+<td>FIQ 不可被屏蔽</td>
+</tr>
+<tr>
+<td><strong>TE [30]</strong></td>
+<td>Thumb exception enable</td>
+<td>异常在 ARM&#x2F;Thumb 状态处理</td>
+</tr>
+</tbody></table>
+<h3 id="5-2-Boot-代码中的经典初始化序列"><a href="#5-2-Boot-代码中的经典初始化序列" class="headerlink" title="5.2 Boot 代码中的经典初始化序列"></a>5.2 Boot 代码中的经典初始化序列</h3><blockquote>
+<p>以下汇编来自原书 Example 4.x，是典型的 boot 代码中启用系统关键功能的序列：</p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">MRC     p15, 0, r0, c1, c0, 0    ; 读 SCTLR 当前值 → r0</span><br><span class="line">ORR     r0, r0, #(1 &lt;&lt; 2)        ; 置 C 位：启用数据缓存</span><br><span class="line">ORR     r0, r0, #(1 &lt;&lt; 12)       ; 置 I 位：启用指令缓存</span><br><span class="line">ORR     r0, r0, #(1 &lt;&lt; 11)       ; 置 Z 位：启用分支预测</span><br><span class="line">MCR     p15, 0, r0, c1, c0, 0    ; 写回 SCTLR</span><br></pre></td></tr></table></figure>
+
+<p>这段序列的意义：</p>
+<ol>
+<li><strong>C 位（数据缓存）</strong>：不置位的话，所有数据访问直接走总线，性能退化到裸内存。</li>
+<li><strong>I 位（指令缓存）</strong>：不置位指令缓存，每条指令都要从内存取。</li>
+<li><strong>Z 位（分支预测）</strong>：置位前分支预测器不工作，流水线效率大幅降低。</li>
+</ol>
+<p><strong>实例</strong>：如果一段代码在 A 位置为 1 时访问了一个非对齐地址（如 <code>LDR R0, [R1]</code> where R1 末 2 位非零），硬件会触发 Data Abort 异常进入 ABT 模式。这在调试内存访问 Bug 时是强有力的工具——只要读一下 DFAR 就知道是哪个地址引起的。</p>
+<hr>
+<h2 id="6-学习要点总结"><a href="#6-学习要点总结" class="headerlink" title="6. 学习要点总结"></a>6. 学习要点总结</h2><ol>
+<li><p><strong>ARM 有 9 种模式</strong>：7 种基础模式 + Monitor（TrustZone） + Hyp（虚拟化扩展）。User 是唯一的非特权模式，System 是唯一”特权但不 bank SP&#x2F;LR”的模式。</p>
+</li>
+<li><p><strong>寄存器 Banking 的物理机制</strong>：非 Bank 寄存器（R0–R7, R15, CPSR）所有模式共享；Bank 寄存器（R8–R12&#x2F;FIQ + R13&#x2F;R14&#x2F;SPSR&#x2F;每种异常模式）在不同模式下指向不同物理存储。FIQ 独有的 R8_fiq–R12_fiq 是实现快速中断响应的关键。</p>
+</li>
+<li><p><strong>特权级 ≠ 安全状态</strong>：PL0&#x2F;PL1&#x2F;PL2 是垂直分层（应用→内核→Hypervisor）；Secure&#x2F;Non-secure 是水平隔离（TrustZone）。两者正交——Linux 运行在 Normal PL1，Trusted OS 运行在 Secure PL1。</p>
+</li>
+<li><p>**CPSR 是处理器的”状态名片”**：32 位编码了 NZCV 条件码、中断屏蔽位、当前模式、端序、指令集状态。每个位段都有明确的控制语义。User 模式只能看到受限的 APSR。</p>
+</li>
+<li><p><strong>CP15 是系统编程的入口</strong>：从读取 CPU 型号（MIDR）到设置页表基址（TTBR0），从控制缓存（c7）到定位异常向量表（VBAR），全部通过 MRC&#x2F;MCR 完成。</p>
+</li>
+<li><p><strong>SCTLR 是 Boot 代码的必配项</strong>：C 位（数据缓存）、I 位（指令缓存）、Z 位（分支预测）、M 位（MMU）必须在 boot 过程中依次置位，它们是系统从”裸跑”切换到”缓存 + 分页”的硬件开关。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM-ARMv7-a/" rel="tag"># ARM, ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E6%9E%B6%E6%9E%84%E4%B8%8E%E5%A4%84%E7%90%86%E5%99%A8/" rel="prev" title="ARM架构与处理器">
+                  <i class="fa fa-angle-left"></i> ARM架构与处理器
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E5%85%A5%E9%97%A8/" rel="next" title="ARM汇编语言入门">
+                  ARM汇编语言入门 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

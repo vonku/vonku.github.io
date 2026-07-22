@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="深入讲解 ARM 异常处理机制，涵盖向量表、优先级链、LR 偏移调整及 Linux 内核下的异常分发。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM异常处理">
+<meta property="og:url" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="深入讲解 ARM 异常处理机制，涵盖向量表、优先级链、LR 偏移调整及 Linux 内核下的异常分发。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-22T12:40:05.000Z">
+<meta property="article:modified_time" content="2026-07-22T12:57:06.663Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM, ARMv7-a">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/","path":"2026/07/22/ARM中断处理/","title":"ARM异常处理"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM异常处理 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%82%E5%B8%B8%E7%B1%BB%E5%9E%8B%E4%B8%8E%E8%A7%A6%E5%8F%91%E6%9D%A1%E4%BB%B6"><span class="nav-text">1. 异常类型与触发条件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%8C%87%E4%BB%A4%E7%94%9F%E6%88%90%E7%B1%BB%E5%BC%82%E5%B8%B8%EF%BC%9ASVC%E3%80%81HVC%E3%80%81SMC%E3%80%81UNDEF"><span class="nav-text">1.1 指令生成类异常：SVC、HVC、SMC、UNDEF</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%BC%82%E5%B8%B8%E4%BC%98%E5%85%88%E7%BA%A7%E4%B8%8E%E5%90%91%E9%87%8F%E8%A1%A8"><span class="nav-text">2. 异常优先级与向量表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E7%A1%AC%E4%BB%B6%E8%87%AA%E5%8A%A8%E5%AE%8C%E6%88%90%E7%9A%84%E5%85%AD%E6%AD%A5%E5%BA%8F%E5%88%97"><span class="nav-text">2.1 硬件自动完成的六步序列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%90%91%E9%87%8F%E8%A1%A8%E7%9A%84%E5%9B%9B%E7%A7%8D%E8%A7%86%E5%9B%BE"><span class="nav-text">2.2 向量表的四种视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E4%BC%98%E5%85%88%E7%BA%A7%E4%B8%8E%E5%B5%8C%E5%A5%97"><span class="nav-text">2.3 优先级与嵌套</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%BC%82%E5%B8%B8%E8%BF%94%E5%9B%9E%E4%B8%8E-LR-%E5%81%8F%E7%A7%BB%E8%B0%83%E6%95%B4"><span class="nav-text">3. 异常返回与 LR 偏移调整</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88-LR-%E9%9C%80%E8%A6%81%E5%81%8F%E7%A7%BB%E4%BF%AE%E6%AD%A3%EF%BC%9F"><span class="nav-text">3.1 为什么 LR 需要偏移修正？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%BC%82%E5%B8%B8%E9%80%80%E5%87%BA%E5%92%8C%E4%B8%89%E7%A7%8D%E8%BF%94%E5%9B%9E%E6%9C%BA%E5%88%B6"><span class="nav-text">3.2 异常退出和三种返回机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%90%84%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E5%99%A8%E7%9A%84%E8%BD%AF%E4%BB%B6%E8%81%8C%E8%B4%A3"><span class="nav-text">4. 各异常处理器的软件职责</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-Abort-%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-text">4.1 Abort 处理器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-UNDEF-%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-text">4.2 UNDEF 处理器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-SVC-%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-text">4.3 SVC 处理器</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Linux-%E5%86%85%E6%A0%B8%E7%9A%84%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E6%9E%B6%E6%9E%84"><span class="nav-text">5. Linux 内核的异常处理架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%BC%82%E5%B8%B8-stub%EF%BC%9A%E7%BB%9F%E4%B8%80%E8%B7%AF%E7%94%B1%E5%88%B0-SVC-%E6%A8%A1%E5%BC%8F"><span class="nav-text">5.1 异常 stub：统一路由到 SVC 模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%90%91%E9%87%8F%E9%A1%B5%E7%9A%84%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">5.2 向量页的初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%B8%AD%E6%96%AD%E5%88%86%E5%8F%91%EF%BC%9A-irq-usr-%E4%B8%8E-irq-svc"><span class="nav-text">5.3 中断分发：__irq_usr 与 __irq_svc</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%AD%A6%E4%B9%A0%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">6. 学习要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">60</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM异常处理 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM异常处理
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-22 20:40:05" itemprop="dateCreated datePublished" datetime="2026-07-22T20:40:05+08:00">2026-07-22</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>深入讲解 ARM 异常处理机制，涵盖向量表、优先级链、LR 偏移调整及 Linux 内核下的异常分发。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-异常类型与触发条件"><a href="#1-异常类型与触发条件" class="headerlink" title="1. 异常类型与触发条件"></a>1. 异常类型与触发条件</h2><p>ARM 将异常定义为任何导致核心暂停正常执行、转而运行专用处理例程（exception handler）的条件。</p>
+<ul>
+<li>当发生异常时，CPU 会跳转到该异常对应的<strong>异常处理程序（Exception Handler）</strong>执行。</li>
+<li>异常处理程序的入口地址称为<strong>异常向量（Exception Vector）</strong>，所有异常向量按固定偏移存放在<strong>异常向量表（Exception Vector Table）</strong>中。</li>
+<li>异常向量表的<strong>基地址</strong>由特权软件配置到系统寄存器，CPU 发生异常时通过<strong>基地址 + 固定偏移</strong>定位对应的 Handler。</li>
+<li>ARM 支持为不同异常级别&#x2F;安全状态配置独立的异常向量表（如 Secure PL1、Non-secure PL1、Monitor、Non-secure PL2），CPU 根据<strong>当前权限级别</strong>和<strong>目标安全状态</strong>选择对应的向量表。</li>
+<li>异常处理程序既可以使用 <strong>ARM</strong> 指令集，也可以使用 <strong>Thumb</strong> 指令集，具体由 <strong>CP15 SCTLR.TE</strong> 位决定。</li>
+<li>进入异常处理时，需要保存现场（处理器状态、寄存器等），异常处理完成后恢复现场，保证程序能够从异常发生处继续执行。</li>
+</ul>
+<p>手册将异常分为六个大类：</p>
+<table>
+<thead>
+<tr>
+<th>异常</th>
+<th>触发模式</th>
+<th>触发条件</th>
+<th>类型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Reset</strong></td>
+<td>SVC</td>
+<td>复位信号（上电后）</td>
+<td>异步，不可屏蔽</td>
+</tr>
+<tr>
+<td><strong>Undefined Instruction</strong></td>
+<td>UND</td>
+<td>执行未定义指令或未识别的协处理器指令</td>
+<td>同步</td>
+</tr>
+<tr>
+<td><strong>SVC</strong>（原 SWI）</td>
+<td>SVC</td>
+<td>执行 SVC 指令（用户态请求 OS 服务）</td>
+<td>同步</td>
+</tr>
+<tr>
+<td><strong>Prefetch Abort</strong></td>
+<td>ABT</td>
+<td>取指时 MMU 权限&#x2F;翻译失败，且指令真正进入执行</td>
+<td>同步</td>
+</tr>
+<tr>
+<td><strong>Data Abort</strong></td>
+<td>ABT</td>
+<td>Load&#x2F;Store 执行时 MMU 权限&#x2F;翻译失败或外部 Abort</td>
+<td>同步或异步</td>
+</tr>
+<tr>
+<td><strong>IRQ</strong></td>
+<td>IRQ</td>
+<td>外部中断请求（经中断控制器汇聚）</td>
+<td>异步</td>
+</tr>
+<tr>
+<td><strong>FIQ</strong></td>
+<td>FIQ</td>
+<td>高优先级外部中断请求（优先级高于 IRQ）</td>
+<td>异步</td>
+</tr>
+</tbody></table>
+<h3 id="1-1-指令生成类异常：SVC、HVC、SMC、UNDEF"><a href="#1-1-指令生成类异常：SVC、HVC、SMC、UNDEF" class="headerlink" title="1.1 指令生成类异常：SVC、HVC、SMC、UNDEF"></a>1.1 指令生成类异常：SVC、HVC、SMC、UNDEF</h3><p>三类系统调用指令能按需触发显式异常——软件在需要升权时主动发起，而非被动响应外部事件：</p>
+<ul>
+<li><strong>SVC</strong>（Supervisor Call，原 SWI）：User 模式请求 OS 服务。指令中嵌入 24-bit（ARM）或 8-bit（Thumb）的调用号字段——SVC handler 通过读取触发异常的指令操作码评论字段来提取该值，实现系统调用的分派。参数也可直接通过寄存器传递（如 Linux 用 R7 存放 syscall number），comment field 方式作为备选</li>
+<li><strong>HVC</strong>（Hypervisor Call，虚拟化扩展）：Guest OS 在 PL1 陷入 PL2 Hypervisor——当 Guest Linux 尝试操作硬件而 Hypervisor 必须拦截时触发</li>
+<li><strong>SMC</strong>（Secure Monitor Call，TrustZone 扩展）：Normal World 跨安全状态进入 Secure World 的唯一合法通道</li>
+</ul>
+<p>所有未识别指令触发 UNDEF 异常。手册列出三种典型使用场景：VFP&#x2F;NEON 硬件的<strong>软件模拟</strong>（核心无相应协处理器时触发的 VFP 指令进入 UNDEF handler，handler 读取操作码在软件中完成浮点运算）；协处理器的 <strong>lazy enable</strong>（首次使用 VFP 时触发 UNDEF → handler 启用 VFP 硬件 → 返回重试指令）；以及<strong>用户断点</strong>——调试器通过将目标地址指令替换为 UNDEF 编码实现软件断点，UNDEF handler 检测到断点后将控制权交给调试器。</p>
+<p>手册特别指出 ARM 的术语学：其他架构可能将 ARM 的所有异常统称为 “trap” 或 “interrupt”，但在 ARM 架构中这些词有特定含义——“interrupt” 专指 IRQ&#x2F;FIQ，”trap” 很少使用。</p>
+<p>六类异常类型已列齐。当多个异常同时触发时，优先级和向量表共同决定谁先被处理、跳到哪里。</p>
+<hr>
+<h2 id="2-异常优先级与向量表"><a href="#2-异常优先级与向量表" class="headerlink" title="2. 异常优先级与向量表"></a>2. 异常优先级与向量表</h2><p>分类完成后，接下来回答”多个异常同时出现谁先处理”和”硬件如何找到对应的处理函数”——前者由优先级链和 CPSR 中断屏蔽位决定，后者由向量表结合 CP15 寄存器控制。</p>
+<h3 id="2-1-硬件自动完成的六步序列"><a href="#2-1-硬件自动完成的六步序列" class="headerlink" title="2.1 硬件自动完成的六步序列"></a>2.1 硬件自动完成的六步序列</h3><p>当异常发生时，ARM 核心的硬件自动执行以下操作，<strong>无需任何软件干预</strong>：</p>
+<ol>
+<li>**拷贝 CPSR → SPSR_<mode>**：将异常前的完整状态保存到目标模式的 banked SPSR</li>
+<li>**保存返回地址到 LR_<mode>**：存入 PC 的修正值（取决于异常类型）</li>
+<li><strong>修改 CPSR[4:0] → 目标模式编码</strong></li>
+<li><strong>设置其他 CPSR 位</strong>：<ul>
+<li>T bit ← CP15 SCTLR.TE（保证异常处理在 ARM 或 Thumb 状态运行）</li>
+<li>J bit ← 0</li>
+<li>E bit ← CP15 SCTLR.EE（异常处理的端序独立于应用代码）</li>
+</ul>
+</li>
+<li><strong>屏蔽中断</strong>：Reset → F&#x3D;1 + I&#x3D;1；FIQ → F&#x3D;1 + I&#x3D;1；其他 → I&#x3D;1（IRQ 被禁用，FIQ 保持原样）</li>
+<li><strong>PC ← 向量表中对应异常的入口地址</strong></li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>异常</th>
+<th>模式</th>
+<th>CPSR 中断屏蔽</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Reset</td>
+<td>SVC</td>
+<td>F&#x3D;1, I&#x3D;1</td>
+</tr>
+<tr>
+<td>Undefined</td>
+<td>UND</td>
+<td>I&#x3D;1</td>
+</tr>
+<tr>
+<td>SVC</td>
+<td>SVC</td>
+<td>I&#x3D;1</td>
+</tr>
+<tr>
+<td>Prefetch Abort</td>
+<td>ABT</td>
+<td>I&#x3D;1</td>
+</tr>
+<tr>
+<td>Data Abort</td>
+<td>ABT</td>
+<td>I&#x3D;1</td>
+</tr>
+<tr>
+<td>IRQ</td>
+<td>IRQ</td>
+<td>I&#x3D;1</td>
+</tr>
+<tr>
+<td>FIQ</td>
+<td>FIQ</td>
+<td>F&#x3D;1, I&#x3D;1</td>
+</tr>
+</tbody></table>
+<h3 id="2-2-向量表的四种视图"><a href="#2-2-向量表的四种视图" class="headerlink" title="2.2 向量表的四种视图"></a>2.2 向量表的四种视图</h3><p>异常向量表默认位于 <code>0x00000000</code>，但 Cortex-A 系列支持通过 CP15 SCTLR.V 移到 <code>0xFFFF0000</code>（Linux 内核的默认选择）。向量表有 8 个条目，每个 4 字节：</p>
+<table>
+<thead>
+<tr>
+<th>偏移</th>
+<th>向量地址</th>
+<th>Non-secure</th>
+<th>Secure</th>
+<th>Hypervisor</th>
+<th>Monitor</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0x00</code></td>
+<td>0xFFFF0000</td>
+<td>未使用</td>
+<td>Reset</td>
+<td>Reset</td>
+<td>未使用</td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td>0xFFFF0004</td>
+<td>UNDEF</td>
+<td>UNDEF</td>
+<td>Hyp mode UNDEF</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>0x08</code></td>
+<td>0xFFFF0008</td>
+<td>SVC</td>
+<td>SVC</td>
+<td>SMC</td>
+<td>SMC</td>
+</tr>
+<tr>
+<td><code>0x0C</code></td>
+<td>0xFFFF000C</td>
+<td>Prefetch Abort</td>
+<td>Prefetch Abort</td>
+<td>Hyp Prefetch Abort</td>
+<td>Prefetch Abort</td>
+</tr>
+<tr>
+<td><code>0x10</code></td>
+<td>0xFFFF0010</td>
+<td>Data Abort</td>
+<td>Data Abort</td>
+<td>Hyp Data Abort</td>
+<td>Data Abort</td>
+</tr>
+<tr>
+<td><code>0x14</code></td>
+<td>0xFFFF0014</td>
+<td>未使用</td>
+<td>未使用</td>
+<td><strong>Hyp Trap Entry</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>0x18</code></td>
+<td>0xFFFF0018</td>
+<td>IRQ</td>
+<td>IRQ</td>
+<td>IRQ</td>
+<td>IRQ</td>
+</tr>
+<tr>
+<td><code>0x1C</code></td>
+<td>0xFFFF001C</td>
+<td>FIQ</td>
+<td>FIQ</td>
+<td>FIQ</td>
+<td>FIQ</td>
+</tr>
+</tbody></table>
+<p>每个向量条目<strong>只有 4 字节</strong>——只能放一条指令（ARM）或两条 Thumb 指令。标准做法放一条 <code>B &lt;label&gt;</code>（PC 相对跳转，受 24-bit 偏移限制）或 <code>LDR PC, [PC, #offset]</code>（加载 32-bit 绝对地址，代价多几个周期）。</p>
+<h3 id="2-3-优先级与嵌套"><a href="#2-3-优先级与嵌套" class="headerlink" title="2.3 优先级与嵌套"></a>2.3 优先级与嵌套</h3><p>手册明确：<strong>ARM 架构不定义异步异常的取指时机</strong>，异步异常的优先级排序由具体实现决定。但有几条硬性规则：</p>
+<ul>
+<li><strong>Reset 最高优先级，不可屏蔽</strong></li>
+<li><strong>FIQ 高于 IRQ 和 Abort</strong></li>
+<li><strong>所有异常自动屏蔽 IRQ（置 CPSR.I&#x3D;1），仅 Reset&#x2F;FIQ 屏蔽 FIQ</strong></li>
+</ul>
+<p>这意味着：<strong>FIQ 可以打断正在执行的 Abort handler 或 IRQ handler</strong>。典型嵌套场景：Data Abort 先发生（优先级高于 FIQ）→ 核心进入 ABT 保存 LR → FIQ 立即打断 → FIQ handler 执行 → 返回 ABT → 继续处理 abort。</p>
+<p>FIQ 相比 IRQ 有两个独特的速度优势：第一，<strong>FIQ 在向量表的最后一项（偏移 <code>0x1C</code>）</strong>——FIQ handler 代码可以直接放在 <code>0x1C</code> 位置开始执行，无需一条 B 指令的分支延迟。第二，<strong>FIQ 模式拥有私有的 R8_fiq–R12_fiq banked 寄存器</strong>——其他模式必须在 handler 入口处 PUSH 通用寄存器到栈上保护现场，FIQ 直接使用这些独立副本，节省了若干压栈周期。配合 FIQ 从不被内核屏蔽的优先级特性，FIQ 是为需要<strong>保证最快响应时间</strong>的单一高优先级外设保留的。</p>
+<p>手册同时指出 FIQ 的核心限制：<strong>FIQ handler 不应触发任何其他异常</strong>——它的内存必须全映射完毕，不能使用 SVC 调用内核函数。这意味着 FIQ 无法调用内核 API，只能由<strong>不需要内核服务的独立设备驱动代码</strong>使用。这也正是 Linux 不使用 FIQ 的根本原因：内核的架构无关设计没有多级中断的概念，且所有中断处理路径最终都需要内核服务。</p>
+<p>手册指出 SVC 和 UNDEF 互斥（都是指令触发），Prefetch Abort 和 SVC&#x2F;UNDEF 也无法同时发生（被标记 abort 的指令无法又同时是 SVC）。</p>
+<p>优先级和向量表决定了”去哪”，LR 决定了”怎么回来”——下一节解析异常返回时那条最关键的 <code>SUBS PC, LR, #N</code> 指令。</p>
+<hr>
+<h2 id="3-异常返回与-LR-偏移调整"><a href="#3-异常返回与-LR-偏移调整" class="headerlink" title="3. 异常返回与 LR 偏移调整"></a>3. 异常返回与 LR 偏移调整</h2><p>异常处理完了怎么回到被打断的代码？这看似简单的问题涉及 ARM 体系最微妙的细节——LR 寄存器里存的不是真正的返回地址，必须按异常类型做偏移修正。本节解析 -4&#x2F;-8&#x2F;0 三种修正值的流水线级来历，以及 <code>S</code>、<code>^</code>、<code>RFE</code> 三种返回路径的原子性保障。</p>
+<h3 id="3-1-为什么-LR-需要偏移修正？"><a href="#3-1-为什么-LR-需要偏移修正？" class="headerlink" title="3.1 为什么 LR 需要偏移修正？"></a>3.1 为什么 LR 需要偏移修正？</h3><p>异常触发时核心自动将返回地址存入 LR，但存入的<strong>不是下一条要执行的指令的地址</strong>——需要根据异常类型手动调整：</p>
+<table>
+<thead>
+<tr>
+<th>异常</th>
+<th>LR 调整</th>
+<th>返回指令</th>
+<th>返回的目标指令</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SVC</td>
+<td>0</td>
+<td><code>MOVS PC, R14</code></td>
+<td>下一条指令</td>
+</tr>
+<tr>
+<td>UNDEF</td>
+<td>0</td>
+<td><code>MOVS PC, R14</code></td>
+<td>下一条指令</td>
+</tr>
+<tr>
+<td>Prefetch Abort</td>
+<td><strong>-4</strong></td>
+<td><code>SUBS PC, R14, #4</code></td>
+<td><strong>引发 abort 的指令</strong>（需重新取）</td>
+</tr>
+<tr>
+<td>Data Abort</td>
+<td><strong>-8</strong></td>
+<td><code>SUBS PC, R14, #8</code></td>
+<td>引发 abort 的指令（精确时）</td>
+</tr>
+<tr>
+<td>IRQ</td>
+<td><strong>-4</strong></td>
+<td><code>SUBS PC, R14, #4</code></td>
+<td>被打断的下一条指令</td>
+</tr>
+<tr>
+<td>FIQ</td>
+<td><strong>-4</strong></td>
+<td><code>SUBS PC, R14, #4</code></td>
+<td>被打断的下一条指令</td>
+</tr>
+</tbody></table>
+<p>手册指出这些值来自早期硬件的便利性而非设计规范——但要理解它们的工作方式，关键是知道 ARM 的<strong>三级流水线造成 PC 比当前执行指令超前 8 字节（ARM 状态）或 4 字节（Thumb 状态）</strong>。Data Abort 的 -8 修正正是为了回到 abort 指令本身（PC 超前 8，需回退 8）；Prefetch Abort 需回到 abort 指令的地址（超前 4 个指令周期，LR 存的是 abort 指令 +4，回退 4）。</p>
+<h3 id="3-2-异常退出和三种返回机制"><a href="#3-2-异常退出和三种返回机制" class="headerlink" title="3.2 异常退出和三种返回机制"></a>3.2 异常退出和三种返回机制</h3><p>从异常返回时有两个操作<strong>必须原子完成</strong>：</p>
+<ul>
+<li>SPSR → CPSR 恢复原状态</li>
+<li>PC 跳回返回地址</li>
+</ul>
+<p>ARM 提供三条路径从异常返回：</p>
+<p><strong>方法 1：带 S 后缀的数据处理指令写 PC</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SUBS  PC, LR, #4      ; LR-4 → PC，同时 SPSR → CPSR（S 后缀是关键）</span><br><span class="line">MOVS  PC, R14          ; LR → PC，同时 SPSR → CPSR</span><br></pre></td></tr></table></figure>
+
+<p>注意 <code>S</code> 后缀——普通 <code>SUB PC, LR, #4</code> 只改 PC 不改 CPSR，异常返回时<strong>永远用 <code>S</code> 变体</strong>。</p>
+<p><strong>方法 2：带 ^ 修饰符的 LDM&#x2F;POP</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LDMFD  sp!, &#123;R0-R12, PC&#125;^    ; 恢复所有寄存器 + PC，同时 SPSR → CPSR</span><br></pre></td></tr></table></figure>
+
+<p><code>^</code> 修饰符在 Load Multiple 写入 PC 时触发 CPSR 恢复。异常处理程序在入口处压栈所有工作寄存器 + 修正后的 LR，出口处一条指令完成全部恢复。</p>
+<p><strong>方法 3：RFE（Return From Exception）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">RFEFD  sp!                   ; 从当前模式栈弹出 LR 和 SPSR 并跳转</span><br></pre></td></tr></table></figure>
+
+<p>手册 16-bit Thumb 指令<strong>不能用于异常返回</strong>——因为它们无法同时完成 PC 跳转和 CPSR 恢复。</p>
+<p>配合 RFE 使用的还有 <strong>SRS（Store Return State）</strong> 指令。异常入口时，通常需要手动将 LR 和 SPSR 保存到栈上——SRS 将这两步合并为一条指令，且可以将返回状态压入<strong>任意模式的栈</strong>（由指令操作数指定），而不仅仅限于当前模式。这在异常处理程序需要切换模式后再保存状态的场景下尤为重要——例如从 IRQ 模式进入 SVC 模式处理、但需要把 LR_irq 和 SPSR_irq 保存到 SVC 栈上的场景。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SRSFD  sp!, #Mode_SVC      ; 将 LR_irq 和 SPSR_irq 压入 SVC 模式栈</span><br><span class="line">; 随后切换到 SVC 模式，RFEFD 从 SVC 栈恢复并返回</span><br></pre></td></tr></table></figure>
+
+<p>返回机制明确后，各个 handler 具体做什么？以下三节分述 Abort、UNDEF 和 SVC 处理器的软件职责。</p>
+<hr>
+<h2 id="4-各异常处理器的软件职责"><a href="#4-各异常处理器的软件职责" class="headerlink" title="4. 各异常处理器的软件职责"></a>4. 各异常处理器的软件职责</h2><p>硬件把处理器切到了正确的模式和向量，接下来各个 handler 要在软件层面做什么？Abort handler 读 CP15 判断是缺页还是硬件错误，UNDEF handler 检查操作码决定是否软件模拟，SVC handler 解析调用号分派到内核函数——三者的处理逻辑截然不同。</p>
+<h3 id="4-1-Abort-处理器"><a href="#4-1-Abort-处理器" class="headerlink" title="4.1 Abort 处理器"></a>4.1 Abort 处理器</h3><p>Abort handler 通过 CP15 获取：</p>
+<ul>
+<li><strong>DFAR&#x2F;IFAR</strong>（Fault Address Register）：保存发生 Data Abort 或 Prefetch Abort 时对应的 Fault Address（通常是导致异常的虚拟地址）</li>
+<li><strong>DFSR&#x2F;IFSR</strong>（Fault Status Register）：异常原因——权限不足、外部 Abort、地址翻译失败</li>
+<li><strong>LR（修正后）</strong>：触发异常的指令地址</li>
+</ul>
+<p>支持虚拟内存的系统中，handler 可以修复页表后返回重试（demand paging）；不支持虚拟内存的系统中，Abort 意味着硬件错误，只能记录诊断信息后终止。</p>
+<p>手册特别讨论了异步 Abort 与 <strong>CPSR A 位</strong>的交互机制。当 A&#x3D;1 时，异步 Abort 不会立即进入异常，而是保持为 pending。</p>
+<p>内核在重新使能异步 Abort（清除 A 位）或切换用户上下文前，通常会执行适当的同步屏障（如 DSB），确保此前内存访问产生的 pending asynchronous abort 被及时认领（<strong>避免进程 A 导致的 Abort 到进程 B 的上下文中才被处理</strong>）。如果需要因为 imprecise external abort 终止某个用户进程，异常应归属于真正发起该内存访问的进程，而不是之后被调度运行的进程。</p>
+<h3 id="4-2-UNDEF-处理器"><a href="#4-2-UNDEF-处理器" class="headerlink" title="4.2 UNDEF 处理器"></a>4.2 UNDEF 处理器</h3><p>当 CPU 尝试执行一条<strong>无法执行</strong>的指令时，就会进入 <strong>Undefined Instruction</strong> 异常。</p>
+<p>常见情况有两种：</p>
+<ul>
+<li>执行真正不存在（Undefined）的指令。</li>
+<li>执行协处理器指令，但系统中没有对应的协处理器，或该协处理器当前无法处理该指令（例如编译器生成 <code>VADD.F32</code>，但 SoC 没有 VFP 硬件）。</li>
+</ul>
+<p>UNDEF 的典型用途是实现<strong>软件模拟（Software Emulation）</strong>。例如核心没有 VFP 硬件时，执行 VFP 指令会触发 UNDEF，handler 根据指令操作码模拟对应的浮点运算。另一种典型用途是 <strong>Lazy Enable</strong>：首次执行 VFP 指令时，handler 启用 VFP 后返回重新执行该指令。</p>
+<p>当系统需要模拟多个协处理器时，多个 UNDEF handler 可以<strong>链式调用（daisy-chain）</strong>：当前 handler 无法识别某条指令时，将其交给下一个 handler 处理；如果最终没有任何 handler 能处理，则通常记录调试信息并终止程序。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"> CPU 执行一条指令</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">    能识别吗？</span><br><span class="line">       │</span><br><span class="line">  ┌────┴────┐</span><br><span class="line">  │         │</span><br><span class="line">可以      不可以</span><br><span class="line">  │         │</span><br><span class="line">执行      Undefined Exception</span><br><span class="line">             │</span><br><span class="line">             ▼</span><br><span class="line">    Undefined Handler</span><br><span class="line">             │</span><br><span class="line">     ┌───────┼────────┬─────────┐</span><br><span class="line">     │       │        │         │</span><br><span class="line">软件模拟   开启VFP   调试断点   真非法指令</span><br><span class="line">     │       │        │         │</span><br><span class="line">     ▼       ▼        ▼         ▼</span><br><span class="line"> 返回继续  重执行   调试器接管  SIGILL/终止程序</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-SVC-处理器"><a href="#4-3-SVC-处理器" class="headerlink" title="4.3 SVC 处理器"></a>4.3 SVC 处理器</h3><p>SVC 是 Linux 系统调用的硬件入口。管理员调用<code>(SVC)</code>通常用于允许用户模式代码访问操作系统功能。例如，如果用户代码想要访问系统的特权部分（例如执行文件 I&#x2F;O 操作），通常会使用管理员调用<code>SVC</code>指令来实现。</p>
+<p>参数可以通过寄存器传递给<code>SVC</code>处理程序，或者（较少见的情况下）通过操作码中的注释字段传递。</p>
+<p>手册给出了一段 Hello World 的完整示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">MOV   R0, #1          @ stdout</span><br><span class="line">ADR   R1, msgtext      @ 消息地址</span><br><span class="line">MOV   R2, #13          @ 长度</span><br><span class="line">MOV   R7, #4           @ sys_write 系统调用号</span><br><span class="line">SVC   #0               @ 触发 SVC 异常</span><br></pre></td></tr></table></figure>
+
+<p>SVC handler 需区分 ARM&#x2F;Thumb 状态——检查 SPSR[5]（T bit）。这是因为 Thumb 的 SVC 指令仅 16-bit（8-bit 调用号，返回地址在 LR-2），而 ARM 的 SVC 是 32-bit（24-bit 调用号，LR-4 调整），在异常返回的时候要根据该状态找到正确的返回地址。</p>
+<p>硬件层异常机制讲完，最后看 Linux 内核如何在这一套硬件基础上搭出架构无关的异常处理框架。</p>
+<hr>
+<h2 id="5-Linux-内核的异常处理架构"><a href="#5-Linux-内核的异常处理架构" class="headerlink" title="5. Linux 内核的异常处理架构"></a>5. Linux 内核的异常处理架构</h2><p>前四节覆盖了 ARM 硬件层面的异常机制——本节将这些机制映射到 Linux 内核的实际实现：异常 stub 如何统一路由到 SVC 模式、向量页如何通过 <code>memcpy</code> 部署、中断分发如何与调度器联动。</p>
+<h3 id="5-1-异常-stub：统一路由到-SVC-模式"><a href="#5-1-异常-stub：统一路由到-SVC-模式" class="headerlink" title="5.1 异常 stub：统一路由到 SVC 模式"></a>5.1 异常 stub：统一路由到 SVC 模式</h3><p>手册 §12.5 揭示了 Linux ARM 端口的设计：<strong>所有异常（除 SVC 和 FIQ）首先进入一个汇编 stub，将核心切换到 SVC 模式后调用统一的 C 函数</strong>。这是因为 Linux 的跨平台异常处理框架不区分特权模式——所有处理逻辑都假设在 SVC 模式下运行。</p>
+<h3 id="5-2-向量页的初始化"><a href="#5-2-向量页的初始化" class="headerlink" title="5.2 向量页的初始化"></a>5.2 向量页的初始化</h3><p>手册给出了 Linux boot 过程中向量表的精确放置流程：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// devicemaps_init() → arch/arm/mm/mmu.c: 分配 4KB 向量页，映射到 0xFFFF0000</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// trap_init() → arch/arm/kernel/traps.c: 拷贝三段内容到向量页</span></span><br><span class="line"><span class="built_in">memcpy</span>((<span class="type">void</span> *)vectors,                  __vectors_start,      vectors_size);</span><br><span class="line"><span class="built_in">memcpy</span>((<span class="type">void</span> *)vectors + <span class="number">0x200</span>,           __stubs_start,        stubs_size);</span><br><span class="line"><span class="built_in">memcpy</span>((<span class="type">void</span> *)vectors + <span class="number">0x1000</span> - kuser_sz, __kuser_helper_start, kuser_sz);</span><br></pre></td></tr></table></figure>
+
+<p>三段内存布局：向量表在页首（<code>0xFFFF0000</code>）、异常 stub 在偏移 <code>0x200</code>、kuser helpers（内核提供的用户空间辅助代码页）在页尾。整个异常处理基础架构通过三次 <code>memcpy</code> 即可完成部署。</p>
+<h3 id="5-3-中断分发：-irq-usr-与-irq-svc"><a href="#5-3-中断分发：-irq-usr-与-irq-svc" class="headerlink" title="5.3 中断分发：__irq_usr 与 __irq_svc"></a>5.3 中断分发：__irq_usr 与 __irq_svc</h3><p>IRQ 进入后由 <code>__irq_usr</code>（从 User 模式进入 IRQ）或 <code>__irq_svc</code>（从 SVC 模式进入 IRQ）处理。两者保存全部核心寄存器后进入轮询循环——用宏 <code>get_irqnr_and_base</code> 读取中断控制器、判断是否有待处理中断、有则调用 <code>do_IRQ</code>（<code>arch/arm/kernel/irq.c</code>）。循环持续到所有中断处理完毕。返回前检查是否需要调用内核调度器——中断可能唤醒了更高优先级的任务，需要上下文切换。</p>
+<p>从 ARM 硬件的六步异常入口到 Linux 的三层 memcpy 向量部署——异常处理的完整链条以以下六条核心结论收束。</p>
+<hr>
+<h2 id="6-学习要点总结"><a href="#6-学习要点总结" class="headerlink" title="6. 学习要点总结"></a>6. 学习要点总结</h2><ol>
+<li><p><strong>ARM 的异常模型是 mode-based 而非 vector-only</strong>。每种异常不仅提供向量地址，还将核心硬切换到专用模式——模式决定了 banked 寄存器和栈，这比 x86 的中断门机制更高效。</p>
+</li>
+<li><p><strong>Prefetch Abort 不到执行不触发</strong>。取指时标记 aborted 的指令，如果流水线被冲刷（分支未命中），abort 永远不会发生——这是处理 speculative execution corner case 的关键。</p>
+</li>
+<li><p><strong>Data Abort 的 -8 调整来自 ARM 三级流水线的历史遗产</strong>——PC 比正在执行的指令超前 8 字节，LR 保存的是 PC 值而非指令地址。理解偏移修正的本质是理解 ARM 流水线行为。</p>
+</li>
+<li><p><strong>Imprecise Asynchronous Abort 是硬件的底线</strong>——一旦发生只能杀进程，无法修复返回。探测外设时需特别小心：对不存在的 Device 区域读可能触发 imprecise abort，即使页表标记为 Strongly-ordered 或 Device 也无法保证精确。</p>
+</li>
+<li><p><strong>异常返回的两个操作（SPSR→CPSR + PC跳转）必须原子</strong>——<code>S</code> 后缀的数据处理指令、<code>^</code> 修饰符的 LDM 和 RFE 是三条等效路径，但 16-bit Thumb 指令三者皆不具备。</p>
+</li>
+<li><p><strong>Linux 将所有异常路由到 SVC 模式</strong>——通过异常 stub 模式切换后进入统一的 C 处理框架。<code>devicemaps_init</code> 分配向量页后，<code>trap_init</code> 用三条 <code>memcpy</code> 将向量表、stub 和 kuser helpers 拷贝到位。</p>
+</li>
+<li><p><strong>FIQ 不用于 Linux</strong>——内核架构无关的设计没有多级中断的概念。FIQ 在系统中优先级最高（内核从不屏蔽 FIQ），谨慎的系统设计可以将其用于极低延迟的专属外设。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM-ARMv7-a/" rel="tag"># ARM, ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/" rel="prev" title="ARM异常处理">
+                  <i class="fa fa-angle-left"></i> ARM异常处理
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从弱排序模型的基础原理到 DSB&#x2F;DMB&#x2F;ISB 三条屏障指令的精确语义，完整覆盖 ARMv7-A 内存访问顺序的控制机制与典型应用场景。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM内存排序与屏障指令">
+<meta property="og:url" content="http://yoursite.com/2026/07/22/ARM%E5%86%85%E5%AD%98%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%B1%8F%E9%9A%9C%E6%8C%87%E4%BB%A4/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从弱排序模型的基础原理到 DSB&#x2F;DMB&#x2F;ISB 三条屏障指令的精确语义，完整覆盖 ARMv7-A 内存访问顺序的控制机制与典型应用场景。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-22T12:40:00.000Z">
+<meta property="article:modified_time" content="2026-07-22T12:56:51.953Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM, ARMv7-a">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/22/ARM%E5%86%85%E5%AD%98%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%B1%8F%E9%9A%9C%E6%8C%87%E4%BB%A4/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM%E5%86%85%E5%AD%98%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%B1%8F%E9%9A%9C%E6%8C%87%E4%BB%A4/","path":"2026/07/22/ARM内存排序与屏障指令/","title":"ARM内存排序与屏障指令"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM内存排序与屏障指令 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%B1%E6%8E%92%E5%BA%8F%E6%A8%A1%E5%9E%8B"><span class="nav-text">1. 弱排序模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%97%A7%E5%BC%8F-ARM-%E7%9A%84%E9%A1%BA%E5%BA%8F%E6%89%A7%E8%A1%8C"><span class="nav-text">1.1 旧式 ARM 的顺序执行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E6%97%A0%E5%B1%8F%E9%9A%9C%E5%A4%9A%E6%A0%B8%E4%BB%A3%E7%A0%81%E7%9A%84%E5%9B%9B%E7%A7%8D%E5%90%88%E6%B3%95%E7%BB%93%E6%9E%9C"><span class="nav-text">1.2 无屏障多核代码的四种合法结果</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%B8%89%E7%A7%8D%E5%86%85%E5%AD%98%E7%B1%BB%E5%9E%8B%E4%B8%8E%E6%8E%92%E5%BA%8F%E4%BF%9D%E8%AF%81"><span class="nav-text">2. 三种内存类型与排序保证</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%8E%92%E5%BA%8F%E4%BF%9D%E8%AF%81%E7%9F%A9%E9%98%B5"><span class="nav-text">2.1 排序保证矩阵</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Strongly-ordered-%E4%B8%8E-Device-%E7%9A%84%E8%A1%8C%E4%B8%BA%E7%BA%A6%E6%9D%9F"><span class="nav-text">2.2 Strongly-ordered 与 Device 的行为约束</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-Normal-%E5%86%85%E5%AD%98%E7%9A%84%E8%A1%8C%E4%B8%BA%E7%89%B9%E5%BE%81"><span class="nav-text">2.3 Normal 内存的行为特征</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%86%85%E5%AD%98%E5%B1%8F%E9%9A%9C%E6%8C%87%E4%BB%A4%EF%BC%9ADSB%E3%80%81DMB%E3%80%81ISB"><span class="nav-text">3. 内存屏障指令：DSB、DMB、ISB</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%B8%89%E6%9D%A1%E5%B1%8F%E9%9A%9C%E7%9A%84%E6%A0%B8%E5%BF%83%E5%8C%BA%E5%88%86"><span class="nav-text">3.1 三条屏障的核心区分</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-DMB-DSB-%E7%9A%84%E5%9F%9F%E9%80%89%E9%A1%B9"><span class="nav-text">3.2 DMB&#x2F;DSB 的域选项</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%BA%94%E7%94%A8%E5%AE%9E%E4%BE%8B%E4%B8%80%EF%BC%9A%E5%A4%9A%E6%A0%B8%E6%B6%88%E6%81%AF%E4%BC%A0%E9%80%92"><span class="nav-text">3.3 应用实例一：多核消息传递</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E5%BA%94%E7%94%A8%E5%AE%9E%E4%BE%8B%E4%BA%8C%EF%BC%9A%E9%81%BF%E5%85%8D%E5%A4%96%E8%AE%BE%E6%AD%BB%E9%94%81"><span class="nav-text">3.4 应用实例二：避免外设死锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E5%BA%94%E7%94%A8%E5%AE%9E%E4%BE%8B%E4%B8%89%EF%BC%9AWFE-SEV-%E8%87%AA%E6%97%8B%E9%94%81"><span class="nav-text">3.5 应用实例三：WFE&#x2F;SEV 自旋锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-Linux-%E5%86%85%E6%A0%B8%E4%B8%AD%E7%9A%84%E5%B1%8F%E9%9A%9C%E6%98%A0%E5%B0%84"><span class="nav-text">3.6 Linux 内核中的屏障映射</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7%E4%B8%8E%E7%BC%96%E8%AF%91%E5%99%A8%E9%87%8D%E6%8E%92"><span class="nav-text">4. 缓存一致性与编译器重排</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-DMA-%E5%9C%BA%E6%99%AF%E7%9A%84%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4"><span class="nav-text">4.1 DMA 场景的缓存维护</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E8%87%AA%E4%BF%AE%E6%94%B9%E4%BB%A3%E7%A0%81%E4%B8%8E-JIT-%E7%BC%96%E8%AF%91"><span class="nav-text">4.2 自修改代码与 JIT 编译</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-volatile-%E4%B8%8D%E8%83%BD%E6%9B%BF%E4%BB%A3%E5%86%85%E5%AD%98%E5%B1%8F%E9%9A%9C"><span class="nav-text">4.3 volatile 不能替代内存屏障</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E6%80%BB%E7%BB%93"><span class="nav-text">5. 总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">60</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/22/ARM%E5%86%85%E5%AD%98%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%B1%8F%E9%9A%9C%E6%8C%87%E4%BB%A4/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM内存排序与屏障指令 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM内存排序与屏障指令
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-22 20:40:00" itemprop="dateCreated datePublished" datetime="2026-07-22T20:40:00+08:00">2026-07-22</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从弱排序模型的基础原理到 DSB&#x2F;DMB&#x2F;ISB 三条屏障指令的精确语义，完整覆盖 ARMv7-A 内存访问顺序的控制机制与典型应用场景。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-弱排序模型"><a href="#1-弱排序模型" class="headerlink" title="1. 弱排序模型"></a>1. 弱排序模型</h2><h3 id="1-1-旧式-ARM-的顺序执行"><a href="#1-1-旧式-ARM-的顺序执行" class="headerlink" title="1.1 旧式 ARM 的顺序执行"></a>1.1 旧式 ARM 的顺序执行</h3><p>旧式 ARM 实现（如 ARM7TDMI）严格按程序顺序执行指令：每条指令完整执行后，下一条才启动。编译生成的二进制和源码在执行语义上完全一致。</p>
+<p>Cortex-A 系列不再遵守这种简单约定。核心运行速度远高于外部内存——为了隐藏访存延迟，ARM 引入了缓存和写缓冲器。性能优化的代价是访问重排序。</p>
+<p>ARM 文档中的标准示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">程序顺序：</span><br><span class="line">  STR R12, [R1]       @ Access 1 — 进入写缓冲器</span><br><span class="line">  LDR R0, [SP], #4    @ Access 2 — 缓存缺失，触发 linefill</span><br><span class="line">  LDR R2, [R3, #8]    @ Access 3 — 缓存命中</span><br><span class="line"></span><br><span class="line">实际执行时间线：</span><br><span class="line">  Access 3（命中）最先完成</span><br><span class="line">  Access 2 的 linefill 在后台进行</span><br><span class="line">  Access 1 的写缓冲器写入最后才真正完成</span><br></pre></td></tr></table></figure>
+
+<p>三条指令的完成顺序是 3→2→1，与程序序完全相反。hit-under-miss 机制让命中的 Access 3 在更早但缺失的 Access 2 之前完成——即使 Access 3 在程序顺序中更晚到达。</p>
+<p>ARMv7-A 正式采用<strong>弱排序模型（weakly-ordered model）</strong>：load&#x2F;store 指令的程序顺序不强制等于它们在硬件总线上的可见顺序。这一模型仅受<strong>数据依赖</strong>和<strong>显式屏障指令</strong>约束。在单核系统中，硬件自动处理数据依赖和读后写冒险，保证语义正确；多核共享内存场景才是需要手动插入屏障的真正战场。</p>
+<p>架构不保证指令预取和页表遍历的排序——排序规则仅适用于显式内存访问（由 load&#x2F;store 指令引起）。</p>
+<h3 id="1-2-无屏障多核代码的四种合法结果"><a href="#1-2-无屏障多核代码的四种合法结果" class="headerlink" title="1.2 无屏障多核代码的四种合法结果"></a>1.2 无屏障多核代码的四种合法结果</h3><p>考虑两核各自执行两条指令的最简情况（Core A 写 Addr1 然后读 Addr2，Core B 写 Addr2 然后读 Addr1）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">@ Core A:                  @ Core B:</span><br><span class="line">STR R0, [Addr1]            STR R2, [Addr2]</span><br><span class="line">LDR R1, [Addr2]            LDR R3, [Addr1]</span><br></pre></td></tr></table></figure>
+
+<p>由于 Addr1 和 Addr2 互相独立，且全为 Normal 内存，两核均无义务保证 load 在 store 之后执行，也无义务关心对端核心的操作顺序。因此这段代码存在<strong>四种合法的执行结果</strong>：</p>
+<ol>
+<li>Core A 读到旧值，Core B 读到旧值</li>
+<li>Core A 读到旧值，Core B 读到新值</li>
+<li>Core A 读到新值，Core B 读到旧值</li>
+<li>Core A 读到新值，Core B 读到新值</li>
+</ol>
+<p>更进一步，若引入第三个 Core C，C 完全可以观察到与 A 和 B 都不同的写顺序——A 和 B 各自看到旧值，但 C 看到新值，在弱排序模型下是合法的。这清楚地说明了：当多核之间有数据依赖时，必须显式插入内存屏障。</p>
+<p>强排序的诉求不是指令流水线的事情，它首先由<strong>内存类型</strong>决定。下面从 Strongly-ordered、Device 和 Normal 三种内存的行为差异开始，看排序在不借助屏障时能提供什么保证。</p>
+<hr>
+<h2 id="2-三种内存类型与排序保证"><a href="#2-三种内存类型与排序保证" class="headerlink" title="2. 三种内存类型与排序保证"></a>2. 三种内存类型与排序保证</h2><p>ARMv7-A 定义了三种互斥的内存类型，由页表描述符的 TEX&#x2F;C&#x2F;B 位编码。</p>
+<h3 id="2-1-排序保证矩阵"><a href="#2-1-排序保证矩阵" class="headerlink" title="2.1 排序保证矩阵"></a>2.1 排序保证矩阵</h3><table>
+<thead>
+<tr>
+<th>A1 → A2（程序序）</th>
+<th>A2&#x3D;Normal</th>
+<th>A2&#x3D;Device</th>
+<th>A2&#x3D;Strongly-ordered</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A1&#x3D;Normal</td>
+<td>不保证</td>
+<td>不保证</td>
+<td>不保证</td>
+</tr>
+<tr>
+<td>A1&#x3D;Device</td>
+<td>不保证</td>
+<td>程序顺序</td>
+<td>程序顺序</td>
+</tr>
+<tr>
+<td>A1&#x3D;Strongly-ordered</td>
+<td>不保证</td>
+<td>程序顺序</td>
+<td>程序顺序</td>
+</tr>
+</tbody></table>
+<p>核心结论：<strong>只有双方都是非 Normal 时，才保证程序顺序</strong>。任意一方是 Normal，排序都不保证。核心可以将 Normal 访问重排到 Strongly-ordered 或 Device 访问的任意一侧。</p>
+<p><strong>实例</strong>：将 UART TX 寄存器映射为 Device 内存。写入 <code>STR R0, [UART_TX]</code> 后，若下一条是另一 Device 区域的写，硬件保证两写在总线上按程序顺序出现；但若下一条是 Normal 内存的 <code>LDR</code>，则该 <code>LDR</code> 可能在 <code>STR</code> 写入之前完成——若 DMA 引擎同时读取 UART_TX，后果不可预测。</p>
+<h3 id="2-2-Strongly-ordered-与-Device-的行为约束"><a href="#2-2-Strongly-ordered-与-Device-的行为约束" class="headerlink" title="2.2 Strongly-ordered 与 Device 的行为约束"></a>2.2 Strongly-ordered 与 Device 的行为约束</h3><table>
+<thead>
+<tr>
+<th>属性</th>
+<th>Strongly-ordered</th>
+<th>Device</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>访问数量&#x2F;大小保持</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>原子性（不会中途打断）</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>永不缓存</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>无推测性访问</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>禁止非对齐访问</td>
+<td>是</td>
+<td>是</td>
+</tr>
+<tr>
+<td>写操作何时视为完成？</td>
+<td>数据到达目标外设&#x2F;内存才完成</td>
+<td>可以在到达目标前提前完成</td>
+</tr>
+</tbody></table>
+<p>Strongly-ordered 和 Device 在排序规则上完全一致——两者的唯一区别在于写操作的完成点。Strongly-ordered 必须等待数据到达目标外设或内存才视为完成，而 Device 允许提前完成。这使得 Strongly-ordered 更慢，仅在绝对需要精确时序的场合使用。系统外设几乎总是映射为 Device 内存。</p>
+<p>Device 内存的程序顺序保证有一个重要限定：<strong>仅适用于同一外设或同一内存块内的访问</strong>。块的大小由具体实现定义，但最小为 1KB。对两个分别位于不同 1KB 块中的 Device 外设的访问，即使它们在程序序中前后排列，也不保证在总线上的完成顺序。</p>
+<p>Device 类型支持 Shareable 属性。在 ARMv6 上，这曾用于选择专用外设端口（peripheral private port），但 ARMv7 上该用法已废弃。</p>
+<h3 id="2-3-Normal-内存的行为特征"><a href="#2-3-Normal-内存的行为特征" class="headerlink" title="2.3 Normal 内存的行为特征"></a>2.3 Normal 内存的行为特征</h3><p>Normal 内存具备最宽松的约束和最激进的优化：</p>
+<table>
+<thead>
+<tr>
+<th>行为</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>可重复读取</td>
+<td>核心可多次读同一地址</td>
+</tr>
+<tr>
+<td>可推测访问</td>
+<td>可预取额外内存位置（无副作用时）。但核心<strong>不会</strong>执行推测性写入</td>
+</tr>
+<tr>
+<td>可合并写入</td>
+<td>多个字节写可合并为一个双字写</td>
+</tr>
+<tr>
+<td>允许非对齐</td>
+<td>非对齐 load&#x2F;store 不触发异常</td>
+</tr>
+</tbody></table>
+<p>Normal 内存通过 inner&#x2F;outer 两级缓存属性区分 L1 和 L2&#x2F;L3 的缓存策略。Inner 总是指最内层缓存（必定包含 L1）。Outer 缓存因实现而异——例如 Cortex-A9 + L2C-310 系统中 L2C-310 是 outer cache，而 Cortex-A8 的集成 L2 既可配置为 inner 也可为 outer。</p>
+<p><strong>Shareability 属性</strong>决定了缓存一致性域：</p>
+<ul>
+<li><strong>Non-Shareable</strong>：仅本核使用。多核场景下软件自行维护一致性</li>
+<li><strong>Inner Shareable</strong>：同簇内硬件保证一致性（如 A15 簇内四核）</li>
+<li><strong>Outer Shareable</strong>：跨簇一致性（如 A15 簇 + A7 簇 + GPU）。Outer 域可包含多个 Inner 域，但一个 Inner 域只能属于一个 Outer 域</li>
+</ul>
+<p>内存类型靠页表声明，这些静态属性只能约束默认行为。当多核之间需要精确的访问顺序时，需要下一节的主角：DSB、DMB 和 ISB 三条屏障指令。</p>
+<hr>
+<h2 id="3-内存屏障指令：DSB、DMB、ISB"><a href="#3-内存屏障指令：DSB、DMB、ISB" class="headerlink" title="3. 内存屏障指令：DSB、DMB、ISB"></a>3. 内存屏障指令：DSB、DMB、ISB</h2><p>ARM 内存屏障在其他架构中常被称为 memory fence。ARM 提供三条指令，在 User 和 Privileged 模式下均可使用。值得注意的历史背景：在较旧的 ARM 架构中，内存屏障通过 CP15 操作实现（仅 ARM 代码可用），该方式现已废弃——虽然出于兼容性保留，但新代码必须使用 DMB&#x2F;DSB&#x2F;ISB 指令。</p>
+<h3 id="3-1-三条屏障的核心区分"><a href="#3-1-三条屏障的核心区分" class="headerlink" title="3.1 三条屏障的核心区分"></a>3.1 三条屏障的核心区分</h3><table>
+<thead>
+<tr>
+<th>指令</th>
+<th>全称</th>
+<th>行为</th>
+<th>典型场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>DMB</strong></td>
+<td>Data Memory Barrier</td>
+<td>保证 DMB 前的所有显式内存访问在 DMB 后的任何显式内存访问之前被<strong>所有观察者</strong>看到</td>
+<td>多核数据通信（生产者写好数据→DMB→写 flag）</td>
+</tr>
+<tr>
+<td><strong>DSB</strong></td>
+<td>Data Synchronization Barrier</td>
+<td>DMB 的全部效果 + 阻止后续指令执行直到所有显式内存访问<strong>完成</strong></td>
+<td>写外设寄存器后需等待外设响应</td>
+</tr>
+<tr>
+<td><strong>ISB</strong></td>
+<td>Instruction Synchronization Barrier</td>
+<td>冲刷流水线和预取缓冲，后续指令从缓存&#x2F;内存重新取指</td>
+<td>CP15 修改、ASID&#x2F;TLB 变更后</td>
+</tr>
+</tbody></table>
+<p>区分标准：<strong>DMB 只影响内存访问的可见顺序，不阻塞指令流。DSB 额外阻塞指令执行直到内存操作完成。ISB 处理指令流的一致性问题，不涉及数据侧。</strong></p>
+<h3 id="3-2-DMB-DSB-的域选项"><a href="#3-2-DMB-DSB-的域选项" class="headerlink" title="3.2 DMB&#x2F;DSB 的域选项"></a>3.2 DMB&#x2F;DSB 的域选项</h3><table>
+<thead>
+<tr>
+<th>选项</th>
+<th>含义</th>
+<th>范围</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SY</code></td>
+<td>全系统屏障（默认）</td>
+<td>所有观察者</td>
+</tr>
+<tr>
+<td><code>ST</code></td>
+<td>仅等待 store 完成</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ISH</code></td>
+<td>Inner Shareable 域</td>
+<td>同簇内所有核心</td>
+</tr>
+<tr>
+<td><code>ISHST</code></td>
+<td>Inner Shareable + 仅 store</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>NSH</code></td>
+<td>Non-Shareable 域（仅本核）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>OSH</code></td>
+<td>Outer Shareable 域</td>
+<td>跨簇（含 GPU&#x2F;DMA）</td>
+</tr>
+<tr>
+<td><code>OSHST</code></td>
+<td>Outer Shareable + 仅 store</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p>四核 Cortex-A9 簇构成一个 Inner Shareable 域，<code>DMB ISH</code> 保证簇内四核看到屏障两侧的访问顺序一致；但 DMA 控制器和 DSP 不在 ISH 域内，不享受此保证。跨域可见时应使用 <code>DMB SY</code> 或 <code>DMB OSH</code>。</p>
+<h3 id="3-3-应用实例一：多核消息传递"><a href="#3-3-应用实例一：多核消息传递" class="headerlink" title="3.3 应用实例一：多核消息传递"></a>3.3 应用实例一：多核消息传递</h3><p>两核通过 flag 通信的场景——Core A 写入消息后置 flag，Core B 轮询 flag 后读取消息：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">@ Core A: 写入消息，然后置 flag</span><br><span class="line">STR  R0, [Msg]       @ 写消息数据</span><br><span class="line">DMB                   @ 保证 Msg 在 Flag 之前被所有观察者看到</span><br><span class="line">STR  R1, [Flag]       @ 设置标志位</span><br><span class="line"></span><br><span class="line">@ Core B: 轮询 flag，读到后读取消息</span><br><span class="line">Poll_loop:</span><br><span class="line">LDR  R1, [Flag]       @ 读标志</span><br><span class="line">CMP  R1, #0</span><br><span class="line">BEQ  Poll_loop</span><br><span class="line">DMB                   @ 保证 Flag 读在 Msg 读之前完成</span><br><span class="line">LDR  R0, [Msg]        @ 读消息数据</span><br></pre></td></tr></table></figure>
+
+<p>两条不可省略的原则：<strong>生产者需要 DMB 在两次 store 之间保证写顺序；消费者需要 DMB 在 flag 读和消息读之间保证不拿到旧数据</strong>。缺少任意一个屏障都构成竞态。</p>
+<h3 id="3-4-应用实例二：避免外设死锁"><a href="#3-4-应用实例二：避免外设死锁" class="headerlink" title="3.4 应用实例二：避免外设死锁"></a>3.4 应用实例二：避免外设死锁</h3><p>写外设寄存器后轮询确认的代码：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">STR  R0, [Addr]       @ 向外设寄存器写入命令</span><br><span class="line">DSB                    @ 强制写入完成，而非停留在写缓冲器</span><br><span class="line">Poll_loop:</span><br><span class="line">LDR  R1, [Flag]       @ 轮询外设状态</span><br><span class="line">CMP  R1, #0</span><br><span class="line">BEQ  Poll_loop</span><br></pre></td></tr></table></figure>
+
+<p>若没有 <code>DSB</code>，写入可能永远停留在写缓冲器中——而核心轮询 flag 的总线流量可能使写缓冲器一直不排空。这是弱排序模型中最容易遗漏的死锁场景。解决方案是 DSB 强制冲刷写缓冲器。</p>
+<p>需要注意的是：实现了多处理器扩展（Multiprocessing Extensions）的核心被要求写缓冲器在有限时间内必须排空——此时 DSB 在技术上是可选的，但不依赖这一硬件假设是最安全的实践。</p>
+<h3 id="3-5-应用实例三：WFE-SEV-自旋锁"><a href="#3-5-应用实例三：WFE-SEV-自旋锁" class="headerlink" title="3.5 应用实例三：WFE&#x2F;SEV 自旋锁"></a>3.5 应用实例三：WFE&#x2F;SEV 自旋锁</h3><p><code>WFE</code>（Wait For Event）和 <code>WFI</code>（Wait For Interrupt）使核心暂停执行并进入低功耗状态。在进入低功耗前必须插入 DSB，确保之前的所有内存访问已被其他核心观察到。</p>
+<p>在多处理器系统中，<code>WFE</code> 和 <code>SEV</code>（Send Event）配对使用以降低自旋锁的功耗——等待锁的核心通过 <code>WFE</code> 休眠，持锁核心释放锁后通过 <code>SEV</code> 唤醒等待者：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">@ Core A: 释放锁</span><br><span class="line">STR  R0, [lock]       @ 清除锁变量</span><br><span class="line">DSB                    @ 保证锁清除对其他核心可见后，再发送事件</span><br><span class="line">SEV                    @ 唤醒等待的核心</span><br></pre></td></tr></table></figure>
+
+<p>这里<strong>必须用 DSB 而非 DMB</strong>：DMB 只影响内存访问的可见顺序，但不保证 <code>SEV</code> 指令在内存写入被其他核心观察到<strong>之后</strong>才执行。被唤醒的核心可能仍读到旧锁值，导致两个核心同时认为自己持锁。</p>
+<h3 id="3-6-Linux-内核中的屏障映射"><a href="#3-6-Linux-内核中的屏障映射" class="headerlink" title="3.6 Linux 内核中的屏障映射"></a>3.6 Linux 内核中的屏障映射</h3><p>硬件内存屏障和编译屏障是两种独立的机制。编译屏障阻止的是编译器在优化阶段将内存访问跨屏障重排，对 CPU 硬件的乱序执行完全无影响。GCC 的实现：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">asm</span> <span class="title function_">volatile</span><span class="params">(<span class="string">&quot;&quot;</span> ::: <span class="string">&quot;memory&quot;</span>)</span>;    <span class="comment">// 编译器屏障：禁止跨越此语句重排访存</span></span><br></pre></td></tr></table></figure>
+
+<p>ARM RVCT 提供等价的 <code>__schedule_barrier()</code> 内建函数。</p>
+<p>ARM Linux 中的屏障映射关系（编译选项含 Cortex-A SMP 支持）：</p>
+<table>
+<thead>
+<tr>
+<th>Linux 函数</th>
+<th>效果</th>
+<th>对应 ARM 指令</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>barrier()</code></td>
+<td>仅编译屏障（阻止编译器重排）</td>
+<td>无硬件指令</td>
+</tr>
+<tr>
+<td><code>rmb()</code></td>
+<td>读屏障</td>
+<td><code>DMB</code></td>
+</tr>
+<tr>
+<td><code>wmb()</code></td>
+<td>写屏障</td>
+<td><code>DMB ST</code></td>
+</tr>
+<tr>
+<td><code>mb()</code></td>
+<td>全内存屏障</td>
+<td><code>DMB</code></td>
+</tr>
+<tr>
+<td><code>smp_mb()</code></td>
+<td>SMP 全屏障（<code>CONFIG_SMP</code> 时编译为 DMB ISH）</td>
+<td><code>DMB ISH</code></td>
+</tr>
+<tr>
+<td><code>smp_rmb()</code></td>
+<td>SMP 读屏障</td>
+<td><code>DMB ISH</code></td>
+</tr>
+<tr>
+<td><code>smp_wmb()</code></td>
+<td>SMP 写屏障</td>
+<td><code>DMB ISHST</code></td>
+</tr>
+</tbody></table>
+<p>在未启用 <code>CONFIG_SMP</code> 的内核中，<code>smp_*()</code> 系列仅展开为 <code>barrier()</code> 编译屏障——不产生任何硬件指令。Linux 所有锁原语已经包含必要的屏障，设备驱动和内核模块开发者通常无需显式调用，但理解这些函数的存在是为了阅读现有代码和调试罕见竞态。</p>
+<hr>
+<h2 id="4-缓存一致性与编译器重排"><a href="#4-缓存一致性与编译器重排" class="headerlink" title="4. 缓存一致性与编译器重排"></a>4. 缓存一致性与编译器重排</h2><h3 id="4-1-DMA-场景的缓存维护"><a href="#4-1-DMA-场景的缓存维护" class="headerlink" title="4.1 DMA 场景的缓存维护"></a>4.1 DMA 场景的缓存维护</h3><p>在内存排序的上下文中重新审视缓存一致性问题——两个方向的数据不一致：</p>
+<ul>
+<li><strong>核心到 DMA</strong>（核心写，DMA 读）：DMA 启动前必须 Clean 数据缓存中的 Dirty 行，因为写缓冲器中的待完成写入和缓存中的 Dirty 数据都对 DMA 不可见</li>
+<li><strong>DMA 到核心</strong>（核心读，DMA 写）：DMA 完成后必须 Invalidate 缓存中被 DMA 更新的地址范围；此外，由于所有 ARMv7-A 处理器均可做推测性内存访问，DMA 传输<strong>之后</strong>也需要做 invalidate——不能假设”核心刚还没读到”就意味着不持旧数据</li>
+</ul>
+<h3 id="4-2-自修改代码与-JIT-编译"><a href="#4-2-自修改代码与-JIT-编译" class="headerlink" title="4.2 自修改代码与 JIT 编译"></a>4.2 自修改代码与 JIT 编译</h3><p>Boot 代码、内核模块加载器和 JIT 编译器需要拷贝或修改代码。标准序列：Clean 数据缓存（确保新指令码到达主存）→ Invalidate 指令缓存（确保不再取到旧指令）→ <strong>ISB</strong>（冲刷流水线，保证后续取指看到新代码）。指令缓存和数据缓存之间没有硬件一致性维护机制，这三个步骤缺一不可。</p>
+<h3 id="4-3-volatile-不能替代内存屏障"><a href="#4-3-volatile-不能替代内存屏障" class="headerlink" title="4.3 volatile 不能替代内存屏障"></a>4.3 volatile 不能替代内存屏障</h3><p>这是最容易被误用的 C 语言特性：</p>
+<ul>
+<li><code>volatile</code> 仅保证<strong>编译器不优化掉该变量访问</strong>，且 volatile 访问之间按程序顺序执行</li>
+<li><code>volatile</code> 对 <strong>CPU 硬件的重排、写缓冲合并、推测性访存</strong>完全没有约束力</li>
+<li>C 标准不涉及多核系统——<code>volatile</code> 在多核环境中不提供任何排序保证</li>
+</ul>
+<p><code>volatile</code> 不能用于实现互斥锁。互斥锁只能用硬件屏障实现。Linux 中设备驱动访问 MMIO 使用 <code>volatile</code> 是正确的（它阻止编译器优化外设寄存器读写），但多核数据共享依赖 <code>smp_mb()</code>。</p>
+<hr>
+<h2 id="5-总结"><a href="#5-总结" class="headerlink" title="5. 总结"></a>5. 总结</h2><ol>
+<li><p><strong>ARMv7-A 是弱排序模型</strong>。load&#x2F;store 的程序顺序不等于硬件执行顺序。缓存命中可超越缺失先行完成，写缓冲器可让 store 在后续 load 之后才落地。这是性能优化，不是 bug。排序规则仅适用于显式内存访问——不覆盖指令预取和页表遍历。</p>
+</li>
+<li><p><strong>三种内存类型的排序保证只作用于非 Normal 访问之间</strong>。Normal 内存的访问可在任意时刻被重排到 Device 或 Strongly-ordered 访问的任意一侧。Device 内存的程序序保证仅限于同一 1KB 块内的访问。</p>
+</li>
+<li><p><strong>DMB 只约束内存操作的可见顺序，不阻塞指令流。DSB &#x3D; DMB + 阻塞后续指令直到内存操作完成。ISB 冲刷流水线，不处理数据侧</strong>。典型组合：数据操作后 DSB → 改 CP15 → ISB。旧式 CP15 实现的屏障已废弃，新代码必须使用这三条指令。</p>
+</li>
+<li><p><strong>多核 flag 通信需要两侧 DMB</strong>——生产者 store 之间放 DMB 保证写顺序，消费者 load 之间放 DMB 保证读顺序。少一个就是竞态。</p>
+</li>
+<li><p><strong>写外设后轮询必须用 DSB，不是 DMB</strong>。写缓冲器可能导致写入永远不排空。在多处理器扩展实现的核心上 DSB 技术上可选，但不依赖硬件假设是最安全的实践。</p>
+</li>
+<li><p><strong>WFE&#x2F;SEV 自旋锁释放路径的关键是 DSB（不是 DMB）</strong>。DMB 不保证 SEV 执行前内存写入对其他核心可见——被唤醒的核可能读到旧锁值，导致两个核心同时认为自己持锁。</p>
+</li>
+<li><p><strong>volatile 是编译器工具，不是 CPU 工具</strong>。它能阻止编译器优化掉 MMIO 访问，但对硬件乱序、写合并、推测读取无能为力。多核数据共享的唯一正确方案是硬件屏障指令——且 Linux 的锁原语已经内置了所需屏障。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM-ARMv7-a/" rel="tag"># ARM, ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/" rel="prev" title="ARM MMU 地址翻译">
+                  <i class="fa fa-angle-left"></i> ARM MMU 地址翻译
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/" rel="next" title="ARM异常处理">
+                  ARM异常处理 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="深入探讨 ARM 汇编语言入门，涵盖指令集设计、GNU 汇编器以及 Interworking 的核心机制与最佳实践。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM汇编语言入门">
+<meta property="og:url" content="http://yoursite.com/2026/07/22/ARM%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E5%85%A5%E9%97%A8/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="深入探讨 ARM 汇编语言入门，涵盖指令集设计、GNU 汇编器以及 Interworking 的核心机制与最佳实践。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-22T12:38:20.000Z">
+<meta property="article:modified_time" content="2026-07-22T12:57:20.338Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM, ARMv7-a">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/22/ARM%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E5%85%A5%E9%97%A8/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E5%85%A5%E9%97%A8/","path":"2026/07/22/ARM汇编语言入门/","title":"ARM汇编语言入门"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM汇编语言入门 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-RISC-vs-CISC%EF%BC%9AARM-%E6%8C%87%E4%BB%A4%E9%9B%86%E7%9A%84%E6%9E%B6%E6%9E%84%E5%93%B2%E5%AD%A6"><span class="nav-text">1. RISC vs CISC：ARM 指令集的架构哲学</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-ARM-%E4%B8%8E-Thumb-%E4%B8%A4%E5%A5%97%E6%8C%87%E4%BB%A4%E9%9B%86%E7%9A%84%E8%AE%BE%E8%AE%A1%E5%8F%96%E8%88%8D"><span class="nav-text">2. ARM 与 Thumb 两套指令集的设计取舍</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Thumb-%E7%9A%84%E8%AF%9E%E7%94%9F%EF%BC%9A%E4%BB%A3%E7%A0%81%E5%AF%86%E5%BA%A6%E4%BC%98%E5%85%88"><span class="nav-text">2.1 Thumb 的诞生：代码密度优先</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Thumb-2%EF%BC%9A%E6%B7%B7%E5%90%88%E9%95%BF%E5%BA%A6%E6%89%93%E7%A0%B4%E4%B8%A4%E9%9A%BE"><span class="nav-text">2.2 Thumb-2：混合长度打破两难</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E7%8A%B6%E6%80%81%E5%88%87%E6%8D%A2%E7%9A%84%E7%A1%AC%E4%BB%B6%E7%BA%A6%E6%9D%9F"><span class="nav-text">2.3 状态切换的硬件约束</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-GNU-%E6%B1%87%E7%BC%96%E5%99%A8%EF%BC%88GAS%EF%BC%89%E8%AF%AD%E6%B3%95"><span class="nav-text">3. GNU 汇编器（GAS）语法</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E8%B0%83%E7%94%A8%E4%B8%8E%E9%93%BE%E6%8E%A5"><span class="nav-text">3.1 调用与链接</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E8%AF%AD%E5%8F%A5%E6%A0%BC%E5%BC%8F"><span class="nav-text">3.2 语句格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E6%AE%B5%E5%B8%83%E5%B1%80"><span class="nav-text">3.3 段布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E6%A0%B8%E5%BF%83%E4%BC%AA%E6%8C%87%E4%BB%A4"><span class="nav-text">3.4 核心伪指令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-GNU-Assembler-%E4%B8%8E-armasm-%E5%AF%B9%E7%85%A7"><span class="nav-text">3.5 GNU Assembler 与 armasm 对照</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-%E5%AF%84%E5%AD%98%E5%99%A8%E5%91%BD%E5%90%8D"><span class="nav-text">3.6 寄存器命名</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-7-%E8%A1%A8%E8%BE%BE%E5%BC%8F"><span class="nav-text">3.7 表达式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-ARM-%E5%B7%A5%E5%85%B7%E9%93%BE%E7%BB%9F%E4%B8%80%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%EF%BC%88UAL%EF%BC%89"><span class="nav-text">4. ARM 工具链统一汇编语言（UAL）</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%AF%AD%E5%8F%A5%E4%B8%8E%E6%A0%87%E7%AD%BE"><span class="nav-text">4.1 语句与标签</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%95%B0%E6%8D%AE%E5%AE%9A%E4%B9%89%E4%B8%8E%E4%BC%AA%E6%8C%87%E4%BB%A4"><span class="nav-text">4.2 数据定义与伪指令</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Interworking%EF%BC%9AARM-%E2%86%94-Thumb-%E8%BF%90%E8%A1%8C%E6%97%B6%E5%88%87%E6%8D%A2"><span class="nav-text">5. Interworking：ARM ↔ Thumb 运行时切换</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-bit-0-%E4%BD%9C%E4%B8%BA%E7%8A%B6%E6%80%81%E4%BD%8D"><span class="nav-text">5.1 bit[0] 作为状态位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E9%9D%9E%E5%8F%B6%E5%AD%90%E5%87%BD%E6%95%B0%E7%9A%84%E8%BF%94%E5%9B%9E%E6%A8%A1%E5%BC%8F"><span class="nav-text">5.2 非叶子函数的返回模式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E8%AF%86%E5%88%AB%E6%B1%87%E7%BC%96%E4%BB%A3%E7%A0%81%E7%9A%84%E6%96%B9%E8%A8%80"><span class="nav-text">6. 识别汇编代码的方言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-ARMv8-A-%E5%85%BC%E5%AE%B9%E6%80%A7%E6%96%B0%E5%A2%9E%E6%8C%87%E4%BB%A4"><span class="nav-text">7. ARMv8-A 兼容性新增指令</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%AD%A6%E4%B9%A0%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">8. 学习要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">60</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/22/ARM%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E5%85%A5%E9%97%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM汇编语言入门 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM汇编语言入门
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-22 20:38:20" itemprop="dateCreated datePublished" datetime="2026-07-22T20:38:20+08:00">2026-07-22</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>深入探讨 ARM 汇编语言入门，涵盖指令集设计、GNU 汇编器以及 Interworking 的核心机制与最佳实践。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-RISC-vs-CISC：ARM-指令集的架构哲学"><a href="#1-RISC-vs-CISC：ARM-指令集的架构哲学" class="headerlink" title="1. RISC vs CISC：ARM 指令集的架构哲学"></a>1. RISC vs CISC：ARM 指令集的架构哲学</h2><p>ARM 是 RISC（精简指令集计算机）处理器。与 x86 这类 CISC（复杂指令集计算机）相比，核心差异在于：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>CISC (x86)</th>
+<th>RISC (ARM)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>指令集规模</td>
+<td>丰富，单条指令可完成复杂任务</td>
+<td>精简，更通用的指令</td>
+</tr>
+<tr>
+<td>内部实现</td>
+<td>微码解码——指令被译为内部微操作序列</td>
+<td>硬连线——晶体管更少，功耗更低</td>
+</tr>
+<tr>
+<td>寄存器</td>
+<td>较少</td>
+<td>大量通用寄存器（16×32-bit）</td>
+</tr>
+<tr>
+<td>指令周期</td>
+<td>可变</td>
+<td>大多数单周期</td>
+</tr>
+</tbody></table>
+<p>ARM 架构的几条根本约束塑造了所有后续设计决策：</p>
+<p><strong>Load&#x2F;Store 架构。</strong> 数据运算指令只能操作寄存器，不能直接访问内存。要在内存中递增一个值，必须经过三步：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">LDR  r0, [r1]       @ 从 [r1] 加载到 r0</span><br><span class="line">ADD  r0, r0, #1     @ 寄存器内递增</span><br><span class="line">STR  r0, [r1]       @ 写回内存</span><br></pre></td></tr></table></figure>
+
+<p>其结果是：没有 x86 的 <code>INC [ebx]</code> 这样的单指令内存操作。代价是多了几条指令，收益是整个数据通路更简单、频率更高。</p>
+<p><strong>三操作数格式。</strong> ARM 和 x86 的目标操作数放在最前面（68K 相反）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">@ ARM (目标在前)</span><br><span class="line">add  r0, r1, r2      @ r0 = r1 + r2</span><br><span class="line"></span><br><span class="line">@ 对比: 68K (目标在后)</span><br><span class="line">ADD  D0, D1           @ D0 = D0 + D1</span><br></pre></td></tr></table></figure>
+
+<p>ARM 选择目标寄存器在前的理由很实际：与 x86 Intel 语法保持一致，降低跨架构开发者的迁移成本；同时编译器中间表示（如 GCC RTL）的 <code>(set (dest) (op src1 src2))</code> 恰好也是目标在左，寄存器分配策略更直观。</p>
+<p><strong>内嵌移位。</strong> ARM 可以在算术指令中附带一次移位操作，零额外周期：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ADD  r0, r1, r2, LSL #3   @ r0 = r1 + (r2 &lt;&lt; 3)</span><br></pre></td></tr></table></figure>
+
+<p><strong>条件执行。</strong> 几乎所有 ARM 指令都可以条件执行（Thumb 中用 IT 指令实现），消除了短分支的流水线冲刷。<strong>Load&#x2F;Store Multiple</strong>（LDM&#x2F;STM）实现多寄存器批量加载，极大的加速了堆栈操作和块拷贝。</p>
+<p>以上设计原则构成了 ARM 指令集的骨架。但 ARM 架构还有一个独特之处：它维护了<strong>两套</strong>指令集——不只是编译器选项的区别，而是硬件层面的”语言切换”。下一节展开这个机制。</p>
+<hr>
+<h2 id="2-ARM-与-Thumb-两套指令集的设计取舍"><a href="#2-ARM-与-Thumb-两套指令集的设计取舍" class="headerlink" title="2. ARM 与 Thumb 两套指令集的设计取舍"></a>2. ARM 与 Thumb 两套指令集的设计取舍</h2><p>ARMv7 架构支持两套指令集，当前处理器状态由 <strong>CPSR[5]（T bit）</strong> 决定：</p>
+<table>
+<thead>
+<tr>
+<th>T bit</th>
+<th>状态</th>
+<th>指令位宽</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>ARM state</td>
+<td>32-bit 固定</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Thumb state</td>
+<td>16-bit（Thumb）&#x2F; 16+32-bit 混合（Thumb-2）</td>
+</tr>
+</tbody></table>
+<h3 id="2-1-Thumb-的诞生：代码密度优先"><a href="#2-1-Thumb-的诞生：代码密度优先" class="headerlink" title="2.1 Thumb 的诞生：代码密度优先"></a>2.1 Thumb 的诞生：代码密度优先</h3><p>ARM7TDMI 首次引入 Thumb 指令集。每条 Thumb 指令 16 位长，功能上是 ARM 指令集的子集。Thumb 代码体积通常<strong>比 ARM 版本小约 1&#x2F;3</strong>。在物理内存有限或直连 16-bit 存储总线的系统中，Thumb 还可每周期取一条指令（ARM 需要两拍取一条 32-bit 指令）。</p>
+<p>代价是单条指令能力弱，需要用更多条指令完成任务。手册给出了分支范围的具体对比：</p>
+<table>
+<thead>
+<tr>
+<th>分支类型</th>
+<th>ARM</th>
+<th>Thumb-2</th>
+<th>纯 16-bit Thumb</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>相对分支</td>
+<td>±32MB</td>
+<td>±16MB</td>
+<td>±2048 字节（无条件）</td>
+</tr>
+<tr>
+<td>条件分支</td>
+<td>±32MB</td>
+<td>±16MB</td>
+<td><strong>±256 字节</strong></td>
+</tr>
+</tbody></table>
+<p>16-bit Thumb 的条件分支仅有 256 字节范围——几乎只够跳几条指令。</p>
+<h3 id="2-2-Thumb-2：混合长度打破两难"><a href="#2-2-Thumb-2：混合长度打破两难" class="headerlink" title="2.2 Thumb-2：混合长度打破两难"></a>2.2 Thumb-2：混合长度打破两难</h3><p>Cortex-A 系列全线支持的 Thumb-2 技术将 Thumb 扩展为 <strong>16-bit 和 32-bit 混合长度指令集</strong>。性能接近 ARM 的同时代码密度接近 Thumb。手册一针见血地说：*”it is increasingly common for all code to be compiled or assembled to take advantage of Thumb-2 technology.”*</p>
+<p>汇编程序员可以用宽度修饰符选择编码：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">BCS.W   label      @ 强制 32-bit 编码</span><br><span class="line">B.N     label      @ 强制 16-bit 编码，超出范围即汇编错误</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-状态切换的硬件约束"><a href="#2-3-状态切换的硬件约束" class="headerlink" title="2.3 状态切换的硬件约束"></a>2.3 状态切换的硬件约束</h3><p>从一个状态切到另一个状态时，必须<strong>同时刷新指令流水线</strong>——因为流水线中正在解码的指令可能与新状态不匹配。ARM 不会自动切换。这引出了后续章节中 Interworking 的核心问题：如何安全地改变 T bit 并保证程序继续正确执行。</p>
+<p>在进入运行时状态切换之前，先回答一个前置问题：<strong>这些汇编指令最终是如何变成可执行代码的？</strong> 接下来的两节分别介绍 GNU Assembler 和 ARM 工具链——两种最常用的 ARM 汇编器。</p>
+<hr>
+<h2 id="3-GNU-汇编器（GAS）语法"><a href="#3-GNU-汇编器（GAS）语法" class="headerlink" title="3. GNU 汇编器（GAS）语法"></a>3. GNU 汇编器（GAS）语法</h2><p>GNU Assembler 是 GNU 工具链的汇编器，将 <code>.s</code> 源文件转为 <code>.o</code> 目标文件。</p>
+<h3 id="3-1-调用与链接"><a href="#3-1-调用与链接" class="headerlink" title="3.1 调用与链接"></a>3.1 调用与链接</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">arm-none-eabi-as -g -o file.o file.s    <span class="comment"># 汇编，-g 嵌入调试信息</span></span><br><span class="line">arm-none-eabi-ld -o program.elf file.o   <span class="comment"># 链接为 ELF</span></span><br></pre></td></tr></table></figure>
+
+<p>工具名前缀 <code>arm-none-eabi-</code> 表示目标为裸机 ARM EABI 系统（无 OS）。手册指出 GNU Assembler 文档在 <code>http://sourceware.org/binutils/docs/as/index.html</code> 或 Ubuntu 的 <code>/gcc-doc/</code> 包中。</p>
+<h3 id="3-2-语句格式"><a href="#3-2-语句格式" class="headerlink" title="3.2 语句格式"></a>3.2 语句格式</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">label:  instruction  @ comment</span><br></pre></td></tr></table></figure>
+
+<p>GNU Assembler 面向多架构，因此语法与 ARM 专用工具链不同：注释符为 <code>@</code>（ARM 工具链用 <code>;</code>）。语句的三个部分（标签、指令、注释）均可选。标签后跟冒号。</p>
+<h3 id="3-3-段布局"><a href="#3-3-段布局" class="headerlink" title="3.3 段布局"></a>3.3 段布局</h3><table>
+<thead>
+<tr>
+<th>段</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>.text</code></td>
+<td>可执行代码段（汇编指令必须在 <code>.text</code> 中）</td>
+</tr>
+<tr>
+<td><code>.data</code></td>
+<td>可读写段（已初始化全局变量）</td>
+</tr>
+<tr>
+<td><code>.rodata</code></td>
+<td>只读常量段</td>
+</tr>
+<tr>
+<td><code>.bss</code></td>
+<td>零初始化静态数据（Block Started by Symbol）</td>
+</tr>
+</tbody></table>
+<h3 id="3-4-核心伪指令"><a href="#3-4-核心伪指令" class="headerlink" title="3.4 核心伪指令"></a>3.4 核心伪指令</h3><p>伪指令以 <code>.</code> 开头，不生成机器码而是命令汇编器本身执行操作：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>功能</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>.align n</code></td>
+<td>对齐至 <code>2^n</code> 边界，代码段填 NOP、数据段填零</td>
+<td><code>.align 2</code>（4-byte 对齐）</td>
+</tr>
+<tr>
+<td><code>.ascii &quot;s&quot;</code></td>
+<td>插入字符串（无 NUL 终止）</td>
+<td><code>.ascii &quot;Hello&quot;</code></td>
+</tr>
+<tr>
+<td><code>.asciz &quot;s&quot;</code></td>
+<td>同上，加 NUL 终止</td>
+<td><code>.asciz &quot;Hello&quot;</code></td>
+</tr>
+<tr>
+<td><code>.word expr</code></td>
+<td>插入 32-bit 值</td>
+<td><code>.word 0x12345678</code></td>
+</tr>
+<tr>
+<td><code>.byte expr</code></td>
+<td>插入 8-bit 值</td>
+<td><code>.byte 0xFF</code></td>
+</tr>
+<tr>
+<td><code>.global sym</code></td>
+<td>符号对链接器全局可见</td>
+<td><code>.global _start</code></td>
+</tr>
+<tr>
+<td><code>.extern sym</code></td>
+<td>声明符号在其他文件</td>
+<td><code>.extern printf</code></td>
+</tr>
+<tr>
+<td><code>.equ sym, val</code></td>
+<td>定义符号常量</td>
+<td><code>.equ STACK_SZ, 0x1000</code></td>
+</tr>
+<tr>
+<td><code>.macro</code> &#x2F; <code>.endm</code></td>
+<td>宏定义开始&#x2F;结束</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>.include &quot;f&quot;</code></td>
+<td>包含文件</td>
+<td><code>.include &quot;regs.h&quot;</code></td>
+</tr>
+</tbody></table>
+<h3 id="3-5-GNU-Assembler-与-armasm-对照"><a href="#3-5-GNU-Assembler-与-armasm-对照" class="headerlink" title="3.5 GNU Assembler 与 armasm 对照"></a>3.5 GNU Assembler 与 armasm 对照</h3><p>手册表 5-1 给出了常用伪指令的完整对照（此处选出关键差异）：</p>
+<table>
+<thead>
+<tr>
+<th>GNU Assembler</th>
+<th>armasm</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>@</code></td>
+<td><code>;</code></td>
+<td>注释</td>
+</tr>
+<tr>
+<td><code>#0xFF</code></td>
+<td><code>0xFF</code></td>
+<td>立即数（GAS 中 <code>#</code> 可选）</td>
+</tr>
+<tr>
+<td><code>.global</code></td>
+<td><code>IMPORT</code> &#x2F; <code>EXPORT</code></td>
+<td>全局可见性</td>
+</tr>
+<tr>
+<td><code>.word</code></td>
+<td><code>DCD</code></td>
+<td>32-bit 数据字</td>
+</tr>
+<tr>
+<td><code>.byte</code></td>
+<td><code>DCB</code></td>
+<td>8-bit 数据</td>
+</tr>
+<tr>
+<td><code>.short</code></td>
+<td><code>DCW</code></td>
+<td>16-bit 数据</td>
+</tr>
+<tr>
+<td><code>.equ</code></td>
+<td><code>EQU</code></td>
+<td>常量符号</td>
+</tr>
+<tr>
+<td><code>.include &quot;f&quot;</code></td>
+<td><code>INCLUDE f</code></td>
+<td>文件包含（GAS 需引号）</td>
+</tr>
+<tr>
+<td><code>.macro</code> &#x2F; <code>.endm</code></td>
+<td><code>MACRO</code> &#x2F; <code>ENDM</code></td>
+<td>宏定义</td>
+</tr>
+<tr>
+<td><code>.if</code> &#x2F; <code>.else</code> &#x2F; <code>.endif</code></td>
+<td><code>IFDEF</code> &#x2F; <code>ELSE</code> &#x2F; <code>ENDIF</code></td>
+<td>条件汇编</td>
+</tr>
+</tbody></table>
+<p>实例——同一段逻辑在两种语法下的对照：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">@===== GNU Assembler =====       @===== armasm =====</span><br><span class="line">        .text                              AREA  |.text|, CODE</span><br><span class="line">        .global  main                      EXPORT main</span><br><span class="line">main:                              main</span><br><span class="line">        LDR    r0, =message               LDR    r0, =message</span><br><span class="line">        BX     lr                          BX     lr</span><br><span class="line">message:                           message</span><br><span class="line">        .asciz &quot;Hello\n&quot;                   DCB    &quot;Hello\n&quot;, 0</span><br></pre></td></tr></table></figure>
+
+<p>注意注释符（<code>@</code> vs <code>;</code>）、段声明（<code>.text</code> vs <code>AREA</code>）、字符串定义（<code>.asciz</code> vs <code>DCB</code>）和立即数符号（<code>=message</code> vs <code>=message</code>，此处一致）的差异。</p>
+<h3 id="3-6-寄存器命名"><a href="#3-6-寄存器命名" class="headerlink" title="3.6 寄存器命名"></a>3.6 寄存器命名</h3><p>GNU 工具链中支持别名（<code>SP=R13, LR=R14, PC=R15, FP=R11</code>）。状态寄存器通过 <code>xPSR</code> 及其子字段（<code>xPSR_all</code>, <code>xPSR_f</code>, <code>xPSR_ctl</code> 等）访问，其中 <code>x</code> 为 <code>C</code>（当前 CPSR）或 <code>S</code>（保存的 SPSR）。AAPCS 进一步规定了寄存器在函数调用中的保存责任分配。</p>
+<h3 id="3-7-表达式"><a href="#3-7-表达式" class="headerlink" title="3.7 表达式"></a>3.7 表达式</h3><p>汇编器对立即数支持十进制、十六进制（<code>0x</code>）、二进制（<code>0b</code>）和单引号 ASCII 字符。算术&#x2F;逻辑表达式在汇编时求值，产生绝对（位置无关）或相对值（链接时写入，如分支偏移）。</p>
+<p>GNU Assembler 面向多架构，语法是”最小公分母”风格。ARM 自家工具链有一套更贴近 ARM 特性的语法——UAL——解决了跨 ARM&#x2F;Thumb 指令集的源码统一问题。</p>
+<hr>
+<h2 id="4-ARM-工具链统一汇编语言（UAL）"><a href="#4-ARM-工具链统一汇编语言（UAL）" class="headerlink" title="4. ARM 工具链统一汇编语言（UAL）"></a>4. ARM 工具链统一汇编语言（UAL）</h2><p>UAL（Unified Assembly Language）允许<strong>同一份汇编源码</strong>在汇编时通过伪指令或命令行开关选择生成 ARM 或 Thumb 指令——不再需要维护两份源码。</p>
+<h3 id="4-1-语句与标签"><a href="#4-1-语句与标签" class="headerlink" title="4.1 语句与标签"></a>4.1 语句与标签</h3><p>ARM 工具链用 <code>;</code> 注释，标签必须从行首开始（无首字符缩进）。无标签行需空格&#x2F;Tab 开头：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Loop    MUL   R5, R5, R1</span><br><span class="line">        SUBS  R1, R1, #1</span><br><span class="line">        BNE   Loop          ; 汇编器自动将偏移编码为指向 Loop</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-数据定义与伪指令"><a href="#4-2-数据定义与伪指令" class="headerlink" title="4.2 数据定义与伪指令"></a>4.2 数据定义与伪指令</h3><table>
+<thead>
+<tr>
+<th>指令</th>
+<th>含义</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DCD</code></td>
+<td>32-bit 字数据</td>
+<td><code>Masks DCD 0x100, 0x80, 0x40</code></td>
+</tr>
+<tr>
+<td><code>DCB</code></td>
+<td>8-bit 字节数据</td>
+<td><code>MESSAGE DCB &quot;Hello&quot;, 0</code></td>
+</tr>
+<tr>
+<td><code>DCW</code></td>
+<td>16-bit 半字数据</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>EQU</code></td>
+<td>常量符号（不产生数据）</td>
+<td><code>CtrlD EQU 4</code></td>
+</tr>
+<tr>
+<td><code>AREA</code></td>
+<td>定义逻辑段，供链接器放置</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ALIGN n</code></td>
+<td>对齐到 <code>2^n</code> 边界</td>
+<td><code>ALIGN 5</code>（cache line 对齐）</td>
+</tr>
+<tr>
+<td><code>END</code></td>
+<td>源文件结束（不写会报错）</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>INCLUDE</code></td>
+<td>包含文件（用于共享定义）</td>
+<td><code>INCLUDE regs.inc</code></td>
+</tr>
+</tbody></table>
+<p>汇编器和指令集都有了。现在回到 §3 留下的问题：<strong>ARM 和 Thumb 代码如何在同一个程序中无缝调用？</strong> UAL 统一了源码层，但运行时仍需显式切换——这就是 Interworking。</p>
+<hr>
+<h2 id="5-Interworking：ARM-↔-Thumb-运行时切换"><a href="#5-Interworking：ARM-↔-Thumb-运行时切换" class="headerlink" title="5. Interworking：ARM ↔ Thumb 运行时切换"></a>5. Interworking：ARM ↔ Thumb 运行时切换</h2><p>核心问题：ARM 和 Thumb 指令集不同，处理器如何安全地从一种状态切换到另一种？答案是 <strong>BX&#x2F;BLX</strong> 指令——它们不光跳转，还负责改变处理器的 T bit。</p>
+<h3 id="5-1-bit-0-作为状态位"><a href="#5-1-bit-0-作为状态位" class="headerlink" title="5.1 bit[0] 作为状态位"></a>5.1 bit[0] 作为状态位</h3><p>ARM 指令对齐在 4-byte 边界，Thumb 对齐在 2-byte 边界。两者的 bit[0] 都不参与实际地址计算——<strong>这是 Interworking 能运作的关键硬件前提</strong>。ARM 复用 bit[0] 来承载状态信息：</p>
+<ul>
+<li><strong>Rn[0] &#x3D; 0</strong> → 目标执行 ARM 指令（T bit 被清零）</li>
+<li><strong>Rn[1] &#x3D; 1</strong> → 目标执行 Thumb 指令（T bit 被置 1）</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>全称</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>BX Rn</code></td>
+<td>Branch and eXchange</td>
+<td>跳至 Rn，按 Rn[0] 切状态</td>
+</tr>
+<tr>
+<td><code>BLX Rn</code></td>
+<td>Branch and Link and eXchange</td>
+<td>同上，且 LR &#x3D; 返回地址</td>
+</tr>
+<tr>
+<td><code>BLX label</code></td>
+<td>—</td>
+<td>立即数偏移版本（链接器自动补状态切换）</td>
+</tr>
+</tbody></table>
+<p><strong>实例：ARM 代码调用 Thumb 函数</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">        ; ARM state (T=0)</span><br><span class="line">        BLX  thumb_func      ; LR = 返回地址 (bit[0]=0，指示返回 ARM)</span><br><span class="line">                             ; 跳转至 thumb_func，T=1，进入 Thumb 状态</span><br><span class="line">        ; 返回后继续执行 ARM 指令</span><br><span class="line">        ...</span><br><span class="line">thumb_func PROC</span><br><span class="line">        ; Thumb state (T=1)</span><br><span class="line">        BX   LR              ; LR bit[0]=0 → T 被清零，回到 ARM 状态</span><br><span class="line">        ENDP</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：Thumb 代码调用 ARM 函数</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">        ; Thumb state (T=1)</span><br><span class="line">        LDR  r0, =arm_func   ; arm_func bit[0]=0</span><br><span class="line">        BLX  r0              ; 切换至 ARM (T=0)，LR bit[0]=1 (返回 Thumb)</span><br><span class="line">        ; 返回后继续 Thumb</span><br><span class="line">        ...</span><br><span class="line">arm_func PROC</span><br><span class="line">        ; ARM state (T=0)</span><br><span class="line">        BX   LR              ; LR bit[0]=1 → T 置 1，回到 Thumb 状态</span><br><span class="line">        ENDP</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-非叶子函数的返回模式"><a href="#5-2-非叶子函数的返回模式" class="headerlink" title="5.2 非叶子函数的返回模式"></a>5.2 非叶子函数的返回模式</h3><p>会调用子函数的非叶子函数不能直接用 <code>BX LR</code> 返回——LR 会被 <code>BL sub_func</code> 覆盖。标准模式是先压栈再弹出到 PC：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">nonleaf  PUSH  &#123;LR&#125;          ; 保护返回地址</span><br><span class="line">         BL    sub_func       ; 调用子函数 (LR 被覆盖)</span><br><span class="line">         POP   &#123;PC&#125;           ; 恢复返回地址并跳回——POP &#123;PC&#125; 同样根据 bit[0] 切换状态</span><br></pre></td></tr></table></figure>
+
+<p>手册强调 <code>LDR PC, ...</code> 和 POP&#x2F;LDM 中写入 PC 的操作同样具有 bit[0] 状态切换能力。汇编程序员需遵循 ATPCS（ARM-Thumb 过程调用标准）确保混合代码正确。</p>
+<p>理解了 ARM ↔ Thumb 的切换机制后，在实际阅读汇编代码时还需先分辨这段代码属于哪种方言。手册 §5.6 给出了直接可用的区分方法。</p>
+<hr>
+<h2 id="6-识别汇编代码的方言"><a href="#6-识别汇编代码的方言" class="headerlink" title="6. 识别汇编代码的方言"></a>6. 识别汇编代码的方言</h2><p>面对不确定的 ARM 汇编源文件，手册 §5.6 给出了三条快速区分依据：</p>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>传统 ARM</th>
+<th>传统 16-bit Thumb</th>
+<th>UAL</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>操作数个数</td>
+<td>3–4</td>
+<td>多数 2（ADD&#x2F;SUB 可 3）</td>
+<td>2–4</td>
+</tr>
+<tr>
+<td>条件执行</td>
+<td>几乎所有指令可 <code>*NE</code>&#x2F;<code>*EQ</code></td>
+<td>仅分支可条件</td>
+<td><code>IT</code> 指令引导条件块</td>
+</tr>
+<tr>
+<td>关键指令</td>
+<td>无 <code>.syntax unified</code></td>
+<td><code>.code 16</code> &#x2F; <code>.thumb_func</code></td>
+<td><code>.syntax unified</code></td>
+</tr>
+<tr>
+<td>立即数 <code>#</code></td>
+<td>可省略</td>
+<td>—</td>
+<td>可省略</td>
+</tr>
+<tr>
+<td>文件扩展名</td>
+<td><code>.s</code>, <code>.S</code></td>
+<td><code>.s</code>, <code>.S</code></td>
+<td><code>.s</code>, <code>.S</code></td>
+</tr>
+</tbody></table>
+<p><strong>实例：辨别一段未知汇编代码</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">        .syntax unified</span><br><span class="line">        .cpu cortex-a8</span><br><span class="line">func    PROC</span><br><span class="line">        CMP    r0, #0</span><br><span class="line">        ITTEE  EQ               @ 三个特征：IT 指令 = UAL</span><br><span class="line">        MOVEQ  r1, #1           @ 条件执行靠 IT 引导而非后缀</span><br><span class="line">        LDREQ  r2, [r3]</span><br><span class="line">        MOVNE  r1, #0</span><br><span class="line">        STRNE  r2, [r3]</span><br><span class="line">        BX     lr</span><br><span class="line">        ENDP</span><br></pre></td></tr></table></figure>
+
+<p>判别过程：<code>IT</code> 指令 → 排除传统 ARM 和纯 16-bit Thumb；<code>.syntax unified</code> → 确认为 UAL 格式；<code>.cpu cortex-a8</code> → 可编译为 ARM 或 Thumb（取决于 <code>.arm</code>&#x2F;<code>.thumb</code> 指令或命令行）。</p>
+<p>GCC 内联汇编（<code>.c</code> 文件中的 <code>__asm__</code> 块）通过 <code>-marm</code> 或 <code>-mthumb</code> 命令行开关选择生成 ARM 或 Thumb 代码。</p>
+<hr>
+<h2 id="7-ARMv8-A-兼容性新增指令"><a href="#7-ARMv8-A-兼容性新增指令" class="headerlink" title="7. ARMv8-A 兼容性新增指令"></a>7. ARMv8-A 兼容性新增指令</h2><p>手册最后指出，ARMv8-A 引入后，以下 Load-Acquire &#x2F; Store-Release 系列指令被<strong>反向追加</strong>到 ARMv7 ISA（在 ARMv7 中等价于 LDR&#x2F;STR + DMB 组合）：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>LDA</code> &#x2F; <code>LDAB</code> &#x2F; <code>LDAH</code></td>
+<td>Load-Acquire（字&#x2F;字节&#x2F;半字）</td>
+</tr>
+<tr>
+<td><code>STL</code> &#x2F; <code>STLB</code> &#x2F; <code>STLH</code></td>
+<td>Store-Release（字&#x2F;字节&#x2F;半字）</td>
+</tr>
+<tr>
+<td><code>LDAEX</code> &#x2F; <code>LDAEXB</code> &#x2F; <code>LDAEXD</code> &#x2F; <code>LDAEXH</code></td>
+<td>Load-Acquire Exclusive</td>
+</tr>
+<tr>
+<td><code>STLEX</code> &#x2F; <code>STLEXB</code> &#x2F; <code>STLEXD</code> &#x2F; <code>STLEXH</code></td>
+<td>Store-Release Exclusive</td>
+</tr>
+</tbody></table>
+<p><strong>实例：用 LDA&#x2F;STL 实现跨核心消息通知</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">@ Core 0 (Producer): 写入共享数据后释放</span><br><span class="line">        STR    r1, [shared_data]     @ 先写数据</span><br><span class="line">        DMB    ISH                   @ 内存屏障：保证数据写入先于锁释放</span><br><span class="line">        MOV    r0, #0</span><br><span class="line">        STL    r0, [shared_flag]     @ Store-Release：释放标志，视作&quot;写入完成&quot;</span><br><span class="line"></span><br><span class="line">@ Core 1 (Consumer): 等待标志后读取数据</span><br><span class="line">wait:   LDA    r1, [shared_flag]     @ Load-Acquire：获取标志，视作&quot;可读&quot;</span><br><span class="line">        CMP    r1, #0</span><br><span class="line">        BEQ    wait                  @ 标志未置位，自旋等待</span><br><span class="line">        LDR    r2, [shared_data]     @ 标志已置位，保证能看到 Producer 写入的数据</span><br></pre></td></tr></table></figure>
+
+<p>在 ARMv7 上 <code>LDA</code>&#x2F;<code>STL</code> 实际汇编为 <code>LDR</code>&#x2F;<code>STR</code> + <code>DMB</code> 组合；在 ARMv8 上利用硬件 acquire&#x2F;release 语义减少了显式屏障。</p>
+<p>这些指令实现 C11&#x2F;C++11 的 release&#x2F;acquire 内存顺序语义，在 ARMv8 上利用硬件特性提供更强的保证。</p>
+<hr>
+<h2 id="8-学习要点总结"><a href="#8-学习要点总结" class="headerlink" title="8. 学习要点总结"></a>8. 学习要点总结</h2><ol>
+<li><p><strong>Load&#x2F;Store 架构是所有 ARM 汇编理解的起点</strong>：运算不进内存，一旦违反思维模型就会写出错误的优化假设。三步 load→运算→store 是 ARM 编程的基本操作模式。</p>
+</li>
+<li><p><strong>Thumb-2 终结了”ARM or Thumb”的二选一</strong>。当前的默认策略是全部编译为 Thumb-2，在 16-bit 和 32-bit 编码间自动选择。只有特殊情况才需要 <code>.W</code>&#x2F;<code>.N</code> 修饰符。</p>
+</li>
+<li><p>**T bit (CPSR[5]) 是处理器的”语言开关”**。它不是软件标志——修改它必须伴随流水线刷新，因此必须通过 BX&#x2F;BLX（或写入 PC 的 LDR&#x2F;LDM&#x2F;POP）来安全切换。</p>
+</li>
+<li><p><strong>bit[0] &#x3D; 指令集指示器</strong>。这可能是 ARM 汇编中最反直觉的设计：函数指针的最低位不是地址的一部分，而是告诉处理器该函数被编译为哪种指令集。链接器自动设置此位。</p>
+</li>
+<li><p>**GNU Assembler 和 armasm 的差异不只是 <code>@</code> vs <code>;</code>**。<code>.word</code> vs <code>DCD</code>、<code>.equ</code> vs <code>EQU</code>、<code>.include &quot;f&quot;</code> vs <code>INCLUDE f</code>——在两种工具链间迁移代码时必须全局替换伪指令。</p>
+</li>
+<li><p><strong>UAL 统一了源码层</strong>：<code>.syntax unified</code> 让同一份汇编源可同时编译为 ARM 或 Thumb，汇编时通过 <code>.arm</code>&#x2F;<code>.thumb</code> 伪指令选择目标。这是编译器生成的汇编代码的默认格式。</p>
+</li>
+<li><p><strong>非叶子函数的 PUSH {LR} &#x2F; POP {PC} 模式</strong>是 ARM 汇编的标准模板——不是 <code>CALL</code> → <code>RET</code>，而是显式的栈操作。理解这一点才能顺利阅读 boot 代码和内核上下文切换的汇编实现。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM-ARMv7-a/" rel="tag"># ARM, ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E5%A4%84%E7%90%86%E5%99%A8%E6%A8%A1%E5%BC%8F%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8/" rel="prev" title="ARM处理器模式与寄存器">
+                  <i class="fa fa-angle-left"></i> ARM处理器模式与寄存器
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E7%BB%9F%E4%B8%80%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E6%8C%87%E4%BB%A4%E9%9B%86/" rel="next" title="ARM统一汇编语言指令集">
+                  ARM统一汇编语言指令集 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

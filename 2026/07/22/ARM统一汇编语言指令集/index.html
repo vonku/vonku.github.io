@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从立即数编码、条件执行到桶形移位器，逐条拆解 ARMv7-A 指令集的底层机制与设计决策。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM统一汇编语言指令集">
+<meta property="og:url" content="http://yoursite.com/2026/07/22/ARM%E7%BB%9F%E4%B8%80%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E6%8C%87%E4%BB%A4%E9%9B%86/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从立即数编码、条件执行到桶形移位器，逐条拆解 ARMv7-A 指令集的底层机制与设计决策。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-22T12:38:42.000Z">
+<meta property="article:modified_time" content="2026-07-22T12:56:56.350Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM, ARMv7-a">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/22/ARM%E7%BB%9F%E4%B8%80%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E6%8C%87%E4%BB%A4%E9%9B%86/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM%E7%BB%9F%E4%B8%80%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E6%8C%87%E4%BB%A4%E9%9B%86/","path":"2026/07/22/ARM统一汇编语言指令集/","title":"ARM统一汇编语言指令集"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM统一汇编语言指令集 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E6%A6%82%E8%A7%88"><span class="nav-text">1. 概览</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-ARM-%E4%B8%8E-Thumb-%E4%BB%A3%E7%A0%81%E7%9A%84%E8%AF%86%E5%88%AB"><span class="nav-text">1.1 ARM 与 Thumb 代码的识别</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%8C%87%E4%BB%A4%E9%9B%86%E5%9F%BA%E7%A1%80%E8%A6%81%E7%B4%A0"><span class="nav-text">2. 指令集基础要素</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E7%AB%8B%E5%8D%B3%E6%95%B0%E7%BC%96%E7%A0%81"><span class="nav-text">2.1 立即数编码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E6%9D%A1%E4%BB%B6%E6%89%A7%E8%A1%8C"><span class="nav-text">2.2 条件执行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E7%8A%B6%E6%80%81%E6%A0%87%E5%BF%97"><span class="nav-text">2.3 状态标志</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%95%B0%E6%8D%AE%E5%A4%84%E7%90%86%E6%8C%87%E4%BB%A4"><span class="nav-text">3. 数据处理指令</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%A1%B6%E5%BD%A2%E7%A7%BB%E4%BD%8D%E5%99%A8%E4%B8%8E%E7%AC%AC%E4%BA%8C%E6%93%8D%E4%BD%9C%E6%95%B0"><span class="nav-text">3.1 桶形移位器与第二操作数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E4%B9%98%E6%B3%95%E6%93%8D%E4%BD%9C"><span class="nav-text">3.2 乘法操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E6%95%B4%E6%95%B0-SIMD-%E6%8C%87%E4%BB%A4"><span class="nav-text">3.3 整数 SIMD 指令</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%86%85%E5%AD%98%E8%AE%BF%E9%97%AE%E6%8C%87%E4%BB%A4"><span class="nav-text">4. 内存访问指令</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%AF%BB%E5%9D%80%E6%A8%A1%E5%BC%8F"><span class="nav-text">4.1 寻址模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%A4%9A%E5%AF%84%E5%AD%98%E5%99%A8%E4%BC%A0%E8%BE%93%E4%B8%8E%E6%A0%88%E6%93%8D%E4%BD%9C"><span class="nav-text">4.2 多寄存器传输与栈操作</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%88%86%E6%94%AF%E4%B8%8E%E9%A5%B1%E5%92%8C%E7%AE%97%E6%9C%AF"><span class="nav-text">5. 分支与饱和算术</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%88%86%E6%94%AF%E6%8C%87%E4%BB%A4"><span class="nav-text">5.1 分支指令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E9%A5%B1%E5%92%8C%E7%AE%97%E6%9C%AF%E6%8C%87%E4%BB%A4"><span class="nav-text">5.2 饱和算术指令</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E6%9D%82%E9%A1%B9%E6%8C%87%E4%BB%A4"><span class="nav-text">6. 杂项指令</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%8D%8F%E5%A4%84%E7%90%86%E5%99%A8%E6%8C%87%E4%BB%A4"><span class="nav-text">6.1 协处理器指令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-SVC-%E8%B6%85%E7%BA%A7%E8%B0%83%E7%94%A8%E6%8C%87%E4%BB%A4"><span class="nav-text">6.2 SVC 超级调用指令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-PSR-%E4%BF%AE%E6%94%B9%E4%B8%8E%E4%BD%8D%E5%9F%9F%E6%93%8D%E4%BD%9C"><span class="nav-text">6.3 PSR 修改与位域操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E7%BC%93%E5%AD%98%E9%A2%84%E5%8F%96%E4%B8%8E%E5%AD%97%E8%8A%82%E5%8F%8D%E8%BD%AC"><span class="nav-text">6.4 缓存预取与字节反转</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E6%80%BB%E7%BB%93"><span class="nav-text">7. 总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">60</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/22/ARM%E7%BB%9F%E4%B8%80%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E6%8C%87%E4%BB%A4%E9%9B%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM统一汇编语言指令集 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM统一汇编语言指令集
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-22 20:38:42" itemprop="dateCreated datePublished" datetime="2026-07-22T20:38:42+08:00">2026-07-22</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从立即数编码、条件执行到桶形移位器，逐条拆解 ARMv7-A 指令集的底层机制与设计决策。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-概览"><a href="#1-概览" class="headerlink" title="1. 概览"></a>1. 概览</h2><p>ARMv7-A 架构引入了一个重要概念：<strong>统一汇编语言（UAL, Unified Assembly Language）</strong>。在此之前，ARM 代码和 Thumb 代码使用两套语法，编写和维护都极其繁琐。UAL 通过一种统一的语法形式，同时覆盖 ARM 32 位指令集和 Thumb-2 16&#x2F;32 位混合指令集。</p>
+<p>从功能视角看，ARM 汇编指令可以分为以下类别：</p>
+<ul>
+<li><strong>数据处理指令</strong>：<code>ADD</code>、<code>SUB</code>、<code>AND</code>、<code>ORR</code>、<code>MOV</code> 等 —— 算术和逻辑运算</li>
+<li><strong>内存访问指令</strong>：<code>LDR</code>、<code>STR</code>、<code>LDM</code>、<code>STM</code> —— 寄存器和内存之间的数据搬运</li>
+<li><strong>分支指令</strong>：<code>B</code>、<code>BL</code>、<code>BX</code>、<code>CBZ</code> 等 —— 控制流跳转</li>
+<li><strong>饱和算术指令</strong>：<code>QADD</code>、<code>QSUB</code>、<code>SSAT</code> —— 数字信号处理核心</li>
+<li><strong>杂项&#x2F;系统指令</strong>：协处理器、SVC、缓存预取、字节反转等</li>
+</ul>
+<p>阅读本章之前，需要先熟悉 ARM 处理器模式、寄存器组（R0-R15、CPSR&#x2F;SPSR）以及汇编语法基础。</p>
+<p>本章近一半的篇幅都在讨论指令集的三个基础构件：立即数编码、条件执行和状态标志。这三个概念是理解后续所有指令族的前提。</p>
+<h3 id="1-1-ARM-与-Thumb-代码的识别"><a href="#1-1-ARM-与-Thumb-代码的识别" class="headerlink" title="1.1 ARM 与 Thumb 代码的识别"></a>1.1 ARM 与 Thumb 代码的识别</h3><p>拿到一段 ARM 汇编代码，先判断它编译为 32 位 ARM 指令还是 16&#x2F;32 位 Thumb 指令，这是阅读和调试的第一步。有以下几类典型特征可做判断：</p>
+<p><strong>传统 ARM 汇编（32 位指令）</strong>：操作数可以有三到四个（如 <code>ADD R0, R1, R2</code>），非分支指令也可带条件后缀（如 <code>ADDNE R0, R0, #1</code>），文件名通常为 <code>.s</code> 或 <code>.S</code>。</p>
+<p><strong>UAL 统一汇编</strong>：文件头部有 <code>.syntax unified</code> 伪指令。语法上看起来和传统 ARM 汇编相似，但条件执行必须用 <code>IT</code> 指令包裹。根据 <code>.thumb</code> 或 <code>.arm</code> 伪指令的不同，会被汇编为 32 位 ARM 指令或 16&#x2F;32 位混合 Thumb 指令。</p>
+<p><strong>16 位 Thumb 汇编</strong>：包含 <code>.code 16</code>、<code>.thumb</code> 或 <code>.thumb_func</code> 伪指令，但没有 <code>.syntax unified</code>。多数指令只有两个操作数（<code>ADD</code> 和 <code>SUB</code> 可有三个）。只有分支指令才可以条件执行。</p>
+<p><strong>GCC 内联汇编</strong>：C&#x2F;C++ 源文件中的内联汇编（<code>.c</code>、<code>.h</code>、<code>.cpp</code> 等），构造为 ARM 还是 Thumb 取决于 GCC 的命令行参数 <code>-marm</code> 或 <code>-mthumb</code>。</p>
+<p>此外，运行时区分 ARM 和 Thumb 状态有两种方法：</p>
+<ul>
+<li><strong>CPSR 的 T 位</strong>：T &#x3D; 0 表示 ARM 状态，T &#x3D; 1 表示 Thumb 状态</li>
+<li><strong>BX&#x2F;BLX 的 bit[0] 约定</strong>：所有函数指针的 bit[0] 在 Thumb 状态下必须为 1，ARM 状态下必为 0。<code>BX Rm</code> 根据 Rm 的 bit[0] 决定目标指令集，这也是反汇编工具判断状态的依据</li>
+</ul>
+<hr>
+<h2 id="2-指令集基础要素"><a href="#2-指令集基础要素" class="headerlink" title="2. 指令集基础要素"></a>2. 指令集基础要素</h2><p>任何架构的汇编语言都有几个”元规则”——掌握了它们，其余指令不过是规则的组合与应用。对 ARMv7-A 而言，这三个元规则是：立即数编码方式、条件执行机制、以及四位状态标志。本章先逐一拆解这三个基石，为后续所有指令族铺平道路。</p>
+<h3 id="2-1-立即数编码"><a href="#2-1-立即数编码" class="headerlink" title="2.1 立即数编码"></a>2.1 立即数编码</h3><p>ARM 和 Thumb 指令长度只有 16 或 32 位。拿 32 位的 ARM 指令来说，条件码（4 位）、操作码、源&#x2F;目的寄存器已经占去大半空间，留给立即数的只有区区 12 位。</p>
+<blockquote>
+<p>ARM or Thumb assembly language instructions have a length of only 16 or 32 bits. This presents something of a problem. It means that you cannot encode an arbitrary 32-bit value within the opcode.</p>
+</blockquote>
+<p>如果用 12 位直接表示常数，范围只有 -2048 到 +2047，实在不够用。ARM 的设计方案很巧妙：<strong>12 位 &#x3D; 8 位立即数 + 4 位循环右移位数</strong>。4 位右移位数的步长为 2（即 0, 2, 4, …, 30），所以可以用 8 位数值构造出分散在高位的常数。</p>
+<p><strong>实例</strong>：要生成 <code>0x23000000</code>，表达为 <code>0x23 ROR 8</code> 即可。ARM 汇编器会自动帮我们做这个转换。</p>
+<p>但 <code>&lt;0xFF</code> 这种值没办法在单条指令中产生，因为它不满足”8 位值循环右移偶数位”的约束。遇到这种情况，要么用多指令拼接，要么从内存中的<strong>文字池（literal pool）</strong>加载。</p>
+<p>Thumb-2 对立即数的支持更丰富，允许三种额外模式：</p>
+<ul>
+<li><code>0x00XY00XY</code> 形式（如 <code>0x00FF00FF</code>）</li>
+<li><code>0xXY00XY00</code> 形式</li>
+<li><code>0xXYXYXYXY</code> 形式（如 <code>0xFFFFFFFF</code> 用于 <code>MVN</code>）</li>
+</ul>
+<p><strong>MOVW 和 MOVT 的引入</strong>是 ARMv7-A 的重大改进。<code>MOVW</code>（Move Wide）将 16 位常数装入寄存器低 16 位并清零高 16 位；<code>MOVT</code>（Move Top）将 16 位常数装入高 16 位，不影响低 16 位。两者配合就能构造出任意 32 位常数：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">MOVW R0, #:lower16:label</span><br><span class="line">MOVT R0, #:upper16:label</span><br></pre></td></tr></table></figure>
+
+<p><code>MOVW</code> 将 <code>label</code> 的低 16 位地址装入 R0 并清零高 16 位；<code>MOVT</code> 再把高 16 位地址写入 R0[31:16]，不改变 R0 的低半部分。两条指令配合，不耗任何内存读取即可构造完整 32 位地址。</p>
+<p>在此之前，唯一的手段是伪指令 <code>LDR Rn, =&lt;constant&gt;</code>，汇编器会自行选择用 <code>MOV</code>&#x2F;<code>MVN</code> 编码还是从文字池加载。</p>
+<p><strong>反事实推理</strong>：如果没有 MOVW&#x2F;MOVT，加载一个 32 位地址常数就需要从文字池做一次内存读取。这不仅占用内存空间（Literal Pool 区域），还在数据缓存中产生一次访问——对频繁访问缓存的代码路径来说，这是完全可以避免的开销。</p>
+<h3 id="2-2-条件执行"><a href="#2-2-条件执行" class="headerlink" title="2.2 条件执行"></a>2.2 条件执行</h3><blockquote>
+<p>A feature of the ARM instruction set is that nearly all instructions can be conditional. On most other architectures, only branches or jumps can be executed conditionally.</p>
+</blockquote>
+<p>这是 ARM 与 x86 最核心的差异之一。绝大多数 ARM 指令都可以附加一个两位字母的<strong>条件后缀</strong>，当条件满足时才执行。而 x86 只有 <code>Jcc</code>（条件跳转）指令有类似能力。</p>
+<p>考虑一段”比较 R0 和 R1，把较小值放入 R2”的代码。用传统分支写法：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">CMP     R0, R1</span><br><span class="line">BLT     .Lsmaller</span><br><span class="line">MOV     R2, R1</span><br><span class="line">B       .Lend</span><br><span class="line">.Lsmaller:</span><br><span class="line">MOV     R2, R0</span><br><span class="line">.Lend:</span><br></pre></td></tr></table></figure>
+
+<p>用条件执行写同样的逻辑：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CMP     R0, R1</span><br><span class="line">MOVGE   R2, R1    @ 若 R0 &gt;= R1，R2 = R1</span><br><span class="line">MOVLT   R2, R0    @ 若 R0 &lt; R1，R2 = R0</span><br></pre></td></tr></table></figure>
+
+<p>后者更短小，而且在老式 ARM 处理器（如 ARM7TDMI，三级流水线）上也更快——因为规避了流水线刷新（pipeline flush）的代价。</p>
+<p><strong>但需要注意</strong>：在 Cortex-A9 这类现代处理器上，条件执行未必比分支快。原因有三：第一，指令间数据依赖可能导致更长的停滞；第二，分支预测器可以大幅消减分支成本；第三，分支预测命中时，条件执行的指令即使被跳过也占用了发射槽位。</p>
+<p>完整的 15 组条件码如下：</p>
+<table>
+<thead>
+<tr>
+<th>后缀</th>
+<th>含义</th>
+<th>标志条件</th>
+<th>助记</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EQ</td>
+<td>Equal</td>
+<td>Z &#x3D; 1</td>
+<td>相等</td>
+</tr>
+<tr>
+<td>NE</td>
+<td>Not equal</td>
+<td>Z &#x3D; 0</td>
+<td>不等</td>
+</tr>
+<tr>
+<td>CS &#x2F; HS</td>
+<td>Carry Set &#x2F; Unsigned higher or same</td>
+<td>C &#x3D; 1</td>
+<td>无符号 &gt;&#x3D;</td>
+</tr>
+<tr>
+<td>CC &#x2F; LO</td>
+<td>Carry Clear &#x2F; Unsigned lower</td>
+<td>C &#x3D; 0</td>
+<td>无符号 &lt;</td>
+</tr>
+<tr>
+<td>MI</td>
+<td>Minus</td>
+<td>N &#x3D; 1</td>
+<td>结果为负</td>
+</tr>
+<tr>
+<td>PL</td>
+<td>Plus</td>
+<td>N &#x3D; 0</td>
+<td>结果非负</td>
+</tr>
+<tr>
+<td>VS</td>
+<td>Overflow</td>
+<td>V &#x3D; 1</td>
+<td>有符号溢出</td>
+</tr>
+<tr>
+<td>VC</td>
+<td>No overflow</td>
+<td>V &#x3D; 0</td>
+<td>无符号溢出</td>
+</tr>
+<tr>
+<td>HI</td>
+<td>Unsigned higher</td>
+<td>C&#x3D;1 AND Z&#x3D;0</td>
+<td>无符号 &gt;</td>
+</tr>
+<tr>
+<td>LS</td>
+<td>Unsigned lower or same</td>
+<td>C&#x3D;0 OR Z&#x3D;1</td>
+<td>无符号 &lt;&#x3D;</td>
+</tr>
+<tr>
+<td>GE</td>
+<td>Signed &gt;&#x3D;</td>
+<td>N &#x3D; V</td>
+<td>有符号 &gt;&#x3D;</td>
+</tr>
+<tr>
+<td>LT</td>
+<td>Signed &lt;</td>
+<td>N !&#x3D; V</td>
+<td>有符号 &lt;</td>
+</tr>
+<tr>
+<td>GT</td>
+<td>Signed &gt;</td>
+<td>Z&#x3D;0 AND N&#x3D;V</td>
+<td>有符号 &gt;</td>
+</tr>
+<tr>
+<td>LE</td>
+<td>Signed &lt;&#x3D;</td>
+<td>Z&#x3D;1 OR N!&#x3D;V</td>
+<td>有符号 &lt;&#x3D;</td>
+</tr>
+<tr>
+<td>AL</td>
+<td>Always</td>
+<td>—</td>
+<td>默认条件（可省略）</td>
+</tr>
+</tbody></table>
+<p>要点总结：</p>
+<ul>
+<li>无符号比较只用 C 和 Z 标志</li>
+<li>有符号比较需要同时考察 N 和 V 标志（溢出会破坏符号位的含义）</li>
+<li><code>HI</code> 和 <code>CS</code> 的区别在于是否排除相等情况</li>
+<li><code>AL</code> 是默认值，不需要显式写出</li>
+</ul>
+<p><strong>Thumb-2 的 IT 指令</strong>：Thumb 模式下没有 ARM 那样”每条指令自带条件码”的编码空间。Thumb-2 通过 <code>IT&#123;x&#123;y&#123;z&#125;&#125;&#125;</code> 指令为后续 1~4 条指令赋予条件执行能力，其中 <code>x/y/z</code> 用 <code>T</code>（Then）或 <code>E</code>（Else）表示条件取反。例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ITT   EQ</span><br><span class="line">SUBEQ r1, r1, #1</span><br><span class="line">ADDEQ r0, r0, #60</span><br></pre></td></tr></table></figure>
+
+<p>IT 块通常由汇编器自动生成，但在阅读反汇编输出时经常遇到。</p>
+<h3 id="2-3-状态标志"><a href="#2-3-状态标志" class="headerlink" title="2.3 状态标志"></a>2.3 状态标志</h3><p>每条可设定标志的指令都直接影响 CPSR（Current Program Status Register）中的四个标志位：</p>
+<table>
+<thead>
+<tr>
+<th>标志</th>
+<th>位号</th>
+<th>名称</th>
+<th>设置逻辑</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>N</td>
+<td>31</td>
+<td>Negative</td>
+<td>等于结果的 bit[31]（对有符号数来说就是符号位）</td>
+</tr>
+<tr>
+<td>Z</td>
+<td>30</td>
+<td>Zero</td>
+<td>结果为零时置 1</td>
+</tr>
+<tr>
+<td>C</td>
+<td>29</td>
+<td>Carry</td>
+<td>无符号运算的进位&#x2F;借位，或移位操作中最后移出的位</td>
+</tr>
+<tr>
+<td>V</td>
+<td>28</td>
+<td>Overflow</td>
+<td>有符号运算的溢出标志</td>
+</tr>
+</tbody></table>
+<p>理解 C 和 V 各自对应的”算术世界”很关键：</p>
+<ul>
+<li><strong>C 标志</strong>服务于无符号运算。比如 <code>0xFFFFFFFF + 0x1 = 0x00000000</code>，无符号意义上溢出了，C&#x3D;1。C 标志常常用于实现 64 位算术——用两条 32 位 <code>ADC</code>&#x2F;<code>SBC</code> 指令串起来。</li>
+<li><strong>V 标志</strong>服务于有符号运算。比如 <code>0x7FFFFFFF + 0x2 = 0x80000001</code>，有符号意义上正数加正数得到了负数，V&#x3D;1。</li>
+</ul>
+<p>设置标志的方法是给指令附加 <code>S</code> 后缀：<code>ADDS</code>、<code>MOVS</code>、<code>SUBS</code>。比较指令 <code>CMP</code>、<code>CMN</code>、<code>TST</code>、<code>TEQ</code> 唯一的副作用就是设置标志——它们隐式带有 <code>S</code> 语义，不要再加后缀。</p>
+<p>需要注意的是：<strong>Load 和 Store 指令从不设定标志</strong>。</p>
+<p>有了这三个基石的知识铺垫——立即数编码规则、15 组条件码、以及 N&#x2F;Z&#x2F;C&#x2F;V 标志的设置逻辑——现在可以进入 ARM 汇编中数量最多的一族：数据处理指令。</p>
+<h2 id="3-数据处理指令"><a href="#3-数据处理指令" class="headerlink" title="3. 数据处理指令"></a>3. 数据处理指令</h2><p>ARM 核心只能对寄存器执行 ALU 操作，不能直接操作内存。数据处理指令的基本格式是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Operation&#123;cond&#125;&#123;S&#125; Rd, Rn, Operand2</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>&#123;cond&#125;</code> 是可选的 15 组条件码，<code>&#123;S&#125;</code> 表示是否更新 CPSR 标志。</p>
+<p>完整的数据处理指令表如下：</p>
+<table>
+<thead>
+<tr>
+<th>操作码</th>
+<th>功能</th>
+<th>公式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ADC</td>
+<td>带进位加</td>
+<td>Rd &#x3D; Rn + Op2 + C</td>
+</tr>
+<tr>
+<td>ADD</td>
+<td>加法</td>
+<td>Rd &#x3D; Rn + Op2</td>
+</tr>
+<tr>
+<td>MOV</td>
+<td>传送</td>
+<td>Rd &#x3D; Op2</td>
+</tr>
+<tr>
+<td>MVN</td>
+<td>取反传送</td>
+<td>Rd &#x3D; ~Op2</td>
+</tr>
+<tr>
+<td>RSB</td>
+<td>反向减</td>
+<td>Rd &#x3D; Op2 - Rn</td>
+</tr>
+<tr>
+<td>RSC</td>
+<td>带借位反向减</td>
+<td>Rd &#x3D; Op2 - Rn - !C</td>
+</tr>
+<tr>
+<td>SBC</td>
+<td>带借位减</td>
+<td>Rd &#x3D; Rn - Op2 - !C</td>
+</tr>
+<tr>
+<td>SUB</td>
+<td>减法</td>
+<td>Rd &#x3D; Rn - Op2</td>
+</tr>
+<tr>
+<td>AND</td>
+<td>按位与</td>
+<td>Rd &#x3D; Rn &amp; Op2</td>
+</tr>
+<tr>
+<td>BIC</td>
+<td>位清除</td>
+<td>Rd &#x3D; Rn &amp; ~Op2</td>
+</tr>
+<tr>
+<td>EOR</td>
+<td>异或</td>
+<td>Rd &#x3D; Rn ^ Op2</td>
+</tr>
+<tr>
+<td>ORR</td>
+<td>按位或</td>
+<td>Rd &#x3D; Rn | Op2</td>
+</tr>
+<tr>
+<td>CMP</td>
+<td>比较</td>
+<td>Rn - Op2（仅更新标志）</td>
+</tr>
+<tr>
+<td>CMN</td>
+<td>比较负</td>
+<td>Rn + Op2（仅更新标志）</td>
+</tr>
+<tr>
+<td>TEQ</td>
+<td>测试相等</td>
+<td>Rn ^ Op2（仅更新标志）</td>
+</tr>
+<tr>
+<td>TST</td>
+<td>测试位</td>
+<td>Rn &amp; Op2（仅更新标志）</td>
+</tr>
+</tbody></table>
+<p>以下指令需要特别关注：</p>
+<p><strong>RSB（Reverse Subtract）</strong> 的存在是因为 Op1 只能是一个寄存器。要写 <code>R0 = 100 - R1</code>，<code>SUB R0, #100, R1</code> 是非法的（第一操作数不能是立即数），必须用 <code>RSB R0, R1, #100</code>。</p>
+<p><strong>BIC（Bit Clear）</strong> 是一个非常优雅的位清除手段。比如要清除 R0 的 bit[11]：<code>BIC R0, R0, #0x800</code>。#0x800 的只有 bit[11] 为 1，取反后只有 bit[11] 为 0，AND 操作后 bit[11] 就被清零了。</p>
+<p><strong>ORR 而非 OR</strong>：三个字母的助记符是历史遗留——最初的 ARM 指令集中所有数据处理操作都是三字母。这个约定延续至今。</p>
+<h3 id="3-1-桶形移位器与第二操作数"><a href="#3-1-桶形移位器与第二操作数" class="headerlink" title="3.1 桶形移位器与第二操作数"></a>3.1 桶形移位器与第二操作数</h3><p>数据处理指令的 Operand2 可以不仅仅是寄存器或立即数。<strong>桶形移位器（Barrel Shifter）</strong>允许在第二个操作数进入 ALU 之前，先做一次移位&#x2F;旋转。五种移位操作如下：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>全称</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>LSL</td>
+<td>Logical Shift Left</td>
+<td>左移，低位补 0</td>
+</tr>
+<tr>
+<td>LSR</td>
+<td>Logical Shift Right</td>
+<td>右移，高位补 0（无符号）</td>
+</tr>
+<tr>
+<td>ASR</td>
+<td>Arithmetic Shift Right</td>
+<td>右移，高位补符号位（有符号）</td>
+</tr>
+<tr>
+<td>ROR</td>
+<td>Rotate Right</td>
+<td>循环右移</td>
+</tr>
+<tr>
+<td>RRX</td>
+<td>Rotate Right with Extend</td>
+<td>带 C 标志的循环右移</td>
+</tr>
+</tbody></table>
+<p>这意味着 ARM 汇编中不存在独立的移位指令。<code>MOV R0, R1, LSL #2</code> 就是 R0 &#x3D; R1 &lt;&lt; 2。更重要的是，移位可以与算术运算融合在一条指令中：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ADD     R0, R1, #1             @ R0 = R1 + 1</span><br><span class="line">ADD     R0, R1, R2             @ R0 = R1 + R2</span><br><span class="line">ADD     R0, R1, R2, LSL #4     @ R0 = R1 + (R2 &lt;&lt; 4)</span><br><span class="line">ADD     R0, R1, R2, LSR R3     @ R0 = R1 + (R2 &gt;&gt; R3)</span><br></pre></td></tr></table></figure>
+
+<p>一个经典用法是快速乘法：<code>ADD R0, R0, R0, LSL #2</code> 等价于 <code>R0 = R0 * 5</code>。这是因为 R0 × 5 &#x3D; R0 + (R0 × 4) &#x3D; R0 + (R0 &lt;&lt; 2)。</p>
+<p>又如数组索引计算。假设 R1 指向一个 <code>int</code> 数组的首地址，R2 是下标（0-based）。那么 <code>LDR R0, [R1, R2, LSL #2]</code> 就能直接取到 <code>arr[R2]</code>，因为地址偏移 &#x3D; R2 × sizeof(int) &#x3D; R2 × 4。</p>
+<p><strong>对比 x86</strong>：x86 汇编中移位和算术运算通常是分开的——<code>SHL</code> + <code>ADD</code> 需要两条指令。ARM 的桶形移位器把两步合为一步，在高密度信号处理代码中优势明显。</p>
+<h3 id="3-2-乘法操作"><a href="#3-2-乘法操作" class="headerlink" title="3.2 乘法操作"></a>3.2 乘法操作</h3><p>ARM 乘法操作的最大限制是<strong>不能使用立即数</strong>——除数必须是寄存器。核心乘法指令如下：</p>
+<table>
+<thead>
+<tr>
+<th>操作码</th>
+<th>功能</th>
+<th>公式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MUL</td>
+<td>32位乘法</td>
+<td>Rd &#x3D; Rn × Rm</td>
+</tr>
+<tr>
+<td>MLA</td>
+<td>乘加</td>
+<td>Rd &#x3D; Ra + (Rn × Rm)</td>
+</tr>
+<tr>
+<td>MLS</td>
+<td>乘减</td>
+<td>Rd &#x3D; Ra - (Rn × Rm)</td>
+</tr>
+<tr>
+<td>UMULL</td>
+<td>无符号 64 位乘法</td>
+<td>RdHiLo &#x3D; Rn × Rm</td>
+</tr>
+<tr>
+<td>SMULL</td>
+<td>有符号 64 位乘法</td>
+<td>RdHiLo &#x3D; Rn × Rm</td>
+</tr>
+<tr>
+<td>UMLAL</td>
+<td>无符号 64 位乘加</td>
+<td>RdHiLo +&#x3D; Rn × Rm</td>
+</tr>
+<tr>
+<td>SMLAL</td>
+<td>有符号 64 位乘加</td>
+<td>RdHiLo +&#x3D; Rn × Rm</td>
+</tr>
+</tbody></table>
+<p>64 位乘法需要两个目标寄存器（RdLo 和 RdHi）来存放结果。下面用具体寄存器值演示几种常见乘法模式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">@ 32-bit 乘法：R0 = R1 × R2（结果放在单一寄存器）</span><br><span class="line">MUL     R0, R1, R2</span><br><span class="line"></span><br><span class="line">@ 乘加：R0 = R2 + (R0 × R1)</span><br><span class="line">MLA     R0, R0, R1, R2</span><br><span class="line"></span><br><span class="line">@ 无符号 64-bit 乘加：(R3,R2) = (R3,R2) + R4 × R5</span><br><span class="line">@ R2 存低 32 位，R3 存高 32 位</span><br><span class="line">UMLAL   R2, R3, R4, R5</span><br></pre></td></tr></table></figure>
+
+<p><code>MUL</code> 是最简单的 32×32 → 32 乘法。<code>MLA</code> 把乘积累加到第三个寄存器——这是 FIR 滤波器内积运算的标准构件。<code>UMLAL</code> 则把 32×32 乘积累加到 64 位寄存器对 <code>(R3,R2)</code>，是长整数算术的基本单元。</p>
+<p><code>UMULL</code> 和 <code>UMLAL</code> 在实现大整数运算时不可或缺——两个寄存器的串联构成了 64 位累加器。</p>
+<p><strong>扩展乘法</strong>：ARMv6 之后增加了 <code>SMMUL</code>&#x2F;<code>SMMLA</code>&#x2F;<code>SMMLS</code> 系列，它们执行 32 × 32 乘法，但只保留<strong>高 32 位</strong>结果。加 <code>R</code> 后缀表示舍入而非截断。<code>UMAAL</code>（Unsigned Multiply Accumulate Accumulate Long）则执行 32 × 32 乘法后，再将两个 32 位寄存器的值相加——一次完成乘法+两次累加。</p>
+<h3 id="3-3-整数-SIMD-指令"><a href="#3-3-整数-SIMD-指令" class="headerlink" title="3.3 整数 SIMD 指令"></a>3.3 整数 SIMD 指令</h3><blockquote>
+<p>These must not be confused with the significantly more powerful Advanced SIMD (NEON) operations that were introduced in the ARMv7 architecture.</p>
+</blockquote>
+<p>ARMv6 引入了整数 SIMD 指令，让单个 32 位寄存器可以同时容纳 4 个 8 位或 2 个 16 位数据，并行处理。<strong>这不是 NEON</strong>——NEON 拥有独立的 64&#x2F;128 位寄存器组，性能远超这里的”轻量 SIMD”。但整数 SIMD 的低延迟特性使其在简单 DSP 场景中仍有吸引力。</p>
+<p>这些指令使用 CPSR 中的 GE[3:0] 标志（与常规 N&#x2F;Z&#x2F;C&#x2F;V 标志独立），四个标志分别对应字内四个字节的溢出状态。典型指令包括：</p>
+<ul>
+<li>**<code>SADD16/UADD16</code>**：两对 16 位半字分别做有符号&#x2F;无符号加法</li>
+<li>**<code>SSUB8/USUB8</code>**：四对 8 位字节分别做有符号&#x2F;无符号减法</li>
+<li>**<code>QADD16/QSADD16</code>**：饱和版 16 位加法</li>
+<li><strong><code>ASX/SAX</code> 类</strong>：交换一个操作数的半字，然后并行加&#x2F;减</li>
+<li>**<code>SEL</code>**：根据 GE 标志，逐个字节从两个源中选择</li>
+</ul>
+<p><strong>SMUAD&#x2F;SMUSD</strong> 系列更强大——它们在一个寄存器内完成两对 16 位乘法的<strong>和</strong>或<strong>差</strong>。<code>SMUSD</code>（SIMD Multiply and Subtract）被用来做复数乘法：top x top - bottom x bottom，恰好对应于复数乘积的实部计算。</p>
+<p>另一个关键指令是 <strong>USADA8</strong>（Sum of Absolute Differences），它在视频编码的运动估计中不可或缺。一次指令完成：四个字节的绝对差求和 + 累加到累加器。指令 <code>USADA8 Rd, Rn, Rm, Ra</code> 把 Rn 和 Rm 的四个对应字节分别求差、取绝对值、求和，再累加 Ra 的值。</p>
+<p><strong>数据打包&#x2F;解包</strong>：<code>PKHBT</code>&#x2F;<code>PKHTB</code> 和 <code>UXTH</code>&#x2F;<code>UXTB</code> 系列让 SIMD 流水线真正成型——先用双字加载（LDRD）从内存读入密集打包数据，解包为独立寄存器，并行处理，再用 <code>PKHBT</code> 打包回寄存器，最后用双字存储（STRD）写回内存。</p>
+<p>SIMD 的打包&#x2F;解包流水线最终依赖的正是 <code>LDRD</code> 和 <code>STRD</code> —— 双字（64 位）加载与存储。这自然引出下一个主题：ARM 如何处理寄存器和内存之间的数据搬运。</p>
+<h2 id="4-内存访问指令"><a href="#4-内存访问指令" class="headerlink" title="4. 内存访问指令"></a>4. 内存访问指令</h2><p>ARM 是 Load&#x2F;Store 架构。ALU 不能直接操作内存——必须先用 <code>LDR</code> 把数据搬进寄存器，运算完再用 <code>STR</code> 写回去：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">LDR    R0, [R1]         @ 从 R1 指向的地址读 32 位到 R0</span><br><span class="line">STR    R0, [R1]         @ 把 R0 的值写入 R1 指向的地址</span><br></pre></td></tr></table></figure>
+
+<p>操作宽度用后缀控制：<code>B</code> &#x3D; 字节、<code>H</code> &#x3D; 半字、<code>D</code> &#x3D; 双字（64位）。对加载而言，额外的 <code>S</code> 表示有符号扩展——<code>LDRSB</code> 加载一个字节并将符号扩展到全 32 位。</p>
+<blockquote>
+<p>if you load an 8-bit or 16-bit quantity into a 32-bit register you must decide what to do with the most significant bits of the register.</p>
+</blockquote>
+<p>无符号加载（<code>LDRB</code>、<code>LDRH</code>）将高位清零；有符号加载（<code>LDRSB</code>、<code>LDRSH</code>）将符号位复制到高位。</p>
+<h3 id="4-1-寻址模式"><a href="#4-1-寻址模式" class="headerlink" title="4.1 寻址模式"></a>4.1 寻址模式</h3><p>ARM 提供了五种寻址方式：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>语法</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>寄存器寻址</td>
+<td><code>LDR Rd, [Rn]</code></td>
+<td>直接用 Rn 的值作为地址</td>
+</tr>
+<tr>
+<td>预索引</td>
+<td><code>LDR Rd, [Rn, Op2]</code></td>
+<td>地址 &#x3D; Rn + Op2，Rn 不变</td>
+</tr>
+<tr>
+<td>预索引 + 回写</td>
+<td><code>LDR Rd, [Rn, Op2]!</code></td>
+<td>地址 &#x3D; Rn + Op2，然后 Rn &#x3D; Rn + Op2</td>
+</tr>
+<tr>
+<td>后索引 + 回写</td>
+<td><code>LDR Rd, [Rn], Op2</code></td>
+<td>地址 &#x3D; Rn，然后 Rn &#x3D; Rn + Op2</td>
+</tr>
+<tr>
+<td>PC 相对</td>
+<td><code>LDR Rd, label</code></td>
+<td>汇编器转换为 [PC, #offset]</td>
+</tr>
+</tbody></table>
+<p>注意 <code>!</code> 和 <code>]</code> 的区别极为关键：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">LDR     R0, [R1, #32]!     @ 预索引+回写：从 [R1+32] 加载，然后 R1 += 32</span><br><span class="line">LDR     R0, [R1], #32      @ 后索引+回写：从 [R1] 加载，然后 R1 += 32</span><br></pre></td></tr></table></figure>
+
+<p><code>[R1, #32]!</code> 的 <code>!</code> 放在方括号内，表示先用 R1+32 做地址，执行完再写回 R1；<code>[R1], #32</code> 的偏移在括号外，表示直接用 R1 做地址，执行完再写回 R1。前者常用于顺序遍历数组（每次基址前进），后者常用于从固定位置反复读取（基址不动，偏移单独递增）。</p>
+<p>Op2 可以是立即数、寄存器、或带移位操作的寄存器——与数据处理指令的 Operand2 共享同一个桶形移位器。</p>
+<h3 id="4-2-多寄存器传输与栈操作"><a href="#4-2-多寄存器传输与栈操作" class="headerlink" title="4.2 多寄存器传输与栈操作"></a>4.2 多寄存器传输与栈操作</h3><p><code>LDM</code>（Load Multiple）和 <code>STM</code>（Store Multiple）可以一次性读&#x2F;写连续内存中的多个 32 位字。操作数包含基址寄存器（可选 <code>!</code> 回写）和花括号包裹的寄存器列表：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LDMIA   R10!, &#123; R0-R3, R12 &#125;</span><br></pre></td></tr></table></figure>
+
+<p>关键要点：<strong>寄存器的内存映射顺序由寄存器编号（而非列表中的书写顺序）决定。</strong>编号最小的寄存器映射到最低地址。上面这条指令中，R0 被写入最低地址，R12 被写入最高地址，R10 最后自增 20（5 × 4 字节）。</p>
+<p>访问方向有四种变体：</p>
+<table>
+<thead>
+<tr>
+<th>变体</th>
+<th>含义</th>
+<th>栈别名</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IA</td>
+<td>Increment After</td>
+<td>FD (Full Descending)</td>
+</tr>
+<tr>
+<td>IB</td>
+<td>Increment Before</td>
+<td>FA (Full Ascending)</td>
+</tr>
+<tr>
+<td>DA</td>
+<td>Decrement After</td>
+<td>ED (Empty Descending)</td>
+</tr>
+<tr>
+<td>DB</td>
+<td>Decrement Before</td>
+<td>EA (Empty Ascending)</td>
+</tr>
+</tbody></table>
+<p>ARM 系统<strong>统一采用 FD（Full Descending）栈约定</strong>，即栈指针指向最后一个已占用的栈槽，向低地址增长。对应的指令对：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">STMFD   sp!, &#123;r0-r5&#125;     @ 压栈（等同于 PUSH &#123;r0-r5&#125;）</span><br><span class="line">LDMFD   sp!, &#123;r0-r5&#125;     @ 出栈（等同于 POP &#123;r0-r5&#125;）</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>By convention, only the Full Descending (FD) option is used for stacks in ARM processor based systems.</p>
+</blockquote>
+<p>栈操作的内存布局：压栈前 SP 指向最后一个被占用的字；<code>STMFD sp!, &#123;R1, R2&#125;</code> 执行后，SP 减 8（两个字），R1 存入低地址，R2 存入高地址。</p>
+<hr>
+<h2 id="5-分支与饱和算术"><a href="#5-分支与饱和算术" class="headerlink" title="5. 分支与饱和算术"></a>5. 分支与饱和算术</h2><p>数据处理和数据搬运之后，下一个自然的问题是：程序的控制流如何跳转？ARM 提供了从简单 PC 相对跳转到表驱动 <code>switch</code> 的完整分支体系。而饱和算术虽然属于数据处理范畴，但它与音频视频编码的控制逻辑密不可分——许多编解码器的核心循环中，分支和饱和运算交替出现，因此将两者放在同一章讨论。</p>
+<h3 id="5-1-分支指令"><a href="#5-1-分支指令" class="headerlink" title="5.1 分支指令"></a>5.1 分支指令</h3><p>ARM 分支指令的家族比较庞大：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>B label</code></td>
+<td>无条件跳转（PC 相对偏移）</td>
+</tr>
+<tr>
+<td><code>BL label</code></td>
+<td>子程序调用（LR &#x3D; 返回地址，然后跳转）</td>
+</tr>
+<tr>
+<td><code>BX Rm</code></td>
+<td>跳转并可切换指令集（ARM ↔ Thumb，由 Rm 的 bit[0] 决定）</td>
+</tr>
+<tr>
+<td><code>BLX label/Rm</code></td>
+<td>调用 + 切换指令集</td>
+</tr>
+<tr>
+<td><code>CBZ Rn, label</code></td>
+<td>Thumb 专属：Rn &#x3D;&#x3D; 0 则跳转（+4~130 字节前向范围）</td>
+</tr>
+<tr>
+<td><code>CBNZ Rn, label</code></td>
+<td>Thumb 专属：Rn !&#x3D; 0 则跳转</td>
+</tr>
+<tr>
+<td><code>TBB [Rn, Rm]</code></td>
+<td>Thumb 表分支（字节偏移表）</td>
+</tr>
+<tr>
+<td><code>TBH [Rn, Rm, LSL #1]</code></td>
+<td>Thumb 表分支（半字偏移表）</td>
+</tr>
+</tbody></table>
+<p>下面几行给出典型用法：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">@ 简单相对跳转</span><br><span class="line">B       skip           @ 无条件跳到 label skip</span><br><span class="line"></span><br><span class="line">@ 子程序调用（返回地址自动存入 LR）</span><br><span class="line">BL      strlen         @ LR = PC+4, 跳转到 strlen</span><br><span class="line"></span><br><span class="line">@ Thumb 下的零值检测分支（不修改 CPSR）</span><br><span class="line">CBZ     R2, notfound   @ 若 R2 == 0, 跳到 notfound</span><br><span class="line">CBNZ    R3, process    @ 若 R3 != 0, 跳到 process</span><br><span class="line"></span><br><span class="line">@ ARM/Thumb 切换 - BX 通过 Rm 的 bit[0] 决定目标指令集</span><br><span class="line">BX      LR             @ 从 bit[0] 判断返回 ARM 还是 Thumb 态</span><br></pre></td></tr></table></figure>
+
+<p><code>BX</code> 指令的核心机制：ARM 状态下 bit[0] 总是 0，Thumb 状态下 bit[0] 总是 1。<code>BX Rm</code> 通过检查 Rm 的 bit[0] 来决定跳转到 ARM 还是 Thumb 状态，实际跳转地址会取 bit[0]&#x3D;0 的值。这也是 <code>BLX</code> 把返回地址的 bit[0] 设为 1 的原因——确保 <code>BX LR</code> 能正确返回 Thumb 调用者。</p>
+<p><code>CBZ</code>&#x2F;<code>CBNZ</code> 是比较和分支的融合指令：一次完成零值检验+条件跳转，不修改 CPSR 标志。</p>
+<p><code>TBB</code>&#x2F;<code>TBH</code> 用于实现 <code>switch-case</code>。偏移表紧跟在指令后，指令根据索引读出偏移量，将 PC 前移 2×偏移量。字节表（<code>TBB</code>）支持 256 个分支目标（0-510 字节跳转范围），半字表（<code>TBH</code>）支持更大范围。</p>
+<h3 id="5-2-饱和算术指令"><a href="#5-2-饱和算术指令" class="headerlink" title="5.2 饱和算术指令"></a>5.2 饱和算术指令</h3><blockquote>
+<p>Saturated arithmetic is commonly used in audio and video codecs.</p>
+</blockquote>
+<p>32 位加法中，<code>0x7FFFFFFF + 1 = 0x80000000</code> 是一个合法的算术结果，但数学意义上它是不对的（两个正数相加得负数）。在音频处理中，这种溢出会产生刺耳的爆音。饱和算术说：<code>0x7FFFFFFF + 1 = 0x7FFFFFFF</code>（保持最大值）。</p>
+<p>核心指令：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>QADD</td>
+<td>饱和加法（word）</td>
+</tr>
+<tr>
+<td>QSUB</td>
+<td>饱和减法（word）</td>
+</tr>
+<tr>
+<td>QDADD</td>
+<td>二操作数加倍后饱和加</td>
+</tr>
+<tr>
+<td>QDSUB</td>
+<td>二操作数加倍后饱和减</td>
+</tr>
+<tr>
+<td>QADD8 &#x2F; QADD16</td>
+<td>并行饱和加法（字节&#x2F;半字）</td>
+</tr>
+<tr>
+<td>SSAT</td>
+<td>有符号饱和到指定位宽</td>
+</tr>
+<tr>
+<td>USAT</td>
+<td>无符号饱和到指定位宽</td>
+</tr>
+</tbody></table>
+<p>溢出时设置 CPSR 的 Q 标志（sticky——一旦置位就保持到显式写 CPSR 清除）。</p>
+<p><code>QDADD</code>&#x2F;<code>QDSUB</code> 是为 Q15 或 Q31 定点算术设计的：先将第二操作数×2，再饱和加&#x2F;减。这是定点 FFT 蝶形运算中频繁出现的模式。</p>
+<p><code>SSAT</code>&#x2F;<code>USAT</code> 可以将任意值饱和到一个指定位宽。比如 <code>SSAT R0, #12, R1</code> 将 R1 饱和到有符号 12 位范围 [-2048, 2047]。<code>SSAT16</code>&#x2F;<code>USAT16</code> 则对寄存器内的两路 16 位半字同时应用饱和。</p>
+<p><strong>CLZ</strong>（Count Leading Zeros）虽然不是严格意义上的饱和指令，但与归一化算法紧密相关——很多浮点模拟实现先用 CLZ 确定前导零个数，再用移位操作做位宽归一化。</p>
+<hr>
+<h2 id="6-杂项指令"><a href="#6-杂项指令" class="headerlink" title="6. 杂项指令"></a>6. 杂项指令</h2><p>前面各章覆盖了 ARM 指令集的主流类别。本章汇总余下的杂项指令，包括协处理器、SVC、PSR 操作、位域操作、缓存预取以及字节反转等，适合按需查阅。</p>
+<h3 id="6-1-协处理器指令"><a href="#6-1-协处理器指令" class="headerlink" title="6.1 协处理器指令"></a>6.1 协处理器指令</h3><p>ARM 支持最多 16 个协处理器（CP0-CP15），通过专用接口连接。在 Cortex-A 系列中，CP15 是系统控制协处理器（缓存&#x2F;MMU 配置），CP14 是硬件调试协处理器，CP10&#x2F;CP11 是 VFP&#x2F;NEON。</p>
+<p>五种协处理器指令类型：</p>
+<ul>
+<li><code>CDP</code>：启动协处理器数据处理</li>
+<li><code>MCR</code>&#x2F;<code>MRC</code>：ARM 寄存器 ↔ 协处理器寄存器</li>
+<li><code>STC</code>&#x2F;<code>LDC</code>：协处理器寄存器 ↔ 内存</li>
+<li><code>MCRR</code>&#x2F;<code>MRRC</code>：一对 ARM 寄存器 ↔ 协处理器寄存器</li>
+<li><code>STCL</code>&#x2F;<code>LDCL</code>：协处理器多寄存器 ↔ 内存</li>
+</ul>
+<p>执行不存在的协处理器指令会触发<strong>未定义指令异常</strong>——操作系统可以借此做软件仿真（比如在没有 VFP 硬件的系统中模拟浮点运算）。</p>
+<h3 id="6-2-SVC-超级调用指令"><a href="#6-2-SVC-超级调用指令" class="headerlink" title="6.2 SVC 超级调用指令"></a>6.2 SVC 超级调用指令</h3><p><code>SVC</code>（Supervisor Call）是用户态代码请求操作系统服务的唯一合法入口。指令中内嵌一个 24 位（ARM）或 8 位（Thumb）的数字，SVC 异常处理程序可以通过读取指令编码来获取这个参数。</p>
+<p>Linux 系统调用的标准调用约定：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">MOV     R0, #1              @ STDOUT 文件描述符</span><br><span class="line">ADR     R1, msgtext          @ 字符串地址</span><br><span class="line">MOV     R2, #13              @ 字符串长度</span><br><span class="line">MOV     R7, #4               @ sys_write 系统调用号</span><br><span class="line">SVC     #0                   @ 进入内核</span><br></pre></td></tr></table></figure>
+
+<p>R7 存放系统调用号，R0-R6 存放参数。SVC 处理程序（在异常向量表中）检查指令中的立即数并分发到对应内核函数。</p>
+<blockquote>
+<p>This instruction was originally called SWI (Software Interrupt). ——历史命名能帮你理解旧的代码库。</p>
+</blockquote>
+<h3 id="6-3-PSR-修改与位域操作"><a href="#6-3-PSR-修改与位域操作" class="headerlink" title="6.3 PSR 修改与位域操作"></a>6.3 PSR 修改与位域操作</h3><p><strong>PSR 访问</strong>：</p>
+<ul>
+<li><code>MRS Rd, CPSR/SPSR</code>：将状态寄存器值读入通用寄存器</li>
+<li><code>MSR CPSR/SPSR_f, Rn</code>：将通用寄存器值写入状态寄存器（<code>_f</code> 表示仅修改标志域）</li>
+<li>用户在 User 模式只能修改条件标志；特权模式可以修改整个 PSR</li>
+<li><code>CPS</code>：在特权模式下直接切换模式或开关中断（I&#x2F;F 位）</li>
+<li><code>SETEND</code>：动态切换小端&#x2F;大端数据访问（仅修改 E 位）</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">@ 读取 CPSR 到 R0，检查当前模式位</span><br><span class="line">MRS     R0, CPSR</span><br><span class="line">AND     R0, R0, #0x1F        @ 提取 mode bits[4:0]</span><br><span class="line"></span><br><span class="line">@ 切换到 IRQ 模式并禁用 FIQ</span><br><span class="line">CPSID   if                   @ 注意: CPS 只能在特权模式使用</span><br><span class="line">NOP                         @ 填充 (CPS 需在特权模式执行)</span><br></pre></td></tr></table></figure>
+
+<p><code>MRS</code>&#x2F;<code>MSR</code> 是上下文切换中保存&#x2F;恢复标志和模式位的核心指令。<code>CPS</code> 提供比 <code>MSR</code> 更简洁的中断开关方式，但仅对 FIQ 和 IRQ 两个中断位有效。</p>
+<p><strong>位域操作</strong>：</p>
+<ul>
+<li><code>BFI</code>（Bit Field Insert）：从源寄存器底部取出指定位宽（width+LSB），插入目标寄存器任意位置</li>
+<li><code>BFC</code>（Bit Field Clear）：将寄存器内连续的若干位清零</li>
+<li><code>SBFX</code>&#x2F;<code>UBFX</code>（Bit Field Extract）：取出连续位并做有符号&#x2F;无符号扩展到 32 位</li>
+<li><code>RBIT</code>：将寄存器内 32 位的顺序完全反转（bit 31 ↔ bit 0, bit 30 ↔ bit 1, …）</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">@ 将 R1 的 bits[7:0] 插入 R0 的 bits[15:8]</span><br><span class="line">BFI     R0, R1, #8, #8      @ width=8, lsb=8</span><br><span class="line"></span><br><span class="line">@ 清除 R2 的 bits[11:0]</span><br><span class="line">BFC     R2, #0, #12          @ lsb=0, width=12</span><br><span class="line"></span><br><span class="line">@ 位反转: R0[31]→R1[0], R0[0]→R1[31]</span><br><span class="line">RBIT    R1, R0</span><br></pre></td></tr></table></figure>
+
+<p><code>BFI</code> 常用于构造硬件寄存器写入值——从分散的字段合成一个字。<code>BFC</code> 是 <code>BIC</code> 的推广：一次操作可以清零任意位置的连续位域。<code>RBIT</code> 在 CRC 校验等位序相关算法中特别有用。</p>
+<h3 id="6-4-缓存预取与字节反转"><a href="#6-4-缓存预取与字节反转" class="headerlink" title="6.4 缓存预取与字节反转"></a>6.4 缓存预取与字节反转</h3><p><strong>PLD&#x2F;PLI</strong>：<code>PLD</code> 提示数据缓存将访问指定地址；<code>PLI</code> 提示指令缓存将访问指定地址。两者都是<strong>暗示（hint）</strong>——不产生异常，实现可以将其视为 NOP。但在 Cortex-A 系列中它们能显著减少缓存缺失（cache miss）导致的停滞。</p>
+<p><strong>REV 系列</strong>：</p>
+<ul>
+<li><code>REV</code>：反转字内四个字节的顺序（处理大小端转换）</li>
+<li><code>REV16</code>：反转字的每半字内的两个字节</li>
+<li><code>REVSH</code>：反转低半字的两个字节并做有符号扩展到 32 位</li>
+</ul>
+<p><strong>BKPT&#x2F;WFI&#x2F;WFE&#x2F;SEV</strong>：</p>
+<ul>
+<li><code>BKPT</code>：断点指令，进入调试状态或触发预取异常</li>
+<li><code>WFI</code>：Wait For Interrupt → 核心进入待机，中断或调试事件唤醒</li>
+<li><code>WFE</code>：Wait For Event → 核心进入待机，<code>SEV</code> 指令或中断唤醒</li>
+<li><code>SEV</code>：发送事件（唤醒执行了 <code>WFE</code> 的其他核心）</li>
+<li><code>NOP</code>：不保证执行时间，仅用于填充&#x2F;对齐</li>
+</ul>
+<hr>
+<h2 id="7-总结"><a href="#7-总结" class="headerlink" title="7. 总结"></a>7. 总结</h2><ol>
+<li><p><strong>ARM 立即数不是随便写的</strong>。只有形如”8 位值循环右移偶数位”的常数才能单指令编码。遇到非法立即数时，用 <code>MOVW</code>+<code>MOVT</code> 或文字池加载。汇编器会自动选择策略，但理解底层机制有助于调试”invalid constant”错误。</p>
+</li>
+<li><p><strong>条件执行是双刃剑</strong>。在无分支预测的老处理器上是最优选择；在 Cortex-A9 等现代处理器上，分支预测器可能更快。性能取舍不再有固定答案——需要根据目标处理器做 profiling 判断。</p>
+</li>
+<li><p><strong>S 后缀控制标志设定</strong>。<code>ADD</code> 不影响标志，<code>ADDS</code> 影响。<code>CMP</code>&#x2F;<code>TST</code> 等比较指令必须设标志——这是它们的唯一目的。Load&#x2F;Store 指令永远不动标志。</p>
+</li>
+<li><p><strong>桶形移位器是免费的</strong>。移位操作不独立占指令槽——它能融入 ALU 操作的 Operand2 中，单周期完成”移位+运算”。这个设计在实现快速乘法和数组索引时特别高效。</p>
+</li>
+<li><p><strong>多寄存器传输的顺序由硬件决定</strong>。<code>LDMIA R0, &#123;R3, R0, R1&#125;</code> 的映射顺序是 R0→最低地址、R1→中间地址、R3→最高地址——与你写的顺序无关。</p>
+</li>
+<li><p><strong>ARM 栈统一用 FD（Full Descending）</strong>。<code>STMFD</code> &#x3D; 压栈，<code>LDMFD</code> &#x3D; 出栈。<code>PUSH</code>&#x2F;<code>POP</code> 在 UAL 中是为此约定的语法糖。</p>
+</li>
+<li><p><strong>整数 SIMD 不等于 NEON</strong>。ARMv6 的整数 SIMD 在 32 位通用寄存器内操作，延迟低但吞吐量有限。NEON 有独立寄存器组和更宽的向量宽度。先用 SIMD 写，瓶颈后再迁到 NEON 是务实的路径。</p>
+</li>
+<li><p><strong>SVC 是唯一的合法 OS 入口</strong>。用户态不能直接调用内核函数——必须通过 <code>SVC #0</code> 触发异常进入特权态。Linux 用 R7 传系统调用号。</p>
+</li>
+<li><p><strong>饱和算术的 Q 标志是 sticky 的</strong>。一旦溢出，保持置位直到你显式写 CPSR 清除它。检查一次 Q 标志可以知道整个计算序列中是否出现过溢出。</p>
+</li>
+<li><p><strong>PLD&#x2F;PLI 是暗示不是命令</strong>。它们不产生异常——即使传了非法地址也不会数据中止。但它们能显著改善缓存的预取行为。</p>
+</li>
+<li><p><strong>与 x86 的关键差异</strong>：ARM 是 Load&#x2F;Store 架构，x86 的 ALU 可以直接操作内存；ARM 的条件执行覆盖几乎所有指令，x86 只有条件跳转；ARM 的桶形移位器融合了移位和运算，x86 需要单独的移位指令。</p>
+</li>
+<li><p><strong>统一汇编语言（UAL）是实用指南的核心价值</strong>。同一套语法同时覆盖 ARM 32 位和 Thumb-2 16&#x2F;32 位指令集——不需要记忆两套不同的写法。这对现代的 Cortex-A 程序员来说是巨大的生产力提升。</p>
+</li>
+</ol>
+<hr>
+<p><em>本文内容整理自 ARM Cortex-A Series Programmer’s Guide (Version 4.0, DEN0013_0400_en) 第六章。</em></p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM-ARMv7-a/" rel="tag"># ARM, ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E5%85%A5%E9%97%A8/" rel="prev" title="ARM汇编语言入门">
+                  <i class="fa fa-angle-left"></i> ARM汇编语言入门
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM-NEON-%E6%8A%80%E6%9C%AF%E8%AF%A6%E8%A7%A3/" rel="next" title="ARM NEON 技术详解">
+                  ARM NEON 技术详解 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="全面解析 ARM 缓存的底层架构演进、核心运行策略，以及在系统启动与多核 DMA 场景下的硬件维护操作。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM MMU 地址翻译">
+<meta property="og:url" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="全面解析 ARM 缓存的底层架构演进、核心运行策略，以及在系统启动与多核 DMA 场景下的硬件维护操作。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/6.png">
+<meta property="article:published_time" content="2026-07-22T12:39:51.000Z">
+<meta property="article:modified_time" content="2026-07-22T12:57:28.962Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM, ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/","path":"2026/07/22/ARM-Cache-架构详解/","title":"ARM MMU 地址翻译"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM MMU 地址翻译 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E7%BC%93%E5%AD%98%EF%BC%9F"><span class="nav-text">1. 为什么需要缓存？</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%86%85%E5%AD%98%E5%B1%82%E7%BA%A7%E4%B8%8E%E7%BC%93%E5%AD%98%E7%9A%84%E4%BB%A3%E4%BB%B7"><span class="nav-text">1.1 内存层级与缓存的代价</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%BC%93%E5%AD%98%E7%9A%84%E5%9F%BA%E7%A1%80%E6%9E%B6%E6%9E%84"><span class="nav-text">2. 缓存的基础架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="nav-text">2.1 核心概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E7%9B%B4%E6%8E%A5%E6%98%A0%E5%B0%84%E7%BC%93%E5%AD%98%EF%BC%9A%E6%9E%81%E7%AE%80%E4%BD%86%E5%8D%B1%E9%99%A9"><span class="nav-text">2.2 直接映射缓存：极简但危险</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E7%BB%84%E7%9B%B8%E8%81%94%E7%BC%93%E5%AD%98%EF%BC%9A%E7%94%A8%E7%A1%85%E9%9D%A2%E7%A7%AF%E6%8D%A2%E7%A1%AE%E5%AE%9A%E6%80%A7"><span class="nav-text">2.3 组相联缓存：用硅面积换确定性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-Cortex-A-%E5%A4%84%E7%90%86%E5%99%A8%E7%9A%84%E7%BC%93%E5%AD%98%E5%AE%9E%E7%8E%B0"><span class="nav-text">3. Cortex-A 处理器的缓存实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%AE%9E%E6%A0%87%E7%BC%93%E5%AD%98%E7%BB%93%E6%9E%84%E8%A7%A3%E6%9E%90"><span class="nav-text">3.1 实标缓存结构解析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%BC%93%E5%AD%98%E6%8E%A7%E5%88%B6%E5%99%A8%E7%9A%84%E5%91%BD%E4%B8%AD%E6%B5%81%E7%A8%8B"><span class="nav-text">3.2 缓存控制器的命中流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-VIVT-%E2%86%92-VIPT-%E2%86%92-PIPT%EF%BC%9A%E7%94%A8%E8%99%9A%E6%8B%9F%E8%BF%98%E6%98%AF%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80%EF%BC%9F"><span class="nav-text">3.3 VIVT → VIPT → PIPT：用虚拟还是物理地址？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-Cortex-A-%E7%B3%BB%E5%88%97%E7%BC%93%E5%AD%98%E5%8F%82%E6%95%B0%E5%AF%B9%E7%85%A7"><span class="nav-text">3.4 Cortex-A 系列缓存参数对照</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%BC%93%E5%AD%98%E7%9A%84%E4%B8%89%E5%A4%A7%E7%AD%96%E7%95%A5"><span class="nav-text">4. 缓存的三大策略</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%88%86%E9%85%8D%E7%AD%96%E7%95%A5"><span class="nav-text">4.1 分配策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%9B%BF%E6%8D%A2%E7%AD%96%E7%95%A5"><span class="nav-text">4.2 替换策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%86%99%E7%AD%96%E7%95%A5"><span class="nav-text">4.3 写策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E5%91%BD%E4%B8%AD%E7%8E%87%E4%B8%8E%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96%E8%A7%84%E5%88%99"><span class="nav-text">4.4 命中率与性能优化规则</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4%E6%93%8D%E4%BD%9C"><span class="nav-text">5. 缓存维护操作</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-Clean-%E4%B8%8E-Invalidate"><span class="nav-text">5.1 Clean 与 Invalidate</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Boot-%E4%BB%A3%E7%A0%81%E4%B8%AD%E7%9A%84%E7%BC%93%E5%AD%98%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">5.2 Boot 代码中的缓存初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-DMA-%E4%B8%80%E8%87%B4%E6%80%A7%E5%9C%BA%E6%99%AF"><span class="nav-text">5.3 DMA 一致性场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-PoC-%E4%B8%8E-PoU"><span class="nav-text">5.4 PoC 与 PoU</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-Set-Way-%E7%BA%A7%E5%88%AB%E7%BB%B4%E6%8A%A4%E6%93%8D%E4%BD%9C"><span class="nav-text">5.5 Set&#x2F;Way 级别维护操作</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%86%99%E7%BC%93%E5%86%B2%E3%80%81L2-%E7%BC%93%E5%AD%98%E6%8E%A7%E5%88%B6%E5%99%A8%E4%B8%8E-ECC"><span class="nav-text">6. 写缓冲、L2 缓存控制器与 ECC</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%86%99%E7%BC%93%E5%86%B2%E5%99%A8"><span class="nav-text">6.1 写缓冲器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-L2-%E7%BC%93%E5%AD%98%E6%8E%A7%E5%88%B6%E5%99%A8"><span class="nav-text">6.2 L2 缓存控制器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-ECC-%E4%B8%8E-Parity"><span class="nav-text">6.3 ECC 与 Parity</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%AD%A6%E4%B9%A0%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">7. 学习要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">60</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM MMU 地址翻译 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM MMU 地址翻译
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-22 20:39:51" itemprop="dateCreated datePublished" datetime="2026-07-22T20:39:51+08:00">2026-07-22</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>全面解析 ARM 缓存的底层架构演进、核心运行策略，以及在系统启动与多核 DMA 场景下的硬件维护操作。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-为什么需要缓存？"><a href="#1-为什么需要缓存？" class="headerlink" title="1. 为什么需要缓存？"></a>1. 为什么需要缓存？</h2><p>ARM 架构诞生之初，处理器时钟与内存访问速度大致相当。但几十年来 CPU 频率飙升了数个数量级，外部总线和 DRAM 却没有跟上——在 ARM 系统中，访问外部内存可能花费<strong>数十甚至上百个核心周期</strong>。</p>
+<p>缓存是一块小而快的片上 SRAM，位于核心与主存之间，保存主存数据的临时副本。它之所以有效，是因为程序的访存模式具有两个特征：</p>
+<ul>
+<li><strong>时间局部性</strong>：代码中的循环和反复调用的函数，短时间内同一地址会被多次访问</li>
+<li><strong>空间局部性</strong>：栈帧、数组等数据结构，相邻地址大概率被连续访问</li>
+</ul>
+<p>手册定义：缓存查找时地址匹配且 Valid Bit 置位即为 <strong>命中（Hit）</strong>，否则为 <strong>缺失（Miss）</strong>。首次访问触发 cache linefill 将数据从主存搬入缓存，后续命中则避开慢速外部总线——缓存本身不加速首次访问，但大幅提升后续访问速度。</p>
+<p><strong>写缓冲器</strong>是另一种隐藏延迟的机制。核心执行 store 指令时，将地址、数据和控制信息推入一组硬件缓冲器中即可继续执行下一条指令，无需等待慢速主存完成实际写入。这种”fire and forget”模式让核心不必因每次 store 而停顿。某些写缓冲器还支持<strong>写合并</strong>——将连续的字节写入合并为单次突发传输，进一步减少总线流量。</p>
+<h3 id="1-1-内存层级与缓存的代价"><a href="#1-1-内存层级与缓存的代价" class="headerlink" title="1.1 内存层级与缓存的代价"></a>1.1 内存层级与缓存的代价</h3><p>引入缓存并不是没有代价的。原书 §9.2 明确指出了缓存带来的三大挑战：</p>
+<ol>
+<li><strong>执行时间不可预测</strong>：Hit 和 Miss 的访问时间天差地别。这对于硬实时（Hard Real-time）系统是毁灭性的，这也是某些控制系统更倾向于使用 TCM（紧耦合内存）而非缓存的原因。</li>
+<li><strong>功耗增加</strong>：Tag 比较和缓存行填充需要消耗额外能量。</li>
+<li><strong>一致性噩梦</strong>：一旦存在多核或 DMA，就需要一套复杂的机制来保证大家看到的数据是一致的。</li>
+</ol>
+<p>为了平衡性能和代价，现代 ARM 处理器采用了<strong>多级缓存架构</strong>和<strong>哈佛架构（Harvard architecture）</strong>：</p>
+<ul>
+<li><strong>L1 缓存</strong>：紧贴核心，指令和数据独立（哈佛架构），避免取指和访存的结构性寻址冲突，追求极致命中速度。</li>
+<li><strong>L2 缓存</strong>：通常为多个核心共享的统一缓存（指令数据混合，冯·诺依曼架构），容量更大，用于捕获 L1 溢出的数据，最大程度减少对外部慢速总线的访问。</li>
+</ul>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="typical_harvard_cache"></p>
+<p>理解了缓存的宏观代价与分级，接下来剖析它内部是怎么组织的。</p>
+<hr>
+<h2 id="2-缓存的基础架构"><a href="#2-缓存的基础架构" class="headerlink" title="2. 缓存的基础架构"></a>2. 缓存的基础架构</h2><p>理解了”为什么需要缓存”之后，下一个问题是”缓存内部怎么工作”。本节从 Cache Line、Tag、Index 三个核心概念出发，对比直接映射和组相联两种组织方式，解释为什么前者会被 ARM 主缓存弃用。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="cache_terminology"></p>
+<h3 id="2-1-核心概念"><a href="#2-1-核心概念" class="headerlink" title="2.1 核心概念"></a>2.1 核心概念</h3><p>缓存存储三样东西：地址标签（Tag）、数据（Data）、状态信息。32 位地址被划分为三个字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Address:  [         Tag         |  Index  | Offset ]</span><br><span class="line">          31                    N        N-1       0</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+<th>存储位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Tag</strong></td>
+<td>地址的高位部分，标识缓存行对应主存中的哪个区域</td>
+<td>存储在缓存 Tag RAM 中</td>
+</tr>
+<tr>
+<td><strong>Index</strong></td>
+<td>地址中段位，选择缓存内的哪一行（用作缓存 RAM 的地址）</td>
+<td>不额外存储</td>
+</tr>
+<tr>
+<td><strong>Offset</strong></td>
+<td>地址低位，在缓存行内部选择具体字节或字（通常分为 Word Offset 和 Byte Offset）</td>
+<td>不额外存储</td>
+</tr>
+<tr>
+<td><strong>Cache Line</strong></td>
+<td>缓存的最小加载单元（通常 8 或 16 个字）</td>
+<td>连续数据块</td>
+</tr>
+<tr>
+<td><strong>Valid Bit</strong></td>
+<td>标记此行数据是否有效</td>
+<td>每行一个</td>
+</tr>
+<tr>
+<td><strong>Dirty Bit</strong></td>
+<td>标记此行是否被写入过（与主存内容不一致）</td>
+<td>仅在数据缓存中出现</td>
+</tr>
+<tr>
+<td><strong>Way</strong></td>
+<td>组相联缓存中的并列副本路径</td>
+<td>每条 way 有独立的 Tag RAM</td>
+</tr>
+<tr>
+<td><strong>Set</strong></td>
+<td>同一 Index 值在所有 Way 中对应的缓存行集合</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>实战陷阱：伪共享（False Sharing）</strong><br>Cache Line 是缓存加载的最小单位。即使代码只读写一个 32-bit 的变量，硬件也会把包含它在内的整条 64B Cache Line 全拉进缓存。在多核场景下，如果两个毫无关联的并发变量刚好被编译器塞在同一个 Cache Line 里，当两个核心分别高频修改这两个变量时，会导致这条 Cache Line 在两个核之间疯狂地来回踢出和同步。这类性能黑洞被称为”伪共享”。系统级解法通常是对关键结构体加上 <code>__attribute__((aligned(64)))</code> 强制每个变量独占一行。</p>
+</blockquote>
+<p>缓存大小仅计算数据 RAM 的容量——Tag RAM 占用的物理面积不包括在内，但实际上 Tag 存储是不可忽略的硅开销。</p>
+<h3 id="2-2-直接映射缓存：极简但危险"><a href="#2-2-直接映射缓存：极简但危险" class="headerlink" title="2.2 直接映射缓存：极简但危险"></a>2.2 直接映射缓存：极简但危险</h3><p>直接映射是最简单的缓存实现——每个主存地址固定映射到缓存中的一个特定行。缺点显而易见：不同地址若具有相同的 Index 字段，便会争夺同一行。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="Direct_mapped_cache_operation"></p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="Cache_address"></p>
+<p><strong>实例：thrashing 陷阱</strong></p>
+<p>考虑一个小型直接映射缓存：每行 4 字（Offset 需要 2 位，bit[3:2]），共 4 行（Index 需要 2 位，bit[5:4]）。地址 <code>0x00</code>、<code>0x40</code>、<code>0x80</code> 的 bit[5:4] 全为 0x00——它们映射到同一行：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">add_array</span><span class="params">(<span class="type">int</span> *data1, <span class="type">int</span> *data2, <span class="type">int</span> *result, <span class="type">int</span> size)</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; size; i++)</span><br><span class="line">        result[i] = data1[i] + data2[i];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>若 <code>result=0x00</code>, <code>data1=0x40</code>, <code>data2=0x80</code>，每次迭代中三个指针交替访问同一缓存行，导致每个访问都互相踢出对方的数据——<strong>无一次命中</strong>，程序在”加载-踢出-加载-踢出”的恶性循环中性能崩塌。</p>
+<p>手册指出直接映射缓存因此不在 ARM 核心主缓存中使用（仅在分支目标地址缓存等特殊场景中出现）。</p>
+<h3 id="2-3-组相联缓存：用硅面积换确定性"><a href="#2-3-组相联缓存：用硅面积换确定性" class="headerlink" title="2.3 组相联缓存：用硅面积换确定性"></a>2.3 组相联缓存：用硅面积换确定性</h3><p>组相联缓存将缓存划分为多个<strong>Way</strong>（典型 L1 为 2 或 4 way）。一个地址的 Index 字段在每条 Way 中选取一行，这些对应行构成一个 <strong>Set</strong>。查找时硬件<strong>并行比较 Set 内所有 Way 的 Tag</strong>——只要任一 Way 的 Tag 匹配且 Valid，即为命中。</p>
+<p>回到上面的 thrashing 实例：在 2-way 组相联缓存中，<code>0x00</code>、<code>0x40</code>、<code>0x80</code> 可以同时存在于 Set 0 的两个 Way 中（第三个地址才需要替换）。thrashing 概率从必然降到了接近零。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="5"></p>
+<p>手册指出：对于 L1 缓存，超过 4-way 组相联后性能提升微乎其微；对于更大的 L2 缓存（如 L2C-310），8-way 或 16-way 关联度更有价值。全相联缓存（任意地址可映射到任意行）在理论上最优，但因硬件复杂度过高，只在实际中用于 MMU TLB 等极小容量场景。</p>
+<p>理论讲清后，下面把参数代入 ARM 的具体实现。</p>
+<hr>
+<h2 id="3-Cortex-A-处理器的缓存实现"><a href="#3-Cortex-A-处理器的缓存实现" class="headerlink" title="3. Cortex-A 处理器的缓存实现"></a>3. Cortex-A 处理器的缓存实现</h2><p>抽象的缓存原理讲完了，本节将其代入 ARM 的具体实现：以 Cortex-A7&#x2F;A9 的 32KB 4-way 数据缓存为例，逐字段分解地址划分；同时追踪 ARM 缓存从 VIVT 到 PIPT 的标签机制演进，并给出全系列 Cortex-A 处理器的缓存参数对照。</p>
+<img src="6.png" alt="6" style="zoom:33%;" />
+
+<h3 id="3-1-实标缓存结构解析"><a href="#3-1-实标缓存结构解析" class="headerlink" title="3.1 实标缓存结构解析"></a>3.1 实标缓存结构解析</h3><p>手册给出了一个真实的例子：Cortex-A7 或 Cortex-A9 的 <strong>32KB 4-way 组相联数据缓存</strong>，每行 8 字（32 字节）。</p>
+<p>地址划分过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">32KB ÷ 4 way ÷ 32 byte/line = 256 line/way  →  Index 需要 8 bit (bit[12:5])</span><br><span class="line">每行 8 字                                    →  Offset 需要 3 bit (bit[4:2])</span><br><span class="line">剩余高位                                     →  Tag 占用 bit[31:13]</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Address: [    Tag 19-bit   | Index 8-bit | Offset 3-bit | Byte 2-bit ]</span><br><span class="line">         31              13  12         5  4          2  1         0</span><br></pre></td></tr></table></figure>
+
+<p>如果在每条 Way 中有 256 行、每个 Tag 是 19 位，加上 Valid 和 Dirty 位，Tag RAM 的开销相当可观——但这是实现高效缓存命中检测的必要代价。</p>
+<h3 id="3-2-缓存控制器的命中流程"><a href="#3-2-缓存控制器的命中流程" class="headerlink" title="3.2 缓存控制器的命中流程"></a>3.2 缓存控制器的命中流程</h3><p>缓存控制器收到核心的访存请求后执行以下流程：</p>
+<ol>
+<li>用地址的 Index 位选择 Set 内所有 Way 的缓存行</li>
+<li>并行读出所有 Way 的 Tag 值</li>
+<li>与请求地址的 Tag 位并行比较</li>
+<li>任一匹配且 Valid → <strong>Hit</strong>：从对应行的 Offset 位置取出数据</li>
+<li>全部不匹配 → <strong>Miss</strong>：触发 cache linefill，将主存对应行读入</li>
+</ol>
+<p>linefill 期间核心<strong>不需要等到整行填充完毕</strong>——控制器优先获取包含请求数据的关键字（critical word），先送入核心流水线，其余数据后台填充。</p>
+<h3 id="3-3-VIVT-→-VIPT-→-PIPT：用虚拟还是物理地址？"><a href="#3-3-VIVT-→-VIPT-→-PIPT：用虚拟还是物理地址？" class="headerlink" title="3.3 VIVT → VIPT → PIPT：用虚拟还是物理地址？"></a>3.3 VIVT → VIPT → PIPT：用虚拟还是物理地址？</h3><p>缓存查找就像查字典，分两步：先翻到对应的那一页（<strong>Index 找行</strong>），再看字条对不对得上（<strong>Tag 身份核对</strong>）。在引入 MMU（虚拟内存）后，找行和核对身份是用 CPU 看到的“虚拟地址（V）”，还是真实内存的“物理地址（P）”？这就有了三种演进方案：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>Index（选行）</th>
+<th>Tag（核对）</th>
+<th>适用场景 &#x2F; 代表处理器</th>
+<th>核心优缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>VIVT</strong></td>
+<td>Virtual (虚拟)</td>
+<td>Virtual (虚拟)</td>
+<td>早期处理器（ARM9）</td>
+<td>速度最快，但<strong>切换进程时必须清空全部缓存</strong></td>
+</tr>
+<tr>
+<td><strong>VIPT</strong></td>
+<td>Virtual (虚拟)</td>
+<td>Physical (物理)</td>
+<td>Cortex-A 指令缓存</td>
+<td>速度快，但存在<strong>页染色（Page Coloring）陷阱</strong></td>
+</tr>
+<tr>
+<td><strong>PIPT</strong></td>
+<td>Physical (物理)</td>
+<td>Physical (物理)</td>
+<td>Cortex-A 数据缓存、L2</td>
+<td>硬件最复杂，但<strong>最安全，没有别名隐患</strong></td>
+</tr>
+</tbody></table>
+<p><strong>1. VIVT：早期设计的痛点</strong><br>全部用虚拟地址操作。好处是快，完全不需要等 MMU 工作。但这有一个致命缺陷：<strong>虚拟地址是进程私有的</strong>。进程 A 和进程 B 的 <code>0x1000</code> 虚拟地址，指向的其实是两块完全不同的物理内存。一旦 OS 切换了进程，缓存里存的旧数据对新进程来说全变成“假数据”了。因此，每次切换进程都必须强行清空整个缓存，导致系统严重卡顿。</p>
+<p><strong>2. VIPT：用时间差变魔术（兼顾速度与正确性）</strong><br>为了不频繁清空缓存，工程师发明了 VIPT：</p>
+<ul>
+<li><strong>第一步（Virtual Index 快寻址）</strong>：CPU 一发出请求，直接用虚拟地址去找缓存行。不用等 MMU 翻译，速度极快。</li>
+<li><strong>第二步（Physical Tag 验真身）</strong>：在找行的同时，MMU 在旁边加班把虚拟地址翻译成物理地址。等行刚好找出来时，MMU 也翻译完了，最后用<strong>全局唯一的物理地址（Tag）</strong>做比对。这既隐藏了翻译延迟，又解决了跨进程重名的问题。</li>
+<li><strong>隐患（页染色与别名）</strong>：通常情况下，在 4KB 分页中，虚拟&#x2F;物理地址的低 12 位是一模一样的。只要单路 Cache（Way）容量不超 4KB，Index 就都在这 12 位的“安全区”里。<strong>但是</strong>，如果单路 Cache 大于 4KB（例如 32KB&#x2F;4路&#x3D;8KB），Index 就会出圈借用 bit[12]。由于一份数据在不同进程的虚拟地址 bit[12] 和真实的物理地址 bit[12] 可能不同，会导致同一份物理数据却被缓存在了两个不同的组里（产生“别名”）。为此，OS 内存系统必须强制规避，让分配的虚拟和物理地址这一位必须相同，这就叫<strong>页染色（Page Coloring）</strong>。</li>
+</ul>
+<p><strong>3. PIPT：现代处理器的终极方案</strong><br>为了彻底让软件无忧，Cortex-A 的数据缓存直接采用 <strong>PIPT</strong>。老老实实等 MMU 翻译出物理地址后，再用物理地址去选行和比对。虽然这需要更强的硬件 TLB 加速，但这从根本上拔除了数据一致性和重名别名的各种隐患。</p>
+<h3 id="3-4-Cortex-A-系列缓存参数对照"><a href="#3-4-Cortex-A-系列缓存参数对照" class="headerlink" title="3.4 Cortex-A 系列缓存参数对照"></a>3.4 Cortex-A 系列缓存参数对照</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>A5</th>
+<th>A7</th>
+<th>A8</th>
+<th>A9</th>
+<th>A12</th>
+<th>A15</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>L1 ICache 大小</td>
+<td>4–64KB</td>
+<td>8–64KB</td>
+<td>16&#x2F;32KB</td>
+<td>16&#x2F;32&#x2F;64KB</td>
+<td>32&#x2F;64KB</td>
+<td>32KB</td>
+</tr>
+<tr>
+<td>L1 DCache 大小</td>
+<td>4–64KB</td>
+<td>8–64KB</td>
+<td>16&#x2F;32KB</td>
+<td>16&#x2F;32&#x2F;64KB</td>
+<td>32KB</td>
+<td>32KB</td>
+</tr>
+<tr>
+<td>L1 ICache 结构</td>
+<td>2-way</td>
+<td>2-way</td>
+<td>4-way</td>
+<td>4-way</td>
+<td>4-way</td>
+<td>2-way</td>
+</tr>
+<tr>
+<td>L1 DCache 结构</td>
+<td>4-way</td>
+<td>4-way</td>
+<td>4-way</td>
+<td>4-way</td>
+<td>4-way</td>
+<td>2-way</td>
+</tr>
+<tr>
+<td>Cache Line (ICache)</td>
+<td>32B</td>
+<td>64B</td>
+<td>64B</td>
+<td>32B</td>
+<td>64B</td>
+<td>64B</td>
+</tr>
+<tr>
+<td>DCache 实现方式</td>
+<td>PIPT</td>
+<td>PIPT</td>
+<td>PIPT</td>
+<td>PIPT</td>
+<td>PIPT</td>
+<td>PIPT</td>
+</tr>
+<tr>
+<td>ICache 实现方式</td>
+<td>VIPT</td>
+<td>VIPT</td>
+<td>VIPT</td>
+<td>VIPT</td>
+<td>VIPT</td>
+<td>PIPT</td>
+</tr>
+<tr>
+<td>L2 集成</td>
+<td>外部</td>
+<td>内部</td>
+<td>内部</td>
+<td>外部</td>
+<td>内部</td>
+<td>内部</td>
+</tr>
+<tr>
+<td>L2 大小</td>
+<td>—</td>
+<td>128KB–1MB</td>
+<td>0–1MB</td>
+<td>—</td>
+<td>256KB–8MB</td>
+<td>512KB–4MB</td>
+</tr>
+<tr>
+<td>L2 结构</td>
+<td>—</td>
+<td>8-way</td>
+<td>8-way</td>
+<td>—</td>
+<td>16-way</td>
+<td>16-way</td>
+</tr>
+<tr>
+<td>错误保护</td>
+<td>—</td>
+<td>—</td>
+<td>L2 ECC</td>
+<td>—</td>
+<td>L2 ECC</td>
+<td>L1&#x2F;L2 可选</td>
+</tr>
+</tbody></table>
+<p>缓存的组织参数各不相同，但所有缓存都要回答三个运行时问题：什么时候分配行？哪一行被替换？写入时如何处理一致性？</p>
+<hr>
+<h2 id="4-缓存的三大策略"><a href="#4-缓存的三大策略" class="headerlink" title="4. 缓存的三大策略"></a>4. 缓存的三大策略</h2><p>缓存的组织结构是静态的——策略是动态的：来了新数据要不要分配行？哪一行被踢出去？写入是只写缓存还是同时写内存？这三个决策分别对应分配策略、替换策略和写策略，是缓存行为的核心配置维度。</p>
+<h3 id="4-1-分配策略"><a href="#4-1-分配策略" class="headerlink" title="4.1 分配策略"></a>4.1 分配策略</h3><p>决定缓存缺失时是否执行 linefill：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>读缺失</th>
+<th>写缺失</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Read Allocate</strong></td>
+<td>执行 linefill</td>
+<td>直接写入下一级（不分配缓存行）</td>
+</tr>
+<tr>
+<td><strong>Write Allocate</strong></td>
+<td>执行 linefill</td>
+<td>执行 linefill（通常配合读缺失分配，统称为 Read-Write Allocate）</td>
+</tr>
+</tbody></table>
+<p>当前 ARM 核心通常配合 Write-back 写策略使用 <strong>Write Allocate</strong>——写缺失时也将数据拉入缓存，后续对同一区域的写操作就能命中缓存。</p>
+<h3 id="4-2-替换策略"><a href="#4-2-替换策略" class="headerlink" title="4.2 替换策略"></a>4.2 替换策略</h3><p>当 Set 内所有 Way 都被占用时，选择牺牲者（victim）：</p>
+<table>
+<thead>
+<tr>
+<th>策略</th>
+<th>机制</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Round-robin</strong></td>
+<td>递增计数器轮转</td>
+<td>可预测，但某些场景性能差</td>
+</tr>
+<tr>
+<td><strong>Pseudo-random</strong></td>
+<td>伪随机递增</td>
+<td>多数场景优于 round-robin，ARM 推荐</td>
+</tr>
+<tr>
+<td><strong>LRU</strong></td>
+<td>替换最近最少使用的行</td>
+<td>A15 支持，理论上最优但硬件代价高</td>
+</tr>
+</tbody></table>
+<p>大多数 ARM 处理器同时支持 Round-robin 和 Pseudo-random。如果 victim 是 Dirty 的，必须在写入新数据前将其<strong>逐出（evict）</strong>到主存。</p>
+<h3 id="4-3-写策略"><a href="#4-3-写策略" class="headerlink" title="4.3 写策略"></a>4.3 写策略</h3><table>
+<thead>
+<tr>
+<th>策略</th>
+<th>写入目标</th>
+<th>Dirty Bit</th>
+<th>性能</th>
+<th>一致性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Write-through</strong></td>
+<td>缓存+主存同时写入</td>
+<td>不需要</td>
+<td>写频繁时慢（每次写都走总线）</td>
+<td>天然一致</td>
+</tr>
+<tr>
+<td><strong>Write-back</strong></td>
+<td>仅写入缓存</td>
+<td>标记 Dirty</td>
+<td>大幅减少总线写流量</td>
+<td>需手动维护一致</td>
+</tr>
+</tbody></table>
+<p>Write-back 的核心机制：写入仅更新缓存行并置 Dirty 位。该行被逐出时，若 Dirty 位有效，才将整行写回主存。这对反复操作同一块内存的场景（如栈帧、循环缓冲区）效果极佳。</p>
+<p>手册明确警告：<strong>Write-back 场景下直接 invalidate 包含 Dirty 数据的缓存行是危险的</strong>——被修改但未写回的数据会永久丢失。正确做法是 <strong>Clean（将 Dirty 行写回主存并清 Dirty 位）后再 Invalidate（清 Valid 位）</strong>。</p>
+<h3 id="4-4-命中率与性能优化规则"><a href="#4-4-命中率与性能优化规则" class="headerlink" title="4.4 命中率与性能优化规则"></a>4.4 命中率与性能优化规则</h3><p>手册 §9.7 给出了缓存性能的几个实用定义和优化规则。<strong>命中率</strong>定义为缓存命中次数除以总访存请求次数（通常以百分比表示）。命中率没有”典型值”——它强烈依赖于代码和数据的关键部分的大小、空间局部性以及<strong>缓存本身的大小</strong>。</p>
+<p>手册给出了几条经实践检验的性能规则：</p>
+<ul>
+<li><strong>启用所有缓存和写缓冲器</strong>——这是性能的”二进制开关”：Cortex-A 系列在有缓存和无缓存之间的性能差可达 10–100 倍</li>
+<li><strong>将频繁访问的数据放在一起</strong>——一个数组的基址如果对齐到缓存行起始位置，单次 linefill 就能覆盖多个元素</li>
+<li><strong>顺序访问受益于缓存行为，非顺序访问（如链表）则相反</strong>——顺序扫描数组时，每次 linefill 预取的相邻元素在下几次访问中命中；遍历链表时每个节点可能位于不同的缓存行，且地址不连续导致 linefill 利用率极低</li>
+<li><strong>Thumb 代码密度悖论</strong>：手册给出了一个反直觉的例子——一段 C 代码编译为 Thumb 时可能完全装入缓存，而编译为 ARM（或”最大性能”优化）时因代码更大而无法完全装入。结果是 <strong>Thumb 版本反而跑得更快</strong>，尽管每条指令的原始性能不如 ARM。这提醒性能优化不能只看指令级——缓存行为往往决定全局结果</li>
+</ul>
+<p>策略是自动执行的——但软件在特定时刻必须显式干预缓存状态。下一节正是这份”干预手册”。</p>
+<hr>
+<h2 id="5-缓存维护操作"><a href="#5-缓存维护操作" class="headerlink" title="5. 缓存维护操作"></a>5. 缓存维护操作</h2><p>缓存自动管理绝大多数场景，但也存在需要软件介入的时刻——boot 初始化、DMA 数据同步、自修改代码更新。本节覆盖 Clean&#x2F;Invalidate 的区别、CP15 操作指令、PoC&#x2F;PoU 两个一致性概念点，以及 Set&#x2F;Way 级别的遍历清除流程。</p>
+<h3 id="5-1-Clean-与-Invalidate"><a href="#5-1-Clean-与-Invalidate" class="headerlink" title="5.1 Clean 与 Invalidate"></a>5.1 Clean 与 Invalidate</h3><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>作用</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Invalidate</strong></td>
+<td>清 Valid 位，行内数据作废</td>
+<td>指令缓存（无 Dirty）、DMA 写入后核心读取前</td>
+</tr>
+<tr>
+<td><strong>Clean</strong></td>
+<td>将 Dirty 行写回主存，清 Dirty 位</td>
+<td>核心写入 DMA 缓冲区后、共享数据写出</td>
+</tr>
+<tr>
+<td><strong>Clean + Invalidate</strong></td>
+<td>先 Clean 再 Invalidate</td>
+<td>数据缓存中未知状态的行的安全清除</td>
+</tr>
+</tbody></table>
+<p>手册特别强调 ARM 用词约定：只说 Clean 和 Invalidate，不叫 Flush（Flush 在不同架构中文档中有歧义）。</p>
+<p>所有操作通过 <strong>CP15</strong> 完成，仅特权代码可执行（User 模式不可用）。操作范围可以是整缓存、按 Set&#x2F;Way、或按虚拟地址指定特定行。</p>
+<h3 id="5-2-Boot-代码中的缓存初始化"><a href="#5-2-Boot-代码中的缓存初始化" class="headerlink" title="5.2 Boot 代码中的缓存初始化"></a>5.2 Boot 代码中的缓存初始化</h3><p>手册给出的完整初始化序列展示了标准的缓存启动流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">; Step 1: 禁用 MMU 和缓存（确保已知状态）</span><br><span class="line">MRC  p15, 0, r1, c1, c0, 0       ; 读 SCTLR</span><br><span class="line">BIC  r1, r1, #1                   ; 清 M bit（关 MMU）</span><br><span class="line">BIC  r1, r1, #(1 &lt;&lt; 12)           ; 清 I bit（关指令缓存）</span><br><span class="line">BIC  r1, r1, #(1 &lt;&lt; 2)            ; 清 C bit（关数据缓存及 L2）</span><br><span class="line">MCR  p15, 0, r1, c1, c0, 0       ; 写回 SCTLR</span><br><span class="line"></span><br><span class="line">; Step 2: 无效化所有缓存和 TLB</span><br><span class="line">MOV  r0, #0</span><br><span class="line">MCR  p15, 0, r0, c7, c5, 0       ; ICIALLU — 无效化指令缓存</span><br><span class="line">MCR  p15, 0, r0, c7, c5, 6       ; BPIALL — 无效化分支预测器</span><br><span class="line">MCR  p15, 0, r0, c8, c7, 0       ; TLBIALL — 无效化整个统一 TLB</span><br><span class="line">ISB                                ; 指令同步屏障</span><br><span class="line"></span><br><span class="line">; Step 3: 启用指令缓存和分支预测</span><br><span class="line">MRC  p15, 0, r0, c1, c0, 0       ; 读 SCTLR</span><br><span class="line">ORR  r0, r0, #(1 &lt;&lt; 12)           ; 置 I bit</span><br><span class="line">ORR  r0, r0, #(1 &lt;&lt; 11)           ; 置 Z bit（分支预测）</span><br><span class="line">MCR  p15, 0, r0, c1, c0, 0       ; 写回 SCTLR</span><br></pre></td></tr></table></figure>
+
+<p>Linux 内核封装了这些操作为 <code>__clear_cache()</code>（定义在 <code>arch/arm/mm/cache-v7.S</code>），等价函数在 Android 中名为 <code>cacheflush()</code>。</p>
+<h3 id="5-3-DMA-一致性场景"><a href="#5-3-DMA-一致性场景" class="headerlink" title="5.3 DMA 一致性场景"></a>5.3 DMA 一致性场景</h3><p>DMA 是缓存维护的典型使用场景：</p>
+<ul>
+<li><strong>核心→DMA</strong>（核心写、DMA 读）：核心写入 DMA 缓冲区后，需 <strong>Clean</strong> 数据缓存（如调用内核 API <code>v7_dma_clean_range</code>），将 Dirty 数据推入主存，DMA 引擎才能读到正确内容</li>
+<li><strong>DMA→核心</strong>（DMA 写、核心读）：DMA 写入完成后，需 <strong>Invalidate</strong> 缓存中被 DMA 更新过的地址范围（如调用 <code>v7_dma_inv_range</code>），核心读时才不会拿到过时缓存</li>
+</ul>
+<h3 id="5-4-PoC-与-PoU"><a href="#5-4-PoC-与-PoU" class="headerlink" title="5.4 PoC 与 PoU"></a>5.4 PoC 与 PoU</h3><p>手册定义了 ARM 架构中两个关键一致性概念点：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>全称</th>
+<th>含义</th>
+<th>实例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>PoC</strong></td>
+<td>Point of Coherency</td>
+<td>所有访存主体（核心、DSP、DMA）看到同一份数据的位置</td>
+<td>通常是外部主存</td>
+</tr>
+<tr>
+<td><strong>PoU</strong></td>
+<td>Point of Unification</td>
+<td>某核心的指令缓存和数据缓存看到同一份数据的位置</td>
+<td>通常是统一 L2 缓存</td>
+</tr>
+</tbody></table>
+<p>这两个概念直接决定了自修改代码的同步流程：自修改代码后，应先将修改后的代码从 D-Cache Clean 到 PoU，使新指令对取指路径可见；再 Invalidate I-Cache 中对应的缓存项，迫使 CPU 下次取指时从 PoU 重新加载最新指令，而不是继续执行缓存中的旧指令。</p>
+<h3 id="5-5-Set-Way-级别维护操作"><a href="#5-5-Set-Way-级别维护操作" class="headerlink" title="5.5 Set&#x2F;Way 级别维护操作"></a>5.5 Set&#x2F;Way 级别维护操作</h3><p>手册 §9.9.1 给出了按 Set&#x2F;Way 遍历清除全数据缓存的完整汇编代码。核心思路是三重嵌套循环：遍历缓存级别（读取 CLIDR 获取实现了多少级缓存）→ 遍历 Way（读 CCSIDR 获取该级最大 Way 数）→ 遍历 Set（读 CCSIDR 获取该级最大 Set 数），并对每个 (Level, Way, Set) 组合执行 <code>DCCSW</code>（Data Cache Clean by Set&#x2F;Way）。</p>
+<p>关键指令：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">MCR  p15, 0, R11, c7, c10, 2    ; DCCSW — 按 Set/Way 清洗一行</span><br></pre></td></tr></table></figure>
+
+<p>此处的 <code>R11</code> 是通过位拼接构造的参数：<br><code>R11 = Cache_Level | (Way_Number &lt;&lt; Way_Shift) | (Set_Index &lt;&lt; Line_Shift)</code></p>
+<p>完整汇编实现如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br></pre></td><td class="code"><pre><span class="line">; CLIDR : </span><br><span class="line">; 31                                                     0</span><br><span class="line">; +-------+-----+-----+-----+-----+-----+-----+---------+</span><br><span class="line">; |  LoC  | RAZ | C7  | C6  | C5  | C4  | C3  | C2 C1   |</span><br><span class="line">; +-------+-----+-----+-----+-----+-----+-----+---------+</span><br><span class="line">; 30    27      26    23                        ...     0</span><br><span class="line">;</span><br><span class="line">; Cache Type Fields (每级3 bit)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">; CSSELR</span><br><span class="line">; 31                                   4 3 2 1 0</span><br><span class="line">; +--------------------------------------+---+-+-+</span><br><span class="line">; |                 RES0                 |Level|I|</span><br><span class="line">; +--------------------------------------+---+-+-+</span><br><span class="line">;</span><br><span class="line">; 告诉 CPU：&quot;我要查询哪一级 Cache。&quot;</span><br><span class="line"></span><br><span class="line">; CCSIDR</span><br><span class="line">; 31                               13 12          3 2    0</span><br><span class="line">; +---------------------------------+--------------+------+</span><br><span class="line">; | Number of Sets                  | Associativity| Line |</span><br><span class="line">; +---------------------------------+--------------+------+</span><br><span class="line">;        set数-1                       way数-1        line size </span><br><span class="line"></span><br><span class="line">MRC  p15, 1, R0, c0, c0, 1     ; 读 CLIDR，获取缓存级别信息</span><br><span class="line">ANDS R3, R0, #0x07000000       ; 取 LoC (Level of Coherency) 字段</span><br><span class="line">MOV  R3, R3, LSR #23           ; 右移 23 位 → 缓存级别数，最终 R3 表示 Cache 一共有几级</span><br><span class="line">BEQ  Finished                  ; 无缓存 → 跳过</span><br><span class="line">MOV  R10, #0                   ; R10 = 当前缓存级别 (Level)，0 表示 L1, 2 表示 L2...</span><br><span class="line">Loop1:</span><br><span class="line">ADD  R2, R10, R10, LSR #1      ; R2 = (R10 * 3) / 2 = CacheType字段位偏移(= Level × 3)</span><br><span class="line">MOV  R1, R0, LSR R2            ; 右移 R2 位，取该 Level 的 Cache Type 字段</span><br><span class="line">AND  R1, R1, #7                ; 取低 3 位 → Cache Type</span><br><span class="line">CMP  R1, #2                    ; &lt;2 = 无数据缓存或仅指令缓存, 等效于 if (没有Data Cache) continue;</span><br><span class="line">BLT  Skip</span><br><span class="line">MCR  p15, 2, R10, c0, c0, 0    ; 写 CSSELR → 选择当前缓存级别</span><br><span class="line">ISB                            ; 同步 CSSELR 更改</span><br><span class="line">MRC  p15, 1, R1, c0, c0, 0     ; 读 CCSIDR → 获取该级缓存的拓扑</span><br><span class="line">AND  R2, R1, #7                ; 取 Line Length 字段 (bits [2:0])</span><br><span class="line">ADD  R2, R2, #4                ; +4 = log2(行字节数) 偏移</span><br><span class="line">LDR  R4, =0x3FF</span><br><span class="line">ANDS R4, R4, R1, LSR #3        ; 取 Way 数 - 1 (右对齐)</span><br><span class="line">CLZ  R5, R4                    ; 前导零计数 → Way 字段的位偏移</span><br><span class="line">MOV  R9, R4                    ; R9 = Way 计数器 (递减)</span><br><span class="line">Loop2:</span><br><span class="line">LDR  R7, =0x00007FFF</span><br><span class="line">ANDS R7, R7, R1, LSR #13       ; 取 Set 数 - 1 (右对齐)</span><br><span class="line">Loop3:</span><br><span class="line">ORR  R11, R10, R9, LSL R5      ; 拼接 Level + Way 号</span><br><span class="line">ORR  R11, R11, R7, LSL R2      ; 拼接 Set 号 → 完整 Set/Way 操作数</span><br><span class="line">MCR  p15, 0, R11, c7, c10, 2   ; DCCSW — 按 Set/Way 清洗一行</span><br><span class="line">SUBS R7, R7, #1                ; 下一个 Set</span><br><span class="line">BGE  Loop3</span><br><span class="line">SUBS R9, R9, #1                ; 下一个 Way</span><br><span class="line">BGE  Loop2</span><br><span class="line">Skip:</span><br><span class="line">ADD  R10, R10, #2              ; 下一级缓存 (Level += 2)</span><br><span class="line">CMP  R3, R10</span><br><span class="line">BGT  Loop1</span><br><span class="line">DSB</span><br><span class="line">Finished:</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>注意：</strong> 在多核集群中，如果多个核心共享一个 Point of Coherency 之前的缓存，每个核都独立执行此序列会导致共享缓存被重复清空。虽然不会出错，但会徒增总线负载和功耗。</p>
+</blockquote>
+<p>这段代码是 ARM 体系中最精妙的缓存管理序列之一。CLIDR、CSSELR、CCSIDR 三个层次的信息被逐级解析——从”系统中有几级缓存”到”当前级别的 Way 数和 Set 数”再到”逐行 DCCSW”——任何 ARMv7 实现无论缓存拓扑如何，同一段代码都能不加修改地运行。</p>
+<p>等效的 C 代码如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> levels = get_cache_levels();      <span class="comment">// CLIDR</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> level = <span class="number">0</span>; level &lt; levels; level++) &#123;</span><br><span class="line"></span><br><span class="line">    select_cache(level);              <span class="comment">// CSSELR</span></span><br><span class="line"></span><br><span class="line">    CacheInfo info = get_cache_info();<span class="comment">// CCSIDR</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> way = info.ways - <span class="number">1</span>; way &gt;= <span class="number">0</span>; way--) &#123;</span><br><span class="line">        <span class="keyword">for</span> (<span class="type">int</span> <span class="built_in">set</span> = info.sets - <span class="number">1</span>; <span class="built_in">set</span> &gt;= <span class="number">0</span>; <span class="built_in">set</span>--) &#123;</span><br><span class="line"></span><br><span class="line">            clean_cache_line(level, way, <span class="built_in">set</span>);   <span class="comment">// DCCSW</span></span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>至此我们覆盖了缓存维护的核心操作。本章剩余三个补充主题——写缓冲的合并机制、L2 缓存控制器的外部管理接口、以及软错误的硬件防护——为缓存体系画卷补上最后几笔。</p>
+<hr>
+<h2 id="6-写缓冲、L2-缓存控制器与-ECC"><a href="#6-写缓冲、L2-缓存控制器与-ECC" class="headerlink" title="6. 写缓冲、L2 缓存控制器与 ECC"></a>6. 写缓冲、L2 缓存控制器与 ECC</h2><p>缓存维护操作之后，本章剩余内容覆盖缓存体系的三个补充维度：写缓冲器如何通过合并写入减少总线流量、L2C-310 外部缓存控制器的结构与管理接口、以及软错误对 SRAM 缓存的威胁与 ECC&#x2F;Parity 的防护方案。</p>
+<h3 id="6-1-写缓冲器"><a href="#6-1-写缓冲器" class="headerlink" title="6.1 写缓冲器"></a>6.1 写缓冲器</h3><p>写缓冲器接受地址、数据和控制信息，让核心无需等待写入完成就能继续执行。性能增益来自”藏起”写入延迟——只要缓冲器未满，核心就看不到内存的慢速度。但访问外设时这种行为可能不是期望的：有时你需要核心停下来等写入真正完成再进入下一步。ARM 内存排序模型通过内存类型属性来控制缓存和写缓冲如何对待特定地址区域。<br>与内存映射编程</p>
+<p>Cortex-A5 和 A9 没有集成 L2 缓存，依赖外部控制器如 ARM L2C-310。L2C-310 支持最大 8MB 缓存、4–16 way 组相联，可在多个核心间共享，甚至支持按 master&#x2F;way 锁定数据以管理多组件对缓存的分享。</p>
+<p>需要特别注意：<strong>L2C-310 只是一个外部外设设备</strong>，它并不受 CP15 协处理器指令的控制！</p>
+<ul>
+<li>L1 缓存的 Clean&#x2F;Invalidate 是通过 <code>MCR p15...</code> 特权指令执行的。</li>
+<li>外部 L2 缓存控制器完全是<strong>内存映射（Memory-mapped）</strong>的。对其执行维护操作意味着要向特定的物理基地址偏移寄存器读写（例如对 <code>L2X0_CLEAN_INV_WAY</code> 写入位掩码）来实现。操作系统内核的维护代码通过轮询控制器里的状态位，或者响应控制器的中断来获知清洗动作完工。这就导致了维护内外缓存的方式在驱动层面截然不同</li>
+</ul>
+<h3 id="6-2-L2-缓存控制器"><a href="#6-2-L2-缓存控制器" class="headerlink" title="6.2 L2 缓存控制器"></a>6.2 L2 缓存控制器</h3><p>Cortex-A5 和 A9 没有集成 L2 缓存，依赖外部控制器如 ARM L2C-310。L2C-310 支持最大 8MB 缓存、4–16 way 组相联，可在多个核心间共享，甚至支持按 master&#x2F;way 锁定数据以管理多组件对缓存的分享。L2C-310 仅操作物理地址，维护操作通过写其内存映射寄存器完成，核心通过轮询状态寄存器判断操作何时结束。提供了 cache sync 操作强制等待所有待处理操作完工。</p>
+<h3 id="6-3-ECC-与-Parity"><a href="#6-3-ECC-与-Parity" class="headerlink" title="6.3 ECC 与 Parity"></a>6.3 ECC 与 Parity</h3><p>随着晶体管缩小和电压降低，宇宙射线和 alpha 粒子引发的<strong>软错误</strong>成为现实威胁。占硅面积比例最大的 SRAM 缓存尤其脆弱——某些系统中如无保护，平均故障间隔可能以秒计。</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>能力</th>
+<th>典型应用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Parity</strong></td>
+<td>检测单 bit 错误（不能修复）</td>
+<td>Tag + Data RAM 均可实现；不匹配触发 Prefetch&#x2F;Data Abort</td>
+</tr>
+<tr>
+<td><strong>ECC</strong></td>
+<td>检测多 bit 错误 + 修复单 bit 错误（修复需多周期）</td>
+<td>L2 缓存最常见；Cortex-A15 更在 L1 内实现</td>
+</tr>
+</tbody></table>
+<p>Parity 在每次读写时检查。Cortex-A12 和 A15 在 L2 提供 ECC，Cortex-A15 是唯一在 L1 即可选配 ECC&#x2F;Parity 的处理器。</p>
+<p>以上覆盖了 ARM 缓存体系的完整范围——从为什么需要缓存到如何手动维护缓存。以下七条是本章的核心结论。</p>
+<hr>
+<h2 id="7-学习要点总结"><a href="#7-学习要点总结" class="headerlink" title="7. 学习要点总结"></a>7. 学习要点总结</h2><p>从速度鸿沟到缓存组织，从策略选择到维护操作——ARM 缓存的完整知识链条可以用以下七条核心结论串联。</p>
+<ol>
+<li><p><strong>缓存的本质是用小容量高速 SRAM 来遮掩大容量低速 DRAM 的访问延迟</strong>。时间局部性和空间局部性是缓存有效的物理前提——随机访问模式会使任何缓存失效。</p>
+</li>
+<li><p><strong>直接映射只在 TLB 和 BTAC 等极小缓存中使用</strong>。ARM 主缓存的底线是组相联——L1 典型 2&#x2F;4-way，L2 可达 16-way。</p>
+</li>
+<li><p><strong>VIPT&#x2F;PIPT 的选择是一场速度与正确性的权衡</strong>：VIPT 让 Tag 比较可以在 MMU 翻译前开始（速度快），但引入了 page coloring 约束；PIPT 没有别名问题（正确性强），但增加了硬件复杂度。Cortex-A 数据缓存全系 PIPT，指令缓存采用 VIPT。</p>
+</li>
+<li><p><strong>Write-back + Write-allocate 是 ARM 核心的默认组合</strong>：写缺失时分配缓存行，写入仅更新缓存标记 Dirty，逐出时才写回——这极大减少总线写流量，但带来了多核和 DMA 的一致性挑战。</p>
+</li>
+<li><p><strong>Clean ≠ Invalidate</strong>：Invalidate 仅清 Valid 位，若行是 Dirty 的则修改过的数据永久丢失；Clean 将 Dirty 数据写回并清 Dirty。标准安全操作是先 Clean 再 Invalidate。</p>
+</li>
+<li><p><strong>Boot 代码的缓存初始化三步走</strong>：禁用 MMU+缓存（回到已知起点）→ 无效化全部缓存和 TLB（清除随机上电态）→ 先开 I$ 和分支预测，后逐步开启 D$ 和 MMU。</p>
+</li>
+<li><p><strong>PoC 和 PoU 是理解多核和自修改代码一致性的核心概念</strong>：Clean to PoC 让所有观察者看到同一份数据；Clean to PoU + Invalidate I$ 让自修改代码的指令更新安全生效。DMA 场景下两者缺一不可。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM-ARMv7-a/" rel="tag"># ARM, ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM-MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91/" rel="prev" title="ARM MMU 地址翻译">
+                  <i class="fa fa-angle-left"></i> ARM MMU 地址翻译
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E5%86%85%E5%AD%98%E6%8E%92%E5%BA%8F%E4%B8%8E%E5%B1%8F%E9%9A%9C%E6%8C%87%E4%BB%A4/" rel="next" title="ARM内存排序与屏障指令">
+                  ARM内存排序与屏障指令 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
