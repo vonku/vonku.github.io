@@ -21,32 +21,32 @@
 
     <meta name="description" content="全面解析 ARM 缓存的底层架构演进、核心运行策略，以及在系统启动与多核 DMA 场景下的硬件维护操作。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ARM MMU 地址翻译">
+<meta property="og:title" content="ARM Cache 架构详解">
 <meta property="og:url" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="全面解析 ARM 缓存的底层架构演进、核心运行策略，以及在系统启动与多核 DMA 场景下的硬件维护操作。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/1.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/2.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/3.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/4.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/5.png">
 <meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/6.png">
 <meta property="article:published_time" content="2026-07-22T12:39:51.000Z">
-<meta property="article:modified_time" content="2026-07-22T12:57:28.962Z">
+<meta property="article:modified_time" content="2026-07-22T13:10:40.440Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM, ARMv7-a">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/1.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/","path":"2026/07/22/ARM-Cache-架构详解/","title":"ARM MMU 地址翻译"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/","path":"2026/07/22/ARM-Cache-架构详解/","title":"ARM Cache 架构详解"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>ARM MMU 地址翻译 | Vonku's Blog</title>
+<title>ARM Cache 架构详解 | Vonku's Blog</title>
   
 
 
@@ -212,12 +212,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="ARM MMU 地址翻译 | Vonku's Blog">
+      <meta itemprop="name" content="ARM Cache 架构详解 | Vonku's Blog">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          ARM MMU 地址翻译
+          ARM Cache 架构详解
         </h1>
 
         <div class="post-meta-container">
@@ -273,11 +273,11 @@
 <li><strong>L1 缓存</strong>：紧贴核心，指令和数据独立（哈佛架构），避免取指和访存的结构性寻址冲突，追求极致命中速度。</li>
 <li><strong>L2 缓存</strong>：通常为多个核心共享的统一缓存（指令数据混合，冯·诺依曼架构），容量更大，用于捕获 L1 溢出的数据，最大程度减少对外部慢速总线的访问。</li>
 </ul>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="typical_harvard_cache"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/1.png" alt="typical_harvard_cache"></p>
 <p>理解了缓存的宏观代价与分级，接下来剖析它内部是怎么组织的。</p>
 <hr>
 <h2 id="2-缓存的基础架构"><a href="#2-缓存的基础架构" class="headerlink" title="2. 缓存的基础架构"></a>2. 缓存的基础架构</h2><p>理解了”为什么需要缓存”之后，下一个问题是”缓存内部怎么工作”。本节从 Cache Line、Tag、Index 三个核心概念出发，对比直接映射和组相联两种组织方式，解释为什么前者会被 ARM 主缓存弃用。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="cache_terminology"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/2.png" alt="cache_terminology"></p>
 <h3 id="2-1-核心概念"><a href="#2-1-核心概念" class="headerlink" title="2.1 核心概念"></a>2.1 核心概念</h3><p>缓存存储三样东西：地址标签（Tag）、数据（Data）、状态信息。32 位地址被划分为三个字段：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Address:  [         Tag         |  Index  | Offset ]</span><br><span class="line">          31                    N        N-1       0</span><br></pre></td></tr></table></figure>
 
@@ -335,8 +335,8 @@
 </blockquote>
 <p>缓存大小仅计算数据 RAM 的容量——Tag RAM 占用的物理面积不包括在内，但实际上 Tag 存储是不可忽略的硅开销。</p>
 <h3 id="2-2-直接映射缓存：极简但危险"><a href="#2-2-直接映射缓存：极简但危险" class="headerlink" title="2.2 直接映射缓存：极简但危险"></a>2.2 直接映射缓存：极简但危险</h3><p>直接映射是最简单的缓存实现——每个主存地址固定映射到缓存中的一个特定行。缺点显而易见：不同地址若具有相同的 Index 字段，便会争夺同一行。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="Direct_mapped_cache_operation"></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="Cache_address"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/3.png" alt="Direct_mapped_cache_operation"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/4.png" alt="Cache_address"></p>
 <p><strong>实例：thrashing 陷阱</strong></p>
 <p>考虑一个小型直接映射缓存：每行 4 字（Offset 需要 2 位，bit[3:2]），共 4 行（Index 需要 2 位，bit[5:4]）。地址 <code>0x00</code>、<code>0x40</code>、<code>0x80</code> 的 bit[5:4] 全为 0x00——它们映射到同一行：</p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">add_array</span><span class="params">(<span class="type">int</span> *data1, <span class="type">int</span> *data2, <span class="type">int</span> *result, <span class="type">int</span> size)</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; size; i++)</span><br><span class="line">        result[i] = data1[i] + data2[i];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -345,7 +345,7 @@
 <p>手册指出直接映射缓存因此不在 ARM 核心主缓存中使用（仅在分支目标地址缓存等特殊场景中出现）。</p>
 <h3 id="2-3-组相联缓存：用硅面积换确定性"><a href="#2-3-组相联缓存：用硅面积换确定性" class="headerlink" title="2.3 组相联缓存：用硅面积换确定性"></a>2.3 组相联缓存：用硅面积换确定性</h3><p>组相联缓存将缓存划分为多个<strong>Way</strong>（典型 L1 为 2 或 4 way）。一个地址的 Index 字段在每条 Way 中选取一行，这些对应行构成一个 <strong>Set</strong>。查找时硬件<strong>并行比较 Set 内所有 Way 的 Tag</strong>——只要任一 Way 的 Tag 匹配且 Valid，即为命中。</p>
 <p>回到上面的 thrashing 实例：在 2-way 组相联缓存中，<code>0x00</code>、<code>0x40</code>、<code>0x80</code> 可以同时存在于 Set 0 的两个 Way 中（第三个地址才需要替换）。thrashing 概率从必然降到了接近零。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/png" alt="5"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/5.png" alt="5"></p>
 <p>手册指出：对于 L1 缓存，超过 4-way 组相联后性能提升微乎其微；对于更大的 L2 缓存（如 L2C-310），8-way 或 16-way 关联度更有价值。全相联缓存（任意地址可映射到任意行）在理论上最优，但因硬件复杂度过高，只在实际中用于 MMU TLB 等极小容量场景。</p>
 <p>理论讲清后，下面把参数代入 ARM 的具体实现。</p>
 <hr>

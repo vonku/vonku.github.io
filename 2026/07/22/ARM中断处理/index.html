@@ -19,27 +19,33 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
 
-    <meta name="description" content="深入讲解 ARM 异常处理机制，涵盖向量表、优先级链、LR 偏移调整及 Linux 内核下的异常分发。">
+    <meta name="description" content="ARM Cortex-A 系列如何从外设中断信号到处理例程完成一次完整的中断响应？本文从 FIQ&#x2F;IRQ 硬件信号线出发，逐级深入精简中断处理、嵌套中断抢占、GIC 架构及其配置与处理流水线。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ARM异常处理">
+<meta property="og:title" content="ARM中断处理">
 <meta property="og:url" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="深入讲解 ARM 异常处理机制，涵盖向量表、优先级链、LR 偏移调整及 Linux 内核下的异常分发。">
+<meta property="og:description" content="ARM Cortex-A 系列如何从外设中断信号到处理例程完成一次完整的中断响应？本文从 FIQ&#x2F;IRQ 硬件信号线出发，逐级深入精简中断处理、嵌套中断抢占、GIC 架构及其配置与处理流水线。">
 <meta property="og:locale" content="zh_CN">
-<meta property="article:published_time" content="2026-07-22T12:40:05.000Z">
-<meta property="article:modified_time" content="2026-07-22T12:57:06.663Z">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/1.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/2.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/3.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/4.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/gic-handling-flow.png">
+<meta property="article:published_time" content="2026-07-22T12:40:10.000Z">
+<meta property="article:modified_time" content="2026-07-22T13:10:28.129Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM, ARMv7-a">
 <meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/1.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/","path":"2026/07/22/ARM中断处理/","title":"ARM异常处理"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/","path":"2026/07/22/ARM中断处理/","title":"ARM中断处理"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>ARM异常处理 | Vonku's Blog</title>
+<title>ARM中断处理 | Vonku's Blog</title>
   
 
 
@@ -131,7 +137,7 @@
       <div class="sidebar-panel-container">
         <!--noindex-->
         <div class="post-toc-wrap sidebar-panel">
-            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%82%E5%B8%B8%E7%B1%BB%E5%9E%8B%E4%B8%8E%E8%A7%A6%E5%8F%91%E6%9D%A1%E4%BB%B6"><span class="nav-text">1. 异常类型与触发条件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%8C%87%E4%BB%A4%E7%94%9F%E6%88%90%E7%B1%BB%E5%BC%82%E5%B8%B8%EF%BC%9ASVC%E3%80%81HVC%E3%80%81SMC%E3%80%81UNDEF"><span class="nav-text">1.1 指令生成类异常：SVC、HVC、SMC、UNDEF</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%BC%82%E5%B8%B8%E4%BC%98%E5%85%88%E7%BA%A7%E4%B8%8E%E5%90%91%E9%87%8F%E8%A1%A8"><span class="nav-text">2. 异常优先级与向量表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E7%A1%AC%E4%BB%B6%E8%87%AA%E5%8A%A8%E5%AE%8C%E6%88%90%E7%9A%84%E5%85%AD%E6%AD%A5%E5%BA%8F%E5%88%97"><span class="nav-text">2.1 硬件自动完成的六步序列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%90%91%E9%87%8F%E8%A1%A8%E7%9A%84%E5%9B%9B%E7%A7%8D%E8%A7%86%E5%9B%BE"><span class="nav-text">2.2 向量表的四种视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E4%BC%98%E5%85%88%E7%BA%A7%E4%B8%8E%E5%B5%8C%E5%A5%97"><span class="nav-text">2.3 优先级与嵌套</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%BC%82%E5%B8%B8%E8%BF%94%E5%9B%9E%E4%B8%8E-LR-%E5%81%8F%E7%A7%BB%E8%B0%83%E6%95%B4"><span class="nav-text">3. 异常返回与 LR 偏移调整</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%B8%BA%E4%BB%80%E4%B9%88-LR-%E9%9C%80%E8%A6%81%E5%81%8F%E7%A7%BB%E4%BF%AE%E6%AD%A3%EF%BC%9F"><span class="nav-text">3.1 为什么 LR 需要偏移修正？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%BC%82%E5%B8%B8%E9%80%80%E5%87%BA%E5%92%8C%E4%B8%89%E7%A7%8D%E8%BF%94%E5%9B%9E%E6%9C%BA%E5%88%B6"><span class="nav-text">3.2 异常退出和三种返回机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%90%84%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E5%99%A8%E7%9A%84%E8%BD%AF%E4%BB%B6%E8%81%8C%E8%B4%A3"><span class="nav-text">4. 各异常处理器的软件职责</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-Abort-%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-text">4.1 Abort 处理器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-UNDEF-%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-text">4.2 UNDEF 处理器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-SVC-%E5%A4%84%E7%90%86%E5%99%A8"><span class="nav-text">4.3 SVC 处理器</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Linux-%E5%86%85%E6%A0%B8%E7%9A%84%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E6%9E%B6%E6%9E%84"><span class="nav-text">5. Linux 内核的异常处理架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%BC%82%E5%B8%B8-stub%EF%BC%9A%E7%BB%9F%E4%B8%80%E8%B7%AF%E7%94%B1%E5%88%B0-SVC-%E6%A8%A1%E5%BC%8F"><span class="nav-text">5.1 异常 stub：统一路由到 SVC 模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%90%91%E9%87%8F%E9%A1%B5%E7%9A%84%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">5.2 向量页的初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%B8%AD%E6%96%AD%E5%88%86%E5%8F%91%EF%BC%9A-irq-usr-%E4%B8%8E-irq-svc"><span class="nav-text">5.3 中断分发：__irq_usr 与 __irq_svc</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%AD%A6%E4%B9%A0%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">6. 学习要点总结</span></a></li></ol></div>
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%AD%E6%96%AD%E7%B3%BB%E7%BB%9F%E6%A6%82%E8%BF%B0"><span class="nav-text">1. 中断系统概述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%A4%96%E9%83%A8%E4%B8%AD%E6%96%AD%E8%AF%B7%E6%B1%82%E4%BF%A1%E5%8F%B7"><span class="nav-text">2. 外部中断请求信号</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-FIQ-%E4%B8%8E-IRQ"><span class="nav-text">2.1 FIQ 与 IRQ</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-CPSR-%E4%B8%AD%E6%96%AD%E5%B1%8F%E8%94%BD%E4%BD%8D"><span class="nav-text">2.2 CPSR 中断屏蔽位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-CPS-%E6%8C%87%E4%BB%A4%E6%8E%A7%E5%88%B6"><span class="nav-text">2.3 CPS 指令控制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-Non-Maskable-FIQ"><span class="nav-text">2.4 Non-Maskable FIQ</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E7%B2%BE%E7%AE%80%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86"><span class="nav-text">3. 精简中断处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%A1%AC%E4%BB%B6%E8%87%AA%E5%8A%A8%E6%89%A7%E8%A1%8C%E6%AD%A5%E9%AA%A4"><span class="nav-text">3.1 硬件自动执行步骤</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E8%BD%AF%E4%BB%B6%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B"><span class="nav-text">3.2 软件处理流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E6%B1%87%E7%BC%96%E4%BB%A3%E7%A0%81%E5%88%86%E6%9E%90"><span class="nav-text">3.3 汇编代码分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E5%9B%BE%E7%A4%BA"><span class="nav-text">3.4 上下文切换图示</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%B5%8C%E5%A5%97%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86"><span class="nav-text">4. 嵌套中断处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E6%A0%B8%E5%BF%83%E9%97%AE%E9%A2%98%EF%BC%9ALR-%E4%B8%8E-SPSR-%E8%A6%86%E7%9B%96"><span class="nav-text">4.1 核心问题：LR 与 SPSR 覆盖</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%A8%A1%E5%BC%8F%E5%88%87%E6%8D%A2%E6%96%B9%E6%A1%88"><span class="nav-text">4.2 模式切换方案</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%AE%8C%E6%95%B4%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B"><span class="nav-text">4.3 完整处理流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E6%B1%87%E7%BC%96%E4%BB%A3%E7%A0%81%E5%88%86%E6%9E%90"><span class="nav-text">4.4 汇编代码分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E5%B5%8C%E5%A5%97%E8%B7%AF%E5%BE%84%E7%A4%BA%E6%84%8F"><span class="nav-text">4.5 嵌套路径示意</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-GIC-%E6%9E%B6%E6%9E%84"><span class="nav-text">5. GIC 架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%8B%93%E6%89%91%E7%BB%93%E6%9E%84"><span class="nav-text">5.1 拓扑结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84%E4%B8%8E-Banked-%E8%AE%BF%E9%97%AE"><span class="nav-text">5.2 内存映射与 Banked 访问</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%B8%AD%E6%96%AD-ID-%E7%BC%96%E5%8F%B7"><span class="nav-text">5.3 中断 ID 编号</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E4%B8%AD%E6%96%AD%E5%88%86%E7%B1%BB%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-text">6. 中断分类与状态机</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E4%B8%AD%E6%96%AD%E7%B1%BB%E5%9E%8B"><span class="nav-text">6.1 中断类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E8%A7%A6%E5%8F%91%E6%96%B9%E5%BC%8F"><span class="nav-text">6.2 触发方式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E4%B8%AD%E6%96%AD%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-text">6.3 中断状态机</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E4%BC%98%E5%85%88%E7%BA%A7%E4%BB%B2%E8%A3%81"><span class="nav-text">6.4 优先级仲裁</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-GIC-%E9%85%8D%E7%BD%AE%E4%B8%8E%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B"><span class="nav-text">7. GIC 配置与处理流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E4%B8%89%E7%BA%A7%E4%BD%BF%E8%83%BD%E9%93%BE"><span class="nav-text">7.1 三级使能链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-Distributor-%E9%85%8D%E7%BD%AE"><span class="nav-text">7.2 Distributor 配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-CPU-Interface-%E9%85%8D%E7%BD%AE"><span class="nav-text">7.3 CPU Interface 配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E8%BD%AF%E4%BB%B6%E4%BE%A7%E5%87%86%E5%A4%87"><span class="nav-text">7.4 软件侧准备</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%E6%B5%81%E6%B0%B4%E7%BA%BF"><span class="nav-text">7.5 中断处理流水线</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-%E4%BC%AA%E4%B8%AD%E6%96%AD-ID-1023"><span class="nav-text">7.6 伪中断 ID 1023</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">8. 关键要点</span></a></li></ol></div>
         </div>
         <!--/noindex-->
 
@@ -205,12 +211,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="ARM异常处理 | Vonku's Blog">
+      <meta itemprop="name" content="ARM中断处理 | Vonku's Blog">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          ARM异常处理
+          ARM中断处理
         </h1>
 
         <div class="post-meta-container">
@@ -221,7 +227,7 @@
       </span>
       <span class="post-meta-item-text">发表于</span>
 
-      <time title="创建时间：2026-07-22 20:40:05" itemprop="dateCreated datePublished" datetime="2026-07-22T20:40:05+08:00">2026-07-22</time>
+      <time title="创建时间：2026-07-22 20:40:10" itemprop="dateCreated datePublished" datetime="2026-07-22T20:40:10+08:00">2026-07-22</time>
     </span>
     <span class="post-meta-item">
       <span class="post-meta-item-icon">
@@ -243,354 +249,292 @@
     
     
     <div class="post-body" itemprop="articleBody"><blockquote>
-<p>深入讲解 ARM 异常处理机制，涵盖向量表、优先级链、LR 偏移调整及 Linux 内核下的异常分发。</p>
+<p>ARM Cortex-A 系列如何从外设中断信号到处理例程完成一次完整的中断响应？本文从 FIQ&#x2F;IRQ 硬件信号线出发，逐级深入精简中断处理、嵌套中断抢占、GIC 架构及其配置与处理流水线。</p>
 </blockquote>
 <span id="more"></span>
 
-<h2 id="1-异常类型与触发条件"><a href="#1-异常类型与触发条件" class="headerlink" title="1. 异常类型与触发条件"></a>1. 异常类型与触发条件</h2><p>ARM 将异常定义为任何导致核心暂停正常执行、转而运行专用处理例程（exception handler）的条件。</p>
-<ul>
-<li>当发生异常时，CPU 会跳转到该异常对应的<strong>异常处理程序（Exception Handler）</strong>执行。</li>
-<li>异常处理程序的入口地址称为<strong>异常向量（Exception Vector）</strong>，所有异常向量按固定偏移存放在<strong>异常向量表（Exception Vector Table）</strong>中。</li>
-<li>异常向量表的<strong>基地址</strong>由特权软件配置到系统寄存器，CPU 发生异常时通过<strong>基地址 + 固定偏移</strong>定位对应的 Handler。</li>
-<li>ARM 支持为不同异常级别&#x2F;安全状态配置独立的异常向量表（如 Secure PL1、Non-secure PL1、Monitor、Non-secure PL2），CPU 根据<strong>当前权限级别</strong>和<strong>目标安全状态</strong>选择对应的向量表。</li>
-<li>异常处理程序既可以使用 <strong>ARM</strong> 指令集，也可以使用 <strong>Thumb</strong> 指令集，具体由 <strong>CP15 SCTLR.TE</strong> 位决定。</li>
-<li>进入异常处理时，需要保存现场（处理器状态、寄存器等），异常处理完成后恢复现场，保证程序能够从异常发生处继续执行。</li>
-</ul>
-<p>手册将异常分为六个大类：</p>
+<h2 id="1-中断系统概述"><a href="#1-中断系统概述" class="headerlink" title="1. 中断系统概述"></a>1. 中断系统概述</h2><p>在 ARMv7-A 发布之前，ARM 架构对外部中断控制器的设计给予了实现者相当大的自由度——不同厂商的系统在中断数量、中断类型以及软件接口模型上缺乏一致性。这导致中断处理代码难以在不同平台间移植。</p>
+<p>ARM 通用中断控制器 v2（GICv2）架构的引入改变这一局面。GIC 提供了严格规范的中断管理模型，统一了 Distributor（分发器）和 CPU Interface（CPU 接口）两层架构，使中断处理代码具备跨平台可移植性。</p>
+<p>ARM 术语中，”interrupt” 特指 IRQ 和 FIQ 两类异步外部异常——它们由硬件外设产生，经中断控制器汇聚后送入核心，与同步异常（SVC、Data Abort 等）在触发机制、优先级和屏蔽策略上均有本质区别。</p>
+<p>NVIC 是 Cortex-M 内核自带的简单中断控制器；GIC 是面向复杂、多核系统的独立中断控制器。对比如下：</p>
 <table>
 <thead>
 <tr>
-<th>异常</th>
-<th>触发模式</th>
-<th>触发条件</th>
-<th>类型</th>
+<th>对比项</th>
+<th>NVIC</th>
+<th>GIC</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>Reset</strong></td>
-<td>SVC</td>
-<td>复位信号（上电后）</td>
-<td>异步，不可屏蔽</td>
+<td>使用平台</td>
+<td>Cortex-M</td>
+<td>Cortex-A &#x2F; Cortex-R</td>
 </tr>
 <tr>
-<td><strong>Undefined Instruction</strong></td>
-<td>UND</td>
-<td>执行未定义指令或未识别的协处理器指令</td>
-<td>同步</td>
+<td>是否集成在CPU内核</td>
+<td>是</td>
+<td><strong>否（独立 IP）</strong></td>
 </tr>
 <tr>
-<td><strong>SVC</strong>（原 SWI）</td>
-<td>SVC</td>
-<td>执行 SVC 指令（用户态请求 OS 服务）</td>
-<td>同步</td>
+<td>是否支持多核</td>
+<td>否（主要单核）</td>
+<td>是</td>
 </tr>
 <tr>
-<td><strong>Prefetch Abort</strong></td>
-<td>ABT</td>
-<td>取指时 MMU 权限&#x2F;翻译失败，且指令真正进入执行</td>
-<td>同步</td>
+<td>中断来源</td>
+<td>外设直接连 NVIC</td>
+<td>外设 → GIC → CPU</td>
 </tr>
 <tr>
-<td><strong>Data Abort</strong></td>
-<td>ABT</td>
-<td>Load&#x2F;Store 执行时 MMU 权限&#x2F;翻译失败或外部 Abort</td>
-<td>同步或异步</td>
+<td>中断优先级</td>
+<td>支持</td>
+<td>支持，更复杂</td>
 </tr>
 <tr>
-<td><strong>IRQ</strong></td>
-<td>IRQ</td>
-<td>外部中断请求（经中断控制器汇聚）</td>
-<td>异步</td>
+<td>中断嵌套</td>
+<td>支持</td>
+<td>支持</td>
 </tr>
 <tr>
-<td><strong>FIQ</strong></td>
-<td>FIQ</td>
-<td>高优先级外部中断请求（优先级高于 IRQ）</td>
-<td>异步</td>
+<td>中断路由</td>
+<td>不支持</td>
+<td><strong>支持（可路由到指定 CPU）</strong></td>
+</tr>
+<tr>
+<td>中断类型</td>
+<td>外部中断、系统异常</td>
+<td>SGI、PPI、SPI、LPI（v3）</td>
 </tr>
 </tbody></table>
-<h3 id="1-1-指令生成类异常：SVC、HVC、SMC、UNDEF"><a href="#1-1-指令生成类异常：SVC、HVC、SMC、UNDEF" class="headerlink" title="1.1 指令生成类异常：SVC、HVC、SMC、UNDEF"></a>1.1 指令生成类异常：SVC、HVC、SMC、UNDEF</h3><p>三类系统调用指令能按需触发显式异常——软件在需要升权时主动发起，而非被动响应外部事件：</p>
-<ul>
-<li><strong>SVC</strong>（Supervisor Call，原 SWI）：User 模式请求 OS 服务。指令中嵌入 24-bit（ARM）或 8-bit（Thumb）的调用号字段——SVC handler 通过读取触发异常的指令操作码评论字段来提取该值，实现系统调用的分派。参数也可直接通过寄存器传递（如 Linux 用 R7 存放 syscall number），comment field 方式作为备选</li>
-<li><strong>HVC</strong>（Hypervisor Call，虚拟化扩展）：Guest OS 在 PL1 陷入 PL2 Hypervisor——当 Guest Linux 尝试操作硬件而 Hypervisor 必须拦截时触发</li>
-<li><strong>SMC</strong>（Secure Monitor Call，TrustZone 扩展）：Normal World 跨安全状态进入 Secure World 的唯一合法通道</li>
-</ul>
-<p>所有未识别指令触发 UNDEF 异常。手册列出三种典型使用场景：VFP&#x2F;NEON 硬件的<strong>软件模拟</strong>（核心无相应协处理器时触发的 VFP 指令进入 UNDEF handler，handler 读取操作码在软件中完成浮点运算）；协处理器的 <strong>lazy enable</strong>（首次使用 VFP 时触发 UNDEF → handler 启用 VFP 硬件 → 返回重试指令）；以及<strong>用户断点</strong>——调试器通过将目标地址指令替换为 UNDEF 编码实现软件断点，UNDEF handler 检测到断点后将控制权交给调试器。</p>
-<p>手册特别指出 ARM 的术语学：其他架构可能将 ARM 的所有异常统称为 “trap” 或 “interrupt”，但在 ARM 架构中这些词有特定含义——“interrupt” 专指 IRQ&#x2F;FIQ，”trap” 很少使用。</p>
-<p>六类异常类型已列齐。当多个异常同时触发时，优先级和向量表共同决定谁先被处理、跳到哪里。</p>
 <hr>
-<h2 id="2-异常优先级与向量表"><a href="#2-异常优先级与向量表" class="headerlink" title="2. 异常优先级与向量表"></a>2. 异常优先级与向量表</h2><p>分类完成后，接下来回答”多个异常同时出现谁先处理”和”硬件如何找到对应的处理函数”——前者由优先级链和 CPSR 中断屏蔽位决定，后者由向量表结合 CP15 寄存器控制。</p>
-<h3 id="2-1-硬件自动完成的六步序列"><a href="#2-1-硬件自动完成的六步序列" class="headerlink" title="2.1 硬件自动完成的六步序列"></a>2.1 硬件自动完成的六步序列</h3><p>当异常发生时，ARM 核心的硬件自动执行以下操作，<strong>无需任何软件干预</strong>：</p>
+<h2 id="2-外部中断请求信号"><a href="#2-外部中断请求信号" class="headerlink" title="2. 外部中断请求信号"></a>2. 外部中断请求信号</h2><p>ARM 核心通过两条硬件信号线接收来自中断控制器的异步通知——FIQ 用于高优先级快速响应，IRQ 用于标准中断处理。本节从信号电气特性出发，分析 CPSR 如何控制中断屏蔽以及 Non-Maskable FIQ 的硬件配置机制。</p>
+<h3 id="2-1-FIQ-与-IRQ"><a href="#2-1-FIQ-与-IRQ" class="headerlink" title="2.1 FIQ 与 IRQ"></a>2.1 FIQ 与 IRQ</h3><p>所有 ARM 核心均具备两个外部中断请求输入：</p>
+<ul>
+<li><strong>IRQ</strong>（Interrupt Request）：标准中断请求输入</li>
+<li><strong>FIQ</strong>（Fast Interrupt Request）：快速中断请求输入，优先级高于 IRQ</li>
+</ul>
+<p>两者均为<strong>电平敏感、低电平有效</strong>（level-sensitive, active-LOW）信号。SoC 实现中使用中断控制器接收来自各类外设的中断源，将其映射到 FIQ 或 IRQ，最终导致核心触发异常。</p>
+<h3 id="2-2-CPSR-中断屏蔽位"><a href="#2-2-CPSR-中断屏蔽位" class="headerlink" title="2.2 CPSR 中断屏蔽位"></a>2.2 CPSR 中断屏蔽位</h3><p>中断异常仅在以下条件同时满足时才能被核心响应：</p>
+<ul>
+<li>CPSR 中对应的屏蔽位（F 位对应 FIQ，I 位对应 IRQ）为 0</li>
+<li>相应的硬件输入信号被断言</li>
+</ul>
+<p>CPSR 中断屏蔽位布局：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">CPSR bit 7 (I) = 1 → IRQ masked</span><br><span class="line">CPSR bit 6 (F) = 1 → FIQ masked</span><br><span class="line">CPSR bit 8 (A) = 1 → Imprecise asynchronous abort masked 屏蔽非精确的外部异步Abort，对同步Abort没有影响</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-CPS-指令控制"><a href="#2-3-CPS-指令控制" class="headerlink" title="2.3 CPS 指令控制"></a>2.3 CPS 指令控制</h3><p><code>CPS</code>（Change Processor State）指令提供了启用或禁用异常的简洁机制：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">CPSIE   aif          @ Enable exceptions (A=abort, I=IRQ, F=FIQ)</span><br><span class="line">CPSID   aif          @ Disable exceptions</span><br></pre></td></tr></table></figure>
+
+<p><code>CPSIE i</code> 仅启用 IRQ，不影响 A 和 F 对应的异常；<code>CPSID if</code> 同时禁用 IRQ 和 FIQ。未在指令中出现的字母对应的异常状态保持不变。</p>
+<h3 id="2-4-Non-Maskable-FIQ"><a href="#2-4-Non-Maskable-FIQ" class="headerlink" title="2.4 Non-Maskable FIQ"></a>2.4 Non-Maskable FIQ</h3><p>Cortex-A 系列处理器支持将 FIQ 配置为不可屏蔽中断（Non-Maskable FIQ）。该功能由 SoC 的硬件配置引脚决定，CPU 仅在复位时读取一次该配置，软件运行过程中无法修改。启用后，FIQ 不再受 CPSR.F 位控制；但进入 FIQ Handler 时，CPU 仍会自动将 F 位置 1，以防止 FIQ 嵌套。</p>
+<hr>
+<h2 id="3-精简中断处理"><a href="#3-精简中断处理" class="headerlink" title="3. 精简中断处理"></a>3. 精简中断处理</h2><p>精简中断处理（simplistic interrupt handler）是最基本的不可重入实现。核心特征是：进入中断处理后，同类型中断被自动屏蔽，直到显式重新启用。在处理完成当前中断前，不会有更高优先级的中断被响应。</p>
+<p>这种模型不适合复杂嵌入式系统，但它是理解更实际的中断处理实现的基础。</p>
+<h3 id="3-1-硬件自动执行步骤"><a href="#3-1-硬件自动执行步骤" class="headerlink" title="3.1 硬件自动执行步骤"></a>3.1 硬件自动执行步骤</h3><img src="1.png" alt="1" style="zoom:50%;" />
+
+<p>当 IRQ 异常被外部硬件触发时，核心自动完成以下动作：</p>
 <ol>
-<li>**拷贝 CPSR → SPSR_<mode>**：将异常前的完整状态保存到目标模式的 banked SPSR</li>
-<li>**保存返回地址到 LR_<mode>**：存入 PC 的修正值（取决于异常类型）</li>
-<li><strong>修改 CPSR[4:0] → 目标模式编码</strong></li>
-<li><strong>设置其他 CPSR 位</strong>：<ul>
-<li>T bit ← CP15 SCTLR.TE（保证异常处理在 ARM 或 Thumb 状态运行）</li>
-<li>J bit ← 0</li>
-<li>E bit ← CP15 SCTLR.EE（异常处理的端序独立于应用代码）</li>
-</ul>
-</li>
-<li><strong>屏蔽中断</strong>：Reset → F&#x3D;1 + I&#x3D;1；FIQ → F&#x3D;1 + I&#x3D;1；其他 → I&#x3D;1（IRQ 被禁用，FIQ 保持原样）</li>
-<li><strong>PC ← 向量表中对应异常的入口地址</strong></li>
+<li>当前执行模式的 PC 值保存到 <code>LR_IRQ</code></li>
+<li>当前 <code>CPSR</code> 复制到 <code>SPSR_IRQ</code></li>
+<li>CPSR 模式位更新为 IRQ 模式（<code>0x12</code>），I 位置 1 屏蔽后续 IRQ</li>
+<li>PC 设置为向量表中 IRQ 入口地址（<code>0x00000018</code> 或 <code>0xFFFF0018</code>）</li>
 </ol>
+<p>这些步骤纯由硬件完成，无需任何软件干预。</p>
+<h3 id="3-2-软件处理流程"><a href="#3-2-软件处理流程" class="headerlink" title="3.2 软件处理流程"></a>3.2 软件处理流程</h3><p>进入中断处理例程后，软件侧执行以下步骤：</p>
+<p><strong>步骤一：保存上下文。</strong> 将处理例程会破坏的寄存器压入 IRQ 模式栈。调用 <code>identify_and_clear_source</code> 确认中断源并在硬件层清除中断标志（如果不清除，返回后将立即再次触发同一个中断）。</p>
+<p><strong>步骤二：调用设备处理函数。</strong> 根据识别到的中断源调用对应的 C 语言设备驱动处理例程。</p>
+<p><strong>步骤三：恢复上下文并返回。</strong> 从栈中弹出寄存器，使用 <code>SUBS PC, LR, #4</code> 完成异常返回——<code>S</code> 后缀将 <code>SPSR_IRQ</code> 原子地恢复到 <code>CPSR</code>，同时 <code>PC ← LR - 4</code>，核心回到中断前的模式和指令流。</p>
+<img src="2.png" alt="2" style="zoom:50%;" />
+
+<h3 id="3-3-汇编代码分析"><a href="#3-3-汇编代码分析" class="headerlink" title="3.3 汇编代码分析"></a>3.3 汇编代码分析</h3><p>精简中断处理器的完整汇编实现：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">IRQ_Handler:</span><br><span class="line">    PUSH    &#123;r0-r3, r12, lr&#125;      @ 保存 AAPCS 调用约定寄存器和 LR</span><br><span class="line">    BL      identify_and_clear_source</span><br><span class="line">    BL      C_irq_handler</span><br><span class="line">    POP     &#123;r0-r3, r12, lr&#125;      @ 恢复寄存器</span><br><span class="line">    SUBS    pc, lr, #4            @ 异常返回，原子恢复 CPSR</span><br></pre></td></tr></table></figure>
+
+<p>逐行说明：</p>
+<ul>
+<li>**<code>PUSH &#123;r0-r3, r12, lr&#125;</code>**：AAPCS（ARM 体系结构过程调用标准）规定 r0-r3 和 r12 是调用者保存寄存器，可能在 <code>C_irq_handler</code> 中被修改，必须提前保存。<code>lr</code> 保存的是 <code>LR_IRQ</code> 中的返回地址，也需要入栈保护。</li>
+<li>**<code>BL identify_and_clear_source</code>**：跳转至硬件相关的中断源识别与清除函数。此步骤在调用 C 处理函数之前完成，末尾的分号不是语法需要，而是分隔同一行的两条 BL 指令。</li>
+<li>**<code>BL C_irq_handler</code>**：跳转至 C 语言实现的中断处理函数，该函数根据中断 ID 分发到具体设备驱动。</li>
+<li>**<code>POP &#123;r0-r3, r12, lr&#125;</code>**：恢复之前保存的寄存器。注意 <code>lr</code> 此时加载的是返回地址，但该值将在下一步被使用而非直接用于返回。</li>
+<li>**<code>SUBS pc, lr, #4</code>**：核心返回指令。ARM 三级流水线中，IRQ 异常发生时 <code>LR_IRQ = PC + 4</code>，而实际应返回的是被中断指令的下一条指令，即 <code>PC = LR_IRQ - 4</code>。<code>S</code> 后缀触发 <code>SPSR_IRQ → CPSR</code> 的原子复制，恢复中断前的处理器模式和中断屏蔽状态。</li>
+</ul>
+<h3 id="3-4-上下文切换图示"><a href="#3-4-上下文切换图示" class="headerlink" title="3.4 上下文切换图示"></a>3.4 上下文切换图示</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">进入 IRQ 前的用户程序上下文:</span><br><span class="line">  ┌──────────┐</span><br><span class="line">  │ PC (App) │──→ 中断发生时 PC 值</span><br><span class="line">  │ CPSR     │──→ 当前模式和中断使能状态</span><br><span class="line">  │ r0-r3    │──→ AAPCS 临时寄存器</span><br><span class="line">  │ r12      │──→ 帧内调用暂存寄存器</span><br><span class="line">  │ lr       │──→ 应用程序返回地址</span><br><span class="line">  └──────────┘</span><br><span class="line">         │</span><br><span class="line">         ▼ 硬件自动完成</span><br><span class="line">  ┌──────────────────┐</span><br><span class="line">  │ LR_IRQ ← PC      │</span><br><span class="line">  │ SPSR_IRQ ← CPSR  │</span><br><span class="line">  │ CPSR[4:0] ← 0x12 │</span><br><span class="line">  │ CPSR[I] ← 1      │</span><br><span class="line">  └──────────────────┘</span><br><span class="line">         │</span><br><span class="line">         ▼ PUSH &#123;r0-r3, r12, lr&#125;</span><br><span class="line">  ┌──────────────┐</span><br><span class="line">  │ [IRQ Stack]  │</span><br><span class="line">  │  r0, r1, r2  │──→ Caller-saved regs</span><br><span class="line">  │  r3, r12, lr │──→ LR_IRQ (return addr)</span><br><span class="line">  └──────────────┘</span><br><span class="line">         │</span><br><span class="line">         ▼ Interrupt processing...</span><br><span class="line">         │</span><br><span class="line">         ▼ POP + SUBS PC, LR, #4</span><br><span class="line">  ┌──────────────┐</span><br><span class="line">  │ Restore Ctx  │</span><br><span class="line">  │ CPSR←SPSR_IRQ│</span><br><span class="line">  │ PC←LR_IRQ-4  │</span><br><span class="line">  └──────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>精简中断处理简单可靠，但致命缺陷是中断延迟不可控——低优先级中断会阻塞所有后续请求。这引出了下一节讨论的嵌套中断机制。</p>
+<hr>
+<h2 id="4-嵌套中断处理"><a href="#4-嵌套中断处理" class="headerlink" title="4. 嵌套中断处理"></a>4. 嵌套中断处理</h2><p>嵌套中断处理允许软件在当前中断处理完成之前接受另一个中断，以此实现中断优先级抢占，显著改善高优先级事件的响应延迟。</p>
+<p>嵌套中断是软件选择的结果——通过中断优先级配置和中断控制来实现，而非硬件强制行为。</p>
+<h3 id="4-1-核心问题：LR-与-SPSR-覆盖"><a href="#4-1-核心问题：LR-与-SPSR-覆盖" class="headerlink" title="4.1 核心问题：LR 与 SPSR 覆盖"></a>4.1 核心问题：LR 与 SPSR 覆盖</h3><img src="3.png" alt="3" style="zoom:50%;" />
+
+<p>可重入中断处理面临一个根本性问题：</p>
+<p>当核心正在 IRQ 模式执行第一个中断的处理例程时，如果此时 IRQ 被重新启用且第二个中断到来，硬件会将**第二个中断的返回地址写入 <code>LR_IRQ</code><strong>，</strong>将当前 CPSR 再次复制到 <code>SPSR_IRQ</code>**——这会覆盖第一个中断保存的返回地址和状态。</p>
+<p>具体示例如下：假设主程序在地址 <code>0x8000_3000</code> 处被低优先级 IRQ #1 打断，硬件将 <code>LR_IRQ = 0x8000_3004</code>，<code>SPSR_IRQ = CPSR（User 模式）</code>。IRQ #1 的处理例程在切换到 System 模式后调用 <code>CPSIE i</code> 重新启用中断。此时若高优先级 IRQ #2 到来，硬件再次进入 IRQ 模式并执行：<code>LR_IRQ ← 0x8000_8004</code>（IRQ #2 的返回地址），<code>SPSR_IRQ ← CPSR（System 模式，I=0）</code>。IRQ #1 之前保存在 <code>LR_IRQ</code> 中的 <code>0x8000_3004</code> 被 <code>0x8000_8004</code> 覆盖。当 IRQ #1 最终尝试返回到主程序时，<code>LR_IRQ</code> 中的值已变为 <code>0x8000_8004</code>，导致程序跳转到错误地址。</p>
+<p>这就是为何必须使用 <code>SRS</code> 在启用中断前将 <code>LR_IRQ</code> 和 <code>SPSR_IRQ</code> 转存到备用模式栈上——硬件只在 IRQ 模式下写入 banked 寄存器，提前转存到其他模式的栈可保证原始上下文不被覆盖。</p>
+<h3 id="4-2-模式切换方案"><a href="#4-2-模式切换方案" class="headerlink" title="4.2 模式切换方案"></a>4.2 模式切换方案</h3><p>解决策略是：在重新启用中断之前，将处理上下文切换到备用处理器模式，使新中断的硬件保存行为操作的是备用模式的 banked 寄存器，而非原始 IRQ 模式的 <code>LR_IRQ</code> &#x2F; <code>SPSR_IRQ</code>。</p>
+<p>ARMv7-A 提供了两条专用指令来支持这一操作：</p>
+<ul>
+<li>**<code>SRS</code>**（Store Return State）：将 <code>LR</code> 和 <code>SPSR</code> 原子地保存到指定模式的栈上，无需手动加载 <code>SPSR</code> 到通用寄存器</li>
+<li>**<code>RFE</code>**（Return From Exception）：从栈中原子地恢复 <code>PC</code> 和 <code>CPSR</code></li>
+</ul>
+<p><code>SRS</code> 与 <code>RFE</code> 配对使用，避免了手动处理 <code>SPSR</code> 和 <code>PC</code> 时可能出现的竞态窗口。</p>
+<h3 id="4-3-完整处理流程"><a href="#4-3-完整处理流程" class="headerlink" title="4.3 完整处理流程"></a>4.3 完整处理流程</h3><p>可重入中断处理例程的完整步骤：</p>
+<ol>
+<li>保存被中断程序的上下文（寄存器、返回地址、<code>SPSR_IRQ</code>）到备用内核模式栈</li>
+<li>识别中断源，在硬件层清除中断标志（防止返回后立即再次触发）</li>
+<li>切换到 SVC 模式，保持 CPSR I 位置 1（中断仍被屏蔽）</li>
+<li>将异常返回地址保存到新模式的栈上，然后重新启用中断</li>
+<li>调用相应的设备处理代码</li>
+<li>处理完成后，禁用 IRQ 并从栈中弹出异常返回地址</li>
+<li>从备用内核模式栈直接恢复被中断程序的上下文，包括通过 <code>RFE</code> 原子恢复 PC 和 CPSR</li>
+</ol>
+<h3 id="4-4-汇编代码分析"><a href="#4-4-汇编代码分析" class="headerlink" title="4.4 汇编代码分析"></a>4.4 汇编代码分析</h3><p>以下是完整的嵌套中断处理汇编实现：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">IRQ_Handler:</span><br><span class="line">    SUB     lr, lr, #4</span><br><span class="line">    SRSFD   sp!, #0x1f      @ 将 LR_irq 和 SPSR_irq 原子保存到 System 模式栈</span><br><span class="line">    CPS     #0x1f           @ 切换到 System 模式</span><br><span class="line">    PUSH    &#123;r0-r3, r12&#125;    @ 保存剩余 AAPCS 寄存器</span><br><span class="line">    AND     r1, sp, #4      @ 检查栈对齐</span><br><span class="line">    SUB     sp, sp, r1      @ 若未对齐则调整</span><br><span class="line">    PUSH    &#123;r1, lr&#125;        @ 保存对齐调整值和 LR_sys</span><br><span class="line">    BL      identify_and_clear_source</span><br><span class="line">    CPSIE   i               @ 启用 IRQ</span><br><span class="line">    BL      C_irq_handler</span><br><span class="line">    CPSID   i               @ 禁用 IRQ</span><br><span class="line">    POP     &#123;r1, lr&#125;        @ 恢复 LR_sys</span><br><span class="line">    ADD     sp, sp, r1      @ 撤销栈对齐调整</span><br><span class="line">    POP     &#123;r0-r3, r12&#125;    @ 恢复 AAPCS 寄存器</span><br><span class="line">    RFEFD   sp!             @ 从 System 模式栈原子返回</span><br></pre></td></tr></table></figure>
+
+<p>逐行说明：</p>
+<ul>
+<li>**<code>SUB lr, lr, #4</code>**：与精简处理相同，将 <code>LR_IRQ</code> 调整为实际返回地址（<code>PC = LR_IRQ - 4</code>）。</li>
+<li>**<code>SRSFD sp!, #0x1f</code>**：将 <code>LR_IRQ</code> 和 <code>SPSR_IRQ</code> 原子地保存到 System 模式（<code>0x1F</code>）的栈上 <code>sp_sys</code>。<code>FD</code> 后缀表示 Full Descending 栈操作。此操作在 IRQ 模式执行，数据却写入 System 模式栈——这是 <code>SRS</code> 的核心价值：在仍处于 IRQ 模式时就将关键状态转存到安全位置。</li>
+<li><strong><code>CPS #0x1f</code><strong>：切换到 System 模式（<code>CPSR[4:0] = 0x1F</code>）。System 模式与 User 模式共享寄存器组，但拥有特权级访问权限，且</strong>不自动屏蔽中断</strong>——这是选它而非 SVC 模式的原因。</li>
+<li>**<code>PUSH &#123;r0-r3, r12&#125;</code>**：现在操作的是 System 模式栈，保存调用者寄存器。</li>
+<li>**<code>AND r1, sp, #4</code> &#x2F; <code>SUB sp, sp, r1</code>**：AAPCS 要求栈在函数调用时 8 字节对齐。这两条指令检测当前栈是否 4 字节对齐（若 SP bit[2]&#x3D;1 则未 8 字节对齐），并通过调整 SP 来纠正。</li>
+<li>**<code>PUSH &#123;r1, lr&#125;</code>**：保存对齐调整值 <code>r1</code> 和 <code>LR_sys</code>（System 模式下的链接寄存器，用于从 <code>C_irq_handler</code> 返回）。</li>
+<li>**<code>BL identify_and_clear_source</code>**：清除当前中断源。</li>
+<li>**<code>CPSIE i</code>**：在调用 C 处理函数之前启用 IRQ——这是嵌套能力的关键：此时核心已不在 IRQ 模式，新中断到来时硬件不会覆盖 <code>LR_IRQ</code>&#x2F;<code>SPSR_IRQ</code>。</li>
+<li>**<code>BL C_irq_handler</code>**：在 IRQ 启用状态下调用设备处理函数。若此时更高优先级中断到来，核心将重新进入 IRQ 模式，开始新一轮嵌套处理。</li>
+<li>**<code>CPSID i</code>**：处理完毕，禁用 IRQ，进入临界区准备恢复。</li>
+<li>**<code>POP &#123;r1, lr&#125;</code>**：恢复对齐调整值和 <code>LR_sys</code>。</li>
+<li>**<code>ADD sp, sp, r1</code>**：撤销栈对齐调整。</li>
+<li>**<code>POP &#123;r0-r3, r12&#125;</code>**：恢复 AAPCS 寄存器。</li>
+<li>**<code>RFEFD sp!</code>**：从 System 模式栈原子弹出 <code>PC</code> 和 <code>CPSR</code>。<code>RFE</code> 指令自动将 <code>SPSR</code> 值写回 <code>CPSR</code>，实现原子模式切换和中断返回。</li>
+</ul>
+<h3 id="4-5-嵌套路径示意"><a href="#4-5-嵌套路径示意" class="headerlink" title="4.5 嵌套路径示意"></a>4.5 嵌套路径示意</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">Main Program</span><br><span class="line">    │</span><br><span class="line">    ├── IRQ #1 (low prio) ─────────┐</span><br><span class="line">    │                              │ IRQ_Handler</span><br><span class="line">    │                              │   ├── SRS (save to System stack)</span><br><span class="line">    │                              │   ├── CPS switch to System mode</span><br><span class="line">    │                              │   ├── CPSIE i (re-enable IRQ)</span><br><span class="line">    │                              │   │</span><br><span class="line">    │                              │   ├── IRQ #2 (high prio) ──┐</span><br><span class="line">    │                              │   │                        │ Re-enter IRQ_Handler</span><br><span class="line">    │                              │   │                        │ Handle #2 → RFE return</span><br><span class="line">    │                              │   │   ◄────────────────────┘</span><br><span class="line">    │                              │   │</span><br><span class="line">    │                              │   ├── CPSID i (disable IRQ)</span><br><span class="line">    │                              │   └── RFE return</span><br><span class="line">    │   ◄──────────────────────────┘</span><br><span class="line">    ▼</span><br><span class="line">Continue Main</span><br></pre></td></tr></table></figure>
+
+<p>上图描述了嵌套中断的完整抢占路径：主程序在执行中被低优先级 IRQ #1 打断，进入 <code>IRQ_Handler</code> 后执行 SRS 将 IRQ 模式下的 LR 和 SPSR 保存到 System 模式栈、CPS 切换到 System 模式并启用 IRQ。此时更高优先级的 IRQ #2 到来——核心重新进入 IRQ 模式，通过相同的 <code>IRQ_Handler</code> 入口开始新一轮处理。IRQ #2 完成处理后通过 RFE 返回到 System 模式下 IRQ #1 的处理上下文，IRQ #1 接着完成自身处理并通过 RFE 返回主程序。</p>
+<p>嵌套中断处理实现了优先级抢占，但其复杂性显著增加——每个中断源需要独立的优先级配置，栈使用量随嵌套深度增长。这些管理任务正是 GIC 统一中断控制器要解决的核心问题。</p>
+<blockquote>
+<p>NOTE：为了解决中断嵌套 LR 与 SPSR 会被覆盖的问题 ，异常处理程序会先保存当前异常模式的 LR 和 SPSR 到 System 模式栈，再切换到 System 模式执行，从而避免后续同类异常覆盖异常模式的 Banked LR 和 SPSR。</p>
+</blockquote>
+<hr>
+<h2 id="5-GIC-架构"><a href="#5-GIC-架构" class="headerlink" title="5. GIC 架构"></a>5. GIC 架构</h2><p>ARM 通用中断控制器（GIC）的架构定义了一套标准化的硬件资源，用于在单核或多核系统中管理中断。GIC 提供了一组内存映射寄存器，软件通过读写这些寄存器来管理中断源和中断行为，并在多核系统中将中断路由到特定核心。</p>
+<h3 id="5-1-拓扑结构"><a href="#5-1-拓扑结构" class="headerlink" title="5.1 拓扑结构"></a>5.1 拓扑结构</h3><p>从软件视角看，GIC 包含两个主要功能模块：</p>
+<ul>
+<li><strong>Distributor（分发器）</strong>：系统中所有中断源的汇集点。Distributor 包含寄存器用于控制每个中断的属性——优先级、触发类型、目标核心列表、使能状态和安全配置。Distributor 负责决定哪个待处理中断应被转发到哪个核心。</li>
+<li><strong>CPU Interface（CPU 接口）</strong>：每个核心独享一个 CPU Interface，用于接收 Distributor 转发的中断并将其信号传递给核心。CPU Interface 包含屏蔽、识别和控制中断状态的寄存器。</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">      ┌─────────────────────────────────────┐</span><br><span class="line">      │             Distributor             │</span><br><span class="line">      │  ┌────┬────┬────┬────┬────┬────┐    │</span><br><span class="line">      │  │SPI0│SPI1│SPI2│... │    │SPIn│    │</span><br><span class="line">      │  └────┴────┴────┴────┴────┴────┘    │</span><br><span class="line">      │  Priority / Routing / State Mgmt    │</span><br><span class="line">      └───┬────────────┬────────────────────┘</span><br><span class="line">          │            │</span><br><span class="line">┌─────────▼──┐  ┌──────▼─────────┐</span><br><span class="line">│ CPU I/F #0 │  │ CPU I/F #1     │  ...</span><br><span class="line">│ Prio Mask  │  │ Prio Mask      │</span><br><span class="line">│ Int Ack    │  │ Int Ack        │</span><br><span class="line">│ End of Int │  │ End of Int     │</span><br><span class="line">└─────┬──────┘  └──────┬─────────┘</span><br><span class="line">      │                │</span><br><span class="line">┌─────▼──────┐  ┌──────▼─────────┐</span><br><span class="line">│  Core #0   │  │  Core #1       │</span><br><span class="line">│  IRQ/FIQ   │  │  IRQ/FIQ       │</span><br><span class="line">└────────────┘  └────────────────┘</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-内存映射与-Banked-访问"><a href="#5-2-内存映射与-Banked-访问" class="headerlink" title="5.2 内存映射与 Banked 访问"></a>5.2 内存映射与 Banked 访问</h3><p>GIC 作为内存映射外设被访问。所有核心可以访问公共的 Distributor 模块，但 CPU Interface 采用 banked 设计——每个核心使用<strong>相同的地址</strong>访问自己私有的 CPU Interface。<strong>一个核心无法访问另一个核心的 CPU Interface 寄存器</strong>。</p>
+<p>这意味着在多核系统中，CPU Interface 的配置代码无需区分核心编号——硬件根据当前执行的核心自动选择对应的 banked 寄存器组。</p>
+<h3 id="5-3-中断-ID-编号"><a href="#5-3-中断-ID-编号" class="headerlink" title="5.3 中断 ID 编号"></a>5.3 中断 ID 编号</h3><p>GIC 使用中断 ID（Interrupt ID）在软件中唯一标识每个中断源。中断 ID 的值由系统设计决定，软件通过中断 ID 来识别中断源并调用对应的处理例程。</p>
+<hr>
+<h2 id="6-中断分类与状态机"><a href="#6-中断分类与状态机" class="headerlink" title="6. 中断分类与状态机"></a>6. 中断分类与状态机</h2><p>GIC 管理的中断并非单一类型——根据产生方式（硬件外设 vs. 软件触发）和归属范围（核心私有 vs. 系统共享）分为三个类别，各自占用独立的 ID 区间。同时，每个中断在 GIC 内部遵循严格的状态转换规则，Distributor 基于这些状态来决定中断的转发时机。</p>
+<h3 id="6-1-中断类型"><a href="#6-1-中断类型" class="headerlink" title="6.1 中断类型"></a>6.1 中断类型</h3><p>GIC 将中断按来源和范围分为三类：</p>
 <table>
 <thead>
 <tr>
-<th>异常</th>
-<th>模式</th>
-<th>CPSR 中断屏蔽</th>
+<th>类型</th>
+<th>ID 范围</th>
+<th>数量</th>
+<th>用途</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Reset</td>
-<td>SVC</td>
-<td>F&#x3D;1, I&#x3D;1</td>
+<td><strong>SGI</strong>（Software Generated Interrupt）</td>
+<td>0–15</td>
+<td>16</td>
+<td>软件显式触发，用于核间通信</td>
 </tr>
 <tr>
-<td>Undefined</td>
-<td>UND</td>
-<td>I&#x3D;1</td>
+<td><strong>PPI</strong>（Private Peripheral Interrupt）</td>
+<td>16–31</td>
+<td>16</td>
+<td>每个核心私有的外设中断，如 per-core timer</td>
 </tr>
 <tr>
-<td>SVC</td>
-<td>SVC</td>
-<td>I&#x3D;1</td>
-</tr>
-<tr>
-<td>Prefetch Abort</td>
-<td>ABT</td>
-<td>I&#x3D;1</td>
-</tr>
-<tr>
-<td>Data Abort</td>
-<td>ABT</td>
-<td>I&#x3D;1</td>
-</tr>
-<tr>
-<td>IRQ</td>
-<td>IRQ</td>
-<td>I&#x3D;1</td>
-</tr>
-<tr>
-<td>FIQ</td>
-<td>FIQ</td>
-<td>F&#x3D;1, I&#x3D;1</td>
+<td><strong>SPI</strong>（Shared Peripheral Interrupt）</td>
+<td>32–1020</td>
+<td>988</td>
+<td>系统级共享外设中断，可路由到多个核心</td>
 </tr>
 </tbody></table>
-<h3 id="2-2-向量表的四种视图"><a href="#2-2-向量表的四种视图" class="headerlink" title="2.2 向量表的四种视图"></a>2.2 向量表的四种视图</h3><p>异常向量表默认位于 <code>0x00000000</code>，但 Cortex-A 系列支持通过 CP15 SCTLR.V 移到 <code>0xFFFF0000</code>（Linux 内核的默认选择）。向量表有 8 个条目，每个 4 字节：</p>
-<table>
-<thead>
-<tr>
-<th>偏移</th>
-<th>向量地址</th>
-<th>Non-secure</th>
-<th>Secure</th>
-<th>Hypervisor</th>
-<th>Monitor</th>
-</tr>
-</thead>
-<tbody><tr>
-<td><code>0x00</code></td>
-<td>0xFFFF0000</td>
-<td>未使用</td>
-<td>Reset</td>
-<td>Reset</td>
-<td>未使用</td>
-</tr>
-<tr>
-<td><code>0x04</code></td>
-<td>0xFFFF0004</td>
-<td>UNDEF</td>
-<td>UNDEF</td>
-<td>Hyp mode UNDEF</td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>0x08</code></td>
-<td>0xFFFF0008</td>
-<td>SVC</td>
-<td>SVC</td>
-<td>SMC</td>
-<td>SMC</td>
-</tr>
-<tr>
-<td><code>0x0C</code></td>
-<td>0xFFFF000C</td>
-<td>Prefetch Abort</td>
-<td>Prefetch Abort</td>
-<td>Hyp Prefetch Abort</td>
-<td>Prefetch Abort</td>
-</tr>
-<tr>
-<td><code>0x10</code></td>
-<td>0xFFFF0010</td>
-<td>Data Abort</td>
-<td>Data Abort</td>
-<td>Hyp Data Abort</td>
-<td>Data Abort</td>
-</tr>
-<tr>
-<td><code>0x14</code></td>
-<td>0xFFFF0014</td>
-<td>未使用</td>
-<td>未使用</td>
-<td><strong>Hyp Trap Entry</strong></td>
-<td>—</td>
-</tr>
-<tr>
-<td><code>0x18</code></td>
-<td>0xFFFF0018</td>
-<td>IRQ</td>
-<td>IRQ</td>
-<td>IRQ</td>
-<td>IRQ</td>
-</tr>
-<tr>
-<td><code>0x1C</code></td>
-<td>0xFFFF001C</td>
-<td>FIQ</td>
-<td>FIQ</td>
-<td>FIQ</td>
-<td>FIQ</td>
-</tr>
-</tbody></table>
-<p>每个向量条目<strong>只有 4 字节</strong>——只能放一条指令（ARM）或两条 Thumb 指令。标准做法放一条 <code>B &lt;label&gt;</code>（PC 相对跳转，受 24-bit 偏移限制）或 <code>LDR PC, [PC, #offset]</code>（加载 32-bit 绝对地址，代价多几个周期）。</p>
-<h3 id="2-3-优先级与嵌套"><a href="#2-3-优先级与嵌套" class="headerlink" title="2.3 优先级与嵌套"></a>2.3 优先级与嵌套</h3><p>手册明确：<strong>ARM 架构不定义异步异常的取指时机</strong>，异步异常的优先级排序由具体实现决定。但有几条硬性规则：</p>
+<p><strong>SGI</strong> 由软件向 Distributor 的软件生成中断寄存器（<code>ICDSGIR</code>）写入目标核心掩码来生成。这是多核系统中实现核间通信（IPI, Inter-Processor Interrupt）的标准机制。SGI 可定向到全部核心或指定核心子集。</p>
+<p><strong>PPI</strong> 是每个核心私有的中断源，例如 per-core 定时器。核心 A 的 PPI 与核心 B 的同类型 PPI 相互独立，互不影响。</p>
+<p><strong>SPI</strong> 是系统中绝大多数外设中断的来源——UART、SPI 控制器、DMA 引擎、以太网 MAC 等均通过 SPI 接入 GIC。</p>
+<h3 id="6-2-触发方式"><a href="#6-2-触发方式" class="headerlink" title="6.2 触发方式"></a>6.2 触发方式</h3><p>GIC 支持两种中断触发方式，由 Distributor 中的配置寄存器 <code>GICD_ICFGRn</code>（Interrupt Configuration Register）按中断 ID 逐位控制——每个中断占 2 位配置域：</p>
 <ul>
-<li><strong>Reset 最高优先级，不可屏蔽</strong></li>
-<li><strong>FIQ 高于 IRQ 和 Abort</strong></li>
-<li><strong>所有异常自动屏蔽 IRQ（置 CPSR.I&#x3D;1），仅 Reset&#x2F;FIQ 屏蔽 FIQ</strong></li>
+<li><strong>边沿触发</strong>（edge-triggered）：<code>GICD_ICFGRn[2*ID+0] = 1</code> 表示该中断为边沿触发。中断控制器检测到相关输入上的上升沿时认为中断被断言，保持断言状态直到软件清除</li>
+<li><strong>电平敏感</strong>（level-sensitive）：<code>GICD_ICFGRn[2*ID+0] = 0</code> 表示电平敏感。仅当中断控制器的相关输入为高电平时才认为中断被断言。这是复位后的默认配置</li>
 </ul>
-<p>这意味着：<strong>FIQ 可以打断正在执行的 Abort handler 或 IRQ handler</strong>。典型嵌套场景：Data Abort 先发生（优先级高于 FIQ）→ 核心进入 ABT 保存 LR → FIQ 立即打断 → FIQ handler 执行 → 返回 ABT → 继续处理 abort。</p>
-<p>FIQ 相比 IRQ 有两个独特的速度优势：第一，<strong>FIQ 在向量表的最后一项（偏移 <code>0x1C</code>）</strong>——FIQ handler 代码可以直接放在 <code>0x1C</code> 位置开始执行，无需一条 B 指令的分支延迟。第二，<strong>FIQ 模式拥有私有的 R8_fiq–R12_fiq banked 寄存器</strong>——其他模式必须在 handler 入口处 PUSH 通用寄存器到栈上保护现场，FIQ 直接使用这些独立副本，节省了若干压栈周期。配合 FIQ 从不被内核屏蔽的优先级特性，FIQ 是为需要<strong>保证最快响应时间</strong>的单一高优先级外设保留的。</p>
-<p>手册同时指出 FIQ 的核心限制：<strong>FIQ handler 不应触发任何其他异常</strong>——它的内存必须全映射完毕，不能使用 SVC 调用内核函数。这意味着 FIQ 无法调用内核 API，只能由<strong>不需要内核服务的独立设备驱动代码</strong>使用。这也正是 Linux 不使用 FIQ 的根本原因：内核的架构无关设计没有多级中断的概念，且所有中断处理路径最终都需要内核服务。</p>
-<p>手册指出 SVC 和 UNDEF 互斥（都是指令触发），Prefetch Abort 和 SVC&#x2F;UNDEF 也无法同时发生（被标记 abort 的指令无法又同时是 SVC）。</p>
-<p>优先级和向量表决定了”去哪”，LR 决定了”怎么回来”——下一节解析异常返回时那条最关键的 <code>SUBS PC, LR, #N</code> 指令。</p>
-<hr>
-<h2 id="3-异常返回与-LR-偏移调整"><a href="#3-异常返回与-LR-偏移调整" class="headerlink" title="3. 异常返回与 LR 偏移调整"></a>3. 异常返回与 LR 偏移调整</h2><p>异常处理完了怎么回到被打断的代码？这看似简单的问题涉及 ARM 体系最微妙的细节——LR 寄存器里存的不是真正的返回地址，必须按异常类型做偏移修正。本节解析 -4&#x2F;-8&#x2F;0 三种修正值的流水线级来历，以及 <code>S</code>、<code>^</code>、<code>RFE</code> 三种返回路径的原子性保障。</p>
-<h3 id="3-1-为什么-LR-需要偏移修正？"><a href="#3-1-为什么-LR-需要偏移修正？" class="headerlink" title="3.1 为什么 LR 需要偏移修正？"></a>3.1 为什么 LR 需要偏移修正？</h3><p>异常触发时核心自动将返回地址存入 LR，但存入的<strong>不是下一条要执行的指令的地址</strong>——需要根据异常类型手动调整：</p>
-<table>
-<thead>
-<tr>
-<th>异常</th>
-<th>LR 调整</th>
-<th>返回指令</th>
-<th>返回的目标指令</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>SVC</td>
-<td>0</td>
-<td><code>MOVS PC, R14</code></td>
-<td>下一条指令</td>
-</tr>
-<tr>
-<td>UNDEF</td>
-<td>0</td>
-<td><code>MOVS PC, R14</code></td>
-<td>下一条指令</td>
-</tr>
-<tr>
-<td>Prefetch Abort</td>
-<td><strong>-4</strong></td>
-<td><code>SUBS PC, R14, #4</code></td>
-<td><strong>引发 abort 的指令</strong>（需重新取）</td>
-</tr>
-<tr>
-<td>Data Abort</td>
-<td><strong>-8</strong></td>
-<td><code>SUBS PC, R14, #8</code></td>
-<td>引发 abort 的指令（精确时）</td>
-</tr>
-<tr>
-<td>IRQ</td>
-<td><strong>-4</strong></td>
-<td><code>SUBS PC, R14, #4</code></td>
-<td>被打断的下一条指令</td>
-</tr>
-<tr>
-<td>FIQ</td>
-<td><strong>-4</strong></td>
-<td><code>SUBS PC, R14, #4</code></td>
-<td>被打断的下一条指令</td>
-</tr>
-</tbody></table>
-<p>手册指出这些值来自早期硬件的便利性而非设计规范——但要理解它们的工作方式，关键是知道 ARM 的<strong>三级流水线造成 PC 比当前执行指令超前 8 字节（ARM 状态）或 4 字节（Thumb 状态）</strong>。Data Abort 的 -8 修正正是为了回到 abort 指令本身（PC 超前 8，需回退 8）；Prefetch Abort 需回到 abort 指令的地址（超前 4 个指令周期，LR 存的是 abort 指令 +4，回退 4）。</p>
-<h3 id="3-2-异常退出和三种返回机制"><a href="#3-2-异常退出和三种返回机制" class="headerlink" title="3.2 异常退出和三种返回机制"></a>3.2 异常退出和三种返回机制</h3><p>从异常返回时有两个操作<strong>必须原子完成</strong>：</p>
+<h3 id="6-3-中断状态机"><a href="#6-3-中断状态机" class="headerlink" title="6.3 中断状态机"></a>6.3 中断状态机</h3><p>每个中断在 GIC 内部经历一个四态生命周期：</p>
+<img src="4.png" alt="4" style="zoom:50%;" />
+
+<p>各状态含义：</p>
 <ul>
-<li>SPSR → CPSR 恢复原状态</li>
-<li>PC 跳回返回地址</li>
+<li><strong>Inactive</strong>：中断源未被断言，处于空闲状态</li>
+<li><strong>Pending</strong>：中断源已被断言，等待核心处理。Pending 中断是 Distributor 决定转发到 CPU Interface 的候选者</li>
+<li><strong>Active</strong>：中断已被核心确认（通过读 CPU Interface 的 Interrupt Acknowledge Register），正在被服务</li>
+<li><strong>Active and Pending</strong>：核心正在服务该中断，同时同一中断源又产生了新的中断请求——上图中 <code>Active</code> 写 EOIR 直接回到 <code>Inactive</code>（无新中断），而 <code>Active &amp; Pending</code> 写 EOIR 后退回 <code>Pending</code>（需二次处理）</li>
 </ul>
-<p>ARM 提供三条路径从异常返回：</p>
-<p><strong>方法 1：带 S 后缀的数据处理指令写 PC</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SUBS  PC, LR, #4      ; LR-4 → PC，同时 SPSR → CPSR（S 后缀是关键）</span><br><span class="line">MOVS  PC, R14          ; LR → PC，同时 SPSR → CPSR</span><br></pre></td></tr></table></figure>
-
-<p>注意 <code>S</code> 后缀——普通 <code>SUB PC, LR, #4</code> 只改 PC 不改 CPSR，异常返回时<strong>永远用 <code>S</code> 变体</strong>。</p>
-<p><strong>方法 2：带 ^ 修饰符的 LDM&#x2F;POP</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LDMFD  sp!, &#123;R0-R12, PC&#125;^    ; 恢复所有寄存器 + PC，同时 SPSR → CPSR</span><br></pre></td></tr></table></figure>
-
-<p><code>^</code> 修饰符在 Load Multiple 写入 PC 时触发 CPSR 恢复。异常处理程序在入口处压栈所有工作寄存器 + 修正后的 LR，出口处一条指令完成全部恢复。</p>
-<p><strong>方法 3：RFE（Return From Exception）</strong></p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">RFEFD  sp!                   ; 从当前模式栈弹出 LR 和 SPSR 并跳转</span><br></pre></td></tr></table></figure>
-
-<p>手册 16-bit Thumb 指令<strong>不能用于异常返回</strong>——因为它们无法同时完成 PC 跳转和 CPSR 恢复。</p>
-<p>配合 RFE 使用的还有 <strong>SRS（Store Return State）</strong> 指令。异常入口时，通常需要手动将 LR 和 SPSR 保存到栈上——SRS 将这两步合并为一条指令，且可以将返回状态压入<strong>任意模式的栈</strong>（由指令操作数指定），而不仅仅限于当前模式。这在异常处理程序需要切换模式后再保存状态的场景下尤为重要——例如从 IRQ 模式进入 SVC 模式处理、但需要把 LR_irq 和 SPSR_irq 保存到 SVC 栈上的场景。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SRSFD  sp!, #Mode_SVC      ; 将 LR_irq 和 SPSR_irq 压入 SVC 模式栈</span><br><span class="line">; 随后切换到 SVC 模式，RFEFD 从 SVC 栈恢复并返回</span><br></pre></td></tr></table></figure>
-
-<p>返回机制明确后，各个 handler 具体做什么？以下三节分述 Abort、UNDEF 和 SVC 处理器的软件职责。</p>
+<p>Distributor 在每个中断源的状态寄存器中维护这些状态信息。</p>
+<h3 id="6-4-优先级仲裁"><a href="#6-4-优先级仲裁" class="headerlink" title="6.4 优先级仲裁"></a>6.4 优先级仲裁</h3><p>Distributor 持续监控所有 Pending 状态的中断，从中选出<strong>最高优先级且可交付</strong>的中断，将其转发到对应核心的 CPU Interface。在 CPU Interface 端，中断被进一步通过优先级掩码过滤——优先级低于掩码阈值的中断被阻止到达核心。</p>
+<p>最终，CPU Interface 向核心发出 IRQ 或 FIQ 信号，核心响应异常并进入中断处理流程。</p>
 <hr>
-<h2 id="4-各异常处理器的软件职责"><a href="#4-各异常处理器的软件职责" class="headerlink" title="4. 各异常处理器的软件职责"></a>4. 各异常处理器的软件职责</h2><p>硬件把处理器切到了正确的模式和向量，接下来各个 handler 要在软件层面做什么？Abort handler 读 CP15 判断是缺页还是硬件错误，UNDEF handler 检查操作码决定是否软件模拟，SVC handler 解析调用号分派到内核函数——三者的处理逻辑截然不同。</p>
-<h3 id="4-1-Abort-处理器"><a href="#4-1-Abort-处理器" class="headerlink" title="4.1 Abort 处理器"></a>4.1 Abort 处理器</h3><p>Abort handler 通过 CP15 获取：</p>
+<h2 id="7-GIC-配置与处理流程"><a href="#7-GIC-配置与处理流程" class="headerlink" title="7. GIC 配置与处理流程"></a>7. GIC 配置与处理流程</h2><p>前两节介绍了 GIC 的架构组件和中断类型，本节将这些组件串联为完整的工作流——从系统启动后的 GIC 初始化开始，经过中断产生、仲裁、转发、确认到处理完成的端到端链路。理解这条流水线是编写 GIC 驱动代码的前提。</p>
+<h3 id="7-1-三级使能链"><a href="#7-1-三级使能链" class="headerlink" title="7.1 三级使能链"></a>7.1 三级使能链</h3><p>一个中断要最终到达核心并被处理，必须满足以下<strong>全部四级条件</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[中断源] ──► [Distributor] ──► [CPU Interface] ──► [Core CPSR]</span><br><span class="line"> 个体使能        模块使能           模块使能           I/F 位清除</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li><strong>个体中断使能</strong>：Distributor 中该中断的 enable bit 被置位</li>
+<li><strong>Distributor 使能</strong>：Distributor 控制寄存器的全局 enable 位被置位</li>
+<li><strong>CPU Interface 使能</strong>：对应核心的 CPU Interface 控制寄存器的 enable 位被置位</li>
+<li><strong>CPSR 中断屏蔽位清除</strong>：核心 CPSR 中的 I 位（IRQ）或 F 位（FIQ）为 0</li>
+</ol>
+<p>任何一级未使能，中断都无法到达核心。反过来，可以分别通过禁用 Distributor（全局禁用所有中断）、禁用某个 CPU Interface（禁用到达特定核心的中断）、或设置 CPSR 屏蔽位（仅当前核心临时屏蔽中断）来实现不同粒度的中断关闭。</p>
+<h3 id="7-2-Distributor-配置"><a href="#7-2-Distributor-配置" class="headerlink" title="7.2 Distributor 配置"></a>7.2 Distributor 配置</h3><p>复位后 Distributor 处于禁用状态。软件必须逐个中断源配置以下属性：</p>
 <ul>
-<li><strong>DFAR&#x2F;IFAR</strong>（Fault Address Register）：保存发生 Data Abort 或 Prefetch Abort 时对应的 Fault Address（通常是导致异常的虚拟地址）</li>
-<li><strong>DFSR&#x2F;IFSR</strong>（Fault Status Register）：异常原因——权限不足、外部 Abort、地址翻译失败</li>
-<li><strong>LR（修正后）</strong>：触发异常的指令地址</li>
+<li><strong>优先级</strong>（Priority）：通过 <code>GICD_IPRIORITYRn</code> 寄存器配置，每个中断 8 位优先级域，Distributor 使用此值在多个 Pending 中断中进行仲裁——值越小优先级越高</li>
+<li><strong>触发类型</strong>（Configuration）：通过 <code>GICD_ICFGRn</code> 寄存器配置，每中断 2 位——<code>0b00</code> 电平敏感，<code>0b11</code> 边沿触发</li>
+<li><strong>目标核心</strong>（Target）：通过 <code>GICD_ITARGETSRn</code> 寄存器配置，每个中断 8 位目标位掩码——每 bit 对应一个核心，可同时路由到多个核心。写入 <code>0x01</code> 表示仅路由到 Core #0，<code>0x03</code> 表示 Core #0 和 Core #1</li>
+<li><strong>安全属性</strong>（Security）：通过 <code>GICD_IGROUPRn</code> 寄存器配置，每中断 1 位——<code>0</code> 表示 Secure Group 0，<code>1</code> 表示 Group 1（Normal World）</li>
+<li><strong>使能状态</strong>（Enable）：通过 <code>GICD_ISENABLERn</code> 置位使能，通过 <code>GICD_ICENABLERn</code> 清除禁用</li>
 </ul>
-<p>支持虚拟内存的系统中，handler 可以修复页表后返回重试（demand paging）；不支持虚拟内存的系统中，Abort 意味着硬件错误，只能记录诊断信息后终止。</p>
-<p>手册特别讨论了异步 Abort 与 <strong>CPSR A 位</strong>的交互机制。当 A&#x3D;1 时，异步 Abort 不会立即进入异常，而是保持为 pending。</p>
-<p>内核在重新使能异步 Abort（清除 A 位）或切换用户上下文前，通常会执行适当的同步屏障（如 DSB），确保此前内存访问产生的 pending asynchronous abort 被及时认领（<strong>避免进程 A 导致的 Abort 到进程 B 的上下文中才被处理</strong>）。如果需要因为 imprecise external abort 终止某个用户进程，异常应归属于真正发起该内存访问的进程，而不是之后被调度运行的进程。</p>
-<h3 id="4-2-UNDEF-处理器"><a href="#4-2-UNDEF-处理器" class="headerlink" title="4.2 UNDEF 处理器"></a>4.2 UNDEF 处理器</h3><p>当 CPU 尝试执行一条<strong>无法执行</strong>的指令时，就会进入 <strong>Undefined Instruction</strong> 异常。</p>
-<p>常见情况有两种：</p>
+<p>完成所有中断源的属性配置后，软件通过写 Distributor 控制寄存器来使能整个 Distributor 模块。</p>
+<h3 id="7-3-CPU-Interface-配置"><a href="#7-3-CPU-Interface-配置" class="headerlink" title="7.3 CPU Interface 配置"></a>7.3 CPU Interface 配置</h3><p>每个核心的 CPU Interface 也需要独立配置：</p>
 <ul>
-<li>执行真正不存在（Undefined）的指令。</li>
-<li>执行协处理器指令，但系统中没有对应的协处理器，或该协处理器当前无法处理该指令（例如编译器生成 <code>VADD.F32</code>，但 SoC 没有 VFP 硬件）。</li>
+<li><strong>优先级掩码</strong>（Priority Mask）：设置阈值，优先级低于此值的中断被 CPU Interface 过滤</li>
+<li><strong>抢占设置</strong>（Preemption）：配置是否允许高优先级中断抢占当前正在处理的低优先级中断</li>
 </ul>
-<p>UNDEF 的典型用途是实现<strong>软件模拟（Software Emulation）</strong>。例如核心没有 VFP 硬件时，执行 VFP 指令会触发 UNDEF，handler 根据指令操作码模拟对应的浮点运算。另一种典型用途是 <strong>Lazy Enable</strong>：首次执行 VFP 指令时，handler 启用 VFP 后返回重新执行该指令。</p>
-<p>当系统需要模拟多个协处理器时，多个 UNDEF handler 可以<strong>链式调用（daisy-chain）</strong>：当前 handler 无法识别某条指令时，将其交给下一个 handler 处理；如果最终没有任何 handler 能处理，则通常记录调试信息并终止程序。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"> CPU 执行一条指令</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">    能识别吗？</span><br><span class="line">       │</span><br><span class="line">  ┌────┴────┐</span><br><span class="line">  │         │</span><br><span class="line">可以      不可以</span><br><span class="line">  │         │</span><br><span class="line">执行      Undefined Exception</span><br><span class="line">             │</span><br><span class="line">             ▼</span><br><span class="line">    Undefined Handler</span><br><span class="line">             │</span><br><span class="line">     ┌───────┼────────┬─────────┐</span><br><span class="line">     │       │        │         │</span><br><span class="line">软件模拟   开启VFP   调试断点   真非法指令</span><br><span class="line">     │       │        │         │</span><br><span class="line">     ▼       ▼        ▼         ▼</span><br><span class="line"> 返回继续  重执行   调试器接管  SIGILL/终止程序</span><br></pre></td></tr></table></figure>
+<p>最后，使能 CPU Interface 控制寄存器，使该核心准备好接收中断。</p>
+<h3 id="7-4-软件侧准备"><a href="#7-4-软件侧准备" class="headerlink" title="7.4 软件侧准备"></a>7.4 软件侧准备</h3><p>在核心预期接收中断之前，软件必须完成：</p>
+<ol>
+<li>在向量表中设置有效的中断向量入口</li>
+<li>清除 CPSR 中的中断屏蔽位</li>
+</ol>
+<p>这意味着即使 GIC 完全配置就绪，如果向量表未初始化或 CPSR 屏蔽位未清除，核心仍不会响应中断。</p>
+<h3 id="7-5-中断处理流水线"><a href="#7-5-中断处理流水线" class="headerlink" title="7.5 中断处理流水线"></a>7.5 中断处理流水线</h3><p>核心响应中断后，进入六阶段标准处理流水线。外设首先生成中断信号，经 Distributor 优先级仲裁和路由决策后到达目标核心的 CPU Interface；核心硬件自动完成模式切换与返回地址保存后跳转到向量表入口；软件从 IAR 获取中断 ID 进行分派处理；处理完毕后通过 EOIR 释放中断状态；之后循环检查是否仍有挂起中断——直到 IAR 返回 1023 表示全部处理完毕。</p>
+<p><img src="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/gic-handling-flow.png" alt="GIC 中断处理流水线"></p>
+<p>以下逐步拆解每个阶段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  1. Peripheral asserts interrupt                    │</span><br><span class="line">│     → Distributor marks as Pending                  │</span><br><span class="line">│     → Arbitration → forwards to target CPU I/F      │</span><br><span class="line">│     → CPU I/F signals IRQ/FIQ to core               │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  2. Core takes IRQ/FIQ exception                    │</span><br><span class="line">│     → HW saves LR/SPSR, switches to IRQ/FIQ mode    │</span><br><span class="line">│     → PC jumps to vector table entry                │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  3. Top-level handler reads IAR                     │</span><br><span class="line">│     → Reads Interrupt Acknowledge Register          │</span><br><span class="line">│       from CPU Interface to obtain Interrupt ID     │</span><br><span class="line">│    → Read also marks interrupt Active in Distributor│</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  4. Dispatch to device handler by Interrupt ID      │</span><br><span class="line">│     → ID 0-15:   IPI / inter-core comm              │</span><br><span class="line">│     → ID 16-31:  Private peripheral handler         │</span><br><span class="line">│     → ID 32-1020: Shared peripheral handler         │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  5. Device handler completes, write EOIR            │</span><br><span class="line">│     → Write Interrupt ID to End of Int Register     │</span><br><span class="line">│       in CPU Interface                              │</span><br><span class="line">│     → Clear Active status                           │</span><br><span class="line">│     → If Active &amp; Pending → becomes Pending         │</span><br><span class="line">│     → Else → becomes Inactive                       │</span><br><span class="line">│     → CPU I/F ready to forward next interrupt       │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  6. Check for more pending interrupts               │</span><br><span class="line">│     → Read IAR again                                │</span><br><span class="line">│     → If ID=1023 (Spurious ID): exit loop           │</span><br><span class="line">│     → Else: repeat steps 4-6                        │</span><br><span class="line">└─────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
 
-<h3 id="4-3-SVC-处理器"><a href="#4-3-SVC-处理器" class="headerlink" title="4.3 SVC 处理器"></a>4.3 SVC 处理器</h3><p>SVC 是 Linux 系统调用的硬件入口。管理员调用<code>(SVC)</code>通常用于允许用户模式代码访问操作系统功能。例如，如果用户代码想要访问系统的特权部分（例如执行文件 I&#x2F;O 操作），通常会使用管理员调用<code>SVC</code>指令来实现。</p>
-<p>参数可以通过寄存器传递给<code>SVC</code>处理程序，或者（较少见的情况下）通过操作码中的注释字段传递。</p>
-<p>手册给出了一段 Hello World 的完整示例：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">MOV   R0, #1          @ stdout</span><br><span class="line">ADR   R1, msgtext      @ 消息地址</span><br><span class="line">MOV   R2, #13          @ 长度</span><br><span class="line">MOV   R7, #4           @ sys_write 系统调用号</span><br><span class="line">SVC   #0               @ 触发 SVC 异常</span><br></pre></td></tr></table></figure>
-
-<p>SVC handler 需区分 ARM&#x2F;Thumb 状态——检查 SPSR[5]（T bit）。这是因为 Thumb 的 SVC 指令仅 16-bit（8-bit 调用号，返回地址在 LR-2），而 ARM 的 SVC 是 32-bit（24-bit 调用号，LR-4 调整），在异常返回的时候要根据该状态找到正确的返回地址。</p>
-<p>硬件层异常机制讲完，最后看 Linux 内核如何在这一套硬件基础上搭出架构无关的异常处理框架。</p>
+<h3 id="7-6-伪中断-ID-1023"><a href="#7-6-伪中断-ID-1023" class="headerlink" title="7.6 伪中断 ID 1023"></a>7.6 伪中断 ID 1023</h3><p>GIC 架构定义了一个特殊的<strong>伪中断 ID</strong>（Spurious Interrupt ID）：<code>1023</code>。当顶层中断处理例程读取 IAR 且当前核心没有更多待处理中断时，IAR 返回此值。</p>
+<p>伪中断 ID 是保留值——系统中任何设备都不能分配此 ID。顶层处理例程通过不断读取 IAR → 分派处理 → 写 EOIR 的循环，直到 IAR 返回 <code>1023</code>，然后退出中断处理，准备恢复被中断的任务。</p>
+<p>这一机制确保了即使有多个中断在等待同一核心，每个中断都会被依次处理，而不会遗漏。</p>
 <hr>
-<h2 id="5-Linux-内核的异常处理架构"><a href="#5-Linux-内核的异常处理架构" class="headerlink" title="5. Linux 内核的异常处理架构"></a>5. Linux 内核的异常处理架构</h2><p>前四节覆盖了 ARM 硬件层面的异常机制——本节将这些机制映射到 Linux 内核的实际实现：异常 stub 如何统一路由到 SVC 模式、向量页如何通过 <code>memcpy</code> 部署、中断分发如何与调度器联动。</p>
-<h3 id="5-1-异常-stub：统一路由到-SVC-模式"><a href="#5-1-异常-stub：统一路由到-SVC-模式" class="headerlink" title="5.1 异常 stub：统一路由到 SVC 模式"></a>5.1 异常 stub：统一路由到 SVC 模式</h3><p>手册 §12.5 揭示了 Linux ARM 端口的设计：<strong>所有异常（除 SVC 和 FIQ）首先进入一个汇编 stub，将核心切换到 SVC 模式后调用统一的 C 函数</strong>。这是因为 Linux 的跨平台异常处理框架不区分特权模式——所有处理逻辑都假设在 SVC 模式下运行。</p>
-<h3 id="5-2-向量页的初始化"><a href="#5-2-向量页的初始化" class="headerlink" title="5.2 向量页的初始化"></a>5.2 向量页的初始化</h3><p>手册给出了 Linux boot 过程中向量表的精确放置流程：</p>
-<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// devicemaps_init() → arch/arm/mm/mmu.c: 分配 4KB 向量页，映射到 0xFFFF0000</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// trap_init() → arch/arm/kernel/traps.c: 拷贝三段内容到向量页</span></span><br><span class="line"><span class="built_in">memcpy</span>((<span class="type">void</span> *)vectors,                  __vectors_start,      vectors_size);</span><br><span class="line"><span class="built_in">memcpy</span>((<span class="type">void</span> *)vectors + <span class="number">0x200</span>,           __stubs_start,        stubs_size);</span><br><span class="line"><span class="built_in">memcpy</span>((<span class="type">void</span> *)vectors + <span class="number">0x1000</span> - kuser_sz, __kuser_helper_start, kuser_sz);</span><br></pre></td></tr></table></figure>
-
-<p>三段内存布局：向量表在页首（<code>0xFFFF0000</code>）、异常 stub 在偏移 <code>0x200</code>、kuser helpers（内核提供的用户空间辅助代码页）在页尾。整个异常处理基础架构通过三次 <code>memcpy</code> 即可完成部署。</p>
-<h3 id="5-3-中断分发：-irq-usr-与-irq-svc"><a href="#5-3-中断分发：-irq-usr-与-irq-svc" class="headerlink" title="5.3 中断分发：__irq_usr 与 __irq_svc"></a>5.3 中断分发：__irq_usr 与 __irq_svc</h3><p>IRQ 进入后由 <code>__irq_usr</code>（从 User 模式进入 IRQ）或 <code>__irq_svc</code>（从 SVC 模式进入 IRQ）处理。两者保存全部核心寄存器后进入轮询循环——用宏 <code>get_irqnr_and_base</code> 读取中断控制器、判断是否有待处理中断、有则调用 <code>do_IRQ</code>（<code>arch/arm/kernel/irq.c</code>）。循环持续到所有中断处理完毕。返回前检查是否需要调用内核调度器——中断可能唤醒了更高优先级的任务，需要上下文切换。</p>
-<p>从 ARM 硬件的六步异常入口到 Linux 的三层 memcpy 向量部署——异常处理的完整链条以以下六条核心结论收束。</p>
-<hr>
-<h2 id="6-学习要点总结"><a href="#6-学习要点总结" class="headerlink" title="6. 学习要点总结"></a>6. 学习要点总结</h2><ol>
-<li><p><strong>ARM 的异常模型是 mode-based 而非 vector-only</strong>。每种异常不仅提供向量地址，还将核心硬切换到专用模式——模式决定了 banked 寄存器和栈，这比 x86 的中断门机制更高效。</p>
+<h2 id="8-关键要点"><a href="#8-关键要点" class="headerlink" title="8. 关键要点"></a>8. 关键要点</h2><ol>
+<li><p><strong>IRQ 和 FIQ 是 ARM 核心的两个独立中断信号线</strong>，均为电平敏感低有效。CPSR 的 I 位和 F 位分别控制屏蔽，<code>CPSIE</code>&#x2F;<code>CPSID</code> 指令提供原子使能&#x2F;禁用。</p>
 </li>
-<li><p><strong>Prefetch Abort 不到执行不触发</strong>。取指时标记 aborted 的指令，如果流水线被冲刷（分支未命中），abort 永远不会发生——这是处理 speculative execution corner case 的关键。</p>
+<li><p><strong>精简中断处理是不可重入的</strong>：处理期间同类型中断被硬件自动屏蔽，处理完成后才恢复。适用于简单系统，不适合实时性要求高的场景。</p>
 </li>
-<li><p><strong>Data Abort 的 -8 调整来自 ARM 三级流水线的历史遗产</strong>——PC 比正在执行的指令超前 8 字节，LR 保存的是 PC 值而非指令地址。理解偏移修正的本质是理解 ARM 流水线行为。</p>
+<li><p><strong>嵌套中断的核心难点是 banked 寄存器覆盖</strong>：重新启用中断后，新中断会将返回地址写入 <code>LR_IRQ</code>、状态写入 <code>SPSR_IRQ</code>，覆盖原中断的上下文。解决方案是在启用中断前切换到备用处理器模式。</p>
 </li>
-<li><p><strong>Imprecise Asynchronous Abort 是硬件的底线</strong>——一旦发生只能杀进程，无法修复返回。探测外设时需特别小心：对不存在的 Device 区域读可能触发 imprecise abort，即使页表标记为 Strongly-ordered 或 Device 也无法保证精确。</p>
+<li><p><strong><code>SRS</code> + <code>RFE</code> 指令对是 ARMv7-A 嵌套中断的关键基础设施</strong>：<code>SRS</code> 原子保存 <code>LR</code> 和 <code>SPSR</code> 到指定模式栈，<code>RFE</code> 从栈中原子恢复 <code>PC</code> 和 <code>CPSR</code>，避免了手动操作 <code>SPSR</code> 导致的竞态窗口。</p>
 </li>
-<li><p><strong>异常返回的两个操作（SPSR→CPSR + PC跳转）必须原子</strong>——<code>S</code> 后缀的数据处理指令、<code>^</code> 修饰符的 LDM 和 RFE 是三条等效路径，但 16-bit Thumb 指令三者皆不具备。</p>
+<li><p><strong>GIC 采用 Distributor + CPU Interface 两层架构</strong>：Distributor 集中管理所有中断的属性（优先级、路由、使能），CPU Interface 为每个核心提供独立的中断传递通道，采用 banked 设计。</p>
 </li>
-<li><p><strong>Linux 将所有异常路由到 SVC 模式</strong>——通过异常 stub 模式切换后进入统一的 C 处理框架。<code>devicemaps_init</code> 分配向量页后，<code>trap_init</code> 用三条 <code>memcpy</code> 将向量表、stub 和 kuser helpers 拷贝到位。</p>
+<li><p><strong>GIC 支持三类中断</strong>：SGI（核间通信，ID 0-15）、PPI（核私有外设，ID 16-31）、SPI（系统共享外设，ID 32-1020）。每种中断在 GIC 内经历 Inactive → Pending → Active → Inactive 的四态生命周期。</p>
 </li>
-<li><p><strong>FIQ 不用于 Linux</strong>——内核架构无关的设计没有多级中断的概念。FIQ 在系统中优先级最高（内核从不屏蔽 FIQ），谨慎的系统设计可以将其用于极低延迟的专属外设。</p>
+<li><p><strong>中断需要经过四级使能才能到达核心</strong>：个体中断使能 → Distributor 使能 → CPU Interface 使能 → CPSR 中断屏蔽位清除。任何一级被禁用，中断都无法被响应。</p>
+</li>
+<li><p><strong>GIC 中断处理流水线是 IAR → Dispatch → EOIR 的标准三段式</strong>：读 IAR 获取中断 ID 并标记 Active，分派到设备处理函数，写 EOIR 清除 Active 状态。循环直到 IAR 返回伪中断 ID <code>1023</code>（Spurious ID），确保所有挂起中断都被处理。</p>
 </li>
 </ol>
 
