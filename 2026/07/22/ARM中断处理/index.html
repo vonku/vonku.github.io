@@ -32,7 +32,7 @@
 <meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/4.png">
 <meta property="og:image" content="http://yoursite.com/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/gic-handling-flow.png">
 <meta property="article:published_time" content="2026-07-22T12:40:10.000Z">
-<meta property="article:modified_time" content="2026-07-22T13:10:28.129Z">
+<meta property="article:modified_time" content="2026-07-22T13:18:56.912Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM, ARMv7-a">
 <meta name="twitter:card" content="summary">
@@ -330,8 +330,7 @@
 <hr>
 <h2 id="3-精简中断处理"><a href="#3-精简中断处理" class="headerlink" title="3. 精简中断处理"></a>3. 精简中断处理</h2><p>精简中断处理（simplistic interrupt handler）是最基本的不可重入实现。核心特征是：进入中断处理后，同类型中断被自动屏蔽，直到显式重新启用。在处理完成当前中断前，不会有更高优先级的中断被响应。</p>
 <p>这种模型不适合复杂嵌入式系统，但它是理解更实际的中断处理实现的基础。</p>
-<h3 id="3-1-硬件自动执行步骤"><a href="#3-1-硬件自动执行步骤" class="headerlink" title="3.1 硬件自动执行步骤"></a>3.1 硬件自动执行步骤</h3><img src="1.png" alt="1" style="zoom:50%;" />
-
+<h3 id="3-1-硬件自动执行步骤"><a href="#3-1-硬件自动执行步骤" class="headerlink" title="3.1 硬件自动执行步骤"></a>3.1 硬件自动执行步骤</h3><p><img src="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/1.png" alt="1"></p>
 <p>当 IRQ 异常被外部硬件触发时，核心自动完成以下动作：</p>
 <ol>
 <li>当前执行模式的 PC 值保存到 <code>LR_IRQ</code></li>
@@ -344,8 +343,7 @@
 <p><strong>步骤一：保存上下文。</strong> 将处理例程会破坏的寄存器压入 IRQ 模式栈。调用 <code>identify_and_clear_source</code> 确认中断源并在硬件层清除中断标志（如果不清除，返回后将立即再次触发同一个中断）。</p>
 <p><strong>步骤二：调用设备处理函数。</strong> 根据识别到的中断源调用对应的 C 语言设备驱动处理例程。</p>
 <p><strong>步骤三：恢复上下文并返回。</strong> 从栈中弹出寄存器，使用 <code>SUBS PC, LR, #4</code> 完成异常返回——<code>S</code> 后缀将 <code>SPSR_IRQ</code> 原子地恢复到 <code>CPSR</code>，同时 <code>PC ← LR - 4</code>，核心回到中断前的模式和指令流。</p>
-<img src="2.png" alt="2" style="zoom:50%;" />
-
+<p><img src="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/2.png" alt="2"></p>
 <h3 id="3-3-汇编代码分析"><a href="#3-3-汇编代码分析" class="headerlink" title="3.3 汇编代码分析"></a>3.3 汇编代码分析</h3><p>精简中断处理器的完整汇编实现：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">IRQ_Handler:</span><br><span class="line">    PUSH    &#123;r0-r3, r12, lr&#125;      @ 保存 AAPCS 调用约定寄存器和 LR</span><br><span class="line">    BL      identify_and_clear_source</span><br><span class="line">    BL      C_irq_handler</span><br><span class="line">    POP     &#123;r0-r3, r12, lr&#125;      @ 恢复寄存器</span><br><span class="line">    SUBS    pc, lr, #4            @ 异常返回，原子恢复 CPSR</span><br></pre></td></tr></table></figure>
 
@@ -363,8 +361,7 @@
 <hr>
 <h2 id="4-嵌套中断处理"><a href="#4-嵌套中断处理" class="headerlink" title="4. 嵌套中断处理"></a>4. 嵌套中断处理</h2><p>嵌套中断处理允许软件在当前中断处理完成之前接受另一个中断，以此实现中断优先级抢占，显著改善高优先级事件的响应延迟。</p>
 <p>嵌套中断是软件选择的结果——通过中断优先级配置和中断控制来实现，而非硬件强制行为。</p>
-<h3 id="4-1-核心问题：LR-与-SPSR-覆盖"><a href="#4-1-核心问题：LR-与-SPSR-覆盖" class="headerlink" title="4.1 核心问题：LR 与 SPSR 覆盖"></a>4.1 核心问题：LR 与 SPSR 覆盖</h3><img src="3.png" alt="3" style="zoom:50%;" />
-
+<h3 id="4-1-核心问题：LR-与-SPSR-覆盖"><a href="#4-1-核心问题：LR-与-SPSR-覆盖" class="headerlink" title="4.1 核心问题：LR 与 SPSR 覆盖"></a>4.1 核心问题：LR 与 SPSR 覆盖</h3><p><img src="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/3.png" alt="3"></p>
 <p>可重入中断处理面临一个根本性问题：</p>
 <p>当核心正在 IRQ 模式执行第一个中断的处理例程时，如果此时 IRQ 被重新启用且第二个中断到来，硬件会将**第二个中断的返回地址写入 <code>LR_IRQ</code><strong>，</strong>将当前 CPSR 再次复制到 <code>SPSR_IRQ</code>**——这会覆盖第一个中断保存的返回地址和状态。</p>
 <p>具体示例如下：假设主程序在地址 <code>0x8000_3000</code> 处被低优先级 IRQ #1 打断，硬件将 <code>LR_IRQ = 0x8000_3004</code>，<code>SPSR_IRQ = CPSR（User 模式）</code>。IRQ #1 的处理例程在切换到 System 模式后调用 <code>CPSIE i</code> 重新启用中断。此时若高优先级 IRQ #2 到来，硬件再次进入 IRQ 模式并执行：<code>LR_IRQ ← 0x8000_8004</code>（IRQ #2 的返回地址），<code>SPSR_IRQ ← CPSR（System 模式，I=0）</code>。IRQ #1 之前保存在 <code>LR_IRQ</code> 中的 <code>0x8000_3004</code> 被 <code>0x8000_8004</code> 覆盖。当 IRQ #1 最终尝试返回到主程序时，<code>LR_IRQ</code> 中的值已变为 <code>0x8000_8004</code>，导致程序跳转到错误地址。</p>
@@ -465,8 +462,7 @@
 <li><strong>电平敏感</strong>（level-sensitive）：<code>GICD_ICFGRn[2*ID+0] = 0</code> 表示电平敏感。仅当中断控制器的相关输入为高电平时才认为中断被断言。这是复位后的默认配置</li>
 </ul>
 <h3 id="6-3-中断状态机"><a href="#6-3-中断状态机" class="headerlink" title="6.3 中断状态机"></a>6.3 中断状态机</h3><p>每个中断在 GIC 内部经历一个四态生命周期：</p>
-<img src="4.png" alt="4" style="zoom:50%;" />
-
+<p><img src="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/4.png" alt="4"></p>
 <p>各状态含义：</p>
 <ul>
 <li><strong>Inactive</strong>：中断源未被断言，处于空闲状态</li>
@@ -511,7 +507,7 @@
 </ol>
 <p>这意味着即使 GIC 完全配置就绪，如果向量表未初始化或 CPSR 屏蔽位未清除，核心仍不会响应中断。</p>
 <h3 id="7-5-中断处理流水线"><a href="#7-5-中断处理流水线" class="headerlink" title="7.5 中断处理流水线"></a>7.5 中断处理流水线</h3><p>核心响应中断后，进入六阶段标准处理流水线。外设首先生成中断信号，经 Distributor 优先级仲裁和路由决策后到达目标核心的 CPU Interface；核心硬件自动完成模式切换与返回地址保存后跳转到向量表入口；软件从 IAR 获取中断 ID 进行分派处理；处理完毕后通过 EOIR 释放中断状态；之后循环检查是否仍有挂起中断——直到 IAR 返回 1023 表示全部处理完毕。</p>
-<p><img src="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/gic-handling-flow.png" alt="GIC 中断处理流水线"></p>
+<p><img src="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/gic-handling-flow.png" alt="gic-handling-flow"></p>
 <p>以下逐步拆解每个阶段：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  1. Peripheral asserts interrupt                    │</span><br><span class="line">│     → Distributor marks as Pending                  │</span><br><span class="line">│     → Arbitration → forwards to target CPU I/F      │</span><br><span class="line">│     → CPU I/F signals IRQ/FIQ to core               │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  2. Core takes IRQ/FIQ exception                    │</span><br><span class="line">│     → HW saves LR/SPSR, switches to IRQ/FIQ mode    │</span><br><span class="line">│     → PC jumps to vector table entry                │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  3. Top-level handler reads IAR                     │</span><br><span class="line">│     → Reads Interrupt Acknowledge Register          │</span><br><span class="line">│       from CPU Interface to obtain Interrupt ID     │</span><br><span class="line">│    → Read also marks interrupt Active in Distributor│</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  4. Dispatch to device handler by Interrupt ID      │</span><br><span class="line">│     → ID 0-15:   IPI / inter-core comm              │</span><br><span class="line">│     → ID 16-31:  Private peripheral handler         │</span><br><span class="line">│     → ID 32-1020: Shared peripheral handler         │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  5. Device handler completes, write EOIR            │</span><br><span class="line">│     → Write Interrupt ID to End of Int Register     │</span><br><span class="line">│       in CPU Interface                              │</span><br><span class="line">│     → Clear Active status                           │</span><br><span class="line">│     → If Active &amp; Pending → becomes Pending         │</span><br><span class="line">│     → Else → becomes Inactive                       │</span><br><span class="line">│     → CPU I/F ready to forward next interrupt       │</span><br><span class="line">└────────────────────┬────────────────────────────────┘</span><br><span class="line">                     ▼</span><br><span class="line">┌─────────────────────────────────────────────────────┐</span><br><span class="line">│  6. Check for more pending interrupts               │</span><br><span class="line">│     → Read IAR again                                │</span><br><span class="line">│     → If ID=1023 (Spurious ID): exit loop           │</span><br><span class="line">│     → Else: repeat steps 4-6                        │</span><br><span class="line">└─────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
 

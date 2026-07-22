@@ -33,7 +33,7 @@
 <meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/5.png">
 <meta property="og:image" content="http://yoursite.com/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/6.png">
 <meta property="article:published_time" content="2026-07-22T12:39:51.000Z">
-<meta property="article:modified_time" content="2026-07-22T13:10:40.440Z">
+<meta property="article:modified_time" content="2026-07-22T13:14:53.255Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM, ARMv7-a">
 <meta name="twitter:card" content="summary">
@@ -273,11 +273,11 @@
 <li><strong>L1 缓存</strong>：紧贴核心，指令和数据独立（哈佛架构），避免取指和访存的结构性寻址冲突，追求极致命中速度。</li>
 <li><strong>L2 缓存</strong>：通常为多个核心共享的统一缓存（指令数据混合，冯·诺依曼架构），容量更大，用于捕获 L1 溢出的数据，最大程度减少对外部慢速总线的访问。</li>
 </ul>
-<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/1.png" alt="typical_harvard_cache"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/1.png" alt="1"></p>
 <p>理解了缓存的宏观代价与分级，接下来剖析它内部是怎么组织的。</p>
 <hr>
 <h2 id="2-缓存的基础架构"><a href="#2-缓存的基础架构" class="headerlink" title="2. 缓存的基础架构"></a>2. 缓存的基础架构</h2><p>理解了”为什么需要缓存”之后，下一个问题是”缓存内部怎么工作”。本节从 Cache Line、Tag、Index 三个核心概念出发，对比直接映射和组相联两种组织方式，解释为什么前者会被 ARM 主缓存弃用。</p>
-<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/2.png" alt="cache_terminology"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/2.png" alt="2"></p>
 <h3 id="2-1-核心概念"><a href="#2-1-核心概念" class="headerlink" title="2.1 核心概念"></a>2.1 核心概念</h3><p>缓存存储三样东西：地址标签（Tag）、数据（Data）、状态信息。32 位地址被划分为三个字段：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Address:  [         Tag         |  Index  | Offset ]</span><br><span class="line">          31                    N        N-1       0</span><br></pre></td></tr></table></figure>
 
@@ -335,8 +335,8 @@
 </blockquote>
 <p>缓存大小仅计算数据 RAM 的容量——Tag RAM 占用的物理面积不包括在内，但实际上 Tag 存储是不可忽略的硅开销。</p>
 <h3 id="2-2-直接映射缓存：极简但危险"><a href="#2-2-直接映射缓存：极简但危险" class="headerlink" title="2.2 直接映射缓存：极简但危险"></a>2.2 直接映射缓存：极简但危险</h3><p>直接映射是最简单的缓存实现——每个主存地址固定映射到缓存中的一个特定行。缺点显而易见：不同地址若具有相同的 Index 字段，便会争夺同一行。</p>
-<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/3.png" alt="Direct_mapped_cache_operation"></p>
-<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/4.png" alt="Cache_address"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/3.png" alt="3"></p>
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/4.png" alt="4"></p>
 <p><strong>实例：thrashing 陷阱</strong></p>
 <p>考虑一个小型直接映射缓存：每行 4 字（Offset 需要 2 位，bit[3:2]），共 4 行（Index 需要 2 位，bit[5:4]）。地址 <code>0x00</code>、<code>0x40</code>、<code>0x80</code> 的 bit[5:4] 全为 0x00——它们映射到同一行：</p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">add_array</span><span class="params">(<span class="type">int</span> *data1, <span class="type">int</span> *data2, <span class="type">int</span> *result, <span class="type">int</span> size)</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; size; i++)</span><br><span class="line">        result[i] = data1[i] + data2[i];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
@@ -350,8 +350,7 @@
 <p>理论讲清后，下面把参数代入 ARM 的具体实现。</p>
 <hr>
 <h2 id="3-Cortex-A-处理器的缓存实现"><a href="#3-Cortex-A-处理器的缓存实现" class="headerlink" title="3. Cortex-A 处理器的缓存实现"></a>3. Cortex-A 处理器的缓存实现</h2><p>抽象的缓存原理讲完了，本节将其代入 ARM 的具体实现：以 Cortex-A7&#x2F;A9 的 32KB 4-way 数据缓存为例，逐字段分解地址划分；同时追踪 ARM 缓存从 VIVT 到 PIPT 的标签机制演进，并给出全系列 Cortex-A 处理器的缓存参数对照。</p>
-<img src="6.png" alt="6" style="zoom:33%;" />
-
+<p><img src="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/6.png" alt="6"></p>
 <h3 id="3-1-实标缓存结构解析"><a href="#3-1-实标缓存结构解析" class="headerlink" title="3.1 实标缓存结构解析"></a>3.1 实标缓存结构解析</h3><p>手册给出了一个真实的例子：Cortex-A7 或 Cortex-A9 的 <strong>32KB 4-way 组相联数据缓存</strong>，每行 8 字（32 字节）。</p>
 <p>地址划分过程：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">32KB ÷ 4 way ÷ 32 byte/line = 256 line/way  →  Index 需要 8 bit (bit[12:5])</span><br><span class="line">每行 8 字                                    →  Offset 需要 3 bit (bit[4:2])</span><br><span class="line">剩余高位                                     →  Tag 占用 bit[31:13]</span><br></pre></td></tr></table></figure>
