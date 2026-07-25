@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文逐指令分析 Cortex-A 裸机系统的核心初始化序列，深入拆解从处理器上电复位、建立异常向量表、配置 Cache 和 MMU，直至移交控制权给 Linux 内核的完整技术路径。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM启动流程">
+<meta property="og:url" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文逐指令分析 Cortex-A 裸机系统的核心初始化序列，深入拆解从处理器上电复位、建立异常向量表、配置 Cache 和 MMU，直至移交控制权给 Linux 内核的完整技术路径。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="article:published_time" content="2026-07-25T02:19:12.000Z">
+<meta property="article:modified_time" content="2026-07-25T02:28:25.194Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/","path":"2026/07/25/ARM启动流程/","title":"ARM启动流程"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM启动流程 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%95%E8%A8%80%EF%BC%9A%E4%BB%8E%E5%A4%8D%E4%BD%8D%E5%88%B0-main"><span class="nav-text">1. 引言：从复位到 main()</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%AC%AC%E4%B8%80%E6%AD%A5%EF%BC%9A%E5%BB%BA%E7%AB%8B%E5%BC%82%E5%B8%B8%E5%90%91%E9%87%8F%E8%A1%A8"><span class="nav-text">2. 第一步：建立异常向量表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-ROM-%E9%87%8D%E6%98%A0%E5%B0%84%E4%B8%8E%E4%BD%8D%E7%BD%AE%E6%97%A0%E5%85%B3%E4%BB%A3%E7%A0%81"><span class="nav-text">2.1 ROM 重映射与位置无关代码</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E7%AC%AC%E4%BA%8C%E6%AD%A5%EF%BC%9A%E4%B8%BA%E5%90%84%E6%A8%A1%E5%BC%8F%E5%88%9D%E5%A7%8B%E5%8C%96%E6%A0%88%E6%8C%87%E9%92%88"><span class="nav-text">3. 第二步：为各模式初始化栈指针</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%AC%AC%E4%B8%89%E6%AD%A5%EF%BC%9A%E5%85%B3%E9%97%AD%E5%B9%B6%E6%B8%85%E7%A9%BA-Caches-%E5%92%8C-MMU"><span class="nav-text">4. 第三步：关闭并清空 Caches 和 MMU</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%85%B3%E9%97%AD-MMU-%E5%92%8C-Caches"><span class="nav-text">4.1 关闭 MMU 和 Caches</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%B8%85%E7%A9%BA%E6%8C%87%E4%BB%A4%E7%BC%93%E5%AD%98"><span class="nav-text">4.2 清空指令缓存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-Set-Way-%E5%BE%AA%E7%8E%AF%E6%B8%85%E7%A9%BA%E6%95%B0%E6%8D%AE%E7%BC%93%E5%AD%98"><span class="nav-text">4.3 Set&#x2F;Way 循环清空数据缓存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E6%B8%85%E7%A9%BA-TLB-%E5%92%8C%E5%90%AF%E7%94%A8%E5%88%86%E6%94%AF%E9%A2%84%E6%B5%8B"><span class="nav-text">4.4 清空 TLB 和启用分支预测</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E7%AC%AC%E5%9B%9B%E6%AD%A5%EF%BC%9A%E5%88%9B%E5%BB%BA%E4%B8%80%E7%BA%A7%E9%A1%B5%E8%A1%A8"><span class="nav-text">5. 第四步：创建一级页表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%88%A9%E7%94%A8-D-side-Prefetch-%E4%BC%98%E5%8C%96"><span class="nav-text">5.1 利用 D-side Prefetch 优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E6%9E%84%E9%80%A0-1MB-Section-%E7%9A%84-Flat-Mapping-%E9%A1%B5%E8%A1%A8"><span class="nav-text">5.2 构造 1MB Section 的 Flat Mapping 页表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%BF%AE%E6%AD%A3%E7%AC%AC%E4%B8%80%E4%B8%AA-Section%EF%BC%880x0000-0000%E2%80%930x000F-FFFF%EF%BC%89%E7%9A%84%E5%B1%9E%E6%80%A7"><span class="nav-text">5.3 修正第一个 Section（0x0000_0000–0x000F_FFFF）的属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E5%90%AF%E7%94%A8-MMU"><span class="nav-text">5.4 启用 MMU</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E7%AC%AC%E4%BA%94%E6%AD%A5%EF%BC%9A%E5%A4%9A%E6%A0%B8%E8%AF%86%E5%88%AB%E4%B8%8E%E4%B8%BB%E6%A0%B8%E7%8B%AC%E5%8D%A0%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">6. 第五步：多核识别与主核独占初始化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E4%BB%8E%E8%A3%B8%E6%9C%BA%E5%88%B0-Linux%EF%BC%9ABootloader-%E4%B8%8E%E5%86%85%E6%A0%B8%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">7. 从裸机到 Linux：Bootloader 与内核启动流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-Bootloader-U-Boot-%E7%9A%84%E8%81%8C%E8%B4%A3"><span class="nav-text">7.1 Bootloader (U-Boot) 的职责</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E5%86%85%E6%A0%B8%E5%8F%82%E6%95%B0%E4%BC%A0%E9%80%92%EF%BC%9AATAGs-%E4%B8%8E-Device-Tree"><span class="nav-text">7.2 内核参数传递：ATAGs 与 Device Tree</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E5%86%85%E6%A0%B8%E5%85%A5%E5%8F%A3%E7%BA%A6%E5%AE%9A"><span class="nav-text">7.3 内核入口约定</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E5%86%85%E6%A0%B8%E8%A7%A3%E5%8E%8B"><span class="nav-text">7.4 内核解压</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-%E5%B9%B3%E5%8F%B0%E7%89%B9%E5%AE%9A%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">7.5 平台特定初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-start-kernel"><span class="nav-text">7.6 start_kernel()</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">8. 关键要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">62</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM启动流程 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM启动流程
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-25 10:19:12" itemprop="dateCreated datePublished" datetime="2026-07-25T10:19:12+08:00">2026-07-25</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文逐指令分析 Cortex-A 裸机系统的核心初始化序列，深入拆解从处理器上电复位、建立异常向量表、配置 Cache 和 MMU，直至移交控制权给 Linux 内核的完整技术路径。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-引言：从复位到-main"><a href="#1-引言：从复位到-main" class="headerlink" title="1. 引言：从复位到 main()"></a>1. 引言：从复位到 main()</h2><p>在 x86 PC 上，BIOS&#x2F;UEFI 固件已经为你完成了硬件初始化和设备枚举。但在 ARM 嵌入式系统中——特别是”裸机”（bare-metal）环境——你什么都没有。处理器上电后处于一种近乎原始的默认状态：</p>
+<ul>
+<li><strong>R0-R14 的值不可预测</strong>（reset values are unpredictable）</li>
+<li><strong>Caches 和 MMU 全部关闭</strong>——每次内存访问都直接经过总线到达物理存储</li>
+<li><strong>CPSR.I 和 CPSR.F 置位</strong>——IRQ 和 FIQ 被屏蔽</li>
+<li><strong>所有异常模式（FIQ、IRQ、ABT、SVC、UND）的 banked SP 寄存器都是随机值</strong>——不能用栈</li>
+</ul>
+<p>裸机系统在调用 <code>main()</code> 之前必须完成的八个初始化任务：</p>
+<blockquote>
+<p>The reset handler code must do some, or all of the following:</p>
+<ul>
+<li>In a multi-core system, enable non-primary cores to sleep.</li>
+<li>Initialize exception vectors.</li>
+<li>Initialize the memory system, including the MMU.</li>
+<li>Initialize core mode stacks and registers.</li>
+<li>Initialize any critical I&#x2F;O devices.</li>
+<li>Perform any necessary initialization of NEON or VFP.</li>
+<li>Enable interrupts.</li>
+<li>Change core mode or state.</li>
+<li>Handle any set-up required for the Secure world.</li>
+<li>Call the <code>main()</code> application.</li>
+</ul>
+</blockquote>
+<p>这八个步骤的执行顺序至关重要——每一步都为后续步骤建立依赖。让我们（Examples 13.1–13.5）逐一分析每一步的汇编实现。</p>
+<p>下图展示了从复位到 <code>main()</code> 的完整裸机启动流程：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="2"></p>
+<hr>
+<h2 id="2-第一步：建立异常向量表"><a href="#2-第一步：建立异常向量表" class="headerlink" title="2. 第一步：建立异常向量表"></a>2. 第一步：建立异常向量表</h2><blockquote>
+<p>The first consideration is placement of the exception vector table. You must make sure that it contains a valid set of instructions that branch to the appropriate handlers.</p>
+</blockquote>
+<p>复位向量是异常向量表的第一个条目（偏移 <code>0x00</code>），处理器复位后 PC 会直接跳到这里。</p>
+<blockquote>
+<p>When the core has been reset, it will commence execution at the location of the reset vector in the exception vector table (at either address <code>0x00000000</code> or <code>0xFFFF0000</code>).</p>
+</blockquote>
+<p><strong>Example 13.1</strong> 给出了向量表的典型布局：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">; 异常向量表 — 位于 0x00000000 或 0xFFFF0000</span><br><span class="line">; 每个条目占 4 字节，包含一条 B 跳转指令</span><br><span class="line"></span><br><span class="line">B    Reset_Handler       ; 0x00: 复位向量 → 跳转到初始化代码</span><br><span class="line">B    Undefined_Handler   ; 0x04: 未定义指令</span><br><span class="line">B    SWI_Handler         ; 0x08: 软件中断 (SVC)</span><br><span class="line">B    Prefetch_Handler    ; 0x0C: 预取异常</span><br><span class="line">B    Data_Handler        ; 0x10: 数据异常</span><br><span class="line">NOP                      ; 0x14: 保留（Hyp Trap Entry 占位）</span><br><span class="line">B    IRQ_Handler         ; 0x18: IRQ 中断</span><br><span class="line">; FIQ_Handler 直接放在向量表之后（0x1C），因为 FIQ 在最末位，可以省去跳转</span><br></pre></td></tr></table></figure>
+
+<p>从汇编中可以看到几个设计细节：</p>
+<ol>
+<li><strong>每个条目只有一条 <code>B</code> 指令</strong>——4 字节刚好填满向量表的一个槽位。这确保向量表的 8 个条目总大小为 32 字节。</li>
+<li><strong>从 FIQ handler 开始不再需要跳转指令</strong>——因为 FIQ 位于向量表末尾（<code>0x1C</code>），handler 代码可以直接从 <code>0x1C</code> 开始放置，省去一次跳转延迟。这是 FIQ 设计为最高优先级且放在末位的原因之一：节省跳转周期，降低中断响应延迟。</li>
+<li><strong>Reset handler 要做的事情最多</strong>——它包含的是一条到实际初始化代码的远跳转，而不是原地处理。</li>
+</ol>
+<h3 id="2-1-ROM-重映射与位置无关代码"><a href="#2-1-ROM-重映射与位置无关代码" class="headerlink" title="2.1 ROM 重映射与位置无关代码"></a>2.1 ROM 重映射与位置无关代码</h3><p>ARM 处理器上电后，会固定从地址 <strong><code>0x00000000</code></strong> 开始取指，因此启动阶段必须让 <strong>ROM</strong> 映射到该地址，CPU 才能执行 Boot ROM 中的初始化代码。</p>
+<p>但 ROM 是只读的，而操作系统通常希望异常向量表能够在运行时修改（例如安装新的异常处理程序或接管中断）。因此，在完成 RAM 初始化后，Boot ROM 会先将异常向量表复制到 RAM，再通过 <strong>Memory Remap</strong> 将 RAM 映射到地址 <code>0x00000000</code>。</p>
+<p>整个过程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">上电时：</span><br><span class="line">0x00000000 ───► ROM</span><br><span class="line">0x80000000 ───► RAM</span><br><span class="line">     ↓</span><br><span class="line">Boot ROM 初始化 RAM</span><br><span class="line">复制异常向量表到 RAM</span><br><span class="line">     ↓</span><br><span class="line">修改 Memory Remap</span><br><span class="line">     ↓</span><br><span class="line">0x00000000 ───► RAM</span><br><span class="line">0x80000000 ───► RAM（仍然有效）</span><br></pre></td></tr></table></figure>
+
+<p>这里需要注意的是，<strong>RAM 并不是从 <code>0x80000000</code> 搬到了 <code>0x00000000</code><strong>，而是</strong>多了一个地址别名（Alias）</strong>。之后 CPU 访问 <code>0x00000000</code> 时，实际上访问的是原来的那块 RAM。</p>
+<hr>
+<blockquote>
+<p>The ROM can be aliased to the address of the exception vector. The ROM then writes to some memory-remap peripheral that maps RAM into address 0 and the real exception vector table is copied into RAM. This means the part of the boot code that handles remapping must be position-independent, as only PC-relative addressing can be used.</p>
+</blockquote>
+<p>这里还有一个关键约束：<strong>执行重映射（Remap）的那段 Boot Code 必须是位置无关代码（Position-Independent Code，PIC）。</strong></p>
+<p>原因在于，重映射前后，地址 <code>0x00000000</code> 的含义已经发生变化：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">重映射前：</span><br><span class="line"></span><br><span class="line">0x00000000 ───► ROM</span><br><span class="line"></span><br><span class="line">重映射后：</span><br><span class="line"></span><br><span class="line">0x00000000 ───► RAM</span><br></pre></td></tr></table></figure>
+
+<p>如果此时代码仍然依赖固定地址（例如通过绝对地址访问代码或常量），重映射后就可能访问到错误的位置。因此，Boot ROM 在执行 Remap 附近的这几条指令时，只能使用 <strong>PC 相对寻址</strong>，例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">B   next</span><br><span class="line">ADR r0, label</span><br></pre></td></tr></table></figure>
+
+<p>而不能依赖固定地址的寻址方式。</p>
+<hr>
+<h2 id="3-第二步：为各模式初始化栈指针"><a href="#3-第二步：为各模式初始化栈指针" class="headerlink" title="3. 第二步：为各模式初始化栈指针"></a>3. 第二步：为各模式初始化栈指针</h2><p>向量表就绪后，下一个关键任务是<strong>让代码能用栈</strong>——这是使用 <code>BL</code>（Branch and Link）指令进行子程序调用的前提。Example 13.2 给出了一个典型的栈初始化序列：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">; Example 13.2: 初始化 FIQ 和 IRQ 模式的栈指针</span><br><span class="line">; 假设 stack_base 指向一块预分配的栈内存区域（向低地址增长）</span><br><span class="line"></span><br><span class="line">LDR     R0, stack_base          ; R0 = 栈内存区域的基地址</span><br><span class="line"></span><br><span class="line">; --- 设置 FIQ 模式栈 ---</span><br><span class="line">MSR     CPSR_c, #Mode_FIQ:OR:I_Bit:OR:F_Bit  ; 切换到 FIQ 模式，同时禁用中断</span><br><span class="line">MOV     SP, R0                  ; FIQ 模式的 SP ← stack_base</span><br><span class="line">SUB     R0, R0, #FIQ_Stack_Size ; 为 IRQ 模式预留栈空间（R0 向下移动）</span><br><span class="line"></span><br><span class="line">; --- 设置 IRQ 模式栈 ---</span><br><span class="line">MSR     CPSR_c, #Mode_IRQ:OR:I_Bit:OR:F_Bit  ; 切换到 IRQ 模式，中断仍禁用</span><br><span class="line">MOV     SP, R0                  ; IRQ 模式的 SP ← 减去 FIQ 栈大小后的地址</span><br><span class="line">; ... 类似地初始化 ABT、SVC、UND、SYS 和 User 模式的栈</span><br></pre></td></tr></table></figure>
+
+<p>逐行解析核心机制：</p>
+<ul>
+<li>**<code>MSR CPSR_c, #mode</code>**：将 CPSR 的低 8 位（<code>_c</code> field）设置为目标模式编码。这是 ARM 中切换处理器模式的唯一方式——你不能直接写 CPSR 的模式域，必须通过 MSR 指令。</li>
+<li><strong><code>MOV SP, R0</code></strong> 的效果取决于当前模式——因为 SP (R13) 是 banked 寄存器。在 FIQ 模式下写 SP，实际写入的是 <code>R13_fiq</code>；切换到 IRQ 模式后再写 SP，写入的是 <code>R13_irq</code>。</li>
+<li><strong>栈向下生长</strong>：<code>SUB R0, R0, #size</code> 每次上移栈基址，为下一个模式预留空间。这是 ARM AAPCS 调用规范的标准约定（full descending stack）。</li>
+</ul>
+<p>之所以在初始化栈的同时禁用中断（<code>I_Bit:OR:F_Bit</code>），是因为<strong>此时异常向量表中的各 handler 还未就绪</strong>——如果在这期间发生 FIQ&#x2F;IRQ，处理器会跳到一个尚未初始化的 B 指令，导致不可预期的行为。待 §4-§5 完成所有初始化后才会在 §1 的清单最后一步启用中断。</p>
+<hr>
+<h2 id="4-第三步：关闭并清空-Caches-和-MMU"><a href="#4-第三步：关闭并清空-Caches-和-MMU" class="headerlink" title="4. 第三步：关闭并清空 Caches 和 MMU"></a>4. 第三步：关闭并清空 Caches 和 MMU</h2><p>现在栈可用，可以调用子程序完成更复杂的初始化——第一节是”清旧”，把处理器从复位残留状态变为可控的干净状态。Example 13.3 展示了完整的 Cache&#x2F;MMU&#x2F;Branch Predictor 初始化流程：</p>
+<h3 id="4-1-关闭-MMU-和-Caches"><a href="#4-1-关闭-MMU-和-Caches" class="headerlink" title="4.1 关闭 MMU 和 Caches"></a>4.1 关闭 MMU 和 Caches</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">; --- 关闭 MMU ---</span><br><span class="line">MRC   p15, 0, r1, c1, c0, 0          ; 读取 SCTLR (System Control Register)</span><br><span class="line">BIC   r1, r1, #0x1                    ; 清除 bit 0 (M bit —— MMU enable)</span><br><span class="line">MCR   p15, 0, r1, c1, c0, 0          ; 写回 SCTLR → MMU 禁用</span><br><span class="line"></span><br><span class="line">; --- 关闭 L1 Caches ---</span><br><span class="line">MRC   p15, 0, r1, c1, c0, 0          ; 再次读取 SCTLR</span><br><span class="line">BIC   r1, r1, #(0x1 &lt;&lt; 12)           ; 清除 bit 12 (I bit —— Instruction Cache)</span><br><span class="line">BIC   r1, r1, #(0x1 &lt;&lt; 2)            ; 清除 bit 2  (C bit —— Data Cache)</span><br><span class="line">MCR   p15, 0, r1, c1, c0, 0          ; 写回 SCTLR → I-Cache 和 D-Cache 禁用</span><br></pre></td></tr></table></figure>
+
+<p>这里一个重要的问题是<strong>为什么要先关闭再清空</strong>。原因很简单——如果 Caches 仍在工作状态，你对 <code>cache invalidate</code> 操作的执行效果是不可预测的：硬件可能还在从 Cache 中取指或写回脏数据。必须在 Cache 静止状态（disabled）下执行清除操作。</p>
+<h3 id="4-2-清空指令缓存"><a href="#4-2-清空指令缓存" class="headerlink" title="4.2 清空指令缓存"></a>4.2 清空指令缓存</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">; --- 清空 L1 I-Cache ---</span><br><span class="line">MOV   r1, #0</span><br><span class="line">MCR   p15, 0, r1, c7, c5, 0          ; ICIALLUIS: 对所有统一内部 Shareability 域的</span><br><span class="line">                                       ; L1 I-Cache 执行全局清除</span><br></pre></td></tr></table></figure>
+
+<p><code>CP15 c7, c5, 0</code> 是 <code>ICIALLUIS</code> 操作——对指令缓存的全局清除。指令缓存没有”脏数据”的概念（指令不会被回写），所以只需要 <strong>invalidate</strong> 即可。</p>
+<h3 id="4-3-Set-Way-循环清空数据缓存"><a href="#4-3-Set-Way-循环清空数据缓存" class="headerlink" title="4.3 Set&#x2F;Way 循环清空数据缓存"></a>4.3 Set&#x2F;Way 循环清空数据缓存</h3><p>数据缓存可能含有脏数据（被修改但尚未写回内存），必须逐行处理。但如何遍历 Cache 的每一行？答案是通过 <strong>Set&#x2F;Way 寻址</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">; --- 清空 L1 D-Cache (Set/Way 循环) ---</span><br><span class="line">; Step 1: 读取 Cache Size ID 寄存器，提取 Number of Sets</span><br><span class="line">MRC   p15, 1, r0, c0, c0, 0           ; 读取 CCSIDR (Cache Size ID Register)</span><br><span class="line">LDR   r3, #0x1ff</span><br><span class="line">AND   r0, r3, r0, LSR #13             ; r0 = (CCSIDR &gt;&gt; 13) &amp; 0x1FF = Number of Sets - 1</span><br><span class="line">MOV   r1, #0                          ; r1 = Way 计数器，从 Way 0 开始</span><br><span class="line"></span><br><span class="line">way_loop:                             ; 外层循环：遍历 Ways</span><br><span class="line">MOV   r3, #0                          ; r3 = Set 计数器，从 Set 0 开始</span><br><span class="line"></span><br><span class="line">set_loop:                             ; 内层循环：遍历 Sets</span><br><span class="line">MOV   r2, r1, LSL #30                 ; r2[31:30] = Way 编号</span><br><span class="line">ORR   r2, r3, LSL #5                  ; r2[4+log2(line size):5] = Set 编号</span><br><span class="line">MCR   p15, 0, r2, c7, c6, 2           ; DCCISW: 按 Set/Way 清除并无效化该 Cache 行</span><br><span class="line">ADD   r3, r3, #1                      ; Set++</span><br><span class="line">CMP   r0, r3                          ; 是否已遍历所有 Set？</span><br><span class="line">BGT   set_loop                        ; 未完成 → 继续内层循环</span><br><span class="line"></span><br><span class="line">ADD   r1, r1, #1                      ; Way++</span><br><span class="line">CMP   r1, #4                          ; 是否已遍历所有 Way（4-way 组相联）？</span><br><span class="line">BNE   way_loop                        ; 未完成 → 继续外层循环</span><br></pre></td></tr></table></figure>
+
+<p><strong>Set&#x2F;Way 寻址格式解析</strong>：</p>
+<p><code>DCCISW</code>（Data Cache Clean and Invalidate by Set&#x2F;Way）操作的寄存器 R2 编码如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">R2 [31:30] = Way     (组内行号，在 4-way 组相联 Cache 中取值 0-3)</span><br><span class="line">R2 [4+log2(line size):5] = Set  (组号)</span><br><span class="line">R2 [1:0] = Level     (00 = L1 Cache)</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：计算一个具体 (Way&#x3D;2, Set&#x3D;128) 的 DCCISW 操作数</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">假设 L1 D-Cache = 4-way 组相联，每 Way 256 个 Set，Line Size = 8 words (32 bytes)</span><br><span class="line">→ log2(line size) = 5 (32 = 2^5)</span><br><span class="line"></span><br><span class="line">Way 2:   2 &lt;&lt; 30 = 0x8000_0000              (Set Way=2 in R2[31:30])</span><br><span class="line">Set 128: 128 &lt;&lt; 5 = 0x0000_1000             (Set Set=128 in R2[9:5])</span><br><span class="line">Level:   0 &lt;&lt; 0  = 0x0000_0000              (L1 Data Cache = level 0)</span><br><span class="line"></span><br><span class="line">最终 R2 = 0x8000_0000 | 0x0000_1000 = 0x8000_1000</span><br><span class="line">→ MCR p15, 0, r2, c7, c6, 2              ; DCCISW: Clean+Invalidate Way=2, Set=128</span><br></pre></td></tr></table></figure>
+
+<p>这段代码是整章中最复杂的汇编序列。外层 <code>way_loop</code> 遍历 Cache 的每个 Way（本例假设 4-way 组相联），内层 <code>set_loop</code> 遍历每个 Way 中的所有 Set。对于每个 (Way, Set) 组合，<code>DCCISW</code> 操作对该 Cache 行执行 <strong>Clean + Invalidate</strong>：先将脏数据写回主存，再清除该行的 Valid 标记。</p>
+<p><strong>为什么不直接用全局清除指令？</strong> 因为 <code>DCCISW</code> 是 ARM 中唯一能保证对所有数据执行写回的正确方式。全局清除操作 <code>DCIALL</code>（c7 c6 0）虽然更简单，但在某些实现中可能遗漏某些状态的 Cache 行。</p>
+<h3 id="4-4-清空-TLB-和启用分支预测"><a href="#4-4-清空-TLB-和启用分支预测" class="headerlink" title="4.4 清空 TLB 和启用分支预测"></a>4.4 清空 TLB 和启用分支预测</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">; --- 清空 TLB ---</span><br><span class="line">MCR   p15, 0, r1, c8, c7, 0          ; TLBIALL: 清除所有 TLB 条目</span><br><span class="line"></span><br><span class="line">; --- 启用分支预测 ---</span><br><span class="line">MOV   r1, #0</span><br><span class="line">MRC   p15, 0, r1, c1, c0, 0          ; 读取 SCTLR</span><br><span class="line">ORR   r1, r1, #(0x1 &lt;&lt; 11)           ; 设置 bit 11 (Z bit —— 分支预测使能)</span><br><span class="line">MCR   p15, 0, r1, c1, c0, 0          ; 写回 SCTLR</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>The branch target predictor hardware might not have to be explicitly invalidated, but it must be enabled by boot code. Branch prediction can safely be enabled at this point; this will improve performance.</p>
+</blockquote>
+<p>分支预测器不需要显式清除（它在复位后自动处于干净状态），但<strong>必须在 boot code 中显式启用</strong>。ARM 将 SCTLR 中的 Z 位（bit 11）默认设为 0，即使硬件支持分支预测，不置位也不会工作。</p>
+<hr>
+<h2 id="5-第四步：创建一级页表"><a href="#5-第四步：创建一级页表" class="headerlink" title="5. 第四步：创建一级页表"></a>5. 第四步：创建一级页表</h2><p>清除完成后，处理器处于一个”干净但无用”的状态——没有 MMU 翻译，所有内存访问都是物理寻址。接下来要<strong>建立最简单的页表</strong>并启用 MMU。Example 13.4 给出了完整的页表初始化和 MMU 启用代码。</p>
+<h3 id="5-1-利用-D-side-Prefetch-优化"><a href="#5-1-利用-D-side-Prefetch-优化" class="headerlink" title="5.1 利用 D-side Prefetch 优化"></a>5.1 利用 D-side Prefetch 优化</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">; --- 启用 D-side Prefetch ---</span><br><span class="line">MRC   p15, 0, r1, c1, c0, 1          ; 读取 ACTLR (Auxiliary Control Register)</span><br><span class="line">ORR   r1, r1, #(0x1 &lt;&lt; 2)            ; 设置 D-side prefetch 使能位</span><br><span class="line">MCR   p15, 0, r1, c1, c0, 1          ; 写回 ACTLR</span><br><span class="line">DSB                                  ; 数据同步屏障：确保之前的 Cache 维护操作完成</span><br><span class="line">ISB                                  ; 指令同步屏障：冲刷流水线</span><br></pre></td></tr></table></figure>
+
+<p><code>D-side Prefetch</code>（Data-side Prefetch）是一种硬件预取机制。当处理器检测到程序具有连续访问数据的趋势时，会提前将后续的 Cache Line 从内存加载到 Data Cache 中，从而减少 Cache Miss 带来的访问延迟。例如，在顺序遍历数组、执行 <code>memcpy</code> 或 <code>memset</code> 等操作时，D-side Prefetch 可以提高内存访问效率。</p>
+<p><code>DSB</code>（Data Synchronization Barrier）和 <code>ISB</code>（Instruction Synchronization Barrier）是 Boot Code 中常见的两条屏障指令。它们的作用分别是：</p>
+<ul>
+<li><strong>DSB</strong>：等待之前发出的系统维护操作（如 Cache、TLB、Branch Predictor 的维护操作）全部完成，再继续执行后续指令。</li>
+<li><strong>ISB</strong>：刷新处理器流水线，使后续指令能够按照更新后的处理器配置重新取指执行。</li>
+</ul>
+<p>在 Boot 阶段，修改处理器控制寄存器（例如 <code>ACTLR</code>、<code>SCTLR</code>）或完成 Cache、TLB 等维护操作后，通常都会紧跟 <code>DSB</code> 和 <code>ISB</code>。这样可以确保前面的配置已经真正生效，并保证后续代码在新的处理器状态下运行，避免由于流水线或维护操作尚未完成而导致的不可预期行为。</p>
+<h3 id="5-2-构造-1MB-Section-的-Flat-Mapping-页表"><a href="#5-2-构造-1MB-Section-的-Flat-Mapping-页表" class="headerlink" title="5.2 构造 1MB Section 的 Flat Mapping 页表"></a>5.2 构造 1MB Section 的 Flat Mapping 页表</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">; --- 初始化 L1 页表 ---</span><br><span class="line">; 目标：建立 VA=PA 的 flat mapping，1MB sections，所有页面 Full Access</span><br><span class="line">; 描述符模板：非地址部分</span><br><span class="line">LDR   r0, =2_00000000000000000000110111100010   ; PTE 默认属性</span><br><span class="line">LDR   r1, ttb_address                              ; r1 = 页表基地址（16KB 对齐）</span><br><span class="line">LDR   r3, =4095                                     ; 循环计数器（4096 个条目）</span><br><span class="line"></span><br><span class="line">write_pte:</span><br><span class="line">ORR   r2, r0, r3, LSL #20                           ; r2 = 描述符模板 | (section_index &lt;&lt; 20)</span><br><span class="line">STR   r2, [r1, r3, LSL #2]                          ; 写入 PTE[section_index]</span><br><span class="line">SUBS  r3, r3, #1                                    ; 计数器递减</span><br><span class="line">BNE   write_pte                                      ; 循环直到所有 4096 个条目写完</span><br></pre></td></tr></table></figure>
+
+<p>这 5 行汇编是 boot code 中最精巧的构造。逐行分解：</p>
+<ol>
+<li><p>**<code>r0</code> 是 PTE 描述符的”属性模板”**。十六进制 <code>0x00000DE2</code>（二进制 <code>2_00000000000000000000110111100010</code>）的分解为：</p>
+<ul>
+<li>Bits [1:0] &#x3D; <code>10</code> — Section 描述符类型标识</li>
+<li>Bits [3:2] &#x3D; <code>00</code> — C &#x3D; 0, B &#x3D; 0（与 TEX 联用表示内存类型）</li>
+<li>Bit [4] &#x3D; <code>1</code> — 实现定义位</li>
+<li>Bits [8:5] &#x3D; <code>1111</code> — Domain &#x3D; 15</li>
+<li>Bit [9] &#x3D; <code>0</code> — SBZP（应为零或保留）</li>
+<li>Bits [11:10] &#x3D; <code>11</code> — AP[1:0] &#x3D; 11</li>
+<li>Bits [14:12] &#x3D; <code>000</code> — TEX[2:0] &#x3D; 000</li>
+<li>Bits [19:12] &#x3D; <code>00000000</code> — 配合 TEX、C、B 位，整体属性为 Strongly Ordered 内存类型</li>
+</ul>
+</li>
+<li><p><strong><code>ORR r2, r0, r3, LSL #20</code></strong> 将 section 的物理基地址嵌入描述符：</p>
+<ul>
+<li><code>r3</code> 循环计数器从 4095 递减到 0</li>
+<li>对于 1MB section，物理基地址位段为 <code>PA[31:20]</code> → 对应 <code>r3 &lt;&lt; 20</code></li>
+<li>例如当 <code>r3 = 0</code>：<code>r2 = 0x0000_0DE2</code>，即 Section 0 映射 PA 0x0000_0000</li>
+<li>例如当 <code>r3 = 1</code>：<code>r2 = 0x0010_0DE2</code>，即 Section 1 映射 PA 0x0010_0000</li>
+</ul>
+</li>
+<li><p><strong><code>STR r2, [r1, r3, LSL #2]</code></strong> 将描述符写入页表：</p>
+<ul>
+<li>基地址 <code>r1</code> + <code>r3 × 4</code>（每个描述符 4 字节）→ 完整的 <code>[基址 + 偏移]</code> 寻址</li>
+<li>最终效果：<code>ttb_address[0]</code> 保存 Section 0 的描述符（映射 PA 0x00000000），<code>ttb_address[4095]</code> 保存 Section 4095 的描述符（映射 PA 0xFFF00000）。</li>
+</ul>
+</li>
+</ol>
+<p>完成循环后，整个 4GB 虚拟地址空间被 4096 个 1MB section 覆盖，每个 section 的 VA &#x3D; PA（flat mapping），内存属性为 Strongly Ordered（最保守的缺省值）。</p>
+<h3 id="5-3-修正第一个-Section（0x0000-0000–0x000F-FFFF）的属性"><a href="#5-3-修正第一个-Section（0x0000-0000–0x000F-FFFF）的属性" class="headerlink" title="5.3 修正第一个 Section（0x0000_0000–0x000F_FFFF）的属性"></a>5.3 修正第一个 Section（0x0000_0000–0x000F_FFFF）的属性</h3><p>将 0-1MB 区域（通常包含代码段）从 Strongly Ordered 改为 Cacheable：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">; 为第一个 entry（section 0）设置 Cacheable 属性</span><br><span class="line">BIC   r0, r0, #2_1100                  ; 清除 C 和 B bits</span><br><span class="line">ORR   r0, r0, #2_0100                  ; 设置: inner write-back, write-allocate</span><br><span class="line">BIC   r0, r0, #2_111000000000000       ; 清除 TEX bits</span><br><span class="line">ORR   r0, r0, #2_101000000000000       ; 设置 TEX = 101 (write-back, write-allocate)</span><br><span class="line">ORR   r0, r0, #2_1000000000000000     ; 设置 S bit (Shareable, 多核系统需要)</span><br><span class="line">STR   r0, [r1]                          ; 写回 section 0 的描述符</span><br></pre></td></tr></table></figure>
+
+<p>两种内存属性并存的理由：</p>
+<ul>
+<li>代码段区域 → <strong>Write-back, Write-allocate, Cacheable</strong>：最大化指令取指和数据访问性能</li>
+<li>其余区域（包括外设 MMIO 区域）→ <strong>Strongly Ordered</strong>：外设寄存器访问不能乱序、不能缓存、不能合并</li>
+</ul>
+<h3 id="5-4-启用-MMU"><a href="#5-4-启用-MMU" class="headerlink" title="5.4 启用 MMU"></a>5.4 启用 MMU</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">; --- 设置 TTBR0 和 TTBCR ---</span><br><span class="line">MOV   r1, #0x0</span><br><span class="line">MCR   p15, 0, r1, c2, c0, 2           ; TTBCR = 0 (整个地址空间使用 TTBR0)</span><br><span class="line">LDR   r1, ttb_address</span><br><span class="line">MCR   p15, 0, r1, c2, c0, 0           ; TTBR0 = ttb_address (L1 页表基地址)</span><br><span class="line"></span><br><span class="line">; --- 设置所有 Domain 为 Client ---</span><br><span class="line">LDR   r1, =0x55555555                  ; 每个 Domain 2 bits → 01 = Client</span><br><span class="line">MCR   p15, 0, r1, c3, c0, 0           ; DACR (Domain Access Control Register)</span><br><span class="line"></span><br><span class="line">; --- 启用 MMU ---</span><br><span class="line">MRC   p15, 0, r1, c1, c0, 0           ; 读取 SCTLR</span><br><span class="line">ORR   r1, r1, #0x1                     ; 设置 bit 0 (M bit)</span><br><span class="line">MCR   p15, 0, r1, c1, c0, 0           ; 写回 SCTLR → MMU 正式启用！</span><br></pre></td></tr></table></figure>
+
+<p><code>MCR</code> 写回 SCTLR 的那一瞬间是一个分水岭——在此之后，<strong>所有内存访问都要经过 MMU 翻译</strong>。因为使用的是 VA&#x3D;PA 的 flat mapping，程序行为在此刻看起来没有变化，但从硬件层面，MMU 已经在工作了（TLB 开始在访问中填充）。</p>
+<p>两个重要细节：</p>
+<ul>
+<li>页表基地址 <code>ttb_address</code> 必须是 16KB 对齐（L1 页表 &#x3D; 4096 条目 × 4 字节 &#x3D; 16KB）</li>
+<li><code>DACR = 0x55555555</code>：16 个 Domain 都被配置为 Client（<code>01</code>）——即 Domain 访问权限由页表描述符中的 AP bits 决定，Domain 本身不禁止访问</li>
+</ul>
+<hr>
+<h2 id="6-第五步：多核识别与主核独占初始化"><a href="#6-第五步：多核识别与主核独占初始化" class="headerlink" title="6. 第五步：多核识别与主核独占初始化"></a>6. 第五步：多核识别与主核独占初始化</h2><p>完成了所有单核通用初始化后，多核系统面临一个特殊问题——<strong>所有核心同时从同一个复位向量开始执行</strong>。如果每个核心都独立去做内存初始化、页表创建，就会发生灾难性的资源竞争。</p>
+<p>Example 13.5 给出了标准的多核识别方案：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">; --- 读取核心 ID，仅让 Core 0 执行初始化 ---</span><br><span class="line">MRC   p15, 0, r1, c0, c0, 5           ; 读取 MPIDR (Multiprocessor Affinity Register)</span><br><span class="line">AND   r1, r1, #0x3                     ; 提取 [1:0] —— CPU ID 位段</span><br><span class="line">CMP   r1, #0</span><br><span class="line">BEQ   initialize                       ; Core 0 → 执行初始化</span><br><span class="line"></span><br><span class="line">wait_loop:</span><br><span class="line">    ; 非 Core 0：进入 WFI 低功耗等待</span><br><span class="line">    ; ... (WFI / WFE 指令)</span><br><span class="line">    ; 在 SMP OS 启动后才被主核通过 IPI 唤醒</span><br><span class="line"></span><br><span class="line">initialize:</span><br><span class="line">    ; @ Core 0 的初始化代码继续...</span><br><span class="line">    ; 此时只有 Core 0 在执行，因此可以安全完成系统级初始化（如建立共享页表、配置 MMU、初始化 Cache 等），不会与其他核心发生竞争。</span><br></pre></td></tr></table></figure>
+
+<p>核心机制分析：</p>
+<ol>
+<li><p>**<code>MRC p15, 0, r1, c0, c0, 5</code>**：读取 MPIDR（Multi-Processor ID Register）。ARMv7-A 规范中，MPIDR 的低 8 位 <code>[7:0]</code> 编码了 Affinity Level 0（即核心在 Cluster 内的编号）。<code>AND r1, r1, #0x3</code> 提取仅最低 2 位（在 4 核 Cluster 中够用，一般 SCLTR 最多 4 核）。</p>
+</li>
+<li><p><strong>非主核进入 WFI 状态</strong>：WFI（Wait For Interrupt）让核心进入低功耗待机。主核后续会通过 <strong>IPI（Inter-Processor Interrupt）</strong>——即 SGIs（Software Generated Interrupts）via GIC——唤醒这些从核，并让它们跳到 SMP OS 的启动代码。</p>
+</li>
+<li><p><strong>Core 0 可以安全地创建供所有核心共用的 L1 页表</strong>——因为此时只有 Core 0 在运行。</p>
+</li>
+</ol>
+<blockquote>
+<p>The other cores might be woken after core 0 has created a simple set of L1 translation table entries, as these could be used by all cores in the system.</p>
+</blockquote>
+<p>这段代码应该放在 boot 流程的最开始——“this code typically is run before any other initialization step”——因为你要在单核完成所有初始化后再并行化。</p>
+<hr>
+<h2 id="7-从裸机到-Linux：Bootloader-与内核启动流程"><a href="#7-从裸机到-Linux：Bootloader-与内核启动流程" class="headerlink" title="7. 从裸机到 Linux：Bootloader 与内核启动流程"></a>7. 从裸机到 Linux：Bootloader 与内核启动流程</h2><p>裸机的硬件初始化完成后，控制权需要移交给操作系统。一个典型的 Linux 启动总流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">上电 → ROM Boot Code → Bootloader (U-Boot) → Linux Kernel → User Space</span><br><span class="line">│         │                │                    │</span><br><span class="line">│         │                │                    └── start_kernel() → /sbin/init</span><br><span class="line">│         │                └── 加载 zImage，设 ATAGs/DTB，跳转</span><br><span class="line">│         └── 初始化 DRAM 控制器，拷贝自身到 RAM</span><br><span class="line">└── 执行复位向量中的 Reset_Handler</span><br></pre></td></tr></table></figure>
+
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="2"></p>
+<p>Linux 启动路径分为五个阶段，每两个阶段之间发生一次控制权交接：</p>
+<ol>
+<li><p><strong>ROM Boot（平台固件）</strong>：完成最基础的 DRAM 和时钟初始化后，将控制权移交给 Bootloader。</p>
+</li>
+<li><p><strong>Bootloader（U-Boot）</strong>：加载压缩后的内核镜像 zImage 到 RAM 并设定入口参数，然后直接 <code>B</code> 跳转到 <code>arch/arm/boot/compressed/head.S</code>。</p>
+</li>
+<li><p><strong>内核解压</strong>：在启用 MMU+Cache 的条件下完成 LZMA&#x2F;gzip 解压，最后 Clean+Invalidate Caches 并关 MMU，再跳转到内核主体 <code>arch/arm/kernel/head.S</code>。</p>
+</li>
+<li><p><strong>架构特定初始化</strong>：CPU&#x2F;机器类型检测、创建页表、配置 GIC 和定时器，最后调用 <code>start_kernel()</code> 进入架构无关世界。</p>
+</li>
+<li><p><strong>User Space</strong>：内核完成全部初始化后，创建 PID 1 进程 <code>/sbin/init</code>，系统正式进入用户态。</p>
+</li>
+</ol>
+<p>图中下半部分的物理内存布局展示了 Bootloader 为内核准备的参数区（ATAGs&#x2F;DTB）、压缩镜像和解压后内核本体在 RAM 中的位置关系。</p>
+<h3 id="7-1-Bootloader-U-Boot-的职责"><a href="#7-1-Bootloader-U-Boot-的职责" class="headerlink" title="7.1 Bootloader (U-Boot) 的职责"></a>7.1 Bootloader (U-Boot) 的职责</h3><p>Bootloader 必须完成五项任务：</p>
+<blockquote>
+<ul>
+<li>初始化内存系统和外设。</li>
+<li>将内核镜像加载到内存中的合适位置（必要时也加载初始 RAM 磁盘）。</li>
+<li>生成传递给内核的启动参数（包括机器类型）。</li>
+<li>为内核设置控制台（视频或串口）。</li>
+<li>进入内核。</li>
+</ul>
+</blockquote>
+<p>内核镜像的加载位置：</p>
+<blockquote>
+<p>内核代码是位置无关的，可以放在内存中任意位置。惯例是将其放在物理 RAM 基地址偏移 <code>0x8000</code> 处，这为放在偏移 <code>0x100</code> 处的参数块留出了空间（参数块用于页表等目的）。</p>
+</blockquote>
+<p>典型的内存布局如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Physical RAM Base (例: 0x8000_0000)</span><br><span class="line">├─ 0x8000_0000 + 0x100: ATAG / DTB 参数块</span><br><span class="line">├─ 0x8000_0000 + 0x8000: zImage 内核镜像（压缩）</span><br><span class="line">└─ 0x8000_0000 + 某地址: initrd / initramfs（初始 RAM 磁盘）</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-内核参数传递：ATAGs-与-Device-Tree"><a href="#7-2-内核参数传递：ATAGs-与-Device-Tree" class="headerlink" title="7.2 内核参数传递：ATAGs 与 Device Tree"></a>7.2 内核参数传递：ATAGs 与 Device Tree</h3><p>两种参数传递机制：</p>
+<p><strong>ATAGs（ARM Tagged List）</strong>：传统方式——在物理 RAM 中放置一个标签链表，R2 寄存器持有该链表的地址。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ATAG 标签结构</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">tag</span> &#123;</span></span><br><span class="line">    u32 size;      <span class="comment">// 该 tag 的大小（以 32-bit words 计）</span></span><br><span class="line">    u32 tag;       <span class="comment">// tag 类型标识</span></span><br><span class="line">    <span class="comment">// ... tag 特定的数据 ...</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 常见 ATAG 类型</span></span><br><span class="line">ATAG_MEM     <span class="comment">// 物理内存映射信息</span></span><br><span class="line">ATAG_INITRD2 <span class="comment">// initrd 镜像位置</span></span><br><span class="line">ATAG_RAMDISK <span class="comment">// RAM 磁盘配置</span></span><br></pre></td></tr></table></figure>
+
+<p>每个 ATAG 都是一个变长结构体：<code>size</code> 表示本 tag 的总 word 数，<code>tag</code> 字段标识该 tag 的类型。Bootloader 在内存中构建一个以 <code>ATAG_CORE</code> 开头、<code>ATAG_NONE</code> 结尾的标签链表，R2 指向链表首元素。</p>
+<p>例如，一个描述 128MB 内存 + 串口控制台的 ATAG 链布局如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">0x8000_0100: ATAG_CORE    → [size=5, tag=0x54410001, ...]</span><br><span class="line">             ATAG_MEM     → [size=4, tag=0x54410002, start=0x80000000, len=128MB]</span><br><span class="line">             ATAG_CMDLINE → [size=8, tag=0x54410009, cmdline=&quot;console=ttyAMA0 debug&quot;]</span><br><span class="line">             ATAG_NONE    → [size=0, tag=0x00000000]  ← 链表终止符</span><br></pre></td></tr></table></figure>
+
+<p>内核启动后遍历此链表，提取物理内存布局、initrd 位置、内核命令行等信息。</p>
+<p>**Flattened Device Tree (FDT)**：现代方式——一个描述硬件配置的树形数据结构。</p>
+<figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// DTS 示例</span></span><br><span class="line"><span class="title class_">/</span> <span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">model</span> <span class="operator">=</span> <span class="string">&quot;arm,versatilepb&quot;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="attr">compatible</span> <span class="operator">=</span> <span class="string">&quot;arm,versatilepb&quot;</span><span class="punctuation">;</span></span><br><span class="line">    <span class="meta">#address-cells = &lt;1&gt;;</span></span><br><span class="line">    <span class="meta">#size-cells = &lt;1&gt;;</span></span><br><span class="line"></span><br><span class="line">    <span class="title class_">memory</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">name</span> <span class="operator">=</span> <span class="string">&quot;memory&quot;</span><span class="punctuation">;</span></span><br><span class="line">        device_<span class="attr">type</span> <span class="operator">=</span> <span class="string">&quot;memory&quot;</span><span class="punctuation">;</span></span><br><span class="line">        <span class="attr">reg</span> <span class="operator">=</span> <span class="params">&lt;<span class="number">0x0</span> <span class="number">0x08000000</span>&gt;</span><span class="punctuation">;</span>       <span class="comment">// 起始地址 0x0, 大小 128MB</span></span><br><span class="line">    <span class="punctuation">&#125;;</span></span><br><span class="line"></span><br><span class="line">    <span class="title class_">chosen</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">bootargs</span> <span class="operator">=</span> <span class="string">&quot;console=ttyAMA0 debug&quot;</span><span class="punctuation">;</span>  <span class="comment">// 内核命令行参数</span></span><br><span class="line">    <span class="punctuation">&#125;;</span></span><br><span class="line"><span class="punctuation">&#125;;</span></span><br></pre></td></tr></table></figure>
+
+<p>Device Tree 相较于 ATAGs 的优势很明显：ATAGs 只是一个扁平的标签列表，无法描述设备的层次结构；FDT 是树形的，天然适合描述 SoC 中相互关联的外设拓扑。这也是为什么从 ARM Linux 3.x 开始，FDT 逐渐取代了 ATAGs。</p>
+<p>DTS 源文件经 DTC（Device Tree Compiler）编译后生成 <strong>DTB（Device Tree Blob）</strong>——这才是 Bootloader 加载到 RAM 中并通过 R2 传给内核的实际二进制格式。DTB 在内存中的布局包含四个区域：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">+-------------------+</span><br><span class="line">| FDT Header        |  u32 magic (=0xD00DFEED), totalsize, version, 各 block 偏移量等</span><br><span class="line">+-------------------+</span><br><span class="line">| Memory Reservation |  多组 (address, size) 描述保留内存区域，以全零项结束</span><br><span class="line">+-------------------+</span><br><span class="line">| Structure Block   |  FDT_BEGIN_NODE → 属性(值) → FDT_END_NODE → ... → FDT_END</span><br><span class="line">|                   |  所有字符串以整数偏移引用，节点和属性以 token 分隔</span><br><span class="line">+-------------------+</span><br><span class="line">| Strings Block     |  属性名（&quot;model&quot;, &quot;compatible&quot;, &quot;reg&quot; 等）统一存放于此，</span><br><span class="line">|                   |  Structure 区通过偏移量引用，避免重复存储</span><br><span class="line">+-------------------+</span><br></pre></td></tr></table></figure>
+
+<p>Header 中的 <code>magic = 0xD00DFEED</code> 标识这是一个有效 FDT。<code>totalsize</code> 给出整个 blob 的字节数，Bootloader 据此分配空间。树形逻辑（父子节点、属性键值）全部编码在 Structure Block 中，而属性名字符串集中存放在末尾的 Strings Block，通过整数偏移引用——这正是”Flattened”的含义：一棵树被展平为连续的二进制块，而非内存中的指针链表。</p>
+<h3 id="7-3-内核入口约定"><a href="#7-3-内核入口约定" class="headerlink" title="7.3 内核入口约定"></a>7.3 内核入口约定</h3><p> Bootloader 跳转到内核前必须满足精确的硬件状态：内核执行必须在核心处于固定状态时开始。Bootloader 通过直接分支到内核镜像的第一条指令（<code>arch/arm/boot/compressed/head.S</code> 中的 <code>start</code> 标签）来调用内核镜像。MMU 和数据 Cache 必须关闭。核心必须处于 Supervisor 模式，CPSR 的 I 和 F 位必须置位（IRQ 和 FIQ 禁用）。R0 必须为 0，R1 为 <code>MACH_TYPE</code> 值，R2 为参数标签链表的地址。</p>
+<p>入口约定汇总：</p>
+<table>
+<thead>
+<tr>
+<th>条件</th>
+<th>值</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>模式</td>
+<td>SVC (Supervisor)</td>
+<td>内核需要 PL1 特权级来操作 MMU 和异常向量表</td>
+</tr>
+<tr>
+<td>MMU</td>
+<td>关闭</td>
+<td>内核自带页表，将在自身初始化中重新建立</td>
+</tr>
+<tr>
+<td>D-Cache</td>
+<td>关闭</td>
+<td>避免 bootloader 残留的脏数据污染内核</td>
+</tr>
+<tr>
+<td>I&#x2F;F bits</td>
+<td>置位 (IRQ&#x2F;FIQ 禁用)</td>
+<td>中断子系统尚未初始化</td>
+</tr>
+<tr>
+<td>R0</td>
+<td>0</td>
+<td>架构保留</td>
+</tr>
+<tr>
+<td>R1</td>
+<td><code>MACH_TYPE</code></td>
+<td>ARM Linux 机器类型号（DTB 方式下可为 ~0）</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>ATAGs&#x2F;FDT 地址</td>
+<td>参数块物理地址</td>
+</tr>
+</tbody></table>
+<h3 id="7-4-内核解压"><a href="#7-4-内核解压" class="headerlink" title="7.4 内核解压"></a>7.4 内核解压</h3><p>内核启动的第一步是解压自身。Bootloader 传入的参数被保存下来，接着启用 Cache 和 MMU。在调用 <code>arch/arm/boot/compressed/misc.c</code> 中的 <code>decompress_kernel()</code> 之前，会检查解压后的镜像是否会覆盖压缩镜像本身。解压完成后清理并作废 Cache，然后再次关闭 MMU，最后分支跳转到内核启动入口点 <code>arch/arm/kernel/head.S</code>。</p>
+<p>简化流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">zImage (head.S) → 保存 R0/R1/R2</span><br><span class="line">                → 启用 MMU + Caches（用于加速解压）</span><br><span class="line">                → decompress_kernel() — 将内核主体解压到最终位置</span><br><span class="line">                → Clean + Invalidate Caches（将解压后的内核代码写回主存）</span><br><span class="line">                → 关闭 MMU（内核主体会重新开启）</span><br><span class="line">                → B 跳转到 arch/arm/kernel/head.S (真正的内核入口)</span><br></pre></td></tr></table></figure>
+
+<p>注意<strong>解压阶段使用了自己的 MMU 映射和 Cache 策略</strong>——这是为了加速解压算法（LZMA&#x2F;gzip），解压完成后必须将 Caches 写回并关闭，因为内核主体期望在 MMU 关闭的干净状态下启动。</p>
+<h3 id="7-5-平台特定初始化"><a href="#7-5-平台特定初始化" class="headerlink" title="7.5 平台特定初始化"></a>7.5 平台特定初始化</h3><p>跳转到内核入口 <code>arch/arm/kernel/head.S</code> 后，内核还完全不知道自己在什么硬件上运行。在调用 <code>start_kernel()</code> 之前，架构相关代码必须完成以下准备：</p>
+<ol>
+<li><code>__lookup_processor_type()</code> — 读取 CP15 寄存器，检测当前运行在哪种 ARM 核心上，返回处理器类型编码</li>
+<li><code>__lookup_machine_type()</code> — 遍历 <code>.arch.info.init</code> 段中的机器描述结构体，匹配 ATAGs 或 DTB 中的 <code>MACH_TYPE</code></li>
+<li>建立内核初始页表——为内核代码段创建 VA&#x3D;PA flat mapping，然后启用 MMU，设置 CP15 控制寄存器</li>
+<li>将 data segment 拷贝到 RAM——内核镜像中已初始化的全局变量（<code>.data</code> 段）需要从加载地址拷贝到运行地址</li>
+<li>调用 <code>start_kernel()</code>——此后的代码不再依赖任何特定硬件架构</li>
+</ol>
+<h3 id="7-6-start-kernel"><a href="#7-6-start-kernel" class="headerlink" title="7.6 start_kernel()"></a>7.6 start_kernel()</h3><p><code>start_kernel()</code> 是内核中第一个架构无关的函数。从此处开始，所有后续初始化使用 Linux 统一的跨平台框架：</p>
+<ol>
+<li><code>local_irq_disable()</code> &#x2F; <code>lock_kernel()</code> — 禁止 IRQ 和 FIQ 中断</li>
+<li>初始化 tick control、内存系统、架构特定子系统，处理 bootloader 传入的命令行参数</li>
+<li>设置内核栈，初始化 Linux 调度器</li>
+<li>划分内存区域并分配页面</li>
+<li>建立中断和异常向量表及处理函数，配置 GIC</li>
+<li>初始化系统定时器 → 启用 IRQ；额外的内存系统初始化；BogoMIPS 校准核心时钟速度</li>
+<li>设置内核内部组件：文件系统、init 进程、内核线程 daemon</li>
+<li>解锁内核（启用 FIQ），启动调度器</li>
+<li><code>do_basic_setup()</code> — 驱动初始化、sysctl、工作队列、网络栈</li>
+</ol>
+<p>Linux 虚拟内存视图如下：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="3"></p>
+<hr>
+<h2 id="8-关键要点总结"><a href="#8-关键要点总结" class="headerlink" title="8. 关键要点总结"></a>8. 关键要点总结</h2><ol>
+<li><strong>复位后 R0-R14 不可预测</strong>——第一条指令必须来自异常向量表（<code>0x00000000</code> 或 <code>0xFFFF0000</code>）的复位向量槽位</li>
+<li><strong>ROM→RAM 重映射</strong>要求初始化代码使用<strong>位置无关代码</strong>（PC 相对寻址），因为地址 <code>0x00000000</code> 的物理含义在重映射瞬间改变</li>
+<li><strong>栈指针必须显式初始化</strong>：通过 <code>MSR</code> 切换到每个异常模式，再用 <code>MOV SP, Rx</code> 为每个 banked SP 赋值；中断在初始化完成前保持禁用状态</li>
+<li><strong>Cache 的 Set&#x2F;Way 遍历</strong>是清空 L1 D-Cache 的工业标准方法——外层遍历 Ways（组相联度）、内层遍历 Sets，对每个 (Way, Set) 执行 <code>DCCISW</code></li>
+<li><strong>VM&#x3D;PA flat mapping 页表</strong>用 4096 个 1MB section 描述符覆盖 4GB VA 空间——第一个 section 特殊处理为 Cacheable（代码段），其余保持 Strongly Ordered（覆盖 MMIO 外设区域）</li>
+<li><strong>TTBR0 和 TTBCR 的设置 + DACR (Domain Client) + SCTLR M bit 置位</strong> &#x3D; MMU 正式生效——这四步必须按顺序执行</li>
+<li><strong>MPIDR 读取</strong>是所有多核系统 boot code 的第一道指令：Core 0 执行初始化 → 其他核心进入 WFI → 被 IPI 唤醒后加入 SMP</li>
+<li><strong>Linux 内核入口约定</strong>非常精确：SVC 模式、MMU 关闭、Caches 关闭、中断禁用、R0&#x3D;0、R1&#x3D;MACH_TYPE、R2&#x3D;ATAGs&#x2F;FDT 地址</li>
+<li><strong>内核解压阶段</strong>有自己独立的 MMU 映射（用于加速解压），解压完成后必须 Clean+Invalidate Caches 并关闭 MMU，再跳转到真正的内核入口</li>
+<li><strong>ATAGs 和 FDT 是两代参数传递机制</strong>——ATAGs 扁平列表 → FDT 树形结构，后者能完整描述 SoC 的硬件拓扑</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/" rel="prev" title="ARM中断处理">
+                  <i class="fa fa-angle-left"></i> ARM中断处理
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/25/ARM-AACPS/" rel="next" title="ARM AACPS">
+                  ARM AACPS <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文系统介绍 ARMv7-A 的函数调用规范（AAPCS），深入理解寄存器分配、函数栈帧结构及其调用约定。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM AACPS">
+<meta property="og:url" content="http://yoursite.com/2026/07/25/ARM-AACPS/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文系统介绍 ARMv7-A 的函数调用规范（AAPCS），深入理解寄存器分配、函数栈帧结构及其调用约定。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="article:published_time" content="2026-07-25T02:19:33.000Z">
+<meta property="article:modified_time" content="2026-07-25T02:26:01.828Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/25/ARM-AACPS/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/25/ARM-AACPS/","path":"2026/07/25/ARM-AACPS/","title":"ARM AACPS"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM AACPS | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-ABI-%E4%B8%8E-AAPCS%EF%BC%9A%E8%B7%A8%E6%A8%A1%E5%9D%97%E4%BA%92%E6%93%8D%E4%BD%9C%E7%9A%84%E5%9F%BA%E7%A1%80"><span class="nav-text">1. ABI 与 AAPCS：跨模块互操作的基础</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%95%B4%E6%95%B0%E5%AF%84%E5%AD%98%E5%99%A8%E8%A7%92%E8%89%B2%E4%B8%8E%E5%88%86%E7%BB%84"><span class="nav-text">2. 整数寄存器角色与分组</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%AF%84%E5%AD%98%E5%99%A8%E8%81%8C%E8%B4%A3%E8%A1%A8"><span class="nav-text">2.1 寄存器职责表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-R12-IP-%E7%9A%84%E6%B7%B1%E5%B1%82%E5%90%AB%E4%B9%89%EF%BC%9A%E4%B8%BA%E4%BB%80%E4%B9%88%E9%93%BE%E6%8E%A5%E5%99%A8%E9%9C%80%E8%A6%81%E4%B8%80%E4%B8%AA%E6%9A%82%E5%AD%98%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%9F"><span class="nav-text">2.2 R12 (IP) 的深层含义：为什么链接器需要一个暂存寄存器？</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-R9-%E7%9A%84%E7%89%B9%E6%AE%8A%E5%9C%B0%E4%BD%8D"><span class="nav-text">2.3 R9 的特殊地位</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E7%9A%84%E5%8F%82%E6%95%B0%E4%BC%A0%E9%80%92"><span class="nav-text">3. 函数调用的参数传递</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%9F%BA%E6%9C%AC%E8%A7%84%E5%88%99"><span class="nav-text">3.1 基本规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-C-%E7%9A%84-this-%E6%8C%87%E9%92%88%E6%83%A9%E7%BD%9A"><span class="nav-text">3.2 C++ 的 this 指针惩罚</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-64-%E4%BD%8D%E5%8F%82%E6%95%B0%E7%9A%84%E5%AF%B9%E9%BD%90%E7%BA%A6%E6%9D%9F"><span class="nav-text">3.3 64 位参数的对齐约束</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%9E%E4%BE%8B%EF%BC%9A%E5%8F%82%E6%95%B0%E9%A1%BA%E5%BA%8F%E9%94%99%E8%AF%AF%E7%9A%84%E4%BB%A3%E4%BB%B7"><span class="nav-text">实例：参数顺序错误的代价</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E8%B0%83%E7%94%A8%E8%80%85%E4%B8%8E%E8%A2%AB%E8%B0%83%E7%94%A8%E8%80%85%E7%9A%84%E4%BB%A3%E7%A0%81%E6%A8%A1%E6%9D%BF"><span class="nav-text">3.4 调用者与被调用者的代码模板</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-VFP-%E4%B8%8E-NEON-%E5%AF%84%E5%AD%98%E5%99%A8%E7%BA%A6%E5%AE%9A"><span class="nav-text">4. VFP 与 NEON 寄存器约定</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-VFPv3-%E5%AF%84%E5%AD%98%E5%99%A8%E5%B8%83%E5%B1%80"><span class="nav-text">4.1 VFPv3 寄存器布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E8%BD%AF%E4%BB%B6%E6%B5%AE%E7%82%B9%E9%93%BE%E8%B7%AF-vs-%E7%A1%AC%E4%BB%B6%E6%B5%AE%E7%82%B9%E9%93%BE%E8%B7%AF"><span class="nav-text">4.2 软件浮点链路 vs 硬件浮点链路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E6%B5%AE%E7%82%B9%E5%AF%84%E5%AD%98%E5%99%A8%E7%9A%84-back-fill-%E6%9C%BA%E5%88%B6"><span class="nav-text">4.3 浮点寄存器的 back-fill 机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E6%A0%88%E6%BA%A2%E5%87%BA%E7%9A%84%E4%B8%8D%E5%8F%AF%E9%80%86%E7%BA%A6%E6%9D%9F"><span class="nav-text">4.4 栈溢出的不可逆约束</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E5%8F%98%E5%8F%82%E5%87%BD%E6%95%B0%E7%9A%84%E7%89%B9%E6%AE%8A%E5%A4%84%E7%90%86"><span class="nav-text">4.5 变参函数的特殊处理</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E6%A0%88%E3%80%81%E5%A0%86%E4%B8%8E%E8%BF%94%E5%9B%9E%E5%80%BC"><span class="nav-text">5. 栈、堆与返回值</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%A0%88%E5%AE%9E%E7%8E%B0"><span class="nav-text">5.1 栈实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E8%BF%94%E5%9B%9E%E5%80%BC%E7%BA%A6%E5%AE%9A"><span class="nav-text">5.2 返回值约定</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-C-%E4%B8%8E%E6%B1%87%E7%BC%96%E6%B7%B7%E7%BC%96%E5%AE%9E%E8%B7%B5"><span class="nav-text">6. C 与汇编混编实践</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-GCC-%E5%9F%BA%E6%9C%AC%E5%86%85%E8%81%94%E6%B1%87%E7%BC%96"><span class="nav-text">6.1 GCC 基本内联汇编</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E6%89%A9%E5%B1%95%E5%86%85%E8%81%94%E6%B1%87%E7%BC%96%E8%AF%AD%E6%B3%95"><span class="nav-text">6.2 扩展内联汇编语法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E7%BA%A6%E6%9D%9F%E5%AD%97%E7%AC%A6"><span class="nav-text">6.3 约束字符</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-Clobber-%E5%88%97%E8%A1%A8"><span class="nav-text">6.4 Clobber 列表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-%E6%9D%A5%E8%87%AA-Linux-%E5%86%85%E6%A0%B8%E7%9A%84%E5%AE%9E%E4%BE%8B"><span class="nav-text">6.5 来自 Linux 内核的实例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">7. 关键要点</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">62</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/25/ARM-AACPS/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM AACPS | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM AACPS
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-25 10:19:33" itemprop="dateCreated datePublished" datetime="2026-07-25T10:19:33+08:00">2026-07-25</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文系统介绍 ARMv7-A 的函数调用规范（AAPCS），深入理解寄存器分配、函数栈帧结构及其调用约定。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-ABI-与-AAPCS：跨模块互操作的基础"><a href="#1-ABI-与-AAPCS：跨模块互操作的基础" class="headerlink" title="1. ABI 与 AAPCS：跨模块互操作的基础"></a>1. ABI 与 AAPCS：跨模块互操作的基础</h2><p>C 编译器能将程序拆分为多个独立编译的模块——<code>.c</code> 文件分别编译为 <code>.o</code> 目标文件，最终由链接器合并为可执行映像。但要让 <code>module_a.o</code> 中的函数能成功调用 <code>module_b.o</code> 中的函数，双方必须对以下问题达成一致：</p>
+<ul>
+<li>参数放在哪里？（寄存器还是栈？）</li>
+<li>返回值放在哪里？</li>
+<li>哪些寄存器调用后可以随意覆盖，哪些必须由被调函数恢复原值？</li>
+<li>栈的增长方向是什么？栈指针如何对齐？</li>
+</ul>
+<p>这就是 Application Binary Interface (ABI) 要解决的问题。ARM 架构的 ABI 规范定义了一套规则，确保不同编译器&#x2F;汇编器生成的目标文件可以链接在一起。</p>
+<blockquote>
+<p>The Application Binary Interface (ABI) for the ARM architecture specification describes a set of rules that an ARM executable must adhere to in order to execute in a specific environment. It specifies conventions for executables, including file formats and ensures that objects from different compilers or assemblers can be linked together successfully.</p>
+</blockquote>
+<p>ABI 有多个变体：Linux ABI for ARM、Embedded ABI (EABI) 等。而这些变体的核心组成部分就是 <strong>AAPCS — ARM Architecture Procedure Call Standard</strong>。AAPCS 自身也分为多个变体：基础标准定义整数寄存器的使用规则，VFP 变体补充浮点寄存器的传参约定。Linux ARM EABI 采用 AAPCS 基础标准 + VFP 变体作为其调用约定。</p>
+<p>AAPCS 的前身是 ATPCS (ARM-Thumb Procedure Call Standard)。它规定了编译器和子程序调用期间寄存器和栈的使用方式。理解 AAPCS 是 C 与汇编混编的基础，也是编写高性能 ARM 代码的前提。</p>
+<hr>
+<h2 id="2-整数寄存器角色与分组"><a href="#2-整数寄存器角色与分组" class="headerlink" title="2. 整数寄存器角色与分组"></a>2. 整数寄存器角色与分组</h2><p>ARMv7-A 有 16 个 32 位通用寄存器，标记为 R0–R15。AAPCS 为每个寄存器分配了确定的 PCS 名称和角色。根据原文 Table 16-1：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="3"></p>
+<p>R13&#x2F;R14&#x2F;R15 是 dedicated 专用的，表示这个寄存器的用途是CPU硬件&#x2F;架构强制规定的，不能随便拿它当普通变量用，也不能在函数里随意修改它的值（除非你知道自己在干什么）。</p>
+<h3 id="2-1-寄存器职责表"><a href="#2-1-寄存器职责表" class="headerlink" title="2.1 寄存器职责表"></a>2.1 寄存器职责表</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">+----------+----------+-------------------------------------------+</span><br><span class="line">| Register | PCS Name | PCS Role                                  |</span><br><span class="line">+----------+----------+-------------------------------------------+</span><br><span class="line">| R0       | a1       | argument 1 / scratch / result             |</span><br><span class="line">| R1       | a2       | argument 2 / scratch / result             |</span><br><span class="line">| R2       | a3       | argument 3 / scratch / result             |</span><br><span class="line">| R3       | a4       | argument 4 / scratch / result             |</span><br><span class="line">| R4       | v1       | register variable (callee-saved)          |</span><br><span class="line">| R5       | v2       | register variable (callee-saved)          |</span><br><span class="line">| R6       | v3       | register variable (callee-saved)          |</span><br><span class="line">| R7       | v4       | register variable (callee-saved)          |</span><br><span class="line">| R8       | v5       | register variable (callee-saved)          |</span><br><span class="line">| R9       | tr/sb/v6 | static base / thread register / v6        |</span><br><span class="line">| R10      | v7       | register variable (callee-saved)          |</span><br><span class="line">| R11      | v8       | register variable (callee-saved)          |</span><br><span class="line">| R12      | IP       | intra-procedure-call scratch / new-sb     |</span><br><span class="line">| R13      | SP       | stack pointer (full descending)           |</span><br><span class="line">| R14      | LR       | link register / scratch                   |</span><br><span class="line">| R15      | PC       | program counter                           |</span><br><span class="line">+----------+----------+-------------------------------------------+</span><br></pre></td></tr></table></figure>
+
+<p>对于函数调用而言，这 16 个寄存器可分为三类：</p>
+<ul>
+<li><strong>参数&#x2F;返回值寄存器（Argument &#x2F; Result registers）</strong>：R0–R3（PCS 名 a1–a4）。用于传递前四个函数参数，同时承担函数返回值（32 位返回值使用 R0，64 位返回值使用 R0-R1）。在函数内部也可作为临时寄存器（scratch register）使用。这些寄存器属于<strong>调用者保存（caller-saved）</strong>，若调用者希望跨函数调用保留其值，需要自行保存。</li>
+<li><strong>被调用者保存寄存器（Callee-saved registers）</strong>：R4–R8、R10、R11（v1–v5、v7–v8）。若被调函数需要使用这些寄存器，必须先保存其原值，并在返回前恢复，因此调用者可以假定它们在函数调用后保持不变。</li>
+<li><strong>特殊用途寄存器（Special-purpose registers）</strong>：R13（SP）为栈指针，R14（LR）保存函数返回地址，R15（PC）为程序计数器；R12（IP）为过程内调用暂存寄存器（caller-saved），供编译器使用，也可能被链接器在生成跨模块调用时作为临时寄存器；R9 的用途由平台 ABI 决定，可作为静态基址寄存器（SB）、线程寄存器（TR），或普通的被调用者保存寄存器（v6）。</li>
+</ul>
+<h3 id="2-2-R12-IP-的深层含义：为什么链接器需要一个暂存寄存器？"><a href="#2-2-R12-IP-的深层含义：为什么链接器需要一个暂存寄存器？" class="headerlink" title="2.2 R12 (IP) 的深层含义：为什么链接器需要一个暂存寄存器？"></a>2.2 R12 (IP) 的深层含义：为什么链接器需要一个暂存寄存器？</h3><p>ARM 的 <code>BL</code> (Branch with Link) 指令只能寻址 ±32MB 的范围——它使用 24 位有符号偏移。当调用者和被调用者之间的地址差超过这个范围时，链接器无法直接生成 <code>BL</code> 指令，必须插入一段中间代码，称为 <strong>veneer</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Caller</span><br><span class="line">  │</span><br><span class="line">  BL veneer         ← PC-relative, within ±32MB</span><br><span class="line">  │</span><br><span class="line">veneer:</span><br><span class="line">  LDR IP, =callee   ← load full 32-bit address into IP</span><br><span class="line">  BX  IP            ← indirect jump to callee</span><br><span class="line">  │</span><br><span class="line">callee:</span><br><span class="line">  ...</span><br></pre></td></tr></table></figure>
+
+<p>类似于 RISC-V 中 <code>AUIPC</code> + <code>JALR</code> 的长跳转组合，或 x86-64 中 <code>CALL *%rax</code> 的间接调用，ARM 借助 <code>IP</code> 寄存器避免了专用长跳转指令。veneer 还会用于 ARM–Thumb 状态切换和动态链接。因此 AAPCS 规定：<strong>调用者不能假设 R12 在函数调用后保持不变</strong>。</p>
+<h3 id="2-3-R9-的特殊地位"><a href="#2-3-R9-的特殊地位" class="headerlink" title="2.3 R9 的特殊地位"></a>2.3 R9 的特殊地位</h3><p>R9 是唯一可在不同平台上有不同语义的寄存器：</p>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>缩写</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Static Base</td>
+<td>SB</td>
+<td>指向位置无关数据段（如 PIC&#x2F;PID 代码中的 GOT）</td>
+</tr>
+<tr>
+<td>Thread Register</td>
+<td>TR</td>
+<td>指向线程局部存储 (TLS)</td>
+</tr>
+<tr>
+<td>Variable v6</td>
+<td>v6</td>
+<td>无特殊需求时作为额外的被调用者保存寄存器</td>
+</tr>
+</tbody></table>
+<p>在不需要 SB 或 TR 的代码中，R9 等价于额外的 v6，遵守与被调用者保存寄存器相同的规则。</p>
+<hr>
+<h2 id="3-函数调用的参数传递"><a href="#3-函数调用的参数传递" class="headerlink" title="3. 函数调用的参数传递"></a>3. 函数调用的参数传递</h2><h3 id="3-1-基本规则"><a href="#3-1-基本规则" class="headerlink" title="3.1 基本规则"></a>3.1 基本规则</h3><p>AAPCS 参数传递策略的核心思想是：<strong>优先使用寄存器，溢出才走栈</strong>。</p>
+<ul>
+<li>前 4 个字 (word) 大小的参数 → R0–R3</li>
+<li>第 5 个及之后的参数 → 压入栈中传递</li>
+<li>子字参数（如 <code>char</code>, <code>short</code>）仍然占用整个寄存器</li>
+<li>大于一个字（32-bit）的参数拆分到多个寄存器中</li>
+</ul>
+<p>这意味着一个 <code>void f(int a, char b, short c, int d)</code> 调用中，a→R0, b→R1, c→R2, d→R3——虽然 b 和 c 只有 8 位和 16 位，但仍各自占据一个完整的 32 位寄存器。</p>
+<h3 id="3-2-C-的-this-指针惩罚"><a href="#3-2-C-的-this-指针惩罚" class="headerlink" title="3.2 C++ 的 this 指针惩罚"></a>3.2 C++ 的 this 指针惩罚</h3><p>C++ 非静态成员函数隐含的 <code>this</code> 指针占用 R0，因此只剩 <strong>R1–R3 三个寄存器</strong>用于显式参数。当你定义一个 C++ 成员函数有 4 个参数时，第 4 个参数就已经溢出到栈上了。</p>
+<p>这意味着在性能敏感的 C++ 代码中，参数数量应该控制在 3 个以内——比 C 函数少一个。</p>
+<h3 id="3-3-64-位参数的对齐约束"><a href="#3-3-64-位参数的对齐约束" class="headerlink" title="3.3 64 位参数的对齐约束"></a>3.3 64 位参数的对齐约束</h3><p>这是 AAPCS 中最容易踩坑的规则。64 位类型的参数（如 <code>long long</code>、<code>double</code>）必须满足两个约束：</p>
+<ol>
+<li>在内存中必须 8 字节对齐（与 ARM <code>LDRD</code>&#x2F;<code>STRD</code> 双字加载指令的限制一致）</li>
+<li>在寄存器传递时必须使用<strong>偶数+奇数</strong>寄存器对（如 R0+R1 或 R2+R3，不能是 R1+R2）</li>
+</ol>
+<h4 id="实例：参数顺序错误的代价"><a href="#实例：参数顺序错误的代价" class="headerlink" title="实例：参数顺序错误的代价"></a>实例：参数顺序错误的代价</h4><p>以原文 Figure 16-1 为例。假设函数签名为：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">func1</span><span class="params">(<span class="type">int</span> a, <span class="type">double</span> b, <span class="type">int</span> c)</span>;</span><br></pre></td></tr></table></figure>
+
+<p>参数分配过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">a (int, 32-bit)  → R0                       [4 bytes used]</span><br><span class="line">b (double, 64-bit)→ R2 + R3   [8 bytes, must start at even reg]</span><br><span class="line">c (int, 32-bit)  → overflow → stack [R1 wasted!]</span><br></pre></td></tr></table></figure>
+
+<p>R1 因对齐约束被跳过，c 被迫溢出到栈。每次调用都需要额外的栈操作指令。</p>
+<p>如果将参数重新排序：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">func2</span><span class="params">(<span class="type">int</span> a, <span class="type">int</span> c, <span class="type">double</span> b)</span>;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">a (int, 32-bit)  → R0                       [4 bytes used]</span><br><span class="line">c (int, 32-bit)  → R1                       [4 bytes used]</span><br><span class="line">b (double, 64-bit)→ R2 + R3   [8 bytes, aligned at even reg]</span><br></pre></td></tr></table></figure>
+
+<p>全部 3 个参数都在寄存器中传递，零栈溢出。原文的结论是：<strong>参数列表的顺序直接影响指令条数和内存访问次数</strong>。</p>
+<blockquote>
+<p>Sub-optimal listing of arguments can cause unnecessary spilling of variables to the stack.</p>
+<p>— ARM Cortex-A Series Programmer’s Guide, Section 16.1</p>
+</blockquote>
+<p>对比 x86-64 System V ABI：64 位参数同样对齐，但有 6 个整数参数寄存器 (RDI, RSI, RDX, RCX, R8, R9)，溢出概率低得多。ARMv7-A 的 4 寄存器窗口使得参数排序优化在 ARM 上更为关键。</p>
+<h3 id="3-4-调用者与被调用者的代码模板"><a href="#3-4-调用者与被调用者的代码模板" class="headerlink" title="3.4 调用者与被调用者的代码模板"></a>3.4 调用者与被调用者的代码模板</h3><p>下面是原文提供的汇编模板。调用者侧：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">@ 调用者代码</span><br><span class="line">@ 可能需要保存 r0-r3（如果在调用后还需要它们的值）</span><br><span class="line">@ 不需要保存 r4-r11</span><br><span class="line">BL  func</span><br></pre></td></tr></table></figure>
+
+<p>被调用者侧：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">func:</span><br><span class="line">@ 必须保存 r4-r11, lr（如果使用）</span><br><span class="line">@ 可以破坏 r0-r3, r12</span><br><span class="line">PUSH &#123;r4-r11, lr&#125;       @ 保存被调用者寄存器 + 返回地址</span><br><span class="line">...</span><br><span class="line">POP  &#123;r4-r11, pc&#125;       @ 恢复寄存器，pc←lr，实现返回</span><br></pre></td></tr></table></figure>
+
+<p>这里有几个细节。AAPCS 要求栈在公共接口处保持 8 字节对齐（双字对齐），因此被调函数的 PUSH&#x2F;POP 通常使用偶数个寄存器以维持对齐。最常见的情况是 <code>&#123;r4, lr&#125;</code> 或 <code>&#123;r4-r8, lr&#125;</code>（lr 占一个槽位，凑成偶数）。叶子函数（不调用其他函数的函数）不需要保存 LR，但如果只需保存单个被调用者寄存器（比如仅 r4），单寄存器 PUSH 会破坏 8 字节对齐——编译器此时会通过 <code>SUB sp, sp, #8</code> 手动调整栈指针、或在栈上多压一个占位寄存器来解决。</p>
+<hr>
+<h2 id="4-VFP-与-NEON-寄存器约定"><a href="#4-VFP-与-NEON-寄存器约定" class="headerlink" title="4. VFP 与 NEON 寄存器约定"></a>4. VFP 与 NEON 寄存器约定</h2><p>ARMv7-A 的浮点&#x2F;向量寄存器和整数寄存器是两套独立的寄存器文件。当硬件浮点单元 (VFP) 存在时，AAPCS 定义了两套参数传递策略。</p>
+<h3 id="4-1-VFPv3-寄存器布局"><a href="#4-1-VFPv3-寄存器布局" class="headerlink" title="4.1 VFPv3 寄存器布局"></a>4.1 VFPv3 寄存器布局</h3><p>VFPv3 提供：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">s0-s31:  32 个单精度寄存器 (32-bit each)</span><br><span class="line">d0-d15:  16 个双精度寄存器 (64-bit, s0+s1→d0, s2+s3→d1...)</span><br><span class="line">d16-d31: 额外 16 个双精度寄存器 (仅 VFPv3-D32)</span><br><span class="line">q0-q15:  16 个四字寄存器 (128-bit, NEON 视角)</span><br></pre></td></tr></table></figure>
+
+<p>保存约定：</p>
+<table>
+<thead>
+<tr>
+<th>寄存器范围</th>
+<th>浮点视图</th>
+<th>NEON 视图</th>
+<th>保存约定</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>s0–s15</td>
+<td>d0–d7</td>
+<td>q0–q3</td>
+<td>调用者保存（参数&#x2F;返回值）</td>
+</tr>
+<tr>
+<td>s16–s31</td>
+<td>d8–d15</td>
+<td>q4–q7</td>
+<td>被调用者保存</td>
+</tr>
+<tr>
+<td>—</td>
+<td>d16–d31</td>
+<td>q8–q15</td>
+<td>调用者保存</td>
+</tr>
+</tbody></table>
+<p>注意：<code>d16-d31</code> (q8–q15) 虽然在整数寄存器数量之外，但它们同样是调用者保存的。只有 <code>s16–s31</code> (d8–d15, q4–q7) 需要被调函数保留。</p>
+<h3 id="4-2-软件浮点链路-vs-硬件浮点链路"><a href="#4-2-软件浮点链路-vs-硬件浮点链路" class="headerlink" title="4.2 软件浮点链路 vs 硬件浮点链路"></a>4.2 软件浮点链路 vs 硬件浮点链路</h3><p>GCC 提供三种浮点 ABI 选项，区分为<strong>参数传递方式</strong>和<strong>浮点运算实现</strong>两个维度：</p>
+<table>
+<thead>
+<tr>
+<th>选项</th>
+<th>参数传递</th>
+<th>浮点运算</th>
+<th>二进制兼容于</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>-mfloat-abi=soft</code></td>
+<td>整数寄存器 R0–R3 + 栈</td>
+<td>库函数软实现 (不需要 FPU)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>-mfloat-abi=softfp</code></td>
+<td>整数寄存器 R0–R3 + 栈</td>
+<td>VFP 协处理器指令</td>
+<td>soft</td>
+</tr>
+<tr>
+<td><code>-mfloat-abi=hard</code></td>
+<td>VFP 寄存器 d0–d7 (s0–s15) + 栈</td>
+<td>VFP 协处理器指令</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p>关键区别：<strong>softfp 使用 VFP 硬件做浮点计算，但参数仍通过整数寄存器传递</strong>。这使得 softfp 编译的二进制与 soft 编译的库二进制兼容——两者都用整数寄存器传参。hard 则完全不同：浮点参数直接进入 VFP 寄存器，与 soft&#x2F;softfp 编译的目标文件不兼容。</p>
+<p>同一可执行镜像中不能混用 hard 和 soft&#x2F;softfp ——链接器层面就会拒绝混合 ABI 的目标文件。具体选择标准：</p>
+<ul>
+<li><strong>soft</strong>：目标是可能没有 FPU 的处理器，不需要浮点性能</li>
+<li><strong>softfp</strong>：目标有 VFP，但需要与现有的 soft ABI 库保持二进制兼容</li>
+<li><strong>hard</strong>：目标有 VFP，全工具链统一编译，追求最高浮点调用性能</li>
+</ul>
+<p>硬浮点链路中，整数参数和浮点参数使用<strong>独立的寄存器序列和计数器</strong>——整数参数用 R0–R3 溢出到栈，浮点参数用 d0–d7 溢出到栈，互不干涉。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">f</span><span class="params">(<span class="type">uint32_t</span> a, <span class="type">uint64_t</span> b)</span></span><br><span class="line"><span class="comment">// 整数参数分配:</span></span><br><span class="line"><span class="comment">//   r0: a</span></span><br><span class="line"><span class="comment">//   r1: unused (因为 b 必须从偶数寄存器开始)</span></span><br><span class="line"><span class="comment">//   r2: b[31:0]</span></span><br><span class="line"><span class="comment">//   r3: b[63:32]</span></span><br></pre></td></tr></table></figure>
+
+<p>这说明即使引入了浮点寄存器，整数参数的对齐约束仍然独立生效。</p>
+<h3 id="4-3-浮点寄存器的-back-fill-机制"><a href="#4-3-浮点寄存器的-back-fill-机制" class="headerlink" title="4.3 浮点寄存器的 back-fill 机制"></a>4.3 浮点寄存器的 back-fill 机制</h3><p>浮点参数分配有一个整数参数不具备的特性：<strong>back-fill（回填）</strong>。当一个大尺寸浮点参数跳过了小寄存器的空隙后，后续小参数可以回填到那个空隙中。</p>
+<p>下面的时序图展示了 <code>int</code> + <code>double</code> + <code>float</code> 参数混合传递时 back-fill 的完整过程：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="2"></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">f</span><span class="params">(<span class="type">float</span> a, <span class="type">double</span> b, <span class="type">float</span> c)</span></span><br><span class="line"><span class="comment">// 浮点分配:</span></span><br><span class="line"><span class="comment">//   a (float, 32-bit) → s0</span></span><br><span class="line"><span class="comment">//   b (double, 64-bit) → d1 (需要完整的 d 寄存器，不能从 s1 开始)</span></span><br><span class="line"><span class="comment">//                         s1 现在是空闲的</span></span><br><span class="line"><span class="comment">//   c (float, 32-bit) → s1 (back-fill 到空闲的 s1)</span></span><br><span class="line"><span class="comment">//</span></span><br><span class="line"><span class="comment">// 最终: d0 = &#123;s0:a, s1:c&#125;, d1 = b</span></span><br></pre></td></tr></table></figure>
+
+<p>类似 RISC-V F&#x2F;D 扩展中 FPR 的压缩分配策略一致——浮点寄存器天然支持变长打包，减少了寄存器浪费。</p>
+<p>实现上，这通过三个独立的计数器（<code>s</code> 计数器、<code>d</code> 计数器、<code>q</code> 计数器）来管理。每个计数器指向对应尺寸的”下一个可用槽位”。</p>
+<h3 id="4-4-栈溢出的不可逆约束"><a href="#4-4-栈溢出的不可逆约束" class="headerlink" title="4.4 栈溢出的不可逆约束"></a>4.4 栈溢出的不可逆约束</h3><p>当浮点参数数量超过 8 个（d0–d7 全满），后续参数溢出到栈。<strong>一旦有浮点参数溢出到栈，back-fill 就停止了</strong>——后续参数不能再回填到寄存器中可能剩余的空位。</p>
+<p>以原文档中的极端例子为例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">f</span><span class="params">(<span class="type">double</span> a, <span class="type">double</span> b, <span class="type">double</span> c, <span class="type">double</span> d,</span></span><br><span class="line"><span class="params">       <span class="type">double</span> e, <span class="type">double</span> f, <span class="type">float</span> g,</span></span><br><span class="line"><span class="params">       <span class="type">double</span> h, <span class="type">double</span> i, <span class="type">float</span> j)</span></span><br></pre></td></tr></table></figure>
+
+<p>分配过程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">d0: a           d1: b           d2: c           d3: d</span><br><span class="line">d4: e           d5: f</span><br><span class="line">d6: &#123;s12: g, s13: unused&#125;       d7: h</span><br><span class="line">--- REGISTERS FULL (8 d-registers used) ---</span><br><span class="line">STACK:</span><br><span class="line">  *sp:     i    (64-bit, spilled to stack)</span><br><span class="line">  *sp+8:   j    (32-bit, must go to stack — back-fill disabled!)</span><br><span class="line">  *sp+12:  unused (4 bytes padding for 8-byte SP alignment)</span><br></pre></td></tr></table></figure>
+
+<p>尽管 <code>d6</code> 中 s13 仍然空闲，但 <code>j</code> 不能回填到 s13——因为 <code>i</code> 已经溢出到栈了。规则是：”一旦 FP 参数触及栈，就不能回填到寄存器”。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="1"></p>
+<h3 id="4-5-变参函数的特殊处理"><a href="#4-5-变参函数的特殊处理" class="headerlink" title="4.5 变参函数的特殊处理"></a>4.5 变参函数的特殊处理</h3><p>带有可变参数（如 <code>printf</code>）的函数不使用 VFP 寄存器传递浮点参数。所有参数改为通过整数寄存器（R0–R3）和栈传递，单精度浮点被提升为双精度。这是因为变参函数的调用方和实现方无法在编译期约定哪些参数是浮点类型。</p>
+<hr>
+<h2 id="5-栈、堆与返回值"><a href="#5-栈、堆与返回值" class="headerlink" title="5. 栈、堆与返回值"></a>5. 栈、堆与返回值</h2><h3 id="5-1-栈实现"><a href="#5-1-栈实现" class="headerlink" title="5.1 栈实现"></a>5.1 栈实现</h3><p>AAPCS 规定栈为 <strong>full-descending（满递减）</strong> 类型：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Full   — SP 指向栈顶最后一个被使用的元素（而非下一个空闲位置）</span><br><span class="line">Descending — 栈向低地址方向增长</span><br></pre></td></tr></table></figure>
+
+<p>对齐要求：</p>
+<ul>
+<li>内部调用：字对齐（4 字节）</li>
+<li><strong>外部接口必须双字对齐（8 字节）</strong></li>
+</ul>
+<p>由于 ARM 的 <code>LDRD</code>&#x2F;<code>STRD</code> 指令要求 8 字节对齐的地址，在函数边界保持 8 字节对齐可以避免非对齐访问异常。AArch64 延续了这一约束（SP 必须 16 字节对齐，比 ARMv7 更严格）。</p>
+<p>堆则由进程自行管理（典型的是 C <code>malloc()</code>），ABI 不做特殊规定。</p>
+<h3 id="5-2-返回值约定"><a href="#5-2-返回值约定" class="headerlink" title="5.2 返回值约定"></a>5.2 返回值约定</h3><table>
+<thead>
+<tr>
+<th>返回类型</th>
+<th>软件浮点链路</th>
+<th>硬件浮点链路</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>char</code> &#x2F; <code>short</code> &#x2F; <code>int</code></td>
+<td>R0</td>
+<td>R0</td>
+</tr>
+<tr>
+<td><code>float</code> (32-bit)</td>
+<td>R0</td>
+<td>s0</td>
+</tr>
+<tr>
+<td><code>long long</code> &#x2F; <code>double</code></td>
+<td>R0 + R1</td>
+<td>d0</td>
+</tr>
+<tr>
+<td>NEON 向量</td>
+<td>—</td>
+<td>q0</td>
+</tr>
+</tbody></table>
+<p>硬件浮点链路中，整数和浮点返回值分属不同寄存器，不存在冲突。</p>
+<hr>
+<h2 id="6-C-与汇编混编实践"><a href="#6-C-与汇编混编实践" class="headerlink" title="6. C 与汇编混编实践"></a>6. C 与汇编混编实践</h2><p>理解 AAPCS 最直接的应用场景就是将汇编嵌入 C 代码。ARM 原文给出了从简单到复杂的三个层次。</p>
+<h3 id="6-1-GCC-基本内联汇编"><a href="#6-1-GCC-基本内联汇编" class="headerlink" title="6.1 GCC 基本内联汇编"></a>6.1 GCC 基本内联汇编</h3><p>最简单的形式——单条指令：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">asm</span>(<span class="string">&quot;nop&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>但这是一个陷阱：编译器优化器可能直接删除这条 <code>asm</code> 语句（因为没有输入输出的副作用），即使不删除，处理器硬件也可以从指令流中过滤掉 <code>NOP</code> 使其不进入执行阶段。原文提醒：<strong>inline assembly 代码仍然受 C 编译器优化控制和处理器微架构影响</strong>。</p>
+<h3 id="6-2-扩展内联汇编语法"><a href="#6-2-扩展内联汇编语法" class="headerlink" title="6.2 扩展内联汇编语法"></a>6.2 扩展内联汇编语法</h3><p>GCC 扩展内联汇编的完整格式为：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">asm</span> <span class="title function_">volatile</span> <span class="params">(</span></span><br><span class="line"><span class="params">    汇编指令序列         <span class="comment">// 模板</span></span></span><br><span class="line"><span class="params">  : 输出操作数           <span class="comment">// 可选</span></span></span><br><span class="line"><span class="params">  : 输入操作数           <span class="comment">// 可选</span></span></span><br><span class="line"><span class="params">  : 破坏列表             <span class="comment">// 可选</span></span></span><br><span class="line"><span class="params">)</span>;</span><br></pre></td></tr></table></figure>
+
+<p>以原文中 <code>USAD8</code>（无符号字节绝对差求和）为例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">asm</span> <span class="title function_">volatile</span> <span class="params">(<span class="string">&quot;usad8 %0, %1, %2&quot;</span></span></span><br><span class="line"><span class="params">  : <span class="string">&quot;=r&quot;</span> (result)         <span class="comment">// output: %0 → result（任意 ARM 寄存器）</span></span></span><br><span class="line"><span class="params">  : <span class="string">&quot;r&quot;</span>(value1), <span class="string">&quot;r&quot;</span>(value2)    <span class="comment">// inputs: %1→value1, %2→value2</span></span></span><br><span class="line"><span class="params">)</span>;</span><br></pre></td></tr></table></figure>
+
+<p>三个冒号将模板分成了四个部分。<code>%0</code>、<code>%1</code>、<code>%2</code> 按位置引用操作数。<code>volatile</code> 告诉 GCC 不要优化掉这条汇编。</p>
+<h3 id="6-3-约束字符"><a href="#6-3-约束字符" class="headerlink" title="6.3 约束字符"></a>6.3 约束字符</h3><p>这些单个字母是 GCC 和汇编器之间的”类型约定”：</p>
+<table>
+<thead>
+<tr>
+<th>约束</th>
+<th>含义</th>
+<th>修饰符</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>&quot;r&quot;</code></td>
+<td>ARM 通用寄存器 R0–R15</td>
+<td><code>&quot;=&quot;</code></td>
+<td>只写输出</td>
+</tr>
+<tr>
+<td><code>&quot;m&quot;</code></td>
+<td>内存地址</td>
+<td><code>&quot;+&quot;</code></td>
+<td>读写（既是输入也是输出）</td>
+</tr>
+<tr>
+<td><code>&quot;w&quot;</code></td>
+<td>VFP 单精度寄存器</td>
+<td><code>&quot;&amp;&quot;</code></td>
+<td>输出不与任何输入共享寄存器</td>
+</tr>
+<tr>
+<td><code>&quot;I&quot;</code></td>
+<td>ARM 数据处理指令的立即数范围</td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<p>修饰符 <code>&quot;&amp;&quot;</code> (early-clobber) 特别重要——它告诉编译器为输出操作数选择一个不与任何输入操作数重叠的寄存器，防止汇编指令在读取完所有输入之前就覆盖了某个输入寄存器。</p>
+<h3 id="6-4-Clobber-列表"><a href="#6-4-Clobber-列表" class="headerlink" title="6.4 Clobber 列表"></a>6.4 Clobber 列表</h3><p>clobber 列表（破坏列表）告诉编译器哪些资源在汇编语句中被修改了。格式：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">: &quot;r0&quot;, &quot;r1&quot;, &quot;cc&quot;, &quot;memory&quot;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>&quot;r0&quot;</code>, <code>&quot;r1&quot;</code> — 具体寄存器被修改</li>
+<li><code>&quot;cc&quot;</code> — 条件码标志 (CPSR NZCV) 被修改</li>
+<li><code>&quot;memory&quot;</code> — 告诉编译器汇编语句可能读取或写入任意内存位置。编译器因此必须将寄存器中缓存的任何内存值在 asm 前写回、在 asm 后重新加载，且不能跨 asm 重排内存访问。这相当于一个编译器级别的内存屏障，不影响硬件内存排序。</li>
+</ul>
+<p>如果省略 clobber 列表，编译器会假设汇编代码只通过输入输出操作数影响程序状态，可能做出错误的优化。</p>
+<h3 id="6-5-来自-Linux-内核的实例"><a href="#6-5-来自-Linux-内核的实例" class="headerlink" title="6.5 来自 Linux 内核的实例"></a>6.5 来自 Linux 内核的实例</h3><p>原文档给出了一个来自 Linux 内核的真实内联汇编案例——从 SVC 模式切换到 FIQ 模式读取 FIQ 寄存器状态：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> __naked <span class="title function_">get_fiq_regs</span><span class="params">(<span class="keyword">struct</span> pt_regs *regs)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">register</span> <span class="type">unsigned</span> <span class="type">long</span> tmp;</span><br><span class="line">    <span class="keyword">asm</span> <span class="title function_">volatile</span> <span class="params">(</span></span><br><span class="line"><span class="params">        <span class="string">&quot;mov    ip, sp\n&quot;</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;stmfd  sp!, &#123;fp, ip, lr, pc&#125;\n&quot;</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;sub    fp, ip, #4\n&quot;</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;mrs    %0, cpsr\n&quot;</span>           <span class="comment">// 保存当前 CPSR</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;msr    cpsr_c, %2\n&quot;</span>         <span class="comment">// 切换到 FIQ 模式</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;mov    r0, r0\n&quot;</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;stmia  %1, &#123;r8 - r14&#125;\n&quot;</span>    <span class="comment">// 保存 FIQ 模式下的寄存器</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;msr    cpsr_c, %0\n&quot;</span>         <span class="comment">// 切回原模式</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;mov    r0, r0\n&quot;</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;ldmfd  sp, &#123;fp, sp, pc&#125;&quot;</span></span></span><br><span class="line"><span class="params">        : <span class="string">&quot;=&amp;r&quot;</span> (tmp)                  <span class="comment">// tmp 不与其他输入共享</span></span></span><br><span class="line"><span class="params">        : <span class="string">&quot;r&quot;</span> (&amp;regs-&gt;ARM_r8),</span></span><br><span class="line"><span class="params">          <span class="string">&quot;I&quot;</span> (PSR_I_BIT | PSR_F_BIT | FIQ_MODE) <span class="comment">// 立即数</span></span></span><br><span class="line"><span class="params">    )</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逐行解读：</p>
+<ul>
+<li><code>mrs %0, cpsr</code> — 将当前程序状态寄存器读入 <code>tmp</code>（<code>%0</code>）</li>
+<li><code>msr cpsr_c, %2</code> — 将 <code>PSR_I_BIT | PSR_F_BIT | FIQ_MODE</code> 写入 CPSR 控制字段，切换到 FIQ 模式并将 IRQ&#x2F;FIQ 屏蔽</li>
+<li><code>stmia %1, &#123;r8-r14&#125;</code> — 在 FIQ 模式下，R8–R14 是 FIQ 的 banked 寄存器（来自 FIQ 异常时的处理器状态，而非 SVC 模式下的值），将它们保存到 <code>regs-&gt;ARM_r8</code> 起始的内存</li>
+<li><code>msr cpsr_c, %0</code> — 恢复原始 CPSR，回到 SVC 模式</li>
+<li><code>__naked</code> 属性告诉编译器不生成函数序言&#x2F;尾声代码（不自动 PUSH&#x2F;POP），因为此函数自行管理了栈帧</li>
+</ul>
+<p>这个例子展示了 AAPCS 内联汇编的全部要素：多指令模板、输入输出约束、clobber 隐式管理、系统寄存器操作（<code>mrs</code>&#x2F;<code>msr</code>）。理解这个例子，就掌握了 ARM GCC 内联汇编的核心。</p>
+<hr>
+<h2 id="7-关键要点"><a href="#7-关键要点" class="headerlink" title="7. 关键要点"></a>7. 关键要点</h2><ol>
+<li><p><strong>AAPCS 是 ARM 函数调用的”合约”</strong> —— 调用者和被调用者必须就寄存器使用达成一致，否则函数调用将产生未定义行为。</p>
+</li>
+<li><p><strong>4 寄存器窗口是性能瓶颈</strong> —— 只有 R0–R3 四个参数寄存器（C++ 只有三个），超出即溢出到栈。参数排序直接影响代码效率：将 64 位类型放在参数列表末尾可避免寄存器空洞。</p>
+</li>
+<li><p><strong>被调用者保存 R4–R11</strong> —— 函数可以自由使用 R4–R8、R10、R11，但使用前必须保存原值到栈，返回前恢复。</p>
+</li>
+<li><p><strong>硬浮点链路 ≠ 软件浮点链路</strong> —— 同一可执行镜像中不能混用。硬浮点性能更高但不可移植，软浮点可移植但参数需要搬移到浮点寄存器计算。</p>
+</li>
+<li><p><strong>浮点寄存器有 back-fill 但有时效限制</strong> —— 一旦有参数溢出到栈，回填立即停止。变参函数完全不使用浮点寄存器。</p>
+</li>
+<li><p><strong>GCC 内联汇编的关键是”告诉编译器真相”</strong> —— 约束字符 <code>&quot;=r&quot;</code>&#x2F;<code>&quot;&amp;&quot;</code> 和 clobber 列表是编译器优化的边界标记，遗漏会导致难以追踪的运行时错误。</p>
+</li>
+<li><p><strong>与 AArch64 的对比</strong> —— ARMv7-A 的 AAPCS 是 AArch64 AAPCS64 的前身。64 位模式将参数寄存器扩展到 8 个 (X0–X7)，SP 对齐从 8 字节提升到 16 字节，但基本的分组逻辑（参数&#x2F;被调用者保存&#x2F;专用）保持一致。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/" rel="prev" title="ARM启动流程">
+                  <i class="fa fa-angle-left"></i> ARM启动流程
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
