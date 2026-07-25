@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文系统梳理了向 ARMv7 平台移植代码时最常见的跨架构问题：端序差异如何导致静默数据错误、ARMv4 与 ARMv7 非对齐访问行为的不兼容、C 语言实现定义行为在不同编译器间的分歧，以及 ARM 汇编与 Thumb-2 互操作的关键约束。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM代码移植指南">
+<meta property="og:url" content="http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文系统梳理了向 ARMv7 平台移植代码时最常见的跨架构问题：端序差异如何导致静默数据错误、ARMv4 与 ARMv7 非对齐访问行为的不兼容、C 语言实现定义行为在不同编译器间的分歧，以及 ARM 汇编与 Thumb-2 互操作的关键约束。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-25T02:37:52.000Z">
+<meta property="article:modified_time" content="2026-07-25T02:38:29.143Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/","path":"2026/07/25/ARM代码移植指南/","title":"ARM代码移植指南"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM代码移植指南 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E7%AB%AF%E5%BA%8F%E4%B8%8E%E8%B7%A8%E5%B9%B3%E5%8F%B0%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-text">1. 端序与跨平台一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E7%AB%AF%E5%BA%8F%E6%95%8F%E6%84%9F%E7%9A%84%E4%BB%A3%E7%A0%81%E6%A8%A1%E5%BC%8F"><span class="nav-text">1.1 端序敏感的代码模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-ARM-%E7%9A%84%E7%AB%AF%E5%BA%8F%E6%8E%A7%E5%88%B6%E6%9C%BA%E5%88%B6"><span class="nav-text">1.2 ARM 的端序控制机制</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%86%85%E5%AD%98%E5%AF%B9%E9%BD%90%EF%BC%9AARMv4-%E4%B8%8E-ARMv7-%E7%9A%84%E8%A1%8C%E4%B8%BA%E5%B7%AE%E5%BC%82"><span class="nav-text">2. 内存对齐：ARMv4 与 ARMv7 的行为差异</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%97%A7-ARM-%E7%9A%84-unaligned-%E8%A1%8C%E4%B8%BA%E4%B8%8E%E8%BF%81%E7%A7%BB%E9%A3%8E%E9%99%A9"><span class="nav-text">2.1 旧 ARM 的 unaligned 行为与迁移风险</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-ARMv7-%E7%9A%84%E9%9D%9E%E5%AF%B9%E9%BD%90%E6%94%AF%E6%8C%81"><span class="nav-text">2.2 ARMv7 的非对齐支持</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-C-%E8%AF%AD%E8%A8%80%E7%A7%BB%E6%A4%8D%E6%B3%A8%E6%84%8F%E4%BA%8B%E9%A1%B9"><span class="nav-text">3. C 语言移植注意事项</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-char-%E7%9A%84-signed-unsigned-%E6%AD%A7%E4%B9%89%E4%B8%8E%E7%BC%96%E8%AF%91%E5%99%A8%E5%B7%AE%E5%BC%82"><span class="nav-text">3.1 char 的 signed&#x2F;unsigned 歧义与编译器差异</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%BB%93%E6%9E%84%E4%BD%93%E5%A1%AB%E5%85%85%E4%B8%8E-packed-%E7%9A%84%E4%BB%A3%E4%BB%B7"><span class="nav-text">3.2 结构体填充与 __packed__ 的代价</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%8F%98%E5%8F%82%E5%87%BD%E6%95%B0%E4%B8%8E%E6%A0%88%E5%81%87%E8%AE%BE"><span class="nav-text">3.3 变参函数与栈假设</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-enum%E7%9A%84%E5%A4%A7%E5%B0%8F%E4%B8%8EABI%E5%85%BC%E5%AE%B9%E6%80%A7"><span class="nav-text">3.4 enum的大小与ABI兼容性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E6%95%B4%E6%95%B0%E4%BD%8D%E5%AE%BD%E5%81%87%E8%AE%BE"><span class="nav-text">3.5 整数位宽假设</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-%E5%87%BD%E6%95%B0%E5%8E%9F%E5%9E%8B%E7%BC%BA%E5%A4%B1%E4%B8%8E%E5%A3%B0%E6%98%8E%E4%B8%8D%E5%8C%B9%E9%85%8D"><span class="nav-text">3.6 函数原型缺失与声明不匹配</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-ARM-%E6%B1%87%E7%BC%96%E4%BB%A3%E7%A0%81%E7%9A%84%E6%9E%B6%E6%9E%84%E8%BF%81%E7%A7%BB"><span class="nav-text">4. ARM 汇编代码的架构迁移</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-CP15-%E5%AF%84%E5%AD%98%E5%99%A8%E5%B9%B6%E9%9D%9E%E9%83%BD%E8%83%BD%E7%9B%B4%E6%8E%A5%E6%B2%BF%E7%94%A8"><span class="nav-text">4.1 CP15 寄存器并非都能直接沿用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E7%94%A8-LDREX-STREX-%E6%9B%BF%E4%BB%A3-SWP"><span class="nav-text">4.2 用 LDREX&#x2F;STREX 替代 SWP</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E6%A3%80%E6%9F%A5%E6%97%A7%E4%BB%A3%E7%A0%81%E4%B8%AD%E7%9A%84%E5%86%85%E5%AD%98%E9%A1%BA%E5%BA%8F%E5%81%87%E8%AE%BE"><span class="nav-text">4.3 检查旧代码中的内存顺序假设</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-ARM-%E6%B1%87%E7%BC%96%E5%88%B0-Thumb-2-%E7%9A%84%E8%BF%81%E7%A7%BB"><span class="nav-text">5. ARM 汇编到 Thumb-2 的迁移</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E9%81%BF%E5%85%8D%E6%89%8B%E5%B7%A5%E8%AE%A1%E7%AE%97-PC-%E7%9B%B8%E5%AF%B9%E5%9C%B0%E5%9D%80"><span class="nav-text">5.1 避免手工计算 PC 相对地址</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E6%89%80%E6%9C%89%E6%B6%89%E5%8F%8A-PC-%E7%9A%84%E8%B7%B3%E8%BD%AC%E5%BA%94%E6%94%B9%E7%94%A8-BX-BLX"><span class="nav-text">5.2 所有涉及 PC 的跳转应改用 BX&#x2F;BLX</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Thumb-%E6%8C%87%E4%BB%A4%E9%99%90%E5%88%B6%E6%9B%B4%E5%A4%9A"><span class="nav-text">5.3 Thumb 指令限制更多</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E9%93%BE%E6%8E%A5%E5%99%A8%E5%8F%AF%E8%83%BD%E8%87%AA%E5%8A%A8%E6%8F%92%E5%85%A5-Veneer"><span class="nav-text">5.4 链接器可能自动插入 Veneer</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%AD%A6%E4%B9%A0%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">6. 学习要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">63</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM代码移植指南 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM代码移植指南
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-25 10:37:52" itemprop="dateCreated datePublished" datetime="2026-07-25T10:37:52+08:00">2026-07-25</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文系统梳理了向 ARMv7 平台移植代码时最常见的跨架构问题：端序差异如何导致静默数据错误、ARMv4 与 ARMv7 非对齐访问行为的不兼容、C 语言实现定义行为在不同编译器间的分歧，以及 ARM 汇编与 Thumb-2 互操作的关键约束。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-端序与跨平台一致性"><a href="#1-端序与跨平台一致性" class="headerlink" title="1. 端序与跨平台一致性"></a>1. 端序与跨平台一致性</h2><p>在计算机体系结构中，”端序”指多字节数据在内存中的字节排列顺序：</p>
+<table>
+<thead>
+<tr>
+<th>端序</th>
+<th>规则</th>
+<th>实例：<code>int i = 0x44332211</code> 在地址 0x1000 的内存布局</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Little-endian</strong></td>
+<td>最低有效字节存在最低地址</td>
+<td><code>0x1000: 0x11, 0x1001: 0x22, 0x1002: 0x33, 0x1003: 0x44</code></td>
+</tr>
+<tr>
+<td><strong>Big-endian</strong></td>
+<td>最高有效字节存在最低地址</td>
+<td><code>0x1000: 0x44, 0x1001: 0x33, 0x1002: 0x22, 0x1003: 0x11</code></td>
+</tr>
+</tbody></table>
+<p>ARM 核心同时支持两种端序，但默认运行于 little-endian。大多数 ARM Linux 发行版仅支持 little-endian。一个值得记住的对照：x86 是 little-endian；PowerPC 和 68K 通常是 big-endian；TCP&#x2F;IP 是大端，USB 和 PCI 是小端。</p>
+<h3 id="1-1-端序敏感的代码模式"><a href="#1-1-端序敏感的代码模式" class="headerlink" title="1.1 端序敏感的代码模式"></a>1.1 端序敏感的代码模式</h3><p>最容易因端序搬迁而崩溃的代码模式：</p>
+<p><strong>Unions</strong> — 联合体在不同时刻以不同数据类型解释同一块内存。当 halfword&#x2F;word 数据被当作 byte 数组访问时，不同端序下的字节顺序完全相反。</p>
+<p><strong>指针强制转换</strong> — <code>char *buf = (char*)&amp;i;</code> 然后将 <code>buf[0]</code> 到 <code>buf[3]</code> 分别赋给 <code>i0</code> 到 <code>i3</code>。这四段代码在 big-endian 和 little-endian 系统上产生的 <code>i0..i3</code> 值排列顺序恰好相反——“inherently non-portable”。</p>
+<p><strong>Bitfields</strong> — 位域在不同编译器、不同端序下的排列方式没有任何标准保证：”code that defines bitfields or performs bit operations must not be used in code that is intended to be portable.”</p>
+<p><strong>网络代码 (Networking code)</strong> — 与网络协议栈或 I&#x2F;O 设备的数据交互受端序影响最直接。TCP&#x2F;IP 头部字段均为大端（<code>htonl</code>&#x2F;<code>ntohl</code> 等函数用于主机序与网络序的转换），PCI&#x2F;USB 为小端，而设备 DMA 缓冲区的端序取决于控制器设计。端口测试如果不覆盖不同端序的对端，静默的字节反转错误容易遗漏。</p>
+<p><strong>数据共享</strong> — 任何跨核、跨 DSP、跨外设或跨网络的数据交换都必须确认双方的端序约定是否一致。不一致则必须在外设接口处做字节反转。</p>
+<h3 id="1-2-ARM-的端序控制机制"><a href="#1-2-ARM-的端序控制机制" class="headerlink" title="1.2 ARM 的端序控制机制"></a>1.2 ARM 的端序控制机制</h3><p>Cortex-A 系列通过 <strong>CPSR 的 E 位</strong>支持运行时切换<strong>数据访问</strong>的字节序。软件可使用 <code>SETEND LE</code> 或 <code>SETEND BE</code> 在 Little Endian 与 Big Endian 之间切换，但<strong>指令取指始终采用 Little Endian 编码</strong>，不会受 E 位影响。因此，程序切换端序时只影响数据读写，不影响代码执行。</p>
+<p>CP15 <strong>SCTLR 的 EE 位</strong>（Exception Endian，bit[25]）则决定<strong>异常处理期间</strong>的数据访问端序，同时也决定 MMU 页表遍历（Page Table Walk）的端序。这意味着应用程序与异常处理代码在理论上可以使用不同的数据端序。不过，主流编译器和 ABI 通常假设整个程序采用统一端序，很难针对系统中的一部分代码单独生成不同端序的访问，因此这种<strong>混合端序（Mixed Endian）</strong>系统在实际中很少使用。</p>
+<p>现代 ARM 处理器采用 <strong>BE8（Byte-Invariant Big Endian）</strong> 模式实现大端支持：<strong>只有数据访问使用 Big Endian，指令取指始终保持 Little Endian</strong>。早期 ARM 曾支持 <strong>BE-32</strong>（指令和数据均采用 Big Endian）的模式，但已在 ARMv7 中废弃。因此，在 ARMv7 及之后的处理器上，无论系统采用大端还是小端，CPU 都始终以 Little Endian 格式读取指令，只是数据访问的字节顺序会根据配置发生变化。对于需要在软件中进行大小端转换的场景，可以使用 <code>REV</code> 指令高效地完成寄存器内的字节交换。</p>
+<hr>
+<h2 id="2-内存对齐：ARMv4-与-ARMv7-的行为差异"><a href="#2-内存对齐：ARMv4-与-ARMv7-的行为差异" class="headerlink" title="2. 内存对齐：ARMv4 与 ARMv7 的行为差异"></a>2. 内存对齐：ARMv4 与 ARMv7 的行为差异</h2><h3 id="2-1-旧-ARM-的-unaligned-行为与迁移风险"><a href="#2-1-旧-ARM-的-unaligned-行为与迁移风险" class="headerlink" title="2.1 旧 ARM 的 unaligned 行为与迁移风险"></a>2.1 旧 ARM 的 unaligned 行为与迁移风险</h3><p>从 ARMv4&#x2F;ARMv5 向 ARMv7 迁移的对齐问题值得单独讨论。在 ARM7 和 ARM9 处理器上，一条对一个非对齐地址的 <code>LDR</code> 不会触发异常——硬件仍然执行对齐的内存访问，但<strong>将加载的数据旋转</strong>使得请求地址处的字节出现在目标寄存器的<strong>最低有效字节</strong>位置。</p>
+<p>“一些老式编译器和操作系统曾利用这一行为进行取巧的优化”。问题在于：当这段代码搬到 ARMv7 时，unaligned access 的行为<strong>完全不同</strong>——ARMv7 会从非对齐地址加载正确的连续字节（从该地址开始拉四个字节），而非旋转旧的对齐数据。<strong>结果：代码静默产生完全不同但看起来”语法正确”的输出——不会有 crash，不会有 warning，只有错误的计算结果。</strong></p>
+<p>ARMv7 的 MMU 可以配置为<strong>检测非对齐访问并触发 Data Abort</strong>——通过 CP15 SCTLR 的 A bit（alignment check enable）。对于调试来说，这是比静默错误好得多的行为。</p>
+<h3 id="2-2-ARMv7-的非对齐支持"><a href="#2-2-ARMv7-的非对齐支持" class="headerlink" title="2.2 ARMv7 的非对齐支持"></a>2.2 ARMv7 的非对齐支持</h3><p>Cortex-A 系列确实支持 unaligned access，但需要通过 <strong>CP15 SCTLR 的 U bit</strong> 显式启用。启用后，<code>LDR/STR</code>（word 和 halfword）可以处理非对齐地址。但以下指令类型<strong>始终要求对齐</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>指令类型</th>
+<th>最低对齐要求</th>
+<th>后果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>LDM</code> &#x2F; <code>STM</code></td>
+<td>Word 对齐（4 字节）</td>
+<td>未定义行为或 Data Abort</td>
+</tr>
+<tr>
+<td><code>LDRD</code> &#x2F; <code>STRD</code>（双字）</td>
+<td>Word 对齐</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>VFP&#x2F;NEON Load&#x2F;Store</td>
+<td>元素大小对齐</td>
+<td>同上，且可能触发 UNDEF</td>
+</tr>
+<tr>
+<td>ABI 额外要求</td>
+<td>可能强于架构定义</td>
+<td>取决于编译器</td>
+</tr>
+</tbody></table>
+<p><strong>非对齐访问不保证原子性</strong>——一个外部代理（如另一个核心）可能看到部分旧字节 + 部分新字节的混合状态。这是多核并发代码最隐蔽的竞态之一。</p>
+<p><code>memcpy()</code> 的例子展示了性能影响的量级：小批量、word-aligned 的拷贝编译为 LDM&#x2F;STM 指令；大块对齐拷贝调用优化的库函数；起止边界不在 word 对齐上的拷贝则回退到通用 <code>memcpy()</code>——<strong>可能慢数倍</strong>。但若源和目标”同向不对齐”（source 和 destination 以相同偏移错位），只有首尾碎片是非优化的，中间段仍可全速 LDM&#x2F;STM。</p>
+<hr>
+<h2 id="3-C-语言移植注意事项"><a href="#3-C-语言移植注意事项" class="headerlink" title="3. C 语言移植注意事项"></a>3. C 语言移植注意事项</h2><h3 id="3-1-char-的-signed-unsigned-歧义与编译器差异"><a href="#3-1-char-的-signed-unsigned-歧义与编译器差异" class="headerlink" title="3.1 char 的 signed&#x2F;unsigned 歧义与编译器差异"></a>3.1 <code>char</code> 的 signed&#x2F;unsigned 歧义与编译器差异</h3><p>一个极简例子展示了 ARM 与 x86 之间最隐蔽的差异：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">char</span> c = <span class="number">-1</span>;</span><br><span class="line"><span class="keyword">if</span> (c &gt; <span class="number">0</span>)  <span class="built_in">printf</span>(<span class="string">&quot;c is positive\n&quot;</span>);</span><br><span class="line"><span class="keyword">else</span>        <span class="built_in">printf</span>(<span class="string">&quot;c is negative\n&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<p>在 x86 上输出 “c is negative”，在 ARM 编译器上输出 “c is positive”（且伴随 warning）。原因是 ANSI C 标准没有规定 plain <code>char</code> 是 signed 还是 unsigned——这是<strong>编译器实现决定的</strong>。ARM 的最早版本没有 <code>LDRSB</code>（加载有符号字节并符号扩展），因此早期 ARM 编译器选择 <code>char</code> 默认为 unsigned 以匹配硬件能力。x86 则历来默认为 signed。</p>
+<p>更致命的死循环例子：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">char</span> c;</span><br><span class="line"><span class="keyword">while</span> ((c = getchar()) != EOF)  <span class="comment">// EOF = -1</span></span><br><span class="line">    <span class="built_in">putchar</span>(c);</span><br></pre></td></tr></table></figure>
+
+<p> 在 ARM 上，<code>getchar()</code> 返回 <code>int</code> 类型的 -1（EOF），赋值给 <code>unsigned char</code> 的 <code>c</code> 后变成 255。循环条件 <code>255 != -1</code> 永远为真——<strong>死循环</strong>。修正方法是将 <code>c</code> 声明为 <code>int</code>：这正是 <code>stdio.h</code> 中函数的定义方式。同样的问题也出现在 <code>getopt()</code> 和 <code>getc()</code> 上——两者定义为返回 <code>int</code>，用 <code>char</code> 接收返回值会引发同样的 EOF 比较失败。</p>
+<p>最佳实践：</p>
+<ol>
+<li><code>unsigned char</code> — 用于内存字节访问和小的无符号整数</li>
+<li><code>signed char</code> — 用于小的有符号整数</li>
+<li><code>plain char</code> — <strong>仅用于 ASCII 字符和字符串</strong></li>
+</ol>
+<blockquote>
+<p>补充性能建议：在实际的 ARM 平台上，即便是小的值也通常优先用 <code>int</code> 而非 <code>char</code>——32-bit 寄存器的算术运算无需额外的符号扩展或截断指令。</p>
+</blockquote>
+<h3 id="3-2-结构体填充与-packed-的代价"><a href="#3-2-结构体填充与-packed-的代价" class="headerlink" title="3.2 结构体填充与 __packed__ 的代价"></a>3.2 结构体填充与 <code>__packed__</code> 的代价</h3><p>编译器不能重排结构体成员，且必须遵循核心的对齐约束。这意味着不同架构对同一 <code>struct</code> 可能插入不同的填充字节：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">test</span> &#123;</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">char</span>  c;    <span class="comment">// 1 byte</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">int</span>   i;    <span class="comment">// 4 bytes — 需要 word 对齐</span></span><br><span class="line">    <span class="type">unsigned</span> <span class="type">short</span> s;    <span class="comment">// 2 bytes</span></span><br><span class="line">&#125;;</span><br><span class="line"><span class="comment">// ARM 未压缩布局（默认）：c @ 0, padding[3], i @ 4-7, s @ 8-9, padding[2], sizeof=12</span></span><br></pre></td></tr></table></figure>
+
+<p>使用 <code>__attribute__((__packed__))</code>（GCC）或 <code>__packed</code>（ARM Compiler）移除所有填充后，<code>sizeof(struct test)</code> 降为 7 bytes——但访问 <code>i</code> 和 <code>s</code> 变成了非对齐访问，需要额外的指令周期。权衡建议很明确：packed 对 Cortex-A 系列”相对高效”，但仍会损失性能并增加代码体积。用于跨硬件传递的数据结构时是可接受的；用于频繁访问的内部数据结构时需要权衡。</p>
+<h3 id="3-3-变参函数与栈假设"><a href="#3-3-变参函数与栈假设" class="headerlink" title="3.3 变参函数与栈假设"></a>3.3 变参函数与栈假设</h3><p>使用 <code>&lt;stdarg.h&gt;</code> 宏（<code>va_start/va_arg/va_end</code>）的代码是跨架构可移植的——它们封装了栈帧遍历。标准库的 <code>va_*</code> 宏会处理 ABI 相关的细节：参数是通过寄存器还是栈传递、栈的对齐要求、每个参数的类型提升规则（如 <code>float</code> 自动提升为 <code>double</code>、小整数提升为 <code>int</code>）。这些规则在不同架构和编译器之间完全不同。</p>
+<p>但任何<strong>直接操作栈指针或用自定义宏遍历栈</strong>来获取变参的代码，在不同 ABI 下必然崩溃。典型的危险代码模式是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 危险 —— 不可移植的变参访问</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">print_ints</span><span class="params">(<span class="type">int</span> count, ...)</span> &#123;</span><br><span class="line">    <span class="type">int</span> *p = &amp;count + <span class="number">1</span>;         <span class="comment">// 假设所有参数都在 count 之后的栈上</span></span><br><span class="line">    <span class="keyword">for</span> (<span class="type">int</span> i = <span class="number">0</span>; i &lt; count; i++)</span><br><span class="line">        <span class="built_in">printf</span>(<span class="string">&quot;%d\n&quot;</span>, p[i]);    <span class="comment">// ARM AAPCS 下前 4 个参数走 R0-R3，栈偏移完全错误</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>ARM AAPCS 规定前 4 个 32-bit 参数通过 R0-R3 寄存器传递，其余溢出的才入栈。做一个简单的指针算术 <code>&amp;count + 1</code> 完全无法得到正确的变参位置——寄存器中的值根本不在栈上。唯一的可移植方案是 <code>va_list</code> + <code>va_start</code> + <code>va_arg</code>。</p>
+<h3 id="3-4-enum的大小与ABI兼容性"><a href="#3-4-enum的大小与ABI兼容性" class="headerlink" title="3.4 enum的大小与ABI兼容性"></a>3.4 enum的大小与ABI兼容性</h3><p>很多人认为 <code>enum</code> 一定占 4 字节，但实际上 <strong>C 标准并未规定枚举的底层类型</strong>，只要求能够表示所有枚举值。编译器可以根据实现或编译选项选择合适的整数类型。例如，GCC 默认通常将枚举实现为 <code>int</code>（4 字节），而启用 <code>-fshort-enums</code> 后，可能将仅包含少量枚举值的类型压缩为 1 字节。</p>
+<p>这种差异在单个编译单元中通常没有问题，但<strong>跨模块或库接口</strong>可能导致 ABI 不兼容。例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">// library.h</span><br><span class="line">typedef enum &#123; RED, GREEN, BLUE &#125; Color;</span><br><span class="line"></span><br><span class="line">typedef struct &#123;</span><br><span class="line">    Color c1;</span><br><span class="line">    Color c2;</span><br><span class="line">    Color c3;</span><br><span class="line">&#125; Widget;</span><br></pre></td></tr></table></figure>
+
+<p>如果库按默认方式编译（<code>sizeof(Color) == 4</code>），而应用程序启用了 <code>-fshort-enums</code>（<code>sizeof(Color) == 1</code>），双方编译出的 <code>Widget</code> 布局将不同。由于链接器无法检查类型布局，这类问题通常不会在链接阶段报错，而是在运行时表现为成员访问错误或数据损坏。</p>
+<p><strong>最佳实践：</strong></p>
+<ol>
+<li>整个工程保持一致的编译选项，避免混用 <code>-fshort-enums</code>。</li>
+<li>公共 API 应避免依赖 <code>enum</code> 的具体大小；如需稳定 ABI，可使用固定宽度整数类型（如 <code>int32_t</code>）配合常量定义，或在支持 <strong>C23</strong> 的环境下显式指定枚举底层类型。</li>
+</ol>
+<h3 id="3-5-整数位宽假设"><a href="#3-5-整数位宽假设" class="headerlink" title="3.5 整数位宽假设"></a>3.5 整数位宽假设</h3><p>从 8-bit 或 16-bit 核心移植的代码可能假设 <code>int</code> 是 16-bit，这类代码常见于 AVR、MSP430、PIC 等嵌入式平台的固件。但 ARMv7-A 上 <code>int</code> 永远是 32-bit——这不仅是 ARM 的惯例，也是 AAPCS 和 Linux ARM EABI 的强制要求。</p>
+<p>C 标准仅规定了各整数类型的<strong>最小宽度</strong>，而非实际宽度：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>C 标准最小位宽</th>
+<th>ARMv7-A 实际位宽</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>char</code></td>
+<td>8-bit</td>
+<td>8-bit</td>
+</tr>
+<tr>
+<td><code>short</code></td>
+<td>16-bit</td>
+<td>16-bit</td>
+</tr>
+<tr>
+<td><code>int</code></td>
+<td>16-bit</td>
+<td><strong>32-bit</strong></td>
+</tr>
+<tr>
+<td><code>long</code></td>
+<td>32-bit</td>
+<td>32-bit</td>
+</tr>
+<tr>
+<td><code>long long</code></td>
+<td>64-bit</td>
+<td>64-bit</td>
+</tr>
+</tbody></table>
+<p>依赖 16-bit 溢出行为的代码在 ARMv7 上会产生完全不同的结果：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">uint16_t</span> counter = <span class="number">65535</span>;</span><br><span class="line">counter++;                    <span class="comment">// 归零为 0，正确（显式 16-bit）</span></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">unsigned</span> <span class="type">int</span> counter = <span class="number">65535</span>; <span class="comment">// 被 16-bit 开发者误认为是 16-bit 量</span></span><br><span class="line">counter++;                    <span class="comment">// 等于 65536，不归零——算法逻辑完全错误</span></span><br></pre></td></tr></table></figure>
+
+<p>解决方案是<strong>始终使用 <code>&lt;stdint.h&gt;</code> 中的精确宽度类型</strong>（<code>uint16_t</code>、<code>int32_t</code> 等）。不要假设 <code>int</code> 或 <code>long</code> 的位宽——这些类型在不同架构上的实际宽度不同，且都符合 C 标准的合法实现。移植遗留嵌入式代码时，第一步应该将所有非固定宽度的整数声明替换为 <code>stdint.h</code> 类型，这是性能代价最低的预防措施。</p>
+<h3 id="3-6-函数原型缺失与声明不匹配"><a href="#3-6-函数原型缺失与声明不匹配" class="headerlink" title="3.6 函数原型缺失与声明不匹配"></a>3.6 函数原型缺失与声明不匹配</h3><p>不正确声明的函数原型在不同编译器之间行为可能完全不同。原型必须在定义和使用它的所有编译单元之间精确匹配——参数类型、返回类型、变参标识（<code>...</code>）的任何不一致，在不同 ABI 下可能导致栈帧错位、参数传递错误或返回值的解释偏差。在跨架构跨编译器迁移时，确保所有共享头文件中的函数声明与实现一致是防止静默错误的底线。</p>
+<hr>
+<h2 id="4-ARM-汇编代码的架构迁移"><a href="#4-ARM-汇编代码的架构迁移" class="headerlink" title="4. ARM 汇编代码的架构迁移"></a>4. ARM 汇编代码的架构迁移</h2><p>从早期 ARM 处理器移植汇编代码到 Cortex-A 系列时，最大的风险并不是语法变化，而是<strong>部分指令和寄存器的语义已经发生变化</strong>。下面列举几类最常见的问题。</p>
+<h3 id="4-1-CP15-寄存器并非都能直接沿用"><a href="#4-1-CP15-寄存器并非都能直接沿用" class="headerlink" title="4.1 CP15 寄存器并非都能直接沿用"></a>4.1 CP15 寄存器并非都能直接沿用</h3><p>CP15 寄存器可分为两类：</p>
+<ul>
+<li><strong>架构定义寄存器</strong>：如 <code>SCTLR</code>、<code>TTBR</code>，不同 ARMv7-A 处理器的含义基本一致。</li>
+<li><strong>实现特定寄存器</strong>：如 <code>ACTLR</code>（Auxiliary Control Register），不同 Cortex-A 内核的位定义可能完全不同。</li>
+</ul>
+<p>因此，移植旧代码时，应重点检查所有访问实现特定寄存器的代码。这些寄存器在不同处理器上的功能可能发生变化，甚至不存在，需要根据目标 CPU 重新确认。</p>
+<p>例如，下面的代码用于开启某处理器的预取优化：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MRC p15, 0, r0, c1, c0, 1    ; 读取 ACTLR</span><br><span class="line">ORR r0, r0, #(1 &lt;&lt; 2)        ; 设置某个优化位</span><br><span class="line">MCR p15, 0, r0, c1, c0, 1</span><br></pre></td></tr></table></figure>
+
+<p>这段代码在另一款 Cortex-A 处理器上，<strong>bit[2] 可能表示完全不同的功能，甚至该寄存器不存在</strong>，因此不能直接移植。</p>
+<hr>
+<h3 id="4-2-用-LDREX-STREX-替代-SWP"><a href="#4-2-用-LDREX-STREX-替代-SWP" class="headerlink" title="4.2 用 LDREX&#x2F;STREX 替代 SWP"></a>4.2 用 LDREX&#x2F;STREX 替代 SWP</h3><p><code>SWP</code> 曾用于实现原子交换操作，但在 ARMv7 中已不推荐使用，Cortex-A 系列复位后默认也不会识别该指令（可通过 <code>SCTLR</code> 配置重新启用）。</p>
+<p>例如，早期代码常见写法：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SWP r1, r0, [r2]     ; 原子交换</span><br></pre></td></tr></table></figure>
+
+<p>现代 ARM 推荐改为 <code>LDREX</code>&#x2F;<code>STREX</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">retry:</span><br><span class="line">    LDREX r1, [r2]        ; 从 [r2] 读取数据到 r1，并建立 Exclusive Monitor</span><br><span class="line">    ; 修改 r1 ...</span><br><span class="line">    STREX r3, r1, [r2]    ; 尝试将 r1 写回 [r2]</span><br><span class="line">                          ; 成功：r3 = 0；失败：r3 = 1</span><br><span class="line">    CMP   r3, #0          ; 判断写回是否成功</span><br><span class="line">    BNE   retry           ; 若失败，重新读取并重试</span><br><span class="line">    DMB                   ; 数据内存屏障，确保写入顺序对其他 CPU/设备可见</span><br></pre></td></tr></table></figure>
+
+<p><code>LDREX</code>（<strong>Load Exclusive</strong>）会读取指定地址的数据，并建立一个<strong>排他监视器（Exclusive Monitor）</strong>；随后执行 <code>STREX</code>（<strong>Store Exclusive</strong>）时，只有当该地址在此期间未被其他 CPU 或总线 Master 修改过，写入才会成功（返回 0），否则写入失败（返回非 0），软件需要重新执行整个过程。</p>
+<p>保护同一共享对象的代码也应统一采用 <code>LDREX</code>&#x2F;<code>STREX</code>，不要与 <code>SWP</code> 混用。</p>
+<p>实际开发中，更推荐使用操作系统提供的 spinlock、mutex 等同步原语，或编译器提供的原子操作，而不是直接编写汇编。</p>
+<hr>
+<h3 id="4-3-检查旧代码中的内存顺序假设"><a href="#4-3-检查旧代码中的内存顺序假设" class="headerlink" title="4.3 检查旧代码中的内存顺序假设"></a>4.3 检查旧代码中的内存顺序假设</h3><p>ARMv7 采用弱内存排序模型，处理器和总线可能对内存访问顺序进行优化。因此，与 DMA、其他 CPU 或外设共享数据时，应检查是否需要插入内存屏障。</p>
+<p>例如，CPU 向 DMA 描述符写入数据：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">desc-&gt;addr = buf;</span><br><span class="line">desc-&gt;len  = len;</span><br><span class="line">desc-&gt;valid = <span class="number">1</span>;          <span class="comment">// 通知 DMA 可以读取</span></span><br></pre></td></tr></table></figure>
+
+<p>如果没有内存屏障，处理器可能先写入 <code>valid</code>，再写入 <code>addr</code> 或 <code>len</code>。DMA 此时读取到 <code>valid == 1</code>，却可能看到尚未更新完成的地址或长度，从而导致数据错误。</p>
+<p>因此，在通知 DMA 前通常需要插入 <code>DMB</code> 或 <code>DSB</code>，确保前面的数据写入已经对外可见。</p>
+<hr>
+<h2 id="5-ARM-汇编到-Thumb-2-的迁移"><a href="#5-ARM-汇编到-Thumb-2-的迁移" class="headerlink" title="5. ARM 汇编到 Thumb-2 的迁移"></a>5. ARM 汇编到 Thumb-2 的迁移</h2><p>将 ARM 32-bit 汇编代码移植到 Thumb-2，通常不是简单地重新汇编即可。由于 Thumb-2 的指令编码和执行模型与 ARM 状态存在差异，一些常见写法需要修改，才能保证代码的正确性和可移植性。</p>
+<h3 id="5-1-避免手工计算-PC-相对地址"><a href="#5-1-避免手工计算-PC-相对地址" class="headerlink" title="5.1 避免手工计算 PC 相对地址"></a>5.1 避免手工计算 PC 相对地址</h3><p>ARM 汇编中，经常需要获取一个常量或变量的地址。早期代码常采用 <strong>PC 相对寻址</strong>，例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ADD r0, pc, #offset    ; 手工计算目标地址</span><br></pre></td></tr></table></figure>
+
+<p>这种写法依赖于 PC 的具体取值，而 ARM 与 Thumb 状态下 PC 的行为并不完全一致，因此这类代码移植到 Thumb-2 后容易出错，也不便于维护。</p>
+<p>更推荐使用汇编器提供的 <strong><code>LDR Rd, =expr</code> 伪指令</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">LDR r0, =value         ; 加载常量 value</span><br><span class="line">LDR r1, =buffer        ; 加载变量 buffer 的地址</span><br></pre></td></tr></table></figure>
+
+<p>这里的 <code>=expr</code> <strong>不是 ARM 指令语法，而是汇编器提供的伪指令</strong>。汇编器会根据实际情况自动选择最合适的实现方式：</p>
+<ul>
+<li>如果 <code>expr</code> 可以直接编码，生成 <code>MOV</code> 等立即数指令；</li>
+<li>如果不能直接编码，则自动建立<strong>字面池（Literal Pool）</strong>，并生成正确的 PC 相对加载指令。</li>
+</ul>
+<p>因此，开发者无需关心 ARM 与 Thumb 状态下 PC 的差异，也不用手工计算偏移量。</p>
+<p>如果汇编时出现 <strong>“literal pool out of range”</strong> 错误，说明字面池距离当前代码过远，可使用：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">.ltorg</span><br></pre></td></tr></table></figure>
+
+<p>主动生成新的字面池。</p>
+<blockquote>
+<p><strong>迁移建议：</strong> 将所有依赖 <code>ADD PC, #offset</code> 等手工计算地址的代码，改为 <code>LDR Rd, =expr</code>，既能提高代码的可移植性，也能避免 ARM 与 Thumb 状态下 PC 行为差异带来的问题。</p>
+</blockquote>
+<hr>
+<h3 id="5-2-所有涉及-PC-的跳转应改用-BX-BLX"><a href="#5-2-所有涉及-PC-的跳转应改用-BX-BLX" class="headerlink" title="5.2 所有涉及 PC 的跳转应改用 BX&#x2F;BLX"></a>5.2 所有涉及 PC 的跳转应改用 BX&#x2F;BLX</h3><p>ARM 状态下，很多代码直接修改 PC 完成跳转：</p>
+<table>
+<thead>
+<tr>
+<th>ARM 写法</th>
+<th>Thumb-2 推荐写法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>MOV PC, LR</code></td>
+<td><code>BX LR</code></td>
+</tr>
+<tr>
+<td><code>MOV PC, r0</code></td>
+<td><code>BX r0</code></td>
+</tr>
+<tr>
+<td><code>MOV LR, PC``MOV PC, r0</code></td>
+<td><code>BLX r0</code></td>
+</tr>
+</tbody></table>
+<p>原因是 <strong><code>BX</code> 和 <code>BLX</code> 会根据目标地址 bit[0] 自动切换 ARM&#x2F;Thumb 状态</strong>，而 <code>MOV PC, ...</code> 不具备这种能力，容易导致返回到错误的指令集状态。</p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">; ARM 写法</span><br><span class="line">MOV PC, LR</span><br><span class="line"></span><br><span class="line">; Thumb-2 推荐</span><br><span class="line">BX  LR</span><br></pre></td></tr></table></figure>
+
+<p>需要注意的是，<code>POP &#123;..., PC&#125;</code> 和 <code>LDMFD SP!, &#123;..., PC&#125;</code> 仍然可以正常使用，ARMv7 硬件会自动根据装载到 PC 的地址切换执行状态，因此无需修改。</p>
+<hr>
+<h3 id="5-3-Thumb-指令限制更多"><a href="#5-3-Thumb-指令限制更多" class="headerlink" title="5.3 Thumb 指令限制更多"></a>5.3 Thumb 指令限制更多</h3><p>为了提高代码密度，Thumb-2 对部分指令的编码进行了压缩，因此某些 ARM 中合法的写法需要调整。</p>
+<p><strong>（1）条件执行改为 IT 块</strong></p>
+<p>ARM 中，大多数指令都支持条件后缀：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ADDNE r0, r1, r2</span><br></pre></td></tr></table></figure>
+
+<p>Thumb 中，除分支外，其他指令需要放在 <code>IT</code>（If-Then）块中：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">IT   NE</span><br><span class="line">ADDNE r0, r1, r2</span><br></pre></td></tr></table></figure>
+
+<p>如果不希望手工维护 <code>IT</code> 指令，可使用汇编器选项：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">-mimplicit-it=thumb</span><br></pre></td></tr></table></figure>
+
+<p>由汇编器自动生成。</p>
+<p><strong>（2）立即数和寻址范围更受限制</strong></p>
+<p>部分 ARM 可以直接编码的大偏移，在 Thumb 中可能无法表示。</p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">; ARM</span><br><span class="line">STR r0, [r1, #4092]</span><br></pre></td></tr></table></figure>
+
+<p>可能需要改写为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ADD r1, r1, #4092</span><br><span class="line">STR r0, [r1]</span><br></pre></td></tr></table></figure>
+
+<p><strong>（3）部分 ARM 指令没有 Thumb 编码</strong></p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">RSC</span><br></pre></td></tr></table></figure>
+
+<p>Thumb-2 不支持，需要改写为其他等价指令（如 <code>RSB</code> + <code>SBC</code>），或保留 ARM 状态执行。</p>
+<hr>
+<h3 id="5-4-链接器可能自动插入-Veneer"><a href="#5-4-链接器可能自动插入-Veneer" class="headerlink" title="5.4 链接器可能自动插入 Veneer"></a>5.4 链接器可能自动插入 Veneer</h3><p>当分支目标超出指令可编码范围，或需要完成 ARM&#x2F;Thumb 状态切换时，链接器可能自动生成一段中间跳转代码，称为 <strong>Veneer（跳板）</strong>。</p>
+<p>例如：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">BL foo</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">   （距离过远）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">BL veneer</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">veneer:</span><br><span class="line">    LDR PC, ...</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">       foo</span><br></pre></td></tr></table></figure>
+
+<p>大多数情况下，Veneer 完全由链接器处理，程序员无需关心。</p>
+<p>但如果热点循环频繁经过 Veneer，每次跳转都会刷新流水线，可能带来一定的性能损失。可通过调整代码布局，减少远距离调用，或使用 ARM 链接器的 <code>--info veneers</code> 选项查看 Veneer 的生成情况并进行优化。</p>
+<h2 id="6-学习要点总结"><a href="#6-学习要点总结" class="headerlink" title="6. 学习要点总结"></a>6. 学习要点总结</h2><ol>
+<li><strong>端序相关代码应重点审查。</strong> 使用 <code>union</code>、指针强制类型转换（cast）或位域（bitfield）直接访问数据布局时，都可能依赖字节序。跨大小端平台移植时，应逐一确认其行为是否符合预期；需要进行字节交换时，优先使用 <code>REV</code> 等专用指令。</li>
+<li><strong>注意不同 ARM 架构对非对齐访问的处理方式。</strong> ARMv4 与 ARMv7 对未对齐数据的访问行为不同，移植旧代码时应检查是否存在依赖旧行为的代码，否则可能产生难以发现的数据错误。</li>
+<li><strong>不要依赖 <code>char</code> 的默认符号属性。</strong> <code>char</code> 是 <code>signed</code> 还是 <code>unsigned</code> 属于实现定义，不同编译器和 ABI 可能不同。涉及数值运算时，应显式使用 <code>signed char</code> 或 <code>unsigned char</code>；读取 <code>getchar()</code>、<code>getc()</code> 等函数返回值时，应使用 <code>int</code> 接收，以正确处理 <code>EOF</code>。</li>
+<li><strong>ARM&#x2F;Thumb 混合代码应统一使用 <code>BX</code>&#x2F;<code>BLX</code> 完成跳转。</strong> 返回或间接跳转时，不要使用 <code>MOV PC, ...</code>，而应使用 <code>BX</code> 或 <code>BLX</code>，确保处理器能够正确切换执行状态。</li>
+<li><strong>使用现代原子操作替代 <code>SWP</code>。</strong> 在 ARMv7 中，<code>SWP</code> 已不推荐使用，应采用 <code>LDREX</code>&#x2F;<code>STREX</code> 配合必要的内存屏障实现原子操作，并确保同一共享对象采用统一的同步机制。</li>
+<li><strong>合理使用 <code>__packed__</code>。</strong> <code>__packed__</code> 可以消除结构体填充，减小存储空间，但可能导致未对齐访问，增加访问开销。是否使用应根据数据传输需求和访问频率综合权衡。</li>
+<li><strong>关注链接器生成的 Veneer。</strong> Veneer 能自动解决远距离跳转和 ARM&#x2F;Thumb 状态切换问题，但在性能敏感路径中可能带来额外开销。必要时可借助 <code>--info veneers</code> 分析 Veneer 的生成情况，并通过调整代码布局减少其影响。</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/25/ARM-AACPS/" rel="prev" title="ARM AACPS">
+                  <i class="fa fa-angle-left"></i> ARM AACPS
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
