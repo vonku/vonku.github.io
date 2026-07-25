@@ -21,7 +21,7 @@
 
     <meta name="description" content="本文逐指令分析 Cortex-A 裸机系统的核心初始化序列，深入拆解从处理器上电复位、建立异常向量表、配置 Cache 和 MMU，直至移交控制权给 Linux 内核的完整技术路径。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ARM启动流程">
+<meta property="og:title" content="ARM 启动流程">
 <meta property="og:url" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文逐指令分析 Cortex-A 裸机系统的核心初始化序列，深入拆解从处理器上电复位、建立异常向量表、配置 Cache 和 MMU，直至移交控制权给 Linux 内核的完整技术路径。">
@@ -30,7 +30,7 @@
 <meta property="og:image" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/2.png">
 <meta property="og:image" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/3.png">
 <meta property="article:published_time" content="2026-07-25T02:19:12.000Z">
-<meta property="article:modified_time" content="2026-07-25T02:32:44.370Z">
+<meta property="article:modified_time" content="2026-07-25T09:45:44.896Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -41,10 +41,10 @@
 <link rel="canonical" href="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/","path":"2026/07/25/ARM启动流程/","title":"ARM启动流程"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/","path":"2026/07/25/ARM启动流程/","title":"ARM 启动流程"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>ARM启动流程 | Vonku's Blog</title>
+<title>ARM 启动流程 | Vonku's Blog</title>
   
 
 
@@ -210,12 +210,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="ARM启动流程 | Vonku's Blog">
+      <meta itemprop="name" content="ARM 启动流程 | Vonku's Blog">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          ARM启动流程
+          ARM 启动流程
         </h1>
 
         <div class="post-meta-container">
@@ -574,13 +574,13 @@
 
           <div class="post-nav">
             <div class="post-nav-item">
-                <a href="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/" rel="prev" title="ARM中断处理">
-                  <i class="fa fa-angle-left"></i> ARM中断处理
+                <a href="/2026/07/22/ARM%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86/" rel="prev" title="ARM 中断处理">
+                  <i class="fa fa-angle-left"></i> ARM 中断处理
                 </a>
             </div>
             <div class="post-nav-item">
-                <a href="/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/" rel="next" title="ARM代码移植指南">
-                  ARM代码移植指南 <i class="fa fa-angle-right"></i>
+                <a href="/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/" rel="next" title="ARM 代码移植指南">
+                  ARM 代码移植指南 <i class="fa fa-angle-right"></i>
                 </a>
             </div>
           </div>
