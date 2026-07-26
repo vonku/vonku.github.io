@@ -26,15 +26,15 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍  ARM profiling 的基本概念与 ARM 平台上的工具链。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
-<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
+<meta property="og:image" content="http://yoursite.com/2026/07/26/ARM-Profiling/1.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/26/ARM-Profiling/2.png">
 <meta property="article:published_time" content="2026-07-26T12:29:48.000Z">
 <meta property="article:modified_time" content="2026-07-26T13:12:16.589Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/26/ARM-Profiling/1.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/26/ARM-Profiling/">
@@ -332,7 +332,7 @@
 </tr>
 </tbody></table>
 <p>下面这张图对比了时间采样与事件采样的核心差异，以及 OoO 核心中的 skid 效应：</p>
-<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png" alt="1"></p>
+<p><img src="/2026/07/26/ARM-Profiling/1.png" alt="1"></p>
 <h3 id="2-3-统计本质"><a href="#2-3-统计本质" class="headerlink" title="2.3 统计本质"></a>2.3 统计本质</h3><blockquote>
 <p>Profilers typically operate on a statistical basis, they might not necessarily produce absolute counts of events.</p>
 </blockquote>
@@ -340,7 +340,7 @@
 <p>理解这一统计本质很重要：profile 数据是指南针，不是尺子。它告诉你”往哪儿看”，但不提供”该拧几圈螺丝”的精度。</p>
 <hr>
 <p>下面这张时序图总结了三种 profiler 的完整工作流——插桩（Gprof）、操作系统定时器统计采样（OProfile 定时器模式）和硬件 PMU（perf events）——注意后两者的采样介质不同，但同属统计采样这一大类：</p>
-<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png" alt="2"></p>
+<p><img src="/2026/07/26/ARM-Profiling/2.png" alt="2"></p>
 <h2 id="3-Profiler-输出解读"><a href="#3-Profiler-输出解读" class="headerlink" title="3. Profiler 输出解读"></a>3. Profiler 输出解读</h2><p>前面 §1 已经展示了一份 flat profile 的示例。这里补充各列含义和阅读技巧——无论使用哪种 profiler 工具，输出的解读逻辑是一致的。</p>
 <h3 id="3-1-Flat-Profile-各列含义"><a href="#3-1-Flat-Profile-各列含义" class="headerlink" title="3.1 Flat Profile 各列含义"></a>3.1 Flat Profile 各列含义</h3><table>
 <thead>
