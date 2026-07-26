@@ -29,7 +29,7 @@
 <meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
 <meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
 <meta property="article:published_time" content="2026-07-26T12:29:48.000Z">
-<meta property="article:modified_time" content="2026-07-26T13:10:14.731Z">
+<meta property="article:modified_time" content="2026-07-26T13:12:16.589Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -283,16 +283,16 @@
 </tbody></table>
 <p>逐行看：</p>
 <ul>
-<li>**<code>start</code>**（第 1 行）：占了全部 CPU 时间的三分之一。被调用了 6275 次——极其高频。但 <code>self ms/call = 0.00</code>，说明每次调用自身的耗时不到 0.01ms。如果它只是一段调度逻辑，把调用频率降下来或把它内联到调用者中，就是优化的方向。</li>
-<li>**<code>func1</code>**（第 2 行）：<code>self ms/call = 0.07ms</code>，但 <code>total ms/call = 0.21ms</code>——差了 3 倍。说明 <code>func1</code> 自己只花了 0.07ms，剩余 0.14ms 花在了它调用的子函数上。如果优化，应该去看 <code>func1</code> 的子函数，而不是 <code>func1</code> 自身。</li>
-<li>**<code>memcpy</code>**（第 3 行）：<code>self = total = 1.20ms</code>——不调用其他耗时子函数，全部时间都在自己身上。每次调用 1.2ms，用 NEON 批量搬运替换逐字节拷贝，效果立竿见影。</li>
-<li>**<code>write</code>**（第 4 行）：同样 <code>self = total</code>——瓶颈在自身，大概率在等 I&#x2F;O。</li>
+<li><code>start</code>（第 1 行）：占了全部 CPU 时间的三分之一。被调用了 6275 次——极其高频。但 <code>self ms/call = 0.00</code>，说明每次调用自身的耗时不到 0.01ms。如果它只是一段调度逻辑，把调用频率降下来或把它内联到调用者中，就是优化的方向。</li>
+<li><code>func1</code>（第 2 行）：<code>self ms/call = 0.07ms</code>，但 <code>total ms/call = 0.21ms</code>——差了 3 倍。说明 <code>func1</code> 自己只花了 0.07ms，剩余 0.14ms 花在了它调用的子函数上。如果优化，应该去看 <code>func1</code> 的子函数，而不是 <code>func1</code> 自身。</li>
+<li><code>memcpy</code>（第 3 行）：<code>self = total = 1.20ms</code>——不调用其他耗时子函数，全部时间都在自己身上。每次调用 1.2ms，用 NEON 批量搬运替换逐字节拷贝，效果立竿见影。</li>
+<li><code>write</code>（第 4 行）：同样 <code>self = total</code>——瓶颈在自身，大概率在等 I&#x2F;O。</li>
 </ul>
 <p><strong>速读口诀</strong>：<code>self ≈ total</code> → 瓶颈就在这个函数内部，直接优化它；<code>total ≫ self</code> → 瓶颈在其调用的子函数，顺着调用链往下找。</p>
 <p>Profiler 还会输出 <strong>call graph</strong>（调用图），记录每个函数被谁调用、调用了谁——用来发现意外的调用路径（”<code>error_handler</code> 被调了 3000 次？”）。</p>
 <p>了解了 profiler 产出什么之后，下一个问题是：<strong>这些数据是怎么采集来的？</strong></p>
 <hr>
-<h2 id="2-Profiler-的数据采集方式"><a href="#2-Profiler-的数据采集方式" class="headerlink" title="2. Profiler 的数据采集方式"></a>2. Profiler 的数据采集方式</h2><p>采集方式分为两大类：<strong>插桩 (instrumentation)</strong> 和**采样 (sampling)**。</p>
+<h2 id="2-Profiler-的数据采集方式"><a href="#2-Profiler-的数据采集方式" class="headerlink" title="2. Profiler 的数据采集方式"></a>2. Profiler 的数据采集方式</h2><p>采集方式分为两大类：插桩 (instrumentation) 和采样 (sampling)。</p>
 <p><strong>插桩</strong>：编译器在每个函数的入口和出口插入计数代码。程序运行时，每次调用都会被记录——数据精确，但程序跑得比平时慢很多。Gprof 是最典型的插桩 profiler。</p>
 <p><strong>采样</strong>：程序照常运行，profiler 以固定时间间隔（或硬件事件触发）暂停程序、记录当前正在执行哪条指令。统计上，一个函数被采样到的概率等于它消耗 CPU 时间的比例——如果 func1 被采样到了 50% 的次数，那么它就占用了大约 50% 的 CPU 时间。这不完全精确，但开销低得多。OProfile 和 perf 都属于这类。</p>
 <p>采样又分为两个子类：</p>
