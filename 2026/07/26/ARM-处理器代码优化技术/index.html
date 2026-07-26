@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文梳理 ARM Cortex-A 系列代码优化技术，按三个层级递进展开：编译器选项、内存子系统优化、源码级微调。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM 处理器代码优化技术">
+<meta property="og:url" content="http://yoursite.com/2026/07/26/ARM-%E5%A4%84%E7%90%86%E5%99%A8%E4%BB%A3%E7%A0%81%E4%BC%98%E5%8C%96%E6%8A%80%E6%9C%AF/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文梳理 ARM Cortex-A 系列代码优化技术，按三个层级递进展开：编译器选项、内存子系统优化、源码级微调。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-07-26T14:47:09.000Z">
+<meta property="article:modified_time" content="2026-07-26T14:48:24.080Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/26/ARM-%E5%A4%84%E7%90%86%E5%99%A8%E4%BB%A3%E7%A0%81%E4%BC%98%E5%8C%96%E6%8A%80%E6%9C%AF/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/26/ARM-%E5%A4%84%E7%90%86%E5%99%A8%E4%BB%A3%E7%A0%81%E4%BC%98%E5%8C%96%E6%8A%80%E6%9C%AF/","path":"2026/07/26/ARM-处理器代码优化技术/","title":"ARM 处理器代码优化技术"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM 处理器代码优化技术 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%95%E8%A8%80"><span class="nav-text">1. 引言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%BC%96%E8%AF%91%E5%99%A8%E4%BC%98%E5%8C%96"><span class="nav-text">2. 编译器优化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%87%BD%E6%95%B0%E5%86%85%E8%81%94"><span class="nav-text">2.1 函数内联</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%85%AC%E5%85%B1%E5%AD%90%E8%A1%A8%E8%BE%BE%E5%BC%8F%E6%B6%88%E9%99%A4"><span class="nav-text">2.2 公共子表达式消除</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%BE%AA%E7%8E%AF%E5%B1%95%E5%BC%80"><span class="nav-text">2.3 循环展开</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-GCC-%E4%BC%98%E5%8C%96%E7%BA%A7%E5%88%AB%E5%85%A8%E6%99%AF"><span class="nav-text">2.4 GCC 优化级别全景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-%E5%B9%B3%E5%8F%B0%E6%8C%87%E5%AE%9A%E5%8F%82%E6%95%B0"><span class="nav-text">2.5 平台指定参数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%86%85%E5%AD%98%E7%B3%BB%E7%BB%9F%E4%BC%98%E5%8C%96"><span class="nav-text">3. 内存系统优化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%95%B0%E6%8D%AE%E5%B1%80%E9%83%A8%E6%80%A7%EF%BC%9A%E7%A9%BA%E9%97%B4%E4%B8%8E%E6%97%B6%E9%97%B4"><span class="nav-text">3.1 数据局部性：空间与时间</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-Loop-Tiling%EF%BC%9A%E7%94%A8%E5%88%86%E5%9D%97%E6%8F%90%E5%8D%87-Cache-%E5%88%A9%E7%94%A8%E7%8E%87"><span class="nav-text">3.2 Loop Tiling：用分块提升 Cache 利用率</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-Loop-Interchange%EF%BC%9A%E6%8D%A2%E4%B8%80%E4%B8%8B%E5%BE%AA%E7%8E%AF%E9%A1%BA%E5%BA%8F"><span class="nav-text">3.3 Loop Interchange：换一下循环顺序</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E7%BB%93%E6%9E%84%E4%BD%93%E5%B8%83%E5%B1%80%E4%BC%98%E5%8C%96"><span class="nav-text">3.4 结构体布局优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%BB%93%E6%9E%84%E4%BD%93%E5%B8%83%E5%B1%80%E4%BC%98%E5%8C%96"><span class="nav-text">结构体布局优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-Cache-%E5%85%B3%E8%81%94%E6%80%A7%E6%95%88%E5%BA%94"><span class="nav-text">3.5 Cache 关联性效应</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-I-Cache-%E4%B8%8E%E5%86%85%E8%81%94%E7%9A%84%E5%BE%AE%E5%A6%99%E6%9D%83%E8%A1%A1"><span class="nav-text">3.6 I-Cache 与内联的微妙权衡</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-7-TLB-%E4%BC%98%E5%8C%96"><span class="nav-text">3.7 TLB 优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-8-Data-Abort-%E4%BC%98%E5%8C%96"><span class="nav-text">3.8 Data Abort 优化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-9-%E9%A2%84%E5%8F%96%EF%BC%9APLD-%E5%92%8C-PLI"><span class="nav-text">3.9 预取：PLD 和 PLI</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%BA%90%E7%A0%81%E7%BA%A7%E5%BE%AE%E8%B0%83"><span class="nav-text">4. 源码级微调</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%BE%AA%E7%8E%AF%E5%80%92%E8%AE%A1%E6%95%B0"><span class="nav-text">4.1 循环倒计数</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-Loop-Fusion%EF%BC%9A%E5%90%88%E5%B9%B6%E7%8B%AC%E7%AB%8B%E5%BE%AA%E7%8E%AF"><span class="nav-text">4.2 Loop Fusion：合并独立循环</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%87%8F%E5%B0%91%E6%A0%88%E5%92%8C%E5%A0%86%E7%9A%84%E4%BD%BF%E7%94%A8"><span class="nav-text">4.3 减少栈和堆的使用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E5%8F%98%E9%87%8F%E9%80%89%E6%8B%A9%EF%BC%9Aint-%E6%98%AF-ARM-%E4%B8%8A%E7%9A%84%E6%9C%80%E4%BC%98%E7%B1%BB%E5%9E%8B"><span class="nav-text">4.4 变量选择：int 是 ARM 上的最优类型</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-restrict%EF%BC%9A%E8%A7%A3%E7%BB%91%E6%8C%87%E9%92%88%E5%81%87%E5%88%AB%E5%90%8D"><span class="nav-text">4.5 restrict：解绑指针假别名</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E9%99%A4%E6%B3%95%E4%B8%8E%E5%8F%96%E6%A8%A1"><span class="nav-text">4.6 除法与取模</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-7-%E5%85%B6%E4%BB%96%E6%8A%80%E5%B7%A7%E4%B8%80%E8%A7%88"><span class="nav-text">4.7 其他技巧一览</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E4%BC%98%E5%8C%96%E5%86%B3%E7%AD%96%E8%B7%AF%E5%BE%84"><span class="nav-text">5. 优化决策路径</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">6. 关键要点</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">65</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/26/ARM-%E5%A4%84%E7%90%86%E5%99%A8%E4%BB%A3%E7%A0%81%E4%BC%98%E5%8C%96%E6%8A%80%E6%9C%AF/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM 处理器代码优化技术 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM 处理器代码优化技术
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-26 22:47:09" itemprop="dateCreated datePublished" datetime="2026-07-26T22:47:09+08:00">2026-07-26</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>本文梳理 ARM Cortex-A 系列代码优化技术，按三个层级递进展开：编译器选项、内存子系统优化、源码级微调。</p>
+<span id="more"></span>
+
+<h2 id="1-引言"><a href="#1-引言" class="headerlink" title="1. 引言"></a>1. 引言</h2><p>优化不只有”更快”——在嵌入式系统上，省电和减少内存占用同样重要。手册第 18 章开头即说明了优化目标的多样性：更少的执行周期意味着处理器可以更早进入休眠，从而延长电池寿命。这几者常常是相互促进的：代码跑得更快 → 更少活跃时间 → 更长休眠时间 → 更省电。</p>
+<p>在 Cortex-A 处理器上，你几乎不能手动预测一段代码的执行时间。你不能再像 ARM7TDMI 时代那样打开 TRM 查到每条指令的 cycle count 然后逐条累加——流水线中的指令运动依赖于周围指令的进度，并且会受到内存系统活动的显著影响。一条待定的 Load 或指令预取在 Cache 中未命中可能会使代码停顿数十个周期。一条 LDR 的实际延迟取决于它是否命中 L1 Cache——命中 1-3 个周期，未命中 20-100 个周期。这个差异远超任何指令级优化的收益。</p>
+<p>因此，手册中给出的所有优化技术自然形成了三层递进优先级：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Tier 1: 编译器优化 —— 开一个 flag 即可，零代码改动</span><br><span class="line">Tier 2: 内存系统优化 —— 决定 80% 性能，关键在数据 locality</span><br><span class="line">Tier 3: 源码级微调 —— 细粒度改造 C 代码，榨出最后几个周期</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="2-编译器优化"><a href="#2-编译器优化" class="headerlink" title="2. 编译器优化"></a>2. 编译器优化</h2><p>编译器是最容易利用的优化工具——不需要修改一行源代码，只改变命令行 flags 就能影响代码生成质量。</p>
+<h3 id="2-1-函数内联"><a href="#2-1-函数内联" class="headerlink" title="2.1 函数内联"></a>2.1 函数内联</h3><p>内联的收益本质是用代码膨胀换取三个具体收益：消除函数调用开销（BL、返回地址保存、寄存器压栈、返回时的分支跳转）；更重要地，扩大编译器能看见的代码窗口，内联后编译器可以在更大的上下文中做值域传播和死代码消除——这往往是远超调用开销本身的收益；副作用是过度内联增大 Code Size，降低 I-Cache 利用率，可能反而变慢。</p>
+<p><strong>实例：内联一个小函数的汇编级对比</strong></p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 原始代码 —— tiny_func 没有被内联</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">tiny_func</span><span class="params">(<span class="type">int</span> x)</span> &#123; <span class="keyword">return</span> x * <span class="number">2</span> + <span class="number">1</span>; &#125;</span><br><span class="line"><span class="type">int</span> <span class="title function_">caller</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="type">int</span> a = <span class="number">10</span>;</span><br><span class="line">    <span class="type">int</span> b = tiny_func(a);</span><br><span class="line">    <span class="keyword">return</span> b + a;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">// 未内联时 caller() 的汇编 (ARM): 需要 BL + 参数准备 + 返回值使用</span><br><span class="line">caller:</span><br><span class="line">    MOV   R0, #10              ; a = 10</span><br><span class="line">    BL    tiny_func             ; 分支跳转，LR保存返回地址</span><br><span class="line">    ADD   R0, R0, #10          ; b + a (tiny_func 的返回值在 R0)</span><br><span class="line">    BX    LR</span><br><span class="line"></span><br><span class="line">tiny_func:</span><br><span class="line">    ADD   R0, R0, R0            ; R0 = x + x = x * 2</span><br><span class="line">    ADD   R0, R0, #1            ; R0 = x * 2 + 1</span><br><span class="line">    BX    LR</span><br><span class="line">// 总计: 5 条指令，2 次分支 (BL + BX LR)</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">// 编译器内联后 (GCC -O2)：消除 BL 和 BX LR</span><br><span class="line">caller:</span><br><span class="line">    MOV   R0, #10              ; a = 10 → R0</span><br><span class="line">    ADD   R0, R0, R0            ; tiny_func 内联第1条: x * 2</span><br><span class="line">    ADD   R0, R0, #1            ; tiny_func 内联第2条: x * 2 + 1</span><br><span class="line">    ADD   R0, R0, #10          ; b + a</span><br><span class="line">    BX    LR</span><br><span class="line">// 总计: 4 条指令，0 次函数调用分支</span><br></pre></td></tr></table></figure>
+
+<p>GCC 默认只在单个编译单元内做内联。跨文件内联需要 <code>inline</code> 关键字配合 <code>static</code> &#x2F; <code>extern</code>。</p>
+<h3 id="2-2-公共子表达式消除"><a href="#2-2-公共子表达式消除" class="headerlink" title="2.2 公共子表达式消除"></a>2.2 公共子表达式消除</h3><p>编译器在 <code>-O1</code> 及以上默认执行此优化，前提是相关变量不是 <code>volatile</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 原始代码</span></span><br><span class="line">i = a * b + c;</span><br><span class="line">j = a * b * d;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 编译器优化后等价于</span></span><br><span class="line">tmp = a * b;</span><br><span class="line">i = tmp + c;</span><br><span class="line">j = tmp * d;</span><br></pre></td></tr></table></figure>
+
+<p>这个优化同时降低了指令数和执行周期数，属于零代价优化。</p>
+<h3 id="2-3-循环展开"><a href="#2-3-循环展开" class="headerlink" title="2.3 循环展开"></a>2.3 循环展开</h3><p>循环展开用代码膨胀消除每次迭代的分支和比较开销。一个简单的例子：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 原始：每次迭代都要 CMP + Bcc</span></span><br><span class="line"><span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; <span class="number">10</span>; i++) &#123;</span><br><span class="line">    x[i] = i;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 展开后：无分支，10 条连续赋值</span></span><br><span class="line">x[<span class="number">0</span>] = <span class="number">0</span>;  x[<span class="number">1</span>] = <span class="number">1</span>;  x[<span class="number">2</span>] = <span class="number">2</span>;  x[<span class="number">3</span>] = <span class="number">3</span>;  x[<span class="number">4</span>] = <span class="number">4</span>;</span><br><span class="line">x[<span class="number">5</span>] = <span class="number">5</span>;  x[<span class="number">6</span>] = <span class="number">6</span>;  x[<span class="number">7</span>] = <span class="number">7</span>;  x[<span class="number">8</span>] = <span class="number">8</span>;  x[<span class="number">9</span>] = <span class="number">9</span>;</span><br></pre></td></tr></table></figure>
+
+<p>每次循环迭代可以省去一次比较和一次条件跳转，从而减少循环控制开销。</p>
+<p>不过，循环展开并非总能提升性能。展开后代码体积会增大，可能降低 I-Cache 命中率；另一方面，现代 Cortex-A 处理器具有较高准确率的分支预测机制，对于这种规律性的循环跳转通常能够正确预测，因此循环分支本身的开销已经很低。对于迭代次数较少或循环体较小的场景，循环展开带来的收益可能不足以抵消代码膨胀带来的影响。</p>
+<p>因此，循环展开并不是 Cortex-A 上的通用优化手段。建议结合 Profiling 工具分析热点代码，再决定是否启用 <code>-funroll-loops</code> 或手动展开循环。</p>
+<h3 id="2-4-GCC-优化级别全景"><a href="#2-4-GCC-优化级别全景" class="headerlink" title="2.4 GCC 优化级别全景"></a>2.4 GCC 优化级别全景</h3><table>
+<thead>
+<tr>
+<th>优化级别</th>
+<th>主要特点</th>
+<th>调试可见性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>-O0</code></td>
+<td>不进行优化，尽量保持源码与汇编的一一对应关系，编译速度最快。</td>
+<td>★★★★★</td>
+</tr>
+<tr>
+<td><code>-O1</code></td>
+<td>启用基础优化，如常量传播、公共子表达式消除（CSE）、死代码消除等，在编译时间和运行效率之间取得平衡。</td>
+<td>★★★★☆</td>
+</tr>
+<tr>
+<td><code>-O2</code></td>
+<td>在 <code>-O1</code> 基础上启用更多优化，如指令调度、循环优化、寄存器分配优化等，是大多数项目的默认发布优化级别。</td>
+<td>★★★☆☆</td>
+</tr>
+<tr>
+<td><code>-O3</code></td>
+<td>在 <code>-O2</code> 基础上进一步启用更激进的优化，例如更积极的函数内联、循环展开以及自动向量化（<code>-ftree-vectorize</code>），以追求最高运行性能。</td>
+<td>★★☆☆☆</td>
+</tr>
+<tr>
+<td><code>-Os</code></td>
+<td>以减小代码体积为目标，在保持大部分 <code>-O2</code> 优化的同时，避免增加代码尺寸的优化。</td>
+<td>★★★☆☆</td>
+</tr>
+<tr>
+<td><code>-Og</code></td>
+<td>面向调试的优化级别，在保留较好调试体验的同时提供一定优化效果。</td>
+<td>★★★★★</td>
+</tr>
+<tr>
+<td><code>-funroll-loops</code></td>
+<td>独立于 <code>-O</code> 的循环展开选项，可与其他优化级别组合使用。</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p><strong>说明：</strong> 实际启用哪些优化选项会随 GCC 版本变化，可通过 <code>gcc -Q --help=optimizers</code> 查看当前版本各优化级别对应的具体选项。</p>
+<p><strong>推荐使用方式</strong></p>
+<ul>
+<li><strong>开发调试</strong>：推荐使用 **<code>-Og -g</code>**，既能保持较好的调试体验，又能发现部分优化相关问题。</li>
+<li><strong>性能测试或发布版本</strong>：通常使用 **<code>-O2</code>**，它在性能、代码体积和编译时间之间取得了较好的平衡，也是大多数项目的默认选择。</li>
+<li><strong>极致性能优化</strong>：当 Profiling 证明热点代码仍有优化空间时，再考虑使用 **<code>-O3</code>**，并评估其带来的代码体积增长是否值得。</li>
+<li><strong>Flash 或 ROM 空间受限</strong>：优先考虑 **<code>-Os</code>**。</li>
+</ul>
+<h3 id="2-5-平台指定参数"><a href="#2-5-平台指定参数" class="headerlink" title="2.5 平台指定参数"></a>2.5 平台指定参数</h3><table>
+<thead>
+<tr>
+<th>参数</th>
+<th>作用</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>-march=armv7-a</code></td>
+<td>指定架构版本，决定可用指令集</td>
+<td>启用对应架构支持的指令（如 Thumb-2、SDIV&#x2F;UDIV、Barrier 指令等）</td>
+</tr>
+<tr>
+<td><code>-mcpu=cortex-a9</code></td>
+<td>为特定处理器调度指令</td>
+<td>指定目标 CPU，同时选择对应架构并针对该 CPU 的流水线、Cache 和执行单元进行优化</td>
+</tr>
+<tr>
+<td><code>-mtune=cortex-a8</code></td>
+<td>为特定处理器优化但不改变指令集</td>
+<td>可配合 <code>-march=armv5te</code> 在旧指令集上做新处理器调度</td>
+</tr>
+<tr>
+<td><code>-mfpu=neon</code></td>
+<td>启用 NEON SIMD 与 VFP 浮点指令</td>
+<td>Cortex-A5 示例</td>
+</tr>
+<tr>
+<td><code>-mfloat-abi=hard</code></td>
+<td>使用硬件 FP 寄存器传浮点参数</td>
+<td>比 <code>softfp</code> 减少参数拷贝开销</td>
+</tr>
+</tbody></table>
+<p>向编译器提供尽可能详细的目标平台信息，是获得最优代码的关键。如果目标平台支持 ARMv7-A ，指定 <code>-march=armv7-a</code> 后，编译器可以使用 ARMv7-A 支持的更多指令，例如硬件除法（SDIV&#x2F;UDIV）、Barrier 指令等；同时也可以生成 Thumb-2 指令，以在性能和代码体积之间取得更好的平衡。</p>
+<p>至此，你已经让编译器尽可能生成高效的指令。但如果 Profiling 仍然显示热点集中在某个函数上，不必急于手写汇编，更应该先检查这段代码的内存访问模式。编译器优化解决的是”如何更快地执行指令”，而内存优化解决的是”如何更快地拿到数据”。对于 Cortex-A 而言，一次 Cache Miss 带来的等待时间，往往远高于执行几条算术或逻辑指令的开销，因此数据访问模式通常比单纯优化指令更值得关注。</p>
+<hr>
+<h2 id="3-内存系统优化"><a href="#3-内存系统优化" class="headerlink" title="3. 内存系统优化"></a>3. 内存系统优化</h2><p>在大多数 Cortex-A 系列处理器中，<strong>Cache 命中与未命中的访问延迟相差很大</strong>。L1 Cache 命中通常只需几个处理器周期，而一次 Cache Miss 若需要访问更低层 Cache 甚至主存，则可能需要数十甚至上百个周期。因此，对大多数算法而言，<strong>尽可能减少 Cache Miss</strong> 往往是最重要的性能优化目标，其中 L1 Cache 的优化收益通常最为明显。</p>
+<h3 id="3-1-数据局部性：空间与时间"><a href="#3-1-数据局部性：空间与时间" class="headerlink" title="3.1 数据局部性：空间与时间"></a>3.1 数据局部性：空间与时间</h3><p>数据 Cache 优化的核心原则是<strong>数据局部性（Data Locality）</strong>：尽量让已经加载到 Cache 中的数据被重复利用，减少对更低层存储器的访问。</p>
+<ul>
+<li><strong>空间局部性（Spatial Locality）</strong>：一个 Cache Line 通常为 32 或 64 字节。访问地址 <code>0x1000</code> 时，处理器会将包含该地址的整条 Cache Line 一并加载到 Cache 中，因此紧接着访问 <code>0x1004</code>、<code>0x1008</code> 等位于同一 Cache Line 内的数据，通常都能直接命中 Cache，几乎无需额外的访存开销。</li>
+<li><strong>时间局部性（Temporal Locality）</strong>：刚访问过的数据，如果在较短时间内再次被访问，大概率仍然保留在 Cache 中，因此能够快速命中，而无需重新从更低层存储器读取。</li>
+</ul>
+<p>绝大多数 Cache 优化技巧，本质上都是围绕这两个原则展开：<strong>按顺序访问数据，提高空间局部性；尽快重复使用数据，提高时间局部性。</strong></p>
+<h3 id="3-2-Loop-Tiling：用分块提升-Cache-利用率"><a href="#3-2-Loop-Tiling：用分块提升-Cache-利用率" class="headerlink" title="3.2 Loop Tiling：用分块提升 Cache 利用率"></a>3.2 Loop Tiling：用分块提升 Cache 利用率</h3><p>Loop Tiling（又称 <strong>Loop Blocking</strong>）的核心思想是：<strong>将大规模循环拆分为多个能够放入 Cache 的小块，使数据在被替换之前得到充分复用，从而减少 Cache Miss。</strong></p>
+<p>矩阵乘法是最经典的例子：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 原始代码</span></span><br><span class="line"><span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; <span class="number">1024</span>; i++)</span><br><span class="line">    <span class="keyword">for</span> (j = <span class="number">0</span>; j &lt; <span class="number">1024</span>; j++)</span><br><span class="line">        <span class="keyword">for</span> (k = <span class="number">0</span>; k &lt; <span class="number">1024</span>; k++)</span><br><span class="line">            result[i][j] += a[i][k] * b[k][j];</span><br></pre></td></tr></table></figure>
+
+<p>性能瓶颈主要出现在 <code>b[k][j]</code> 的访问模式。</p>
+<p>由于 C 语言二维数组采用<strong>行优先（Row-major）</strong>存储，固定 <code>j</code>、递增 <code>k</code> 时，每次访问都会跳到下一行：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">b[0][j]</span><br><span class="line">b[1][j]</span><br><span class="line">b[2][j]</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>假设矩阵每行有 1024 个 <code>int</code>，每个 <code>int</code> 占 4 字节，则相邻两次访问的地址相差：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">1024 × 4 = 4096 Bytes</span><br></pre></td></tr></table></figure>
+
+<p>这远大于一个 Cache Line（通常为 32 或 64 字节），因此几乎每次访问都会落到新的 Cache Line。虽然每次都会把整条 Cache Line 加载到 Cache 中，但其中只有一个元素被立即使用，其余数据很可能在再次访问前就已经被替换掉，导致 Cache 利用率极低。</p>
+<p>Loop Tiling 的做法是把矩阵划分为多个较小的子块，使参与一次计算的数据能够尽可能驻留在 Cache 中：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Loop Tiling（8×8×8 分块）</span></span><br><span class="line"><span class="keyword">for</span> (io = <span class="number">0</span>; io &lt; <span class="number">1024</span>; io += <span class="number">8</span>)</span><br><span class="line">    <span class="keyword">for</span> (jo = <span class="number">0</span>; jo &lt; <span class="number">1024</span>; jo += <span class="number">8</span>)</span><br><span class="line">        <span class="keyword">for</span> (ko = <span class="number">0</span>; ko &lt; <span class="number">1024</span>; ko += <span class="number">8</span>)</span><br><span class="line">            <span class="keyword">for</span> (ii = <span class="number">0</span>, rresult = &amp;result[io][jo], ra = &amp;a[io][ko];</span><br><span class="line">                 ii &lt; <span class="number">8</span>;</span><br><span class="line">                 ii++, rresult += <span class="number">1024</span>, ra += <span class="number">1024</span>)</span><br><span class="line">                <span class="keyword">for</span> (ki = <span class="number">0</span>, rb = &amp;b[ko][jo];</span><br><span class="line">                     ki &lt; <span class="number">8</span>;</span><br><span class="line">                     ki++, rb += <span class="number">1024</span>)</span><br><span class="line">                    <span class="keyword">for</span> (ji = <span class="number">0</span>; ji &lt; <span class="number">8</span>; ji++)</span><br><span class="line">                        rresult[ji] += ra[ki] * rb[ji];</span><br></pre></td></tr></table></figure>
+
+<p>采用分块后，每次只处理一个 <code>8×8×8</code> 的子问题。这样，同一个子块中的 <code>a</code>、<code>b</code> 和 <code>result</code> 数据能够在 L1 Cache 中被反复访问，而不是频繁重新加载，大幅提高了 Cache 命中率。</p>
+<blockquote>
+<p><strong>说明：</strong> 分块大小并不是固定为 <code>8</code>。实际选择通常需要根据 L1 Cache 容量、Cache Line 大小、数据类型以及算法特点综合确定，<code>8×8×8</code> 只是一个便于说明原理的示例。</p>
+</blockquote>
+<p>ARM 优化手册还建议交换 <code>ki</code> 与 <code>ji</code> 的循环顺序。原因是 <code>ra[ki]</code> 在一次内层循环中只使用一次，而 <code>rb[ji]</code> 和 <code>rresult[ji]</code> 会在整个内层循环中反复访问。将引用频率更高的数据放在最内层循环，可以减少地址计算和寄存器更新，提高流水线利用率，并为编译器优化创造更好的条件。</p>
+<h3 id="3-3-Loop-Interchange：换一下循环顺序"><a href="#3-3-Loop-Interchange：换一下循环顺序" class="headerlink" title="3.3 Loop Interchange：换一下循环顺序"></a>3.3 Loop Interchange：换一下循环顺序</h3><p>Loop Interchange（循环交换）是指<strong>交换嵌套循环的执行顺序</strong>，使内层循环尽可能按连续地址访问数据，从而提高 Cache 命中率。</p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">// 按列访问（Cache 不友好）</span><br><span class="line">for (int j = 0; j &lt; N; j++)</span><br><span class="line">    for (int i = 0; i &lt; M; i++)</span><br><span class="line">        sum += a[i][j];</span><br></pre></td></tr></table></figure>
+
+<p>交换循环顺序后：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">// 按行访问（Cache 更友好）</span><br><span class="line">for (int i = 0; i &lt; M; i++)</span><br><span class="line">    for (int j = 0; j &lt; N; j++)</span><br><span class="line">        sum += a[i][j];</span><br></pre></td></tr></table></figure>
+
+<p>由于 C 语言采用<strong>行优先（Row-major）</strong>存储，第二种写法按连续地址访问数组，更容易命中 Cache。<strong>因此，Loop Interchange 的原则不是让迭代次数最多的循环放在最内层，而是让内层循环尽可能连续访问内存。</strong></p>
+<h3 id="3-4-结构体布局优化"><a href="#3-4-结构体布局优化" class="headerlink" title="3.4 结构体布局优化"></a>3.4 结构体布局优化</h3><h3 id="结构体布局优化"><a href="#结构体布局优化" class="headerlink" title="结构体布局优化"></a>结构体布局优化</h3><p>数据在内存中的布局会直接影响 Cache 利用率。优化的目标是：<strong>让一次 Cache Line 加载尽可能包含更多真正会被访问的数据，同时避免额外的访存开销。</strong></p>
+<p>例如，一个 64 字节结构体中只有一个字段是热点数据：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复前：一次 Cache Line 填充只有少量有效数据</span></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">big</span> &#123;</span></span><br><span class="line">    <span class="type">int</span> hot_field;</span><br><span class="line">    <span class="type">char</span> cold_data[<span class="number">60</span>];</span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">big</span> <span class="title">obj</span>[<span class="title">N</span>];</span></span><br></pre></td></tr></table></figure>
+
+<p>如果热点代码只访问：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sum += obj[i].hot_field;</span><br></pre></td></tr></table></figure>
+
+<p>那么 CPU 每次都需要把包含整个结构体的 Cache Line 加载到 Cache，而其中绝大多数数据并不会被使用，造成 Cache 带宽浪费。</p>
+<p>一种常见优化方法是将热点字段拆分出来，单独存放：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 修复后：一次 Cache Line 包含更多热点数据</span></span><br><span class="line"><span class="type">int</span> hot_array[N];</span><br><span class="line"><span class="type">char</span> cold_array[N][<span class="number">60</span>];</span><br></pre></td></tr></table></figure>
+
+<p>这样一条 Cache Line 可以容纳更多连续的 <code>hot_field</code> 数据，提高 Cache 利用率。</p>
+<p>此外，<strong>数据对齐（Alignment）</strong>也属于数据布局优化的一部分。虽然现代 Cortex-A 支持非对齐访问，但相比按自然边界对齐的访问，非对齐访问可能需要额外的访存操作，增加访问延迟。因此，在性能敏感的代码中，仍应尽量保证数据按自然边界对齐，避免不必要的非对齐访问。</p>
+<h3 id="3-5-Cache-关联性效应"><a href="#3-5-Cache-关联性效应" class="headerlink" title="3.5 Cache 关联性效应"></a>3.5 Cache 关联性效应</h3><p>ARM L1 Cache 通常采用 <strong>4-way 组相联（Set Associative）</strong> 结构，L2 Cache 则常见为 8-way 或 16-way。每个 Cache Set 最多只能同时保存有限数量的 Cache Line，当多个数据映射到同一个 Cache Set 时，即使其他 Cache Set 仍有空闲空间，也可能发生频繁替换，导致 Cache Miss，这种现象称为 <strong>Conflict Miss（冲突失效）</strong>。</p>
+<p>一个典型场景是多个数据块恰好相隔 <strong>Cache 每 Way 的容量</strong>。以 <strong>16KB、4-way、32B Cache Line</strong> 的 L1 Cache 为例，每 Way 容量为 4KB，因此地址相差 4KB 的数据会映射到同一个 Cache Set。当同时访问超过 4 个这样的数据块时，就会不断发生 Cache Line 替换，即使整个 Cache 仍有大量空闲空间。</p>
+<p>因此，在设计数据结构或选择分块大小时，应尽量避免大量热点数据集中映射到同一个 Cache Set，以减少冲突失效，提高 Cache 利用率。</p>
+<h3 id="3-6-I-Cache-与内联的微妙权衡"><a href="#3-6-I-Cache-与内联的微妙权衡" class="headerlink" title="3.6 I-Cache 与内联的微妙权衡"></a>3.6 I-Cache 与内联的微妙权衡</h3><p>函数内联能够消除函数调用开销，并为编译器创造更多优化机会，但并非越多越好。对于调用点很多的小函数，过度内联会导致代码体积迅速膨胀，占用更多 I-Cache 空间，反而降低性能。</p>
+<p>例如，一个很小的函数在 20 个位置被调用。如果保持独立实现，它只需在 I-Cache 中保存一份代码，所有调用点共享；而内联后，函数体会被复制 20 次，增加 I-Cache 占用，更容易发生 I-Cache Miss，并挤占其他热点代码。</p>
+<p>因此，对于<strong>调用点很多但函数体较小</strong>的场景，函数调用带来的几个周期开销，往往比 I-Cache Miss 的代价低得多。现代 Cortex-A 处理器还配备了高效的分支预测器和 Return Stack Buffer（RSB），能够很好地预测函数调用和返回，因此不应为了消除 <code>BL</code>&#x2F;<code>RET</code> 而盲目内联。</p>
+<p>类似地，对于明显偏向某一分支的条件判断（例如 <code>error == 0</code> 的概率超过 99%），应尽量让高频执行路径保持线性，低频路径放到条件分支中。这样不仅有利于分支预测，也能避免异常处理等冷代码进入 I-Cache，提高指令 Cache 的利用率。</p>
+<h3 id="3-7-TLB-优化"><a href="#3-7-TLB-优化" class="headerlink" title="3.7 TLB 优化"></a>3.7 TLB 优化</h3><p>TLB（Translation Lookaside Buffer）用于缓存虚拟地址到物理地址的映射。当程序访问的页面数量超过 TLB 容量时，会发生 TLB Miss，需要重新进行页表遍历，增加访存延迟。</p>
+<p>对于应用开发者而言，能够直接干预 TLB 的手段并不多。优化的核心是<strong>减少活跃页面数量</strong>：将热点代码和热点数据尽可能集中，避免频繁跨页访问。在裸机或操作系统允许的场景下，还可以使用 <strong>Section（1MB）</strong> 或 <strong>Supersection（16MB）</strong> 映射代替 4KB 小页，使一个 TLB 条目覆盖更大的地址空间，进一步降低 TLB Miss 的概率。</p>
+<h3 id="3-8-Data-Abort-优化"><a href="#3-8-Data-Abort-优化" class="headerlink" title="3.8 Data Abort 优化"></a>3.8 Data Abort 优化</h3><p>在支持虚拟内存的操作系统（如 Linux）中，访问尚未建立映射的页面会触发 <strong>Data Abort（Page Fault）</strong>，由内核完成缺页处理，例如分配物理页面、建立页表映射等。对于采用 <strong>Copy-on-Write（COW）</strong> 的页面，首次写入共享页面时也会触发异常，由内核分配新的物理页并完成复制。这些异常处理都会带来较高的性能开销。</p>
+<p>优化思路与 TLB 优化类似：<strong>减少页面数量和随机跨页访问</strong>。热点代码和数据越集中，不仅能够降低 TLB Miss 的概率，也有助于减少首次访问页面时的缺页处理开销。</p>
+<h3 id="3-9-预取：PLD-和-PLI"><a href="#3-9-预取：PLD-和-PLI" class="headerlink" title="3.9 预取：PLD 和 PLI"></a>3.9 预取：PLD 和 PLI</h3><p><code>PLD</code>（Preload Data）用于提示处理器提前将数据加载到 D-Cache；<code>PLI</code>（Preload Instruction）用于提前将指令加载到 I-Cache。它们都是<strong>预取提示（Hint）</strong>，处理器可以选择执行，也可以忽略。</p>
+<p>现代 Cortex-A 处理器通常还具备硬件自动预取能力。当检测到连续或规律的内存访问模式时，处理器会自动预取后续 Cache Line，因此大多数场景无需手动插入 <code>PLD</code> 或 <code>PLI</code>。只有在 Profiling 证明内存访问延迟仍然是主要瓶颈时，才值得尝试手动预取，并根据实际测试结果评估收益。</p>
+<p>至此，我们已经介绍了编译器优化和内存系统优化，它们覆盖了大多数程序的性能瓶颈。只有当 Profiling 仍然显示热点集中在少数循环或函数时，才值得进一步从 C 源码甚至汇编层面进行针对性的优化。此时，开发者需要理解 ARM 微架构的执行代价，将热点代码改写为更适合处理器执行的形式，从而获得最后一部分性能收益。</p>
+<hr>
+<h2 id="4-源码级微调"><a href="#4-源码级微调" class="headerlink" title="4. 源码级微调"></a>4. 源码级微调</h2><p>编译器做完代码生成后，ARM 汇编层面的规则仍然影响着你写的 C 代码。这里的每条技巧都基于一条特定的 ARM 汇编特性——循环倒计数利用 <code>SUBS</code> 免费更新条件标志位，<code>restrict</code> 解除编译器被迫的保守假设，<code>int</code> 类型避免窄类型的符号&#x2F;零扩展指令。</p>
+<h3 id="4-1-循环倒计数"><a href="#4-1-循环倒计数" class="headerlink" title="4.1 循环倒计数"></a>4.1 循环倒计数</h3><p>ARM 汇编知识可以直接指导 C 代码优化：让循环计数器倒数到 0 而非正数到 N。这是因为 <code>SUBS</code>（带标志更新的减法）会让与零的比较”免费”——Z flag 自动更新，省掉一条显式 <code>CMP</code> 指令。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 每次迭代需要 CMP 指令</span></span><br><span class="line"><span class="keyword">for</span> (i = <span class="number">1</span>; i &lt;= total; i++)</span><br><span class="line"></span><br><span class="line"><span class="comment">// SUB 自动更新 Z flag，省掉 CMP</span></span><br><span class="line"><span class="keyword">for</span> (i = total; i != <span class="number">0</span>; i--)</span><br></pre></td></tr></table></figure>
+
+<p>成本对比：正数版本每条迭代是 <code>ADD + CMP + B(cc)</code>，三条指令；倒数版本每条迭代是 <code>SUBS + BNE</code>，两条指令。如果循环执行 100,000 次，就省了 100,000 条 CMP。</p>
+<p>此外，循环计数器应使用 <code>int</code> (32-bit) 类型。ARM 是原生 32-bit 机器，使用 <code>short</code> 或 <code>char</code> 作为循环计数器会导致编译器插入额外的溢出检查指令（如 <code>SXTH</code>、<code>BIC</code> 等）。</p>
+<h3 id="4-2-Loop-Fusion：合并独立循环"><a href="#4-2-Loop-Fusion：合并独立循环" class="headerlink" title="4.2 Loop Fusion：合并独立循环"></a>4.2 Loop Fusion：合并独立循环</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 合并前 — 两个独立的循环</span></span><br><span class="line"><span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; <span class="number">10</span>; i++) &#123; x[i] = <span class="number">1</span>; &#125;</span><br><span class="line"><span class="keyword">for</span> (j = <span class="number">0</span>; j &lt; <span class="number">10</span>; j++) &#123; y[j] = j; &#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 合并后 — 一个循环完成两个数组的初始化</span></span><br><span class="line"><span class="keyword">for</span> (i = <span class="number">0</span>; i &lt; <span class="number">10</span>; i++) &#123; x[i] = <span class="number">1</span>; y[i] = i; &#125;</span><br></pre></td></tr></table></figure>
+
+<p>收益是减少了循环控制开销（比较 + 分支）的一半。但需注意：如果 <code>x</code> 和 <code>y</code> 恰好在 Cache 中被映射到同一个 Set（因为地址相差 Cache Way 大小的倍数），合并后两个数组会互相逐出对方的 Line，产生 Cache thrashing，合并反而更慢。</p>
+<h3 id="4-3-减少栈和堆的使用"><a href="#4-3-减少栈和堆的使用" class="headerlink" title="4.3 减少栈和堆的使用"></a>4.3 减少栈和堆的使用</h3><p>ARM 处理器的寄存器数量有限。当所有寄存器都被当前活跃的变量占用时，额外的变量会被溢出到栈上，每次访问都需要内存操作，增加额外的执行周期。关键原则是：尽量减少同时活跃的变量数量。</p>
+<p>一个直接的影响是函数参数数量。ARM AAPCS 规定前 4 个参数通过寄存器（R0-R3）传递，第 5 个及以后的参数通过栈传递。因此，4 个或更少的参数比 5 个以上的参数高效得多。64-bit 变量（如 <code>double</code>、<code>long long</code>）占用两个寄存器槽位。C++ 的非静态成员函数还会额外消耗一个槽位给 <code>this</code> 指针。递归函数通常会进一步恶化寄存器利用效率。</p>
+<h3 id="4-4-变量选择：int-是-ARM-上的最优类型"><a href="#4-4-变量选择：int-是-ARM-上的最优类型" class="headerlink" title="4.4 变量选择：int 是 ARM 上的最优类型"></a>4.4 变量选择：int 是 ARM 上的最优类型</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// unsigned int i, j, k;  →  i = j + k;</span></span><br><span class="line">ADD R0, R1, R2          <span class="comment">// 1 条指令</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// signed short i, j, k;  →  i = j + k;</span></span><br><span class="line">ADD  R0, R1, R2</span><br><span class="line">SXTH R0, R0             <span class="comment">// 额外指令：符号扩展确保不溢出 16-bit</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// unsigned short i, j, k;</span></span><br><span class="line">ADD  R0, R1, R2</span><br><span class="line">BIC  R0, R0, #<span class="number">0x10000</span>   <span class="comment">// 额外指令：位清除确保不溢出 16-bit</span></span><br></pre></td></tr></table></figure>
+
+<p>原因：ARM 的 ALU 指令对 32-bit 操作数做全宽度计算。当变量声明为更窄的类型时，编译器必须插入裁剪指令来模拟窄类型的溢出行为。虽然编译器有时可以处理不正确的类型指定，但最好从一开始就使用正确的类型。</p>
+<h3 id="4-5-restrict：解绑指针假别名"><a href="#4-5-restrict：解绑指针假别名" class="headerlink" title="4.5 restrict：解绑指针假别名"></a>4.5 restrict：解绑指针假别名</h3><p>指针别名是编译器优化的最大障碍。C 语言中任何指针都可能与其他指针重叠，编译器必须保守地假设通过指针访问的内存区域可能重叠，这阻止了许多可能的优化。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 无 restrict — 编译器被迫保守：每次都要从内存重读 *i</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">foo</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> *ptr1, <span class="type">unsigned</span> <span class="type">int</span> *ptr2, <span class="type">unsigned</span> <span class="type">int</span> *i)</span> &#123;</span><br><span class="line">    *ptr1 += *i;</span><br><span class="line">    *ptr2 += *i;   <span class="comment">// 必须再读一次 *i，编译器不知道 *ptr1 是否改写了 *i</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 有 restrict — 编译器知道三个指针不重叠，可以只读一次 *i 然后复用</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">foo</span><span class="params">(<span class="type">unsigned</span> <span class="type">int</span> *<span class="keyword">restrict</span> ptr1,</span></span><br><span class="line"><span class="params">         <span class="type">unsigned</span> <span class="type">int</span> *<span class="keyword">restrict</span> ptr2,</span></span><br><span class="line"><span class="params">         <span class="type">unsigned</span> <span class="type">int</span> *<span class="keyword">restrict</span> i)</span> &#123;</span><br><span class="line">    *ptr1 += *i;   <span class="comment">// *i 读一次</span></span><br><span class="line">    *ptr2 += *i;   <span class="comment">// 复用同一个值</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>restrict</code> (C99) 或 <code>__restrict</code> (GCC 扩展) 告诉编译器这个指针指向的内存不会被其他任何指针触及。这对于需要同时读写多个数组的循环体（如矩阵运算、信号处理）效果尤其显著。</p>
+<h3 id="4-6-除法与取模"><a href="#4-6-除法与取模" class="headerlink" title="4.6 除法与取模"></a>4.6 除法与取模</h3><p>并非所有 ARM 处理器都有硬件除法支持。对于没有硬件除法的处理器，C 除法通常会调用一个库例程，对 32 位整数除法需要数十个周期。即使有硬件除法器，除法仍然比乘法慢得多。</p>
+<p>编译器可以将除以编译时常量的运算替换为移位乘法对——<code>x = a / 60</code> 会被优化为 <code>(a × magic_constant) &gt;&gt; shift</code>，等价于一次 32×32 乘法加移位，远快于库函数除法。但对于两个变量相除（<code>a / b</code>），编译器无法优化——必须避免出现在热路径中。</p>
+<p>取模运算同样会使用除法库例程。一个典型案例：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 慢：取模运算调用除法库函数</span></span><br><span class="line">minutes = (minutes + <span class="number">1</span>) % <span class="number">60</span>;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 快：直接比较 + 条件赋值（2 cycles vs 数十 cycles）</span></span><br><span class="line"><span class="keyword">if</span> (++minutes == <span class="number">60</span>) minutes = <span class="number">0</span>;</span><br></pre></td></tr></table></figure>
+
+<p>从库函数调用缩减为 2 个周期的 ADD+CMP 组合。</p>
+<h3 id="4-7-其他技巧一览"><a href="#4-7-其他技巧一览" class="headerlink" title="4.7 其他技巧一览"></a>4.7 其他技巧一览</h3><table>
+<thead>
+<tr>
+<th>技巧</th>
+<th>原理</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>extern 数据放 struct</td>
+<td>多个 extern 变量共享同一个基指针，省去多次加载 GOT 条目的开销</td>
+<td>全局变量较多时</td>
+</tr>
+<tr>
+<td>内联汇编当最后手段</td>
+<td>先用 profiling + 算法优化 + 编译器优化，都用完了再考虑手写汇编</td>
+<td>确认的极端热点</td>
+</tr>
+<tr>
+<td>避免复杂寻址模式</td>
+<td>带移位偏移的 LDR 不能让 CPU 双发射，拆分为独立 MOV+LDR 可能更快</td>
+<td>循环体内的 Load&#x2F;Store</td>
+</tr>
+<tr>
+<td>对齐访问</td>
+<td>非对齐 LDR 有额外 1 周期惩罚，跨 Cache Line 的非对齐更严重</td>
+<td>数据结构的 padding 设计</td>
+</tr>
+<tr>
+<td>链接时优化</td>
+<td>LTO 跨编译单元做内联和死代码消除</td>
+<td>大型项目，<code>-flto</code></td>
+</tr>
+<tr>
+<td>减少函数参数数量</td>
+<td>ARM 的前 4 个参数走寄存器，第 5 个开始走栈</td>
+<td>高频调用函数</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="5-优化决策路径"><a href="#5-优化决策路径" class="headerlink" title="5. 优化决策路径"></a>5. 优化决策路径</h2><p>优化决策遵循”先廉价后昂贵、先通用后专用”的原则。起点永远是 profiling——只有测量才能告诉你真正的热点在哪里。确定了热点之后，按照三个层级逐级递进：</p>
+<p>第一层是编译器开关——零代码改动。打开 <code>-O2 -mcpu=&lt;target&gt; -mfloat-abi=hard</code>。如果 profiling 确认性能达标，停止优化。</p>
+<p>第二层是内存系统优化——修改数据访问模式。如果 Tier 1 不够，瓶颈通常在内存子系统。检查数据局部性：是否可以用 Loop Tiling 把工作集限制在 Cache 内？是否需要交换循环顺序？结构体是否可以拆分让热点字段独立成数组？Cache miss 的代价 (20-100 cycles) 远大于任何指令级优化。</p>
+<p>第三层是源码级微调——修改 C 代码细节。如果前两层都不够，热路径的每一行 C 都要仔细审视。循环能否倒计数？指针是否有假别名？热路径中是否有除法或取模？函数参数是否超过 4 个？这些微调每次只省 1-2 个周期，但累积效果显著。</p>
+<p>核心原则：永远从编译器开始，永远用 profiling 验证每一步的收益，永远不要猜。</p>
+<h2 id="6-关键要点"><a href="#6-关键要点" class="headerlink" title="6. 关键要点"></a>6. 关键要点</h2><p>以下是 Cortex-A 性能优化中需要牢记的十个关键点：</p>
+<ol>
+<li><strong>Profiling 先行</strong>——不要猜测瓶颈，先测量再优化。</li>
+<li><strong>优先利用编译器优化</strong>——<code>-O2</code>、<code>-mcpu=&lt;target&gt;</code>、<code>-mfloat-abi=hard</code> 等选项通常能以最低成本获得可观收益。</li>
+<li><strong>Cache Miss 往往是最大的性能瓶颈</strong>——一次访问主存的延迟可能远高于执行几十条普通指令。</li>
+<li><strong>优化数据局部性</strong>——合理使用 Loop Tiling、Loop Interchange 等技术，提高 Cache 命中率。</li>
+<li><strong>避免盲目展开循环和内联函数</strong>——代码膨胀会增加 I-Cache 压力，应以 Profiling 结果为依据。</li>
+<li><strong>关注 I-Cache 与分支预测</strong>——保持热点代码紧凑、连续，通常比消除一次函数调用更重要。</li>
+<li><strong>充分发挥编译器优化能力</strong>——合理使用 <code>restrict</code>、<code>const</code> 等关键字，减少不必要的别名分析和优化障碍。</li>
+<li><strong>减少热路径中的高开销指令</strong>——避免频繁使用除法、取模等高延迟操作，必要时可采用等价的低成本实现。</li>
+<li><strong>关注地址转换开销</strong>——减少活跃页面数量，提高 TLB 命中率，降低缺页和页表遍历带来的性能损失。</li>
+<li><strong>优化目标不只有速度</strong>——降低功耗、减小代码体积和内存占用，同样是性能优化的重要目标。</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/26/ARM-Profiling/" rel="prev" title="ARM Profiling">
+                  <i class="fa fa-angle-left"></i> ARM Profiling
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
