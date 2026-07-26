@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文基于 ARM Cortex-A Series Programmer’s Guide 第 17 章整理，从零介绍 profiling 的基本概念与 ARM 平台上的工具链。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM Profiling">
+<meta property="og:url" content="http://yoursite.com/2026/07/26/ARM-Profiling/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文基于 ARM Cortex-A Series Programmer’s Guide 第 17 章整理，从零介绍 profiling 的基本概念与 ARM 平台上的工具链。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
+<meta property="og:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
+<meta property="article:published_time" content="2026-07-26T12:29:48.000Z">
+<meta property="article:modified_time" content="2026-07-26T12:33:34.601Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/26/ARM-Profiling/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/26/ARM-Profiling/","path":"2026/07/26/ARM-Profiling/","title":"ARM Profiling"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM Profiling | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%BB%80%E4%B9%88%E6%98%AF-Profiling"><span class="nav-text">1. 什么是 Profiling</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-Profiler-%E7%9A%84%E6%95%B0%E6%8D%AE%E9%87%87%E9%9B%86%E6%96%B9%E5%BC%8F"><span class="nav-text">2. Profiler 的数据采集方式</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%9F%BA%E4%BA%8E%E6%97%B6%E9%97%B4%E7%9A%84%E9%87%87%E6%A0%B7"><span class="nav-text">2.1 基于时间的采样</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%9F%BA%E4%BA%8E%E4%BA%8B%E4%BB%B6%E7%9A%84%E9%87%87%E6%A0%B7-Event-based-Sampling"><span class="nav-text">2.2 基于事件的采样 (Event-based Sampling)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E7%BB%9F%E8%AE%A1%E6%9C%AC%E8%B4%A8"><span class="nav-text">2.3 统计本质</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-Profiler-%E8%BE%93%E5%87%BA%E8%A7%A3%E8%AF%BB"><span class="nav-text">3. Profiler 输出解读</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Flat-Profile-%E5%90%84%E5%88%97%E5%90%AB%E4%B9%89"><span class="nav-text">3.1 Flat Profile 各列含义</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-Call-Graph-%E7%9A%84%E9%99%84%E5%8A%A0%E4%BB%B7%E5%80%BC"><span class="nav-text">3.2 Call Graph 的附加价值</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Gprof%EF%BC%9A%E6%8F%92%E6%A1%A9%E5%BC%8F%E7%94%A8%E6%88%B7%E6%80%81-Profiler"><span class="nav-text">4. Gprof：插桩式用户态 Profiler</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-text">4.1 工作原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%85%B3%E9%94%AE%E5%B1%80%E9%99%90"><span class="nav-text">4.2 关键局限</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E6%8F%92%E6%A1%A9%E7%9A%84%E5%89%AF%E4%BD%9C%E7%94%A8"><span class="nav-text">4.3 插桩的副作用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E9%80%82%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-text">4.4 适用场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E4%B8%8E-perf-%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-text">4.5 与 perf 的区别</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-OProfile%EF%BC%9A%E7%B3%BB%E7%BB%9F%E7%BA%A7%E7%BB%9F%E8%AE%A1%E9%87%87%E6%A0%B7"><span class="nav-text">5. OProfile：系统级统计采样</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%A0%B8%E5%BF%83%E5%AF%B9%E6%AF%94"><span class="nav-text">5.1 核心对比</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%B7%A5%E4%BD%9C%E6%96%B9%E5%BC%8F"><span class="nav-text">5.2 工作方式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%B8%AD%E6%96%AD%E5%B1%8F%E8%94%BD%E5%AF%BC%E8%87%B4%E7%9A%84%E7%BB%9F%E8%AE%A1%E5%81%8F%E5%B7%AE"><span class="nav-text">5.3 中断屏蔽导致的统计偏差</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-ARM-Performance-Monitor-PMU-%EF%BC%9A%E7%A1%AC%E4%BB%B6%E6%80%A7%E8%83%BD%E8%AE%A1%E6%95%B0%E5%99%A8"><span class="nav-text">6. ARM Performance Monitor (PMU)：硬件性能计数器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-PMU-%E6%9E%B6%E6%9E%84"><span class="nav-text">6.1 PMU 架构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E5%8F%AF%E7%9B%91%E6%8E%A7%E4%BA%8B%E4%BB%B6%E4%B8%80%E8%A7%88"><span class="nav-text">6.2 可监控事件一览</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E5%A4%9A%E6%A0%B8%E6%89%A9%E5%B1%95%E4%BA%8B%E4%BB%B6"><span class="nav-text">6.3 多核扩展事件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E7%B2%BE%E5%BA%A6%E8%AF%B4%E6%98%8E"><span class="nav-text">6.4 精度说明</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-PMU-%E4%B8%8E-ETM-%E7%9A%84%E4%BA%92%E8%A1%A5%E5%85%B3%E7%B3%BB"><span class="nav-text">6.5 PMU 与 ETM 的互补关系</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-Linux-%E5%86%85%E6%A0%B8-Profiling-%E6%A1%86%E6%9E%B6"><span class="nav-text">7. Linux 内核 Profiling 框架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-Linux-perf-events"><span class="nav-text">7.1 Linux perf events</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-ARM-Streamline-%E6%80%A7%E8%83%BD%E5%88%86%E6%9E%90%E5%99%A8"><span class="nav-text">7.2 ARM Streamline 性能分析器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-Ftrace"><span class="nav-text">7.3 Ftrace</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-Valgrind-Cachegrind%EF%BC%9A%E6%A8%A1%E6%8B%9F%E5%BC%8F%E5%89%96%E6%9E%90"><span class="nav-text">8. Valgrind &#x2F; Cachegrind：模拟式剖析</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="nav-text">8.1 工作原理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-Cachegrind%EF%BC%9A%E7%BC%93%E5%AD%98%E6%A8%A1%E6%8B%9F"><span class="nav-text">8.2 Cachegrind：缓存模拟</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-%E5%86%85%E5%AD%98%E8%AE%BF%E9%97%AE%E5%89%96%E6%9E%90%E7%9A%84%E5%BF%85%E8%A6%81%E6%80%A7"><span class="nav-text">8.3 内存访问剖析的必要性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-4-%E5%B7%A5%E5%85%B7%E9%80%89%E5%9E%8B%E5%86%B3%E7%AD%96%E7%9F%A9%E9%98%B5"><span class="nav-text">8.4 工具选型决策矩阵</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">9. 关键要点</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">64</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/26/ARM-Profiling/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM Profiling | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM Profiling
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-26 20:29:48" itemprop="dateCreated datePublished" datetime="2026-07-26T20:29:48+08:00">2026-07-26</time>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文基于 ARM Cortex-A Series Programmer’s Guide 第 17 章整理，从零介绍 profiling 的基本概念与 ARM 平台上的工具链。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-什么是-Profiling"><a href="#1-什么是-Profiling" class="headerlink" title="1. 什么是 Profiling"></a>1. 什么是 Profiling</h2><p>假设你有一段程序跑得太慢——图像处理要 2 秒，你希望降到 0.5 秒。你打开源码，面对几千行 C 代码。先优化哪里？你会猜”排序函数太慢”还是”那个嵌套循环太多了”？</p>
+<p>如果猜错了，你花一周优化了一个只占总运行时间 2% 的函数，最终性能提升不到 1%。</p>
+<p>Profiling 解决的就是这个问题：<strong>它告诉你程序的时间花在了什么地方，用数据代替猜测</strong>。</p>
+<p>一个 profiler 采集程序运行时的数据，最终输出类似下面这样的报告：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Each sample counts as 0.01 seconds.</span><br><span class="line"></span><br><span class="line">  %     cumulative   self             self     total</span><br><span class="line"> time    seconds    seconds   calls  ms/call  ms/call  name</span><br><span class="line"> 33.34     0.02      0.02     6275     0.00     0.00  start</span><br><span class="line"> 16.67     0.03      0.01      192     0.07     0.21  func1</span><br><span class="line"> 16.67     0.04      0.01       15     1.20     1.20  memcpy</span><br><span class="line"> 16.67     0.05      0.01        7     1.41     1.41  write</span><br></pre></td></tr></table></figure>
+
+<p>这就是 <strong>flat profile</strong>——profiler 以 0.01 秒为间隔反复采样程序，看每一次”此刻 CPU 在执行哪个函数”，然后统计成表。逐列解释：</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>% time</code></td>
+<td>该函数占总 CPU 时间的百分比。33.34 就是 1&#x2F;3</td>
+</tr>
+<tr>
+<td><code>cumulative seconds</code></td>
+<td>从上往下累加的时间 — 第一行 0.02s，第二行累加后 0.03s，以此类推</td>
+</tr>
+<tr>
+<td><code>self seconds</code></td>
+<td>该函数<strong>自身代码</strong>消耗的时间，不包括它调用的子函数</td>
+</tr>
+<tr>
+<td><code>calls</code></td>
+<td>函数被调用了多少次</td>
+</tr>
+<tr>
+<td><code>self ms/call</code></td>
+<td><code>self seconds ÷ calls</code> — 每次调用该函数自身的平均耗时</td>
+</tr>
+<tr>
+<td><code>total ms/call</code></td>
+<td><code>(self + 子函数耗时) ÷ calls</code> — 每次调用从进入到返回的全部耗时</td>
+</tr>
+</tbody></table>
+<p>逐行看：</p>
+<ul>
+<li>**<code>start</code>**（第 1 行）：占了全部 CPU 时间的三分之一。被调用了 6275 次——极其高频。但 <code>self ms/call = 0.00</code>，说明每次调用自身的耗时不到 0.01ms。如果它只是一段调度逻辑，把调用频率降下来或把它内联到调用者中，就是优化的方向。</li>
+<li>**<code>func1</code>**（第 2 行）：<code>self ms/call = 0.07ms</code>，但 <code>total ms/call = 0.21ms</code>——差了 3 倍。说明 <code>func1</code> 自己只花了 0.07ms，剩余 0.14ms 花在了它调用的子函数上。如果优化，应该去看 <code>func1</code> 的子函数，而不是 <code>func1</code> 自身。</li>
+<li>**<code>memcpy</code>**（第 3 行）：<code>self = total = 1.20ms</code>——不调用其他耗时子函数，全部时间都在自己身上。每次调用 1.2ms，用 NEON 批量搬运替换逐字节拷贝，效果立竿见影。</li>
+<li>**<code>write</code>**（第 4 行）：同样 <code>self = total</code>——瓶颈在自身，大概率在等 I&#x2F;O。</li>
+</ul>
+<p><strong>速读口诀</strong>：<code>self ≈ total</code> → 瓶颈就在这个函数内部，直接优化它；<code>total ≫ self</code> → 瓶颈在其调用的子函数，顺着调用链往下找。</p>
+<p>Profiler 还会输出 <strong>call graph</strong>（调用图），记录每个函数被谁调用、调用了谁——用来发现意外的调用路径（”<code>error_handler</code> 被调了 3000 次？”）。</p>
+<p>了解了 profiler 产出什么之后，下一个问题是：<strong>这些数据是怎么采集来的？</strong></p>
+<hr>
+<h2 id="2-Profiler-的数据采集方式"><a href="#2-Profiler-的数据采集方式" class="headerlink" title="2. Profiler 的数据采集方式"></a>2. Profiler 的数据采集方式</h2><p>采集方式分为两大类：<strong>插桩 (instrumentation)</strong> 和**采样 (sampling)**。</p>
+<p><strong>插桩</strong>：编译器在每个函数的入口和出口插入计数代码。程序运行时，每次调用都会被记录——数据精确，但程序跑得比平时慢很多。Gprof 是最典型的插桩 profiler。</p>
+<p><strong>采样</strong>：程序照常运行，profiler 以固定时间间隔（或硬件事件触发）暂停程序、记录当前正在执行哪条指令。统计上，一个函数被采样到的概率等于它消耗 CPU 时间的比例——如果 func1 被采样到了 50% 的次数，那么它就占用了大约 50% 的 CPU 时间。这不完全精确，但开销低得多。OProfile 和 perf 都属于这类。</p>
+<p>采样又分为两个子类：</p>
+<h3 id="2-1-基于时间的采样"><a href="#2-1-基于时间的采样" class="headerlink" title="2.1 基于时间的采样"></a>2.1 基于时间的采样</h3><p>以固定时间间隔抓取处理器的当前状态。间隔越小，数据越详细，但对程序的干扰也越大。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Time:  |---S---|---S---|---S---|---S---|---S---|---S---|</span><br><span class="line">        sample  sample  sample  sample  sample  sample</span><br><span class="line">        =func1  =func1  =func2  =func1  =func3  =func2</span><br><span class="line"></span><br><span class="line">Statistics: func1 = 3/6 = 50%, func2 = 2/6 = 33%, func3 = 1/6 = 17%</span><br></pre></td></tr></table></figure>
+
+<p>这是一种<strong>概率性</strong>方法：如果 <code>func1</code> 在采样时刻被”抓到”的概率是 50%，那么它消耗的 CPU 时间也大约是 50%。采样频率与准确度之间的 trade-off 是选型的关键参数。</p>
+<h3 id="2-2-基于事件的采样-Event-based-Sampling"><a href="#2-2-基于事件的采样-Event-based-Sampling" class="headerlink" title="2.2 基于事件的采样 (Event-based Sampling)"></a>2.2 基于事件的采样 (Event-based Sampling)</h3><p>与时间采样不同，事件采样由特定的硬件事件触发（而非固定时间间隔）。典型事件包括：</p>
+<ul>
+<li>缓存未命中 (cache miss)</li>
+<li>TLB 未命中</li>
+<li>分支预测失败</li>
+<li>特定指令退休 (instruction retired)</li>
+</ul>
+<p>ARM 的 <strong>Performance Monitor Unit（PMU）</strong> 可以对这些硬件事件进行计数，并在计数器达到预设采样周期（通常表现为计数器溢出）时触发中断。Profiler 会在中断发生时记录当前的程序计数器（PC）及相关上下文，通过大量采样统计分析，即可找出哪些代码最频繁地伴随着 Cache Miss、TLB Miss 或分支预测失败等事件，从而定位性能瓶颈。</p>
+<p>很多资料会把 <strong>Event-based Sampling</strong> 和 <strong>Event Counting</strong> 混在一起，但它们其实是两种不同的 PMU 使用方式：</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>PMU 做什么</th>
+<th>是否记录 PC</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Event Counting</strong></td>
+<td>统计事件总数</td>
+<td>❌</td>
+<td>“总共发生了多少次 Cache Miss？”</td>
+</tr>
+<tr>
+<td><strong>Event-based Sampling</strong></td>
+<td>事件达到采样周期时中断</td>
+<td>✅</td>
+<td>“哪些代码最容易产生 Cache Miss？”</td>
+</tr>
+</tbody></table>
+<p>下面这张图对比了时间采样与事件采样的核心差异，以及 OoO 核心中的 skid 效应：</p>
+<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png" alt="1"></p>
+<h3 id="2-3-统计本质"><a href="#2-3-统计本质" class="headerlink" title="2.3 统计本质"></a>2.3 统计本质</h3><blockquote>
+<p>Profilers typically operate on a statistical basis, they might not necessarily produce absolute counts of events.</p>
+</blockquote>
+<p>在复杂的现代处理器中，某些计数无法绝对精确。例如在超标量乱序核心中，当事件计数器更新时，无法保证同时被统计的指令执行数完全精确——因为多条指令可能在同一周期内处于不同的流水线阶段。</p>
+<p>理解这一统计本质很重要：profile 数据是指南针，不是尺子。它告诉你”往哪儿看”，但不提供”该拧几圈螺丝”的精度。</p>
+<hr>
+<p>下面这张时序图总结了三种 profiler 的完整工作流——插桩（Gprof）、操作系统定时器统计采样（OProfile 定时器模式）和硬件 PMU（perf events）——注意后两者的采样介质不同，但同属统计采样这一大类：</p>
+<p><img src="/2026/07/09/AMBA-AHB-%E5%8D%8F%E8%AE%AE%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0/png" alt="2"></p>
+<h2 id="3-Profiler-输出解读"><a href="#3-Profiler-输出解读" class="headerlink" title="3. Profiler 输出解读"></a>3. Profiler 输出解读</h2><p>前面 §1 已经展示了一份 flat profile 的示例。这里补充各列含义和阅读技巧——无论使用哪种 profiler 工具，输出的解读逻辑是一致的。</p>
+<h3 id="3-1-Flat-Profile-各列含义"><a href="#3-1-Flat-Profile-各列含义" class="headerlink" title="3.1 Flat Profile 各列含义"></a>3.1 Flat Profile 各列含义</h3><table>
+<thead>
+<tr>
+<th>列</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>% time</code></td>
+<td>该函数消耗的 CPU 时间百分比</td>
+</tr>
+<tr>
+<td><code>cumulative seconds</code></td>
+<td>累积时间，该行及之前所有行的总时间</td>
+</tr>
+<tr>
+<td><code>self seconds</code></td>
+<td>函数自身代码消耗的时间</td>
+</tr>
+<tr>
+<td><code>calls</code></td>
+<td>函数被调用次数</td>
+</tr>
+<tr>
+<td><code>self ms/call</code></td>
+<td>每次调用平均耗时（不含被调用子函数）</td>
+</tr>
+<tr>
+<td><code>total ms/call</code></td>
+<td>每次调用平均耗时（包含被调用子函数）</td>
+</tr>
+</tbody></table>
+<p><strong>关键阅读技巧</strong>：当 <code>self ms/call</code> ≈ <code>total ms/call</code> 时，说明函数的全部时间花在自身逻辑上（如 <code>memcpy</code> 在搬运数据、<code>write</code> 在等待 I&#x2F;O）。两者差距很大时，瓶颈在其调用的子函数中——优化应指向子函数，而非该函数本身。</p>
+<h3 id="3-2-Call-Graph-的附加价值"><a href="#3-2-Call-Graph-的附加价值" class="headerlink" title="3.2 Call Graph 的附加价值"></a>3.2 Call Graph 的附加价值</h3><p>调用图记录函数间的调用关系和次数。两点实用价值：</p>
+<ul>
+<li>发现意料之外的调用路径——“<code>error_handler()</code> 被调了 3000 次？可能是隐藏 bug”</li>
+<li>评估内联候选——“<code>get_bit()</code> 被调了 10 万次但只有 3 条指令？内联它”</li>
+</ul>
+<p>调用图通常需要特殊的编译选项（如 <code>-g -fno-omit-frame-pointer</code>）才能生成。</p>
+<p>接下来逐一介绍 ARM Cortex-A 平台上的 profiling 工具。</p>
+<hr>
+<h2 id="4-Gprof：插桩式用户态-Profiler"><a href="#4-Gprof：插桩式用户态-Profiler" class="headerlink" title="4. Gprof：插桩式用户态 Profiler"></a>4. Gprof：插桩式用户态 Profiler</h2><p>从本节开始，我们逐一拆解 ARM Cortex-A 平台上的 profiling 工具。Gprof 是 GNU 工具链的标准 profiler，也是最容易上手的入门工具——其简单的插桩机制恰好展示了 profiling 的最基本形态。</p>
+<h3 id="4-1-工作原理"><a href="#4-1-工作原理" class="headerlink" title="4.1 工作原理"></a>4.1 工作原理</h3><p>使用 GCC 的 <code>-pg</code> 编译选项后，编译器在<strong>每个函数的入口和出口</strong>插入计数代码。程序运行时，这些插桩代码记录函数调用关系和每个函数的累计耗时，程序退出时写入 <code>gmon.out</code> 文件。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 编译时加 -pg（如需逐行分析再加 -g）</span></span><br><span class="line">gcc -pg -g -O2 myprogram.c -o myprogram</span><br><span class="line"></span><br><span class="line"><span class="comment"># 运行程序（正常执行，结束后生成 gmon.out）</span></span><br><span class="line">./myprogram</span><br><span class="line"></span><br><span class="line"><span class="comment"># 生成分析报告</span></span><br><span class="line">gprof myprogram gmon.out &gt; report.txt</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-关键局限"><a href="#4-2-关键局限" class="headerlink" title="4.2 关键局限"></a>4.2 关键局限</h3><p>Gprof 有一个根本性的盲区：<strong>它只能看到用 <code>-pg</code> 编译的用户代码</strong>。</p>
+<blockquote>
+<p>Gprof profiles only the user application code and not anything that happens in code that has not been built for profiling (for example, libc) or the kernel.</p>
+</blockquote>
+<p>这意味着：如果程序的性能瓶颈在内核 I&#x2F;O、文件系统或未重新编译的第三方库中，Gprof 会给出<strong>误导性的结论</strong>——由于 Gprof 无法分析内核和未插桩代码，它只能把观察到的耗时归结到调用这些代码的用户函数，因此容易让人误以为这些用户函数本身就是性能瓶颈。</p>
+<h3 id="4-3-插桩的副作用"><a href="#4-3-插桩的副作用" class="headerlink" title="4.3 插桩的副作用"></a>4.3 插桩的副作用</h3><ul>
+<li><strong>运行开销</strong>：<code>-pg</code> 会在每个函数入口插入统计代码（如 <code>mcount()</code>），增加函数调用开销，因此程序运行速度会下降。在实时系统中，这种额外开销可能改变任务时序，使某些时序相关的 Bug 难以复现。</li>
+<li><strong>优化选项的取舍</strong>：<code>-O2</code> 生成的 profile 更接近生产环境，但函数内联会消除部分函数边界，导致内联函数不再作为独立条目出现在 profile 中，其耗时会合并到调用者。如果分析重点是函数调用关系，可适当降低优化等级；如果关注真实运行性能，则应保持与发布版本一致的优化配置。</li>
+<li><strong>核心原则</strong>：始终明确自己要测量的是<strong>真实运行性能</strong>，还是<strong>函数级调用关系</strong>，再选择合适的编译选项。</li>
+</ul>
+<h3 id="4-4-适用场景"><a href="#4-4-适用场景" class="headerlink" title="4.4 适用场景"></a>4.4 适用场景</h3><p>Gprof 适合于用户态计算密集型程序，性能瓶颈主要位于应用代码中。不适合：分析内核代码、未插桩的第三方库，以及系统调用、I&#x2F;O 等内核态热点。</p>
+<h3 id="4-5-与-perf-的区别"><a href="#4-5-与-perf-的区别" class="headerlink" title="4.5 与 perf 的区别"></a>4.5 与 perf 的区别</h3><ul>
+<li><strong>Gprof</strong>：GNU Binutils 的标准组件，跨架构通用，但依赖编译时插桩，只能分析插桩后的用户态代码。</li>
+<li><strong>perf</strong>：Linux <code>perf_events</code> 框架提供的性能分析工具（Linux 2.6.31 引入，2.6.34 基本成熟），支持 PMU 硬件事件，可同时分析用户态、内核态以及 Cache Miss、TLB Miss、Branch Misprediction 等事件，因此在现代 ARM Linux 平台上的分析能力远强于 Gprof。</li>
+</ul>
+<hr>
+<h2 id="5-OProfile：系统级统计采样"><a href="#5-OProfile：系统级统计采样" class="headerlink" title="5. OProfile：系统级统计采样"></a>5. OProfile：系统级统计采样</h2><p>Gprof 在仅需分析用户态代码时足够简单，但一旦性能瓶颈深入到内核或第三方库，它的盲区就暴露了。OProfile 是一个解决这一问题的方案——它不依赖插桩，而是通过对整个系统进行统计采样来覆盖从内核到用户态的全部代码路径。OProfile 是 Linux 上的<strong>全系统 profiler</strong>，与 Gprof 的定位完全不同。</p>
+<h3 id="5-1-核心对比"><a href="#5-1-核心对比" class="headerlink" title="5.1 核心对比"></a>5.1 核心对比</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th>Gprof</th>
+<th>OProfile</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数据采集方式</td>
+<td>插桩（函数入口&#x2F;出口）</td>
+<td>统计采样（时间 + 硬件事件）</td>
+</tr>
+<tr>
+<td>覆盖范围</td>
+<td>仅用户代码（<code>-pg</code> 编译）</td>
+<td>全系统：用户态 + 内核 + 库</td>
+</tr>
+<tr>
+<td>是否需重编译</td>
+<td>必须 <code>-pg</code></td>
+<td>不需要（有符号即可）</td>
+</tr>
+<tr>
+<td>调用图</td>
+<td>精确（调用关系来自插桩，耗时来自统计采样）</td>
+<td>统计生成（可能不完全精确）</td>
+</tr>
+<tr>
+<td>硬件事件支持</td>
+<td>无</td>
+<td>支持（时钟周期、缓存未命中等）</td>
+</tr>
+</tbody></table>
+<h3 id="5-2-工作方式"><a href="#5-2-工作方式" class="headerlink" title="5.2 工作方式"></a>5.2 工作方式</h3><p>OProfile 以固定间隔（或硬件事件触发）检查当前正在执行的代码，并递增对应的计数器。采集足够长的 profile 即可获得统计上显著的结果。</p>
+<h3 id="5-3-中断屏蔽导致的统计偏差"><a href="#5-3-中断屏蔽导致的统计偏差" class="headerlink" title="5.3 中断屏蔽导致的统计偏差"></a>5.3 中断屏蔽导致的统计偏差</h3><p>因为 OProfile 依赖中断来触发采样，当中断被 <code>spinlock_irq_save()</code> 屏蔽时，采样本身被推迟。当中断在 <code>spinlock_irq_restore()</code> 处恢复时，积累的采样事件集中触发，导致该函数被过度采样——看起来像一个瓶颈，实际上只是”被借用了”别人禁中断期间的 CPU 时间。</p>
+<p>这个现象在锁竞争密集型代码中尤为明显。解决方案：使用硬件 PMU 直接读取计数器，绕过中断采样路径。</p>
+<hr>
+<h2 id="6-ARM-Performance-Monitor-PMU-：硬件性能计数器"><a href="#6-ARM-Performance-Monitor-PMU-：硬件性能计数器" class="headerlink" title="6. ARM Performance Monitor (PMU)：硬件性能计数器"></a>6. ARM Performance Monitor (PMU)：硬件性能计数器</h2><p>这是 ARM Cortex-A 处理器内置的<strong>非侵入式性能分析硬件</strong>——不改变处理器行为，不插入额外指令，直接通过 CP15 协处理器寄存器提供计数功能。</p>
+<h3 id="6-1-PMU-架构"><a href="#6-1-PMU-架构" class="headerlink" title="6.1 PMU 架构"></a>6.1 PMU 架构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">+---------------------------------------------------+</span><br><span class="line">|              Performance Monitor Unit             |</span><br><span class="line">|                                                   |</span><br><span class="line">|  Cycle Counter (CCNT)                             |</span><br><span class="line">|  ┌─────────────────────────────┐                  |</span><br><span class="line">|  │ 32-bit cycle counter        │ ← counts cycles  |</span><br><span class="line">|  │ configurable: every cycle   │  or divide-by-64 |</span><br><span class="line">|  │ or divide-by-64             │                  |</span><br><span class="line">|  └─────────────────────────────┘                  |</span><br><span class="line">|                                                   |</span><br><span class="line">|  Event Counters (PMN0-PMNx)                       |</span><br><span class="line">|  ┌─────────┐ ┌─────────┐     ┌─────────┐          |</span><br><span class="line">|  │ Counter │ │ Counter │ ... │ Counter │ ← 32-bit |</span><br><span class="line">|  │    0    │ │    1    │     │    N    │   config |</span><br><span class="line">|  └─────────┘ └─────────┘     └─────────┘          |</span><br><span class="line">|       ↑           ↑               ↑               |</span><br><span class="line">|  Event select registers (evtType0,1,...,N)        |</span><br><span class="line">|       ↑           ↑               ↑               |</span><br><span class="line">|  PMU interrupt on counter overflow                |</span><br><span class="line">+---------------------------------------------------+</span><br><span class="line">                    │</span><br><span class="line">                    ▼  via CP15 coprocessor</span><br><span class="line">          ┌─────────────────────┐</span><br><span class="line">          │  Linux OProfile     │</span><br><span class="line">          │  Linux perf events  │</span><br><span class="line">          │  DS-5 Streamline    │</span><br><span class="line">          └─────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>PMU 包含一个可配置的<strong>周期计数器</strong>和多个 32 位<strong>事件计数器</strong>。周期计数器可配置为每个周期递增或每 64 周期递增（后者用于长时间采样而不溢出）。事件计数器可分别配置为统计不同的事件类型。</p>
+<h3 id="6-2-可监控事件一览"><a href="#6-2-可监控事件一览" class="headerlink" title="6.2 可监控事件一览"></a>6.2 可监控事件一览</h3><p>ARMv7-A 定义了一套标准可计数事件：</p>
+<table>
+<thead>
+<tr>
+<th>Event ID</th>
+<th>Event</th>
+<th>中文解释</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>0x00</strong></td>
+<td>Software increment (SW_INCR register write)</td>
+<td><strong>软件递增事件</strong>：向 <code>SW_INCR</code> 寄存器写入时，事件计数器加一，主要用于软件测试或校准 PMU。</td>
+</tr>
+<tr>
+<td><strong>0x01</strong></td>
+<td>L1 instruction cache refill</td>
+<td><strong>L1 指令缓存填充（Refill）</strong>：L1 I-Cache 未命中，从 L2 Cache 或主存重新加载指令缓存。</td>
+</tr>
+<tr>
+<td><strong>0x02</strong></td>
+<td>L1 instruction TLB refill</td>
+<td><strong>L1 指令 TLB 填充</strong>：指令地址转换未命中，需要重新填充指令 TLB。</td>
+</tr>
+<tr>
+<td><strong>0x03</strong></td>
+<td>L1 data cache refill</td>
+<td><strong>L1 数据缓存填充</strong>：L1 D-Cache 未命中，从更低层缓存或主存加载数据。</td>
+</tr>
+<tr>
+<td><strong>0x04</strong></td>
+<td>L1 data cache access</td>
+<td><strong>L1 数据缓存访问</strong>：发生一次对 L1 数据缓存的访问（命中或未命中均计数）。</td>
+</tr>
+<tr>
+<td><strong>0x05</strong></td>
+<td>L1 data TLB refill</td>
+<td><strong>L1 数据 TLB 填充</strong>：数据地址转换未命中，需要重新填充数据 TLB。</td>
+</tr>
+<tr>
+<td><strong>0x06</strong></td>
+<td>Memory-reading instruction executed (load)</td>
+<td><strong>Load 指令执行次数</strong>：执行了一条读取内存（Load）指令。</td>
+</tr>
+<tr>
+<td><strong>0x07</strong></td>
+<td>Memory-writing instruction executed (store)</td>
+<td><strong>Store 指令执行次数</strong>：执行了一条写入内存（Store）指令。</td>
+</tr>
+<tr>
+<td><strong>0x09</strong></td>
+<td>Exception taken</td>
+<td><strong>异常进入次数</strong>：处理器进入异常（IRQ、FIQ、Data Abort、Undefined 等）时计数。</td>
+</tr>
+<tr>
+<td><strong>0x0C</strong></td>
+<td>Software change of PC (branch)</td>
+<td><strong>软件修改 PC（分支）</strong>：执行导致 PC 改变的控制流指令（如跳转、调用、返回等）。</td>
+</tr>
+<tr>
+<td><strong>0x0D</strong></td>
+<td>Immediate branch instruction executed</td>
+<td><strong>立即数分支指令执行次数</strong>：执行 <code>B</code>、<code>BL</code> 等立即数分支指令。</td>
+</tr>
+<tr>
+<td><strong>0x10</strong></td>
+<td>Branch mispredicted or not predicted</td>
+<td><strong>分支预测失败或未预测</strong>：分支预测器预测错误，或该分支未进行预测。</td>
+</tr>
+<tr>
+<td><strong>0x11</strong></td>
+<td>Cycle count</td>
+<td><strong>CPU 周期数</strong>：统计处理器经历的时钟周期数（Cycle Count）。</td>
+</tr>
+<tr>
+<td><strong>0x12</strong></td>
+<td>Predictable branch speculatively executed</td>
+<td><strong>预测分支推测执行次数</strong>：处理器根据分支预测提前执行了可预测分支后的指令。</td>
+</tr>
+<tr>
+<td><strong>0x13</strong></td>
+<td>Data memory access</td>
+<td><strong>数据内存访问次数</strong>：发生一次数据访问（Load 或 Store）。</td>
+</tr>
+<tr>
+<td><strong>0x14</strong></td>
+<td>L1 instruction cache access</td>
+<td><strong>L1 指令缓存访问次数</strong>：发生一次对 L1 I-Cache 的访问（命中或未命中均计数）。</td>
+</tr>
+<tr>
+<td><strong>0x15</strong></td>
+<td>L1 data cache write-back</td>
+<td><strong>L1 数据缓存回写</strong>：脏 Cache Line 从 L1 D-Cache 回写到下一级缓存或主存。</td>
+</tr>
+<tr>
+<td><strong>0x17</strong></td>
+<td>L2 data cache refill</td>
+<td><strong>L2 数据缓存填充</strong>：L2 C1ache 未命中后，从主存重新填充 L2 Cache。</td>
+</tr>
+<tr>
+<td><strong>0x19</strong></td>
+<td>Bus access</td>
+<td><strong>总线访问次数</strong>：处理器发起一次外部总线访问（通常包括访问内存或外设）。</td>
+</tr>
+<tr>
+<td><strong>0x1B</strong></td>
+<td>Instruction speculatively executed</td>
+<td><strong>推测执行指令数</strong>：统计所有进入流水线并被推测执行的指令，包括最终可能被取消（Squash）的指令。</td>
+</tr>
+</tbody></table>
+<p>这些事件的使用通常不是孤立的——你将多个计数器组合起来推导有意义的指标：</p>
+<table>
+<thead>
+<tr>
+<th>公式</th>
+<th>含义</th>
+<th>应用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Event 0x11 ÷ Event 0x1B</code></td>
+<td>Cycles Per Instruction (CPI)</td>
+<td>衡量核心效率，越低越好</td>
+</tr>
+<tr>
+<td><code>Event 0x01 ÷ Event 0x14</code></td>
+<td>L1 I-cache miss rate</td>
+<td>指令缓存优化效果</td>
+</tr>
+<tr>
+<td><code>Event 0x03 ÷ Event 0x04</code></td>
+<td>L1 D-cache miss rate</td>
+<td>数据布局&#x2F;访存模式优化</td>
+</tr>
+<tr>
+<td><code>Event 0x05 ÷ Event 0x04</code></td>
+<td>L1 D-TLB miss rate</td>
+<td>大页或 TLB 优化效果</td>
+</tr>
+<tr>
+<td><code>Event 0x10 ÷ Event 0x0D</code></td>
+<td>Branch misprediction rate</td>
+<td>分支预测友好性</td>
+</tr>
+<tr>
+<td><code>Event 0x19 ÷ Event 0x11</code></td>
+<td>Bus accesses per cycle</td>
+<td>总线压力</td>
+</tr>
+</tbody></table>
+<p><strong>实例</strong>：假设你优化了一段热点循环，想验证效果。修改前收集 CPI &#x3D; 2.1（每指令 2.1 周期），缓存缺失率 12%；修改后 CPI &#x3D; 1.3，缺失率降至 3%。即便没有精确的时序测量，这些硬件计数器也能明确告诉你——优化是有效的。</p>
+<h3 id="6-3-多核扩展事件"><a href="#6-3-多核扩展事件" class="headerlink" title="6.3 多核扩展事件"></a>6.3 多核扩展事件</h3><p>SMP 集群的 PMU 额外提供：</p>
+<ul>
+<li>屏障指令（DMB&#x2F;DSB）执行次数</li>
+<li>一致性缓存活动（coherent cache traffic）计数</li>
+<li>独占访问（LDREX&#x2F;STREX）失败次数</li>
+</ul>
+<p>后者在评估多核锁竞争时特别有用：<code>STREX</code> 失败次数过高说明多个核心在争抢同一个锁。</p>
+<h3 id="6-4-精度说明"><a href="#6-4-精度说明" class="headerlink" title="6.4 精度说明"></a>6.4 精度说明</h3><p>乱序执行导致事件计数之间存在”skid”——触发采样的事件（比如第 100 次缓存缺失）可能对应到实际发生该事件的指令之后若干条指令。在分析逐指令级别的数据时需要注意这个偏斜。</p>
+<h3 id="6-5-PMU-与-ETM-的互补关系"><a href="#6-5-PMU-与-ETM-的互补关系" class="headerlink" title="6.5 PMU 与 ETM 的互补关系"></a>6.5 PMU 与 ETM 的互补关系</h3><p>PMU 提供的是<strong>统计聚合</strong>数据（”哪个函数花了多少时间”），而 ARM 的 <strong>ETM（Embedded Trace Macrocell）</strong> 提供<strong>精确的指令级执行追踪</strong>——它可以完整重建程序的执行路径，包括每个分支的走向、每条指令的周期数，无需统计近似。</p>
+<p>在调试间歇性的性能异常（如偶尔出现的”长延迟”帧）时，PMU 采样可能完全漏掉偶发事件，而 ETM 的 trace 数据可以精确捕获那个具体时刻处理器的完整状态。两者互补：PMU 用于发现宏观瓶颈，ETM 用于定位微观异常。</p>
+<hr>
+<h2 id="7-Linux-内核-Profiling-框架"><a href="#7-Linux-内核-Profiling-框架" class="headerlink" title="7. Linux 内核 Profiling 框架"></a>7. Linux 内核 Profiling 框架</h2><p>ARM PMU 提供了底层的硬件计数能力，但在实际开发中，直接操作 CP15 寄存器既不便捷也不能跨平台复用。Linux 内核将 PMU 硬件、软件事件和内核追踪点统一到两个框架中——perf events 和 Ftrace——向上层工具暴露一致的接口。</p>
+<h3 id="7-1-Linux-perf-events"><a href="#7-1-Linux-perf-events" class="headerlink" title="7.1 Linux perf events"></a>7.1 Linux perf events</h3><p>自 Linux 2.6.34 起，内核集成了 Ingo Molnar 的 perf events 框架。它将 ARM PMU 硬件计数器和软件事件统一到平台无关的接口下。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">              perf_event_open() syscall</span><br><span class="line">                       │</span><br><span class="line">     ┌─────────────────┼──────────────────┐</span><br><span class="line">     ▼                 ▼                  ▼</span><br><span class="line">Hardware Events    Software Events    Tracepoints</span><br><span class="line">┌──────────────┐  ┌──────────────┐  ┌──────────────┐</span><br><span class="line">│ CPU cycles   │  │ context      │  │ sched_switch │</span><br><span class="line">│ cache misses │  │ switches     │  │ sys_enter    │</span><br><span class="line">│ branch misses│  │ page faults  │  │ irq_handler  │</span><br><span class="line">│ instructions │  │ cpu-migrations│ │ kmalloc      │</span><br><span class="line">└──────────────┘  └──────────────┘  └──────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>Perf events 支持的能力远超硬件 PMU：</p>
+<ul>
+<li>按核心、进程、线程粒度分别 profile</li>
+<li>记录执行追踪 (execution trace)</li>
+<li>生成函数调用图</li>
+<li>实时统计汇总</li>
+</ul>
+<p>对比 Gprof 和 OProfile，perf events 是更现代的统一方案——它不需要插桩，可以同时追踪硬件和软件事件，且支持调用图。以下是最常用的 perf 命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 统计模式：运行程序并汇总硬件事件计数</span></span><br><span class="line">perf <span class="built_in">stat</span> ./myprogram</span><br><span class="line"><span class="comment"># 输出示例：CPU cycles, instructions, cache-misses, branch-misses 等</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 采样模式：按固定频率（默认 4000 Hz）采集调用栈</span></span><br><span class="line">perf record ./myprogram</span><br><span class="line"><span class="comment"># 生成 perf.data，默认采样 CPU cycles 事件</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 交互式查看采样报告（类似 top，实时刷新）</span></span><br><span class="line">perf report</span><br><span class="line"></span><br><span class="line"><span class="comment"># 汇编级注解：将采样热点映射到具体的汇编指令</span></span><br><span class="line">perf annotate</span><br><span class="line"></span><br><span class="line"><span class="comment"># 指定事件类型采样（如仅采集缓存缺失事件）</span></span><br><span class="line">perf record -e cache-misses ./myprogram</span><br><span class="line"></span><br><span class="line"><span class="comment"># 按进程/线程维度分别统计</span></span><br><span class="line">perf <span class="built_in">stat</span> -p &lt;pid&gt;          <span class="comment"># 指定进程</span></span><br><span class="line">perf <span class="built_in">stat</span> -t &lt;tid&gt;          <span class="comment"># 指定线程</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-ARM-Streamline-性能分析器"><a href="#7-2-ARM-Streamline-性能分析器" class="headerlink" title="7.2 ARM Streamline 性能分析器"></a>7.2 ARM Streamline 性能分析器</h3><p>ARM DS-5 Streamline 是 ARM 官方提供的图形化性能分析工具，基于 Linux perf events 和 PMU 硬件计数器。它与 <code>perf</code> 命令行工具的数据源相同，但提供了更丰富的可视化界面：</p>
+<ul>
+<li><strong>Timeline 视图</strong>：以时间轴方式展示 CPU 使用率、中断频率、功耗状态等指标的实时变化</li>
+<li><strong>Call Path 视图</strong>：按调用路径聚合热点函数，直接定位最耗时的调用链</li>
+<li><strong>Code 视图</strong>：在反汇编&#x2F;源码级别标注每条指令的采样计数和缓存缺失次数</li>
+<li><strong>CPU&#x2F;GPU 联合分析</strong>：在 Mali GPU 的异构 SoC 上，可同时采集 CPU 和 GPU 的性能数据</li>
+</ul>
+<p>Streamline 不需要 <code>-pg</code> 编译——它与 perf 一样基于 PMU 采样。对于嵌入式 ARM 平台，Streamline 通过 TCP&#x2F;IP 或 USB Gadget 与目标板的 gator 守护进程通信，适合无屏幕的开发板场景。</p>
+<h3 id="7-3-Ftrace"><a href="#7-3-Ftrace" class="headerlink" title="7.3 Ftrace"></a>7.3 Ftrace</h3><p>Ftrace 专注于<strong>内核函数调用流的可视化</strong>——它追踪内核中的每个函数调用，揭示各部分之间的交互。</p>
+<p>在 ARM Cortex-A 平台上的典型用途：</p>
+<ul>
+<li>排查内核路径中长时间禁用中断或抢占的位置</li>
+<li>验证驱动程序的中断处理路径是否如预期执行</li>
+<li>理解调度器在不同负载下的行为</li>
+</ul>
+<p>Ftrace 与 perf events 互补：perf 回答”时间花在哪”，ftrace 回答”代码走了哪条路径”。</p>
+<p>上述所有工具——Gprof、OProfile、PMU、perf、Ftrace——都工作在真实硬件上，依赖真实的计数器和真实的内核行为。但有时我们需要比硬件更精细的信息：比如每条访存指令命中哪个缓存行，或者两个数据结构是否在共享同一个缓存组。这就需要模拟——Valgrind&#x2F;Cachegrind 填补了这块空白。</p>
+<hr>
+<h2 id="8-Valgrind-Cachegrind：模拟式剖析"><a href="#8-Valgrind-Cachegrind：模拟式剖析" class="headerlink" title="8. Valgrind &#x2F; Cachegrind：模拟式剖析"></a>8. Valgrind &#x2F; Cachegrind：模拟式剖析</h2><p>上述所有工具——Gprof、OProfile、PMU、perf、Ftrace——都工作在真实硬件上，依赖真实的计数器和内核行为。但有时我们需要比硬件更精细的信息：每条访存指令命中哪个缓存行，或者两个数据结构是否因地址冲突而在同一个缓存组中互相驱逐。Valgrind 通过软件模拟填补了这块空白。</p>
+<p>Valgrind 通常以”内存泄漏检测工具”的身份知名（Memcheck），但它对 ARM 性能分析的贡献不止于此。</p>
+<h3 id="8-1-工作原理"><a href="#8-1-工作原理" class="headerlink" title="8.1 工作原理"></a>8.1 工作原理</h3><p>Valgrind 将程序翻译为<strong>核心无关的中间表示 (IR)<strong>，在 IR 上执行分析后，再翻译回原生机器码。这个翻译-分析-再翻译的流程使程序运行</strong>慢大约一个数量级</strong>——但它能提供其他 profiler 无法获得的精细信息。</p>
+<h3 id="8-2-Cachegrind：缓存模拟"><a href="#8-2-Cachegrind：缓存模拟" class="headerlink" title="8.2 Cachegrind：缓存模拟"></a>8.2 Cachegrind：缓存模拟</h3><p>Cachegrind 利用 Valgrind 的 IR 层，模拟目标处理器的 L1&#x2F;L2 缓存行为，记录所有的内存访问。原文特别指出：</p>
+<blockquote>
+<p>Some care is required — this is a simulation of the cache and it is possible that it does not represent the real cache hardware completely accurately.</p>
+</blockquote>
+<p>模拟的缓存模型（如替换策略、关联度配置）可能与实际硬件不完全一致。具体差异取决于是否模拟了处理器的确切缓存参数：</p>
+<ul>
+<li>缓存行大小（通常 32 或 64 字节）</li>
+<li>关联度（通常 4 路组关联）</li>
+<li>替换策略（通常伪 LRU 或随机）</li>
+</ul>
+<p>但即使存在偏差，Cachegrind 的宏观结论（”这段代码导致了大量的 L2 缺失”）通常仍是正确的。</p>
+<h3 id="8-3-内存访问剖析的必要性"><a href="#8-3-内存访问剖析的必要性" class="headerlink" title="8.3 内存访问剖析的必要性"></a>8.3 内存访问剖析的必要性</h3><p>在现代 ARM 系统中，开发者对内存地址的控制力越来越弱：</p>
+<ul>
+<li>链接器决定映像内的虚拟地址布局</li>
+<li>运行时加载器控制共享库的位置</li>
+<li>内核负责物理内存的分配</li>
+</ul>
+<p>当缓存性能出现问题时，往往不清楚哪些数据结构在互相”打架”。Cachegrind 通过模拟整个地址空间的内存访问模式，帮助定位伪共享 (false sharing)、缓存抖动 (cache thrashing) 和次优的数据布局。</p>
+<h3 id="8-4-工具选型决策矩阵"><a href="#8-4-工具选型决策矩阵" class="headerlink" title="8.4 工具选型决策矩阵"></a>8.4 工具选型决策矩阵</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">                     Gprof     OProfile    PMU        perf     Ftrace    Cachegrind</span><br><span class="line">───────────────────┼─────────┼───────────┼──────────┼────────┼─────────┼───────────</span><br><span class="line">  Invasiveness     │ High    │ Low       │ Zero     │ Low    │ Low     │ Extreme</span><br><span class="line">  Kernel Coverage  │ No      │ Yes       │ Yes      │ Yes    │ Kernel  │ No</span><br><span class="line">  Recompile needed │ Yes     │ No        │ No       │ No     │ No      │ No</span><br><span class="line">  Cache Analysis   │ No      │ Indirect  │ Direct   │ Direct │ No      │ Simulated</span><br><span class="line">  Call Graph       │ Exact   │ Statistic │ No       │ Yes    │ Trace   │ No</span><br><span class="line">  Performance Cost │ Medium  │ Low       │ Zero     │ Low    │ Low     │ 10x+</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="9-关键要点"><a href="#9-关键要点" class="headerlink" title="9. 关键要点"></a>9. 关键要点</h2><p>从 Gprof 的简单插桩到 Cachegrind 的完整缓存模拟，工具形态差异巨大，但背后的方法论是统一的：用数据说话，先定位瓶颈，再选择策略。以下是最值得记住的八条原则：</p>
+<ol>
+<li><p><strong>Profiling 先于优化</strong> —— Knuth 的名言不是反对优化，而是反对<strong>没有数据支撑的</strong>优化。任何性能工作的第一步永远是 profile。</p>
+</li>
+<li><p><strong>先换算法，再调实现</strong> —— 如果时间花在链表遍历上，换成哈希表比加速链表遍历有效得多。Profiler 告诉你瓶颈在哪，但不等同于告诉你如何解决。</p>
+</li>
+<li><p><strong>时间采样 ≠ 事件采样</strong> —— 时间采样回答”CPU 在跑什么”，事件采样回答”什么触发了性能问题”。后者对于特定优化（如减少缓存缺失）更有针对性。</p>
+</li>
+<li><p><strong>ARM PMU 是零开销的 profiler</strong> —— 硬件性能计数器不改变程序行为，可以提供 CPI、缓存命中率、分支预测精度等指标。但乱序执行导致事件间存在 skid，不适合逐指令级别的精确调试。</p>
+</li>
+<li><p><strong>OProfile 的 <code>spinlock_irq_restore</code> 陷阱</strong> —— 中断屏蔽期间暂停采样，恢复后集中触发，导致该函数被过度采样。这不是 bug，是统计偏差——换用硬件 PMU 直接读数可以规避。</p>
+</li>
+<li><p><strong>Gprof 是最简单的，也是最受限的</strong> —— 插桩式、仅用户态、需重编译。适合”刚写完的纯计算模块”，不适合定位内核 I&#x2F;O 瓶颈。</p>
+</li>
+<li><p><strong>perf events 是 Linux 上的现代统一方案</strong> —— 平台无关、硬件+软件事件、按线程&#x2F;进程&#x2F;核心粒度。是 ARM Cortex-A 平台上最推荐的通用 profiling 入口。</p>
+</li>
+<li><p><strong>Cachegrind 的模拟结论需要验证</strong> —— 处理器的确切替换策略和缓存参数可能与模拟器假设不一致。但宏观的缺失模式分析通常是可信的。对数据布局优化尤其有价值。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/25/ARM-AACPS/" rel="prev" title="ARM AACPS">
+                  <i class="fa fa-angle-left"></i> ARM AACPS
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
