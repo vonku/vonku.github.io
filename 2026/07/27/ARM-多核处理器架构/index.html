@@ -26,14 +26,14 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文从 Cache 一致性协议底层原理出发，剖析 ARMv7-A 架构下基于 LDREX&#x2F;STREX 的独占访存与同步原语。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="og:image" content="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/1.jpg">
 <meta property="article:published_time" content="2026-07-27T13:30:59.000Z">
-<meta property="article:modified_time" content="2026-07-27T13:55:42.470Z">
+<meta property="article:modified_time" content="2026-07-27T13:57:11.688Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/1.jpg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/">
@@ -658,7 +658,7 @@
 <li><strong>ACE-Lite</strong>：ACE 的简化版本，用于无 Cache 的外部 Master（如 DMA、GPU、加速器），使其能够访问 CPU 共享数据而无需软件维护 Cache 一致性。</li>
 </ul>
 <p><strong>CoreLink CCI-400</strong> 是 ARM 第一代 Cache Coherent Interconnect，实现多个 ACE 主设备之间的一致性连接，典型结构如下：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="1"></p>
+<p><img src="/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/1.jpg" alt="1"></p>
 <p>跨 cluster 读取数据时，CCI-400 会将请求转发到目标 cluster，并触发 snoop 检查：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Step 1: 请求 cluster 发起 Cache Read 请求</span><br><span class="line"></span><br><span class="line">Step 2: CCI-400 向目标 cluster 发送 snoop 请求</span><br><span class="line"></span><br><span class="line">Step 3: 目标 cluster 的 SCU 检查本地 Cache</span><br><span class="line"></span><br><span class="line">Step 4: 如果命中最新 Cache Line，则直接进行 Cache-to-Cache Transfer；</span><br><span class="line">        如果未命中，则从 DDR 获取数据</span><br></pre></td></tr></table></figure>
 
