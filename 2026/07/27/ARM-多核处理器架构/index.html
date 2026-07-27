@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文从 Cache 一致性协议底层原理出发，剖析 ARMv7-A 架构下基于 LDREX&#x2F;STREX 的独占访存与同步原语。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM 多核处理器架构">
+<meta property="og:url" content="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文从 Cache 一致性协议底层原理出发，剖析 ARMv7-A 架构下基于 LDREX&#x2F;STREX 的独占访存与同步原语。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/1.jpg">
+<meta property="article:published_time" content="2026-07-27T13:30:59.000Z">
+<meta property="article:modified_time" content="2026-07-27T13:37:31.663Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/1.jpg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/","path":"2026/07/27/ARM-多核处理器架构/","title":"ARM 多核处理器架构"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM 多核处理器架构 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%8D%95%E6%A0%B8%E6%80%A7%E8%83%BD%E7%93%B6%E9%A2%88%EF%BC%9A%E5%8A%9F%E8%80%97%E5%A2%99%E4%B8%8E%E5%86%85%E5%AD%98%E5%A2%99"><span class="nav-text">1. 单核性能瓶颈：功耗墙与内存墙</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E7%A1%AC%E4%BB%B6%E5%9F%BA%E7%A1%80"><span class="nav-text">1.1 ARM 多核处理器硬件基础</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%A4%9A%E5%A4%84%E7%90%86%E8%BD%AF%E4%BB%B6%E6%9E%B6%E6%9E%84%E6%A8%A1%E5%9E%8B"><span class="nav-text">2. 多处理软件架构模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%AF%B9%E7%A7%B0%E5%A4%9A%E5%A4%84%E7%90%86%EF%BC%88SMP%EF%BC%89"><span class="nav-text">2.1 对称多处理（SMP）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E9%9D%9E%E5%AF%B9%E7%A7%B0%E5%A4%9A%E5%A4%84%E7%90%86%EF%BC%88AMP%EF%BC%89"><span class="nav-text">2.2 非对称多处理（AMP）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-3-%E5%BC%82%E6%9E%84%E5%A4%9A%E5%A4%84%E7%90%86%EF%BC%88HMP%EF%BC%89%E4%B8%8E-big-LITTLE"><span class="nav-text">2.3 异构多处理（HMP）与 big.LITTLE</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-Cache-%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-text">3. Cache 一致性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%B8%89%E7%A7%8D%E4%B8%80%E8%87%B4%E6%80%A7%E6%96%B9%E6%A1%88"><span class="nav-text">3.1 三种一致性方案</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-MESI-%E4%B8%8E-MOESI-%E5%8D%8F%E8%AE%AE"><span class="nav-text">3.2 MESI 与 MOESI 协议</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-1-MOESI-%E7%8A%B6%E6%80%81%E8%BD%AC%E6%8D%A2%E7%A4%BA%E4%BE%8B"><span class="nav-text">3.2.1 MOESI 状态转换示例</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-2-Cache-%E9%97%B4%E7%9B%B4%E6%8E%A5%E6%95%B0%E6%8D%AE%E8%BF%81%E7%A7%BB"><span class="nav-text">3.2.2 Cache 间直接数据迁移</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-Snoop-Control-Unit-SCU"><span class="nav-text">3.3 Snoop Control Unit (SCU)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-Accelerator-Coherency-Port-ACP"><span class="nav-text">3.4 Accelerator Coherency Port (ACP)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-Cache-Coherent-Interface-CCI-400"><span class="nav-text">3.5 Cache Coherent Interface (CCI-400)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-TLB-%E5%92%8C-Cache-%E7%BB%B4%E6%8A%A4%E6%93%8D%E4%BD%9C%E7%9A%84%E5%B9%BF%E6%92%AD"><span class="nav-text">4. TLB 和 Cache 维护操作的广播</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-L2-Cache-%E4%B8%8B%E7%9A%84%E7%BB%B4%E6%8A%A4%E9%A1%BA%E5%BA%8F%E9%97%AE%E9%A2%98"><span class="nav-text">4.1 L2 Cache 下的维护顺序问题</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%A4%9A%E6%A0%B8%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD%EF%BC%9ALDREX-STREX"><span class="nav-text">5. 多核同步原语：LDREX&#x2F;STREX</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%BB%8E%E5%85%B3%E4%B8%AD%E6%96%AD%E5%88%B0-Spinlock"><span class="nav-text">5.1 从关中断到 Spinlock</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Shareable-vs-Non-Shareable-%E5%86%85%E5%AD%98%E7%9A%84%E8%A1%8C%E4%B8%BA%E5%B7%AE%E5%BC%82"><span class="nav-text">5.2 Shareable vs Non-Shareable 内存的行为差异</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-Local-Monitor-%E4%B8%8E-Global-Monitor"><span class="nav-text">5.3 Local Monitor 与 Global Monitor</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%A4%9A%E6%A0%B8%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86"><span class="nav-text">6. 多核中断处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-GIC-%E6%9E%B6%E6%9E%84%E4%B8%8E%E4%B8%AD%E6%96%AD%E5%88%86%E7%B1%BB"><span class="nav-text">6.1 GIC 架构与中断分类</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E4%B8%AD%E6%96%AD%E8%B7%AF%E7%94%B1"><span class="nav-text">6.2 中断路由</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E8%BD%AF%E4%BB%B6%E7%94%9F%E6%88%90%E4%B8%AD%E6%96%AD%EF%BC%88SGI%EF%BC%89"><span class="nav-text">6.3 软件生成中断（SGI）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-SMP-%E7%B3%BB%E7%BB%9F%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">7. SMP 系统启动流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E4%B8%A4%E7%A7%8D%E7%A1%AC%E4%BB%B6%E5%90%AF%E5%8A%A8%E7%AD%96%E7%95%A5"><span class="nav-text">7.1 两种硬件启动策略</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-MPIDR-%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">7.2 MPIDR 寄存器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-Linux-SMP-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">7.3 Linux SMP 启动流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-AMP-%E5%90%AF%E5%8A%A8%E7%9A%84%E9%A2%9D%E5%A4%96%E8%80%83%E9%87%8F"><span class="nav-text">7.4 AMP 启动的额外考量</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-Private-Memory-Region"><span class="nav-text">8. Private Memory Region</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E5%AF%84%E5%AD%98%E5%99%A8%E5%B8%83%E5%B1%80"><span class="nav-text">8.1 寄存器布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-%E5%AE%9A%E6%97%B6%E5%99%A8%E4%B8%8E%E7%9C%8B%E9%97%A8%E7%8B%97"><span class="nav-text">8.2 定时器与看门狗</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">9. 关键要点</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">66</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM 多核处理器架构 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM 多核处理器架构
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-27 21:30:59" itemprop="dateCreated datePublished" datetime="2026-07-27T21:30:59+08:00">2026-07-27</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文从 Cache 一致性协议底层原理出发，剖析 ARMv7-A 架构下基于 LDREX&#x2F;STREX 的独占访存与同步原语。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-单核性能瓶颈：功耗墙与内存墙"><a href="#1-单核性能瓶颈：功耗墙与内存墙" class="headerlink" title="1. 单核性能瓶颈：功耗墙与内存墙"></a>1. 单核性能瓶颈：功耗墙与内存墙</h2><p>单核处理器主要依靠提升主频和挖掘指令级并行（Instruction-Level Parallelism，ILP，如超标量、乱序执行和更深的流水线）来提高性能。然而，这条路线最终会受到两大物理瓶颈的限制：</p>
+<ul>
+<li><strong>功耗墙（Power Wall）</strong>：CMOS 动态功耗近似满足 <strong>P≈CV²f</strong>。随着主频不断提升，为保证时序收敛，通常需要提高供电电压，因此功耗增长速度往往远快于频率增长速度。</li>
+<li><strong>内存墙（Memory Wall）</strong>：CPU 的计算能力提升速度远快于主存访问延迟的改善速度，处理器越来越多的时间消耗在等待数据返回，而非真正执行指令。</li>
+</ul>
+<p>面对这两大瓶颈，ARM 在 Cortex-A 系列中的解决思路，是在一个 <strong>Cluster</strong> 中集成多个处理核心（早期 Cortex-A 通常为 2～4 个核心），利用线程级并行（Thread-Level Parallelism，TLP）提升整体吞吐量，而不是继续单纯依赖提高单核性能。</p>
+<p>多核处理器带来的系统性优势如下：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>并行性能</strong></td>
+<td>多个任务能够真正同时执行，而非依赖单核时间片轮转实现的”假并行”。</td>
+</tr>
+<tr>
+<td><strong>能效比</strong></td>
+<td>以较低的工作频率和供电电压即可获得更高的总体吞吐量，因此整体能效通常优于单核高频运行。</td>
+</tr>
+<tr>
+<td><strong>可扩展性</strong></td>
+<td>同一 SoC 架构可以根据产品定位配置不同核心数量，而无需重新设计整个系统。</td>
+</tr>
+<tr>
+<td><strong>响应性</strong></td>
+<td>中断和后台任务可分布到不同核心执行，降低响应延迟，提升系统实时性和用户体验。</td>
+</tr>
+<tr>
+<td><strong>内存系统利用率</strong></td>
+<td>多个核心能够同时发起内存访问请求，现代内存控制器可对这些请求进行调度和重排序，提高整体内存吞吐率。</td>
+</tr>
+</tbody></table>
+<p>当然，多核并非只有收益，也带来了新的挑战。当多个核心频繁访问和修改共享数据时，需要维护 <strong>Cache 一致性（Cache Coherency）</strong>，这会增加总线通信和同步开销；如果核心数量增加而内存带宽没有同步提升，各核心还可能因竞争内存资源而导致整体性能下降。共享 L2 Cache 能够减少多个核心访问共享数据（如文件缓存、共享库和内核代码）时对主存的访问次数，从而在一定程度上缓解这些问题。</p>
+<p>ARM 官方文档还特别强调了一个容易被忽视的事实：</p>
+<blockquote>
+<p><em>Migrating multi-threaded software from a single core system to a multi-core one can trigger problems with incorrect programs that could not be exposed by running the same program time-sliced on a single core. It can also cause very infrequent bugs to become very frequently triggered. What it cannot do is to cause correctly written multi-threaded programs to misbehave — only expose previously unnoticed errors.</em></p>
+</blockquote>
+<p>换句话说，多核并不会制造新的并发 Bug，而更像一面放大镜：那些由于单核时间片调度而难以暴露的竞态条件、同步错误和内存可见性问题，在真正并行执行时更容易被触发。</p>
+<p>既然多核系统既带来了显著的性能收益，也引入了全新的并发挑战，那么接下来，我们首先需要了解 ARM 多核处理器的基本硬件组成，以及多个核心之间是如何协同工作的。</p>
+<h3 id="1-1-ARM-多核处理器硬件基础"><a href="#1-1-ARM-多核处理器硬件基础" class="headerlink" title="1.1 ARM 多核处理器硬件基础"></a>1.1 ARM 多核处理器硬件基础</h3><p>ARM 于 2004 年推出 <strong>ARM11 MPCore</strong>，率先将多核处理器引入嵌入式 SoC 市场。随后，多核逐渐成为 Cortex-A 系列的主流设计（Cortex-A8 为单核架构，其余早期 Cortex-A 处理器均提供 MPCore 多核版本）。</p>
+<p>一个典型的 Cortex-A MPCore 处理器通常具有以下硬件特性：</p>
+<ul>
+<li><strong>1～4 个处理核心</strong>（设计时可配置，具体取决于处理器型号）</li>
+<li><strong>私有 L1 Cache</strong>，簇（Cluster）内各核心的数据 Cache 由 <strong>SCU（Snoop Control Unit）</strong> 自动维护一致性</li>
+<li><strong>集成 GIC（Generic Interrupt Controller）</strong>，支持中断在多个核心之间分发和路由</li>
+<li><strong>每个核心拥有独立的私有定时器（Private Timer）和看门狗（Watchdog）</strong></li>
+<li><strong>可选 ACP（Accelerator Coherency Port）接口</strong>（部分处理器如 Cortex-A5、A9、A12、A15 支持），允许外部硬件加速器直接参与 Cache 一致性</li>
+<li><strong>每个核心可独立加入或退出一致性域（Snoop Domain）</strong>，以适应不同的功耗和性能需求</li>
+</ul>
+<p>相比 ARM11 MPCore，后续 Cortex-A 多核处理器的另一项重要改进是 <strong>Cache 和 TLB 维护操作的硬件加速</strong>。对于失效（Invalidate）、清理（Clean）等维护指令，硬件能够在一致性域内自动广播到其他核心，而无需软件逐个核心执行，从而降低多核系统的软件开销。</p>
+<p>除了同构多核（Homogeneous Multi-Core）之外，ARM 处理器长期以来也广泛应用于异构系统。例如 TI OMAP、Freescale i.MX 等 SoC 往往将 ARM 处理器与 DSP、GPU 或其他专用处理器集成在一起，不同处理器既可以拥有各自独立的存储空间，也可以共享部分内存，并运行不同的软件栈。</p>
+<p>了解了 Cortex-A 多核处理器的硬件组成之后，下面将介绍三种常见的软件运行模型：<strong>SMP（Symmetric Multi-Processing）</strong>、<strong>AMP（Asymmetric Multi-Processing）</strong> 和 <strong>HMP（Heterogeneous Multi-Processing）</strong>。</p>
+<hr>
+<h2 id="2-多处理软件架构模型"><a href="#2-多处理软件架构模型" class="headerlink" title="2. 多处理软件架构模型"></a>2. 多处理软件架构模型</h2><p>ARM 多核系统支持三种不同的软件架构模型，每种适用于不同的场景。</p>
+<h3 id="2-1-对称多处理（SMP）"><a href="#2-1-对称多处理（SMP）" class="headerlink" title="2.1 对称多处理（SMP）"></a>2.1 对称多处理（SMP）</h3><p>SMP（Symmetric Multi-Processing，对称多处理）的核心理念是：<strong>所有处理核心拥有一致的内存视图，并运行同一个操作系统实例</strong>。每个核心地位完全平等，都可以执行内核代码、处理中断以及运行用户任务。操作系统调度器可以根据系统负载，动态地将任务分配或迁移到任意核心，实现资源利用率和性能的最优化。</p>
+<p>SMP 的主要特点包括：</p>
+<ul>
+<li><strong>真正的并行执行</strong>：多个任务能够在不同核心上同时运行，而非依赖单核时间片轮转实现的”假并行”。</li>
+<li><strong>调度器负责负载均衡</strong>：调度器可根据系统负载、Cache 拓扑、CPU 利用率以及能耗策略，在多个核心之间动态迁移任务。例如，可以将任务集中到少数核心以便其他核心进入低功耗状态，也可以将任务分散到多个核心以提高整体吞吐量。</li>
+<li><strong>中断可在多个核心之间分配</strong>：GIC 支持将中断路由到指定核心或多个核心。Linux 内核提供了 IRQ Affinity 机制，用户或 <code>irqbalance</code> 等工具可以根据系统拓扑和负载动态调整中断与 CPU 的绑定关系，以减少热点核心并提高整体性能。</li>
+<li><strong>共享内存一致性</strong>：硬件负责维护 Cache 一致性，确保所有核心观察到一致的内存视图，软件无需主动同步 Cache（但仍需使用锁、原子操作和内存屏障保证并发正确性）。</li>
+</ul>
+<p>调度器在进行负载均衡时通常会综合考虑多方面因素。例如，为了降低功耗，可以将任务集中到少数核心，使其余核心进入空闲状态；为了提高性能，可以将计算密集型任务分散到不同核心，减少资源竞争；在支持 DVFS（Dynamic Voltage and Frequency Scaling）的平台上，还可以通过”更多核心、较低频率”或”较少核心、较高频率”等不同组合，在性能与能耗之间取得平衡。此外，调度器还会结合任务的 CPU 使用率、唤醒频率、Cache 局部性等信息，尽量减少不必要的任务迁移，以避免 Cache 命中率下降带来的性能损失。</p>
+<p>以一个典型的四核 Cortex-A9 MPCore SoC（如 TI OMAP4 系列）为例，四个核心共享同一 L2 Cache，并通过一致性互连访问共享内存和外设。Linux 启动后会识别所有 CPU，在 <code>/proc/cpuinfo</code> 中可以看到 <code>processor: 0</code> 至 <code>processor: 3</code>。运行过程中，调度器可能将 <code>ksoftirqd</code>、音频解码线程、图形渲染线程等分别安排到不同核心执行；当某个核心负载过高时，也可能将部分任务迁移到其他核心。整个过程完全由操作系统负责，对用户态应用透明，绝大多数多线程程序无需重新编译即可运行在 SMP 系统上。</p>
+<h3 id="2-2-非对称多处理（AMP）"><a href="#2-2-非对称多处理（AMP）" class="headerlink" title="2.2 非对称多处理（AMP）"></a>2.2 非对称多处理（AMP）</h3><p>AMP 是<strong>功能分发</strong>架构：静态地为每个核心分配独立角色，通常每个核心运行各自的操作系统。整个系统看起来像是多个独立的单核处理器。</p>
+<p>与 SMP 的关键区别：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>SMP</th>
+<th>AMP</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>角色分配</td>
+<td>动态，由调度器决定</td>
+<td>静态，设计时确定</td>
+</tr>
+<tr>
+<td>内存视图</td>
+<td>所有核心相同</td>
+<td>各核心可有不同视图</td>
+</tr>
+<tr>
+<td>负载转移</td>
+<td>支持</td>
+<td>不支持</td>
+</tr>
+<tr>
+<td>硬件 Cache 一致</td>
+<td>必需</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td>核间通信</td>
+<td>共享内存（硬件一致）</td>
+<td>共享内存 + 门铃中断（MCAPI）</td>
+</tr>
+</tbody></table>
+<p>AMP 的典型应用场景包括：</p>
+<ul>
+<li><strong>安全隔离</strong>：将敏感任务隔离到特定核心</li>
+<li><strong>实时保证</strong>：一个核心处理硬实时需求，另一个处理高性能应用</li>
+<li><strong>网络系统</strong>：控制面（AMP）+ 数据面（SMP）混合架构</li>
+<li><strong>Multi-OS 系统</strong>：不同核心运行不同的操作系统（如 Linux + RTOS），这在 AMP 设计中是常见用法</li>
+</ul>
+<p>实际上，许多系统是 <strong>SMP + AMP 混合体</strong>：两个或更多核心运行 SMP OS，同时系统中还有不属于该 SMP 子系统的其他元素。Cache 一致性在 SMP 核心间实现，但不一定延伸到 AMP 部分。</p>
+<h2 id="2-3-异构多处理（HMP）与-big-LITTLE"><a href="#2-3-异构多处理（HMP）与-big-LITTLE" class="headerlink" title="2.3 异构多处理（HMP）与 big.LITTLE"></a>2.3 异构多处理（HMP）与 big.LITTLE</h2><p>与 SMP 中所有核心性能相同不同，<strong>HMP（Heterogeneous Multi-Processing，异构多处理）</strong>允许系统中存在性能和能效不同的处理核心。</p>
+<p>ARM 对 HMP 的定义是：多个处理核心具有相同的指令集架构（ISA），但内部微架构不同，因此具有不同的性能和功耗特性。同时，这些核心处于同一个 Cache 一致性域内，可以共享内存数据。</p>
+<p><strong>big.LITTLE 是 ARM 实现 HMP 的典型硬件架构。</strong></p>
+<p>它将两类核心组合在同一个 SoC 中：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>特点</th>
+<th>示例</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>big 核心</strong></td>
+<td>高性能、高功耗，适合计算密集型任务</td>
+<td>Cortex-A15、Cortex-A57</td>
+</tr>
+<tr>
+<td><strong>LITTLE 核心</strong></td>
+<td>高能效、低功耗，适合轻负载任务</td>
+<td>Cortex-A7、Cortex-A53</td>
+</tr>
+</tbody></table>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">big Cluster:</span><br><span class="line">    Cortex-A57</span><br><span class="line">    Cortex-A57</span><br><span class="line"></span><br><span class="line">LITTLE Cluster:</span><br><span class="line">    Cortex-A53</span><br><span class="line">    Cortex-A53</span><br></pre></td></tr></table></figure>
+
+<p>由于 big 和 LITTLE 核心实现相同的 ARM ISA，应用程序无需修改即可运行在任意核心上。操作系统调度器会根据任务负载，在不同类型核心之间迁移任务：</p>
+<ul>
+<li>计算密集型任务倾向运行在 big 核心，以获得更高性能；</li>
+<li>后台任务和轻负载任务倾向运行在 LITTLE 核心，以降低功耗。</li>
+</ul>
+<p>早期 ARM big.LITTLE 系统采用 <strong>HMP Scheduler</strong> 实现异构调度；现代 Linux&#x2F;Android 更多采用 <strong>EAS（Energy Aware Scheduling）</strong>，综合考虑 CPU 性能容量、DVFS 状态、能耗模型和温度限制，在性能与功耗之间进行优化。</p>
+<p>无论采用 SMP、AMP 还是 HMP，只要多个核心共享同一块物理内存，就必须解决数据一致性问题：当一个核心修改数据后，其他核心如何看到最新值。这正是 <strong>Cache 一致性（Cache Coherency）机制</strong>需要解决的问题。</p>
+<p><strong>简单来说</strong>：</p>
+<ul>
+<li>SMP 是多个相同能力的核心并行工作，HMP 是多个性能和功耗不同的核心协同工作，需要根据任务特点选择合适的核心。</li>
+<li>SMP 和 HMP 通常都是一个操作系统实例管理所有核心；AMP 通常是多个核心分别运行独立的软件系统。</li>
+<li>big.LITTLE 是硬件设计，HMP 是管理这些不同核心的软件模型。</li>
+</ul>
+<hr>
+<h2 id="3-Cache-一致性"><a href="#3-Cache-一致性" class="headerlink" title="3. Cache 一致性"></a>3. Cache 一致性</h2><p>SMP 系统中的一个核心硬件挑战是 <strong>Cache 一致性（Cache Coherency）</strong>。</p>
+<p>由于每个处理核心通常拥有自己的 L1 Cache，当多个核心访问同一块共享内存时，可能出现数据副本不一致的问题。</p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">Core0:</span><br><span class="line">    data = 100</span><br><span class="line">    ↓</span><br><span class="line">    修改 L1 Cache</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Core1:</span><br><span class="line">    读取 data</span><br><span class="line">    ↓</span><br><span class="line">    仍然看到旧值</span><br></pre></td></tr></table></figure>
+
+<p>如果 Core1 使用自己的 Cache 副本，而没有及时获得 Core0 修改后的数据，就会导致程序错误。</p>
+<p>因此，多核系统必须提供机制，使多个核心对于共享数据保持一致的视图。</p>
+<p>需要注意的是：</p>
+<ul>
+<li><strong>Cache 一致性主要解决 CPU 核心之间的数据同步问题；</strong></li>
+<li><strong>DMA 等外部设备的数据一致性属于 I&#x2F;O Coherency 范畴，需要额外硬件支持。</strong></li>
+</ul>
+<h3 id="3-1-三种一致性方案"><a href="#3-1-三种一致性方案" class="headerlink" title="3.1 三种一致性方案"></a>3.1 三种一致性方案</h3><table>
+<thead>
+<tr>
+<th>方案</th>
+<th>机制</th>
+<th>优缺点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>禁用 Cache</strong></td>
+<td>将共享数据区域设置为 Non-cacheable</td>
+<td>实现简单，但访问速度慢，内存带宽压力大</td>
+</tr>
+<tr>
+<td><strong>软件维护一致性</strong></td>
+<td>OS 或驱动主动执行 Cache Clean &#x2F; Invalidate 操作</td>
+<td>灵活，但增加软件复杂度，占用 CPU 时间和总线带宽</td>
+</tr>
+<tr>
+<td><strong>硬件维护一致性</strong></td>
+<td>通过 SCU、CCI、CHI 等互连以及 MESI&#x2F;MOESI 等协议自动维护</td>
+<td>硬件复杂度增加，但显著降低软件负担</td>
+</tr>
+</tbody></table>
+<p><strong>软件维护 vs 硬件维护</strong></p>
+<p>以软件管理方式为例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">Core0 写数据</span><br><span class="line">    ↓</span><br><span class="line">Clean Cache</span><br><span class="line">    ↓</span><br><span class="line">写回内存</span><br><span class="line">    ↓</span><br><span class="line">Core1 读取</span><br><span class="line">    ↓</span><br><span class="line">Invalidate Cache</span><br><span class="line">    ↓</span><br><span class="line">重新加载最新数据</span><br></pre></td></tr></table></figure>
+
+<p>每次共享数据交互都需要软件显式维护 Cache 状态。</p>
+<p>如果共享数据访问频繁，例如：多核通信缓冲区、音视频处理流水线、网络数据包处理等场景，大量 Cache 维护操作会：消耗 CPU 周期、增加内存总线访问、降低系统吞吐量。</p>
+<p>而硬件一致性机制：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Core0 修改 Cache</span><br><span class="line">        ↓</span><br><span class="line">硬件检测共享状态</span><br><span class="line">        ↓</span><br><span class="line">通知 Core1 更新 Cache</span><br></pre></td></tr></table></figure>
+
+<p>整个过程由硬件自动完成，软件只需要按照正常内存访问方式编程。</p>
+<p>因此，ARM Cortex-A 多核处理器通常采用硬件 Cache 一致性方案：</p>
+<ul>
+<li>Cortex-A9：通过 <strong>SCU（Snoop Control Unit）</strong> 实现 Cluster 内一致性；</li>
+<li>Cortex-A15&#x2F;A57 等：通过 <strong>ACE&#x2F;CCI 等一致性互连</strong> 支持多 Cluster 一致性；</li>
+<li>新一代 ARMv8&#x2F;v9 系统：通过 <strong>CHI 等协议</strong> 实现更大规模的一致性扩展。</li>
+</ul>
+<p>硬件一致性是现代 ARM 多核处理器能够高效运行 SMP 操作系统（如 Linux、Android）的重要基础。</p>
+<h3 id="3-2-MESI-与-MOESI-协议"><a href="#3-2-MESI-与-MOESI-协议" class="headerlink" title="3.2 MESI 与 MOESI 协议"></a>3.2 MESI 与 MOESI 协议</h3><p>ARM 多核处理器通常采用基于 <strong>MESI&#x2F;MOESI 思想</strong>的 Cache 一致性协议，通过记录每个 Cache Line 的状态，判断数据是否有效、是否被修改以及是否允许写入。</p>
+<p>需要注意的是，不同 Cortex-A 处理器和一致性互连的具体实现有所不同。例如，Cortex-A9 通过 <strong>SCU（Snoop Control Unit）</strong> 实现 Cluster 内的 L1 Cache 一致性，而后续 Cortex-A 系列通常通过 <strong>ACE、CCI、CHI</strong> 等一致性协议和互连机制扩展到更复杂的多核系统。因此，不能简单认为所有 Cortex-A 都固定采用某一种协议。</p>
+<p>典型 MESI&#x2F;MOESI 协议包含以下五种状态：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">M (Modified)   -- “我改过，而且只有我有”</span><br><span class="line">    当前 Cache 拥有最新数据，</span><br><span class="line">    且数据已经被修改，与主存中的副本不一致。</span><br><span class="line">    其他 Cache 中不存在该 Cache Line 的有效副本。</span><br><span class="line">    写回主存前必须持有该状态。</span><br><span class="line"></span><br><span class="line">O (Owned)  -- “我改过，我还是老大，但允许别人有我改过的副本”</span><br><span class="line">    当前 Cache 拥有最新的脏数据，</span><br><span class="line">    但允许其他 Cache 同时保存该 Cache Line 的共享副本。</span><br><span class="line">    当前 Cache 负责提供最新数据。</span><br><span class="line">    （仅 MOESI 协议存在）</span><br><span class="line"></span><br><span class="line">E (Exclusive)</span><br><span class="line">    当前 Cache 拥有唯一副本，</span><br><span class="line">    且数据与主存保持一致。</span><br><span class="line">    由于不存在其他副本，因此可以直接写入，</span><br><span class="line">    并转换为 M 状态。</span><br><span class="line"></span><br><span class="line">S (Shared)</span><br><span class="line">    当前 Cache 拥有该 Cache Line 的干净副本，</span><br><span class="line">    其他 Cache 中也可能存在相同副本。</span><br><span class="line">    可以读取，但写入前必须获得独占权限。</span><br><span class="line"></span><br><span class="line">I (Invalid)</span><br><span class="line">    当前 Cache Line 无效，</span><br><span class="line">    表示未缓存该数据或该副本已经被其他核心修改。</span><br></pre></td></tr></table></figure>
+
+<p>简单来说：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>数据是否最新</th>
+<th>是否可以直接写入</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>M</td>
+<td>最新，但主存可能旧</td>
+<td>可以</td>
+</tr>
+<tr>
+<td>O</td>
+<td>最新，允许共享</td>
+<td>可以升级为 M</td>
+</tr>
+<tr>
+<td>E</td>
+<td>最新，且唯一副本</td>
+<td>可以</td>
+</tr>
+<tr>
+<td>S</td>
+<td>最新，但存在共享</td>
+<td>需要升级</td>
+</tr>
+<tr>
+<td>I</td>
+<td>无效</td>
+<td>不可以</td>
+</tr>
+</tbody></table>
+<p>其中：</p>
+<ul>
+<li><strong>M&#x2F;E&#x2F;O 状态表示当前 Cache 具有写权限或者可以快速获得写权限；</strong></li>
+<li><strong>S 状态只能读取，写入前必须使其他 Cache 副本失效；</strong></li>
+<li><strong>I 状态表示当前 Cache 中没有有效数据。</strong></li>
+</ul>
+<hr>
+<h4 id="3-2-1-MOESI-状态转换示例"><a href="#3-2-1-MOESI-状态转换示例" class="headerlink" title="3.2.1 MOESI 状态转换示例"></a>3.2.1 MOESI 状态转换示例</h4><p>假设四个核心：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Core0、Core1、Core2、Core3</span><br></pre></td></tr></table></figure>
+
+<p>共同访问地址：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">0x8000_1000</span><br></pre></td></tr></table></figure>
+
+<p>初始状态：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">数据仅存在 DDR 中，</span><br><span class="line">所有 Cache 均没有该 Cache Line。</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p><strong>Step 1：Core0 首次读取数据</strong></p>
+<p>Core0 执行：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LDR [0x8000_1000]</span><br></pre></td></tr></table></figure>
+
+<p>由于其他核心没有该数据：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Core0:</span><br><span class="line">I → E</span><br></pre></td></tr></table></figure>
+
+<p>此时：</p>
+<ul>
+<li>Core0 拥有唯一副本；</li>
+<li>数据与 DDR 保持一致。</li>
+</ul>
+<hr>
+<p><strong>Step 2：Core0 修改数据</strong></p>
+<p>Core0 执行：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">STR [0x8000_1000]</span><br></pre></td></tr></table></figure>
+
+<p>由于 Core0 当前处于 E 状态，可以直接写入：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Core0:</span><br><span class="line">E → M</span><br></pre></td></tr></table></figure>
+
+<p>此时：</p>
+<ul>
+<li>Core0 L1 Cache 中保存最新数据；</li>
+<li>DDR 中仍然是旧数据。</li>
+</ul>
+<hr>
+<p><strong>Step 3：Core1 读取该数据</strong></p>
+<p>Core1 执行：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LDR [0x8000_1000]</span><br></pre></td></tr></table></figure>
+
+<p>一致性硬件发现：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Core0:</span><br><span class="line">M</span><br></pre></td></tr></table></figure>
+
+<p>说明 Core0 持有最新数据。</p>
+<p>因此数据可以直接从 Core0 的 Cache 提供给 Core1：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Core0:</span><br><span class="line">M → O</span><br><span class="line"></span><br><span class="line">Core1:</span><br><span class="line">I → S</span><br></pre></td></tr></table></figure>
+
+<p>此时：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Core0:</span><br><span class="line">拥有最新数据，并具有 Owner 权限</span><br><span class="line"></span><br><span class="line">Core1:</span><br><span class="line">拥有共享副本</span><br></pre></td></tr></table></figure>
+
+<p>整个过程无需访问外部 DDR。</p>
+<p>这正是 MOESI 相比 MESI 的优化：</p>
+<blockquote>
+<p>允许一个 Cache 保留脏数据，同时让其他 Cache 保存共享副本，避免为了共享数据而提前写回主存。</p>
+</blockquote>
+<hr>
+<p><strong>Step 4：Core1 修改数据</strong></p>
+<p>此时：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Core1:</span><br><span class="line">S</span><br></pre></td></tr></table></figure>
+
+<p>Core1 不能直接写入，因为其他 Cache 可能仍保存该数据。</p>
+<p>因此 Core1 必须发送升级请求：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Upgrade</span><br></pre></td></tr></table></figure>
+
+<p>一致性硬件使其他副本失效：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Core0:</span><br><span class="line">O → I</span><br><span class="line"></span><br><span class="line">Core1:</span><br><span class="line">S → M</span><br></pre></td></tr></table></figure>
+
+<p>随后 Core1 可以继续执行写操作。</p>
+<hr>
+<h4 id="3-2-2-Cache-间直接数据迁移"><a href="#3-2-2-Cache-间直接数据迁移" class="headerlink" title="3.2.2 Cache 间直接数据迁移"></a>3.2.2 Cache 间直接数据迁移</h4><p>硬件一致性机制的一个重要优化是：</p>
+<p><strong>共享数据不一定需要先写回外部 DDR，再由其他核心读取，而可以直接在不同核心的 Cache 之间传递。</strong></p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Core0 L1 Cache</span><br><span class="line">       |</span><br><span class="line">       | Snoop</span><br><span class="line">       ↓</span><br><span class="line">Core1 L1 Cache</span><br></pre></td></tr></table></figure>
+
+<p>根据 Cache Line 的状态不同，一致性硬件可以执行不同操作：</p>
+<ul>
+<li><strong>干净 Cache Line（Clean Line）</strong>：<br>当数据与 DDR 中的数据保持一致时，可以直接将 Cache Line 复制到其他核心的 Cache 中，无需访问外部内存。</li>
+<li><strong>脏 Cache Line（Dirty Line）</strong>：<br>当某个核心修改了数据但尚未写回 DDR 时，最新数据保存在该核心的 Cache 中。一致性硬件可以直接将该数据传递给其他核心，并更新 Cache 状态，无需提前写回 DDR。</li>
+</ul>
+<p>因此，数据传递路径可以从：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Cache</span><br><span class="line">  ↓</span><br><span class="line">DDR</span><br><span class="line">  ↓</span><br><span class="line">Cache</span><br></pre></td></tr></table></figure>
+
+<p>优化为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Cache</span><br><span class="line">  ↓</span><br><span class="line">Cache</span><br></pre></td></tr></table></figure>
+
+<p>避免了额外的 DDR 访问，降低了访问延迟，同时减少了内存带宽消耗。</p>
+<p>在 Cortex-A9 中，Cluster 内的 L1 Cache 一致性由 <strong>SCU（Snoop Control Unit）</strong>负责；在更复杂的多 Cluster 系统中，则通过 <strong>CCI、CMN、CHI</strong> 等一致性互连协议实现更大规模的 Cache 一致性管理。</p>
+<hr>
+<p>需要注意：</p>
+<p><strong>Cache 一致性和 LDREX&#x2F;STREX 独占访问机制是两个不同的概念。</strong></p>
+<ul>
+<li><p>Cache 一致性解决的是：</p>
+<blockquote>
+<p>多个核心看到的数据是否一致。</p>
+</blockquote>
+</li>
+<li><p>LDREX&#x2F;STREX 解决的是：</p>
+<blockquote>
+<p>多个核心同时修改共享数据时，如何保证操作具有原子性。</p>
+</blockquote>
+</li>
+</ul>
+<p>二者通常共同用于实现多核同步，但属于不同层面的硬件机制。</p>
+<h3 id="3-3-Snoop-Control-Unit-SCU"><a href="#3-3-Snoop-Control-Unit-SCU" class="headerlink" title="3.3 Snoop Control Unit (SCU)"></a>3.3 Snoop Control Unit (SCU)</h3><p>SCU（Snoop Control Unit）是 Cortex-A9 MPCore 中负责 <strong>Cluster 内 Cache 一致性管理</strong>的核心硬件模块。</p>
+<p>它主要维护同一 Cluster 内各核心 <strong>L1 数据 Cache（D-Cache）</strong>之间的一致性。</p>
+<p>需要注意：</p>
+<ul>
+<li>L1 数据 Cache 参与一致性管理；</li>
+<li>L1 指令 Cache 通常不参与一致性协议，因为代码区域通常只读；</li>
+<li>如果程序运行过程中动态修改代码，需要软件主动执行 Cache 维护操作，保证 I-Cache 与内存中的代码一致。</li>
+</ul>
+<p>SCU 启用一致性管理的<strong>四个条件</strong>缺一不可：</p>
+<ol>
+<li><strong>SCU 使能</strong>——通过 Private Memory Region 中的 SCU 控制寄存器启用</li>
+<li><strong>核心参与 Inner Shareable 域</strong>——通过设置 CP15 ACTLR 寄存器的 SMP 位（bit[6]）. 尽管名字叫 “SMP bit”，它实际上是标记核心是否参与一致性域</li>
+<li><strong>MMU 已使能</strong>——ARM 的 Cache 属性（如 Shareable、Cacheable、Normal&#x2F;Device 类型）由页表描述符定义，而 MMU 负责将这些属性应用到实际内存访问中；MMU 未开启时，无法正确建立共享缓存属性。</li>
+<li><strong>被访问的页面标记为 Normal Shareable</strong>，Cache 策略为 Write-Back Write-Allocate（Device 和 Strongly-ordered 内存不可缓存，Write-Through 缓存对核心而言行为等同于 uncached）</li>
+</ol>
+<p>设置 SMP 位的汇编代码：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">MRC  p15, 0, r0, c1, c0, 1    ; 读取 ACTLR</span><br><span class="line">ORR  r0, r0, #0x040           ; 设置 bit[6] SMP</span><br><span class="line">MCR  p15, 0, r0, c1, c0, 1    ; 写回 ACTLR</span><br><span class="line">DSB                           ; 等待配置生效</span><br><span class="line">ISB                           ; 刷新流水线                            ; 确保写入完成</span><br></pre></td></tr></table></figure>
+
+<p>SCU 的一个基本限制是：<strong>它只能维护同一个 Cortex-A cluster 内核心之间的 Cache 一致性</strong>。例如 Cortex-A9 四核簇内部可以通过 SCU 实现 L1 Cache 一致性，但跨 cluster 或其他总线主设备并不由 SCU 直接管理，需要依靠更高层的一致性互连（如 CCI）或硬件一致性接口（如 ACE&#x2F;ACP）实现协同。</p>
+<h3 id="3-4-Accelerator-Coherency-Port-ACP"><a href="#3-4-Accelerator-Coherency-Port-ACP" class="headerlink" title="3.4 Accelerator Coherency Port (ACP)"></a>3.4 Accelerator Coherency Port (ACP)</h3><p>ACP（Accelerator Coherency Port）是 Cortex-A5、Cortex-A9、Cortex-A12 和 Cortex-A15 的可选硬件特性。它本质上是一个 <strong>AXI Slave 接口，连接到 SCU</strong>，用于将外部 AXI Master（如 DMA、加速器）接入 CPU 的 Cache 一致性系统。</p>
+<p>在 Cortex-A 多核系统中的位置如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">         Cortex-A Cluster</span><br><span class="line"></span><br><span class="line">+-------------+       +-------------+</span><br><span class="line">|   CPU Core0 |       |   CPU Core1 |</span><br><span class="line">|   L1 D-Cache|       |   L1 D-Cache|</span><br><span class="line">+-------------+       +-------------+</span><br><span class="line">        \                  /</span><br><span class="line">         \                /</span><br><span class="line">          +--------------+</span><br><span class="line">          |     SCU      |</span><br><span class="line">          | Cache Snoop  |</span><br><span class="line">          +--------------+</span><br><span class="line">                 |</span><br><span class="line">            +---------+</span><br><span class="line">            |  L2 Cache|</span><br><span class="line">            +---------+</span><br><span class="line">                 |</span><br><span class="line">               DDR</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">External Master</span><br><span class="line">(DMA/GPU/Accelerator)</span><br><span class="line">        |</span><br><span class="line">        |</span><br><span class="line">      AXI</span><br><span class="line">        |</span><br><span class="line">  +-------------+</span><br><span class="line">  |     ACP     |</span><br><span class="line">  | AXI Slave   |</span><br><span class="line">  +-------------+</span><br><span class="line">        |</span><br><span class="line">        |</span><br><span class="line">      SCU</span><br></pre></td></tr></table></figure>
+
+<p>普通 DMA 访问内存时绕过 CPU Cache，需要软件通过 <code>cache clean/invalidate</code> 保证数据一致性：</p>
+<ul>
+<li>CPU 写入的数据可能仍停留在 L1 Cache 中，DMA 读取前需要 <strong>clean cache</strong> 将数据写回内存；</li>
+<li>DMA 写入的数据可能导致 CPU Cache 中保存的副本失效，CPU 使用前需要 <strong>invalidate cache</strong>。</li>
+</ul>
+<p>ACP 通过硬件一致性机制消除了这些额外的软件维护操作：</p>
+<ul>
+<li><strong>ACP 读操作</strong>：DMA 通过 ACP 访问内存时，SCU 会 snoop（窥探）各核心 L1 Cache。如果数据在某个核心 Cache 中，则可以直接获取最新数据，无需提前 clean。</li>
+<li><strong>ACP 写操作</strong>：DMA 写入数据时，SCU 会使其他核心 Cache 中对应 Cache Line 失效，避免 CPU 后续读取旧数据，无需手动 invalidate。</li>
+</ul>
+<p>因此，在支持 ACP 的系统中，CPU 与 DMA 之间可以通过硬件机制保持 Cache 一致性。</p>
+<p>示例：</p>
+<p><strong>无 ACP（软件维护一致性）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">CPU:</span><br><span class="line">写入 buffer</span><br><span class="line">    ↓</span><br><span class="line">数据保留在 L1 Cache（Write-Back）</span><br><span class="line">    ↓</span><br><span class="line">clean cache</span><br><span class="line">    ↓</span><br><span class="line">数据写回内存</span><br><span class="line"></span><br><span class="line">DMA:</span><br><span class="line">从内存读取数据</span><br><span class="line"></span><br><span class="line">DMA:</span><br><span class="line">写入新数据到内存</span><br><span class="line"></span><br><span class="line">CPU:</span><br><span class="line">invalidate cache</span><br><span class="line">    ↓</span><br><span class="line">重新读取 DMA 写入的数据</span><br></pre></td></tr></table></figure>
+
+<p><strong>有 ACP（硬件维护一致性）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">CPU:</span><br><span class="line">写入 buffer</span><br><span class="line">    ↓</span><br><span class="line">数据保留在 L1 Cache</span><br><span class="line"></span><br><span class="line">DMA:</span><br><span class="line">通过 ACP 读取 buffer</span><br><span class="line">    ↓</span><br><span class="line">SCU snoop L1 Cache</span><br><span class="line">    ↓</span><br><span class="line">直接获取最新数据</span><br><span class="line"></span><br><span class="line">DMA:</span><br><span class="line">通过 ACP 写入数据</span><br><span class="line">    ↓</span><br><span class="line">SCU invalidate CPU Cache 中旧数据</span><br><span class="line"></span><br><span class="line">CPU:</span><br><span class="line">重新访问 buffer</span><br><span class="line">    ↓</span><br><span class="line">获取最新数据</span><br></pre></td></tr></table></figure>
+
+<p>需要注意：</p>
+<ul>
+<li>ACP 使用的是<strong>物理地址</strong>，因为 DMA 不经过 CPU MMU 地址转换；</li>
+<li>ACP 只能扩展 SCU 的一致性范围，仍然受 SCU 能力限制，主要用于单个 Cortex-A cluster 内 CPU 与外部 Master 的一致性；</li>
+<li>ACP 解决的是 <strong>Cache 数据一致性问题</strong>，但不能保证访问顺序。如果需要约束内存访问顺序，仍然需要使用 <code>DMB/DSB</code> 等内存屏障。</li>
+</ul>
+<h3 id="3-5-Cache-Coherent-Interface-CCI-400"><a href="#3-5-Cache-Coherent-Interface-CCI-400" class="headerlink" title="3.5 Cache Coherent Interface (CCI-400)"></a>3.5 Cache Coherent Interface (CCI-400)</h3><p>SCU 只能维护<strong>单个 Cortex-A cluster 内部</strong>的 Cache 一致性。当系统包含多个 cluster 时（例如 big.LITTLE 架构中的 Cortex-A7 与 Cortex-A15），需要借助更高层的一致性互连实现跨 cluster 的 Cache 协同。</p>
+<p>ARM 在 AMBA 4 中引入 <strong>ACE（AXI Coherency Extensions）</strong>，在 AXI 基础上增加 Cache 一致性支持，使互连能够传递 snoop 请求和 Cache 状态信息。</p>
+<ul>
+<li><strong>ACE</strong>：用于具有 Cache 的处理器 cluster，例如连接 Cortex-A7&#x2F;A15 等 CPU 簇。</li>
+<li><strong>ACE-Lite</strong>：ACE 的简化版本，用于无 Cache 的外部 Master（如 DMA、GPU、加速器），使其能够访问 CPU 共享数据而无需软件维护 Cache 一致性。</li>
+</ul>
+<p><strong>CoreLink CCI-400</strong> 是 ARM 第一代 Cache Coherent Interconnect，实现多个 ACE 主设备之间的一致性连接，典型结构如下：</p>
+<img src="1.jpg" alt="1" style="zoom:50%;" />
+
+<p>跨 cluster 读取数据时，CCI-400 会将请求转发到目标 cluster，并触发 snoop 检查：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Step 1: 请求 cluster 发起 Cache Read 请求</span><br><span class="line"></span><br><span class="line">Step 2: CCI-400 向目标 cluster 发送 snoop 请求</span><br><span class="line"></span><br><span class="line">Step 3: 目标 cluster 的 SCU 检查本地 Cache</span><br><span class="line"></span><br><span class="line">Step 4: 如果命中最新 Cache Line，则直接进行 Cache-to-Cache Transfer；</span><br><span class="line">        如果未命中，则从 DDR 获取数据</span><br></pre></td></tr></table></figure>
+
+<p>因此，CCI-400 并不保存数据副本，而是负责协调不同 cluster 的 Cache 状态。对于软件而言，该过程完全透明，CPU 执行普通 <code>LDR/STR</code> 指令即可，由硬件自动完成一致性维护。</p>
+<p>需要注意：</p>
+<ul>
+<li>CCI-400 解决的是 <strong>Cache 数据一致性问题</strong>；</li>
+<li>操作系统修改共享页表后，还需要通过 <strong>TLB Shootdown</strong> 机制同步各核心 TLB；</li>
+<li>Cache 一致性保证“数据一致”，TLB 同步保证“地址映射一致”。</li>
+</ul>
+<hr>
+<h2 id="4-TLB-和-Cache-维护操作的广播"><a href="#4-TLB-和-Cache-维护操作的广播" class="headerlink" title="4. TLB 和 Cache 维护操作的广播"></a>4. TLB 和 Cache 维护操作的广播</h2><p>前面介绍的 SCU、ACP 和 CCI 解决的是<strong>数据 Cache 在多个核心或外部 Master 之间的一致性问题</strong>。但多核系统中还存在另一类同步需求：当操作系统修改共享页表或主动维护 Cache 时，其他核心也必须同步执行对应的维护操作，否则可能继续使用旧的地址映射或旧的缓存数据。</p>
+<p>ARM 提供了维护操作广播机制，可以将 TLB 和 Cache maintenance 操作广播到 <strong>Inner Shareable 域</strong>内的其他核心。</p>
+<p>该功能依赖于以下控制位：</p>
+<ul>
+<li><strong>SMP 位（ACTLR bit[6]）</strong>：使核心加入 Inner Shareable 一致性域；</li>
+<li><strong>FW 位（ACTLR bit）</strong>：控制维护操作广播功能（Cortex-A9）。</li>
+</ul>
+<p>支持广播的操作包括：</p>
+<ul>
+<li>按虚拟地址 invalidate TLB entry；</li>
+<li>按虚拟地址 clean &#x2F; invalidate Data Cache Line；</li>
+<li>按虚拟地址 invalidate Instruction Cache Line。</li>
+</ul>
+<p>例如，Linux 修改共享页表后，需要通知其他 CPU：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">CPU0:</span><br><span class="line">修改页表</span><br><span class="line">  |</span><br><span class="line">  └──→ 广播 TLB invalidate ───→ CPU1/CPU2:</span><br><span class="line">                              清除对应 TLB entry</span><br></pre></td></tr></table></figure>
+
+<p>这样可以避免不同 CPU 使用不同的地址映射。</p>
+<hr>
+<h3 id="4-1-L2-Cache-下的维护顺序问题"><a href="#4-1-L2-Cache-下的维护顺序问题" class="headerlink" title="4.1 L2 Cache 下的维护顺序问题"></a>4.1 L2 Cache 下的维护顺序问题</h3><p>在带有 <strong>L2C-310 L2 Cache</strong> 的系统中，Cache maintenance 操作并不是 L1 和 L2 的单步原子操作，而是需要分别维护不同 Cache 层级。</p>
+<p>因此，执行 clean 和 invalidate 时必须遵循正确顺序：</p>
+<table>
+<thead>
+<tr>
+<th>操作</th>
+<th>顺序</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Clean Cache</td>
+<td>L1 → L2</td>
+</tr>
+<tr>
+<td>Invalidate Cache</td>
+<td>L2 → L1</td>
+</tr>
+</tbody></table>
+<p>原因如下：</p>
+<p><strong>Clean：先 L1，再 L2</strong></p>
+<p>L1 Cache 离 CPU 最近，可能保存最新的脏数据：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">CPU</span><br><span class="line"> |</span><br><span class="line">L1 Cache (最新数据)</span><br><span class="line"> |</span><br><span class="line">L2 Cache (旧数据)</span><br><span class="line"> |</span><br><span class="line">DDR</span><br></pre></td></tr></table></figure>
+
+<p>如果先 clean L2：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">L2 → DDR</span><br></pre></td></tr></table></figure>
+
+<p>写回的数据可能仍然是旧值。</p>
+<p>因此必须：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Clean L1</span><br><span class="line">    ↓</span><br><span class="line">数据更新到 L2</span><br><span class="line"></span><br><span class="line">Clean L2</span><br><span class="line">    ↓</span><br><span class="line">数据写回 DDR</span><br></pre></td></tr></table></figure>
+
+<hr>
+<p><strong>Invalidate：先 L2，再 L1</strong></p>
+<p>Invalidate 的目标是删除旧数据副本。</p>
+<p>如果先 invalidate L1：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Invalidate L1</span><br></pre></td></tr></table></figure>
+
+<p>但 L2 仍保留旧数据：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">L2 Cache = 旧数据</span><br></pre></td></tr></table></figure>
+
+<p>后续访问可能重新从 L2 加载旧 Cache Line。</p>
+<p>因此需要：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Invalidate L2</span><br><span class="line">    ↓</span><br><span class="line">Invalidate L1</span><br></pre></td></tr></table></figure>
+
+<p>保证所有缓存层级中的旧副本都被清除。</p>
+<hr>
+<p>Cache&#x2F;TLB 维护广播解决的是<strong>数据和地址映射的一致性问题</strong>：</p>
+<ul>
+<li>Cache maintenance：保证多个核心看到的数据一致；</li>
+<li>TLB maintenance：保证多个核心使用的虚拟地址映射一致。</li>
+</ul>
+<p>但它们并不能解决多个核心同时修改共享变量的问题。<br> 当多个核心需要安全访问临界区时，还需要依靠 ARM 的独占访问机制（LDREX&#x2F;STREX）实现同步。</p>
+<hr>
+<h2 id="5-多核同步原语：LDREX-STREX"><a href="#5-多核同步原语：LDREX-STREX" class="headerlink" title="5. 多核同步原语：LDREX&#x2F;STREX"></a>5. 多核同步原语：LDREX&#x2F;STREX</h2><h3 id="5-1-从关中断到-Spinlock"><a href="#5-1-从关中断到-Spinlock" class="headerlink" title="5.1 从关中断到 Spinlock"></a>5.1 从关中断到 Spinlock</h3><p>在单核系统中，保护临界区通常可以通过禁用中断实现——只要当前核心不会被抢占，就不会发生并发访问。但在多核系统中，禁用一个核心的中断并不能阻止其他核心同时访问同一临界区，因此无法保证互斥。</p>
+<p>多核系统通常使用 <strong>spinlock（自旋锁）</strong> 实现互斥，其底层依赖 CPU 提供的<strong>原子读-改-写（Read-Modify-Write）机制</strong>。ARM 采用 <strong>LDREX&#x2F;STREX</strong> 这一组 LL&#x2F;SC（Load-Linked &#x2F; Store-Conditional）指令来实现原子操作。</p>
+<p>ARM 架构为此提供了三条专用指令：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>LDREX</code></td>
+<td><strong>Load Exclusive</strong> —— 从内存读取数据，同时在当前核心的 Exclusive Monitor 中建立独占访问状态</td>
+</tr>
+<tr>
+<td><code>STREX</code></td>
+<td><strong>Store Exclusive</strong> —— 仅当独占状态仍然有效时完成写入，并返回 0（成功）或非 0（失败）</td>
+</tr>
+<tr>
+<td><code>CLREX</code></td>
+<td><strong>Clear Exclusive</strong> —— 清除当前核心的 Exclusive Monitor 状态</td>
+</tr>
+</tbody></table>
+<p>LDREX&#x2F;STREX 并非多核系统专用，它们提供的是 CPU 级别的原子读-改-写能力，因此在单核系统中同样广泛用于实现互斥锁、信号量和原子计数等同步原语。</p>
+<p>此外，在支持独占访问的系统中，操作系统在上下文切换时必须执行 <code>CLREX</code>。否则，如果线程 A 在执行 <code>LDREX</code> 后被切换出去，而遗留的独占状态未被清除，线程 B 后续执行 <code>STREX</code> 时可能继承这一状态，从而导致未定义行为。因此，ARM 要求内核在上下文切换过程中清除所有残留的独占访问状态。</p>
+<h3 id="5-2-Shareable-vs-Non-Shareable-内存的行为差异"><a href="#5-2-Shareable-vs-Non-Shareable-内存的行为差异" class="headerlink" title="5.2 Shareable vs Non-Shareable 内存的行为差异"></a>5.2 Shareable vs Non-Shareable 内存的行为差异</h3><p><code>LDREX/STREX</code> 的行为取决于目标内存的 <strong>Shareable</strong> 属性：</p>
+<ul>
+<li><strong>Shareable 内存</strong>：<code>LDREX</code> 建立独占访问状态。如果在 <code>STREX</code> 之前，<strong>任何核心</strong>对该地址发生写入（无论是普通 <code>STR</code> 还是成功的 <code>STREX</code>），独占状态都会失效，随后 <code>STREX</code> 返回失败。</li>
+<li><strong>Non-Shareable 内存</strong>：独占访问仅在当前核心内部维护，不会监测其他核心的访问，因此只有<strong>本核心</strong>的写操作或其他使独占状态失效的事件会导致 <code>STREX</code> 失败。</li>
+</ul>
+<p>此外，每个核心<strong>同时只能维护一个独占访问状态</strong>。如果同一核心再次执行 <code>LDREX</code>（即使访问的是另一个地址），之前建立的独占状态将自动失效。</p>
+<p>下面以一个典型的 spinlock 为例，说明 Shareable 内存上的 <code>LDREX/STREX</code> 如何实现互斥：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line">Spinlock 地址：0xB000_0000</span><br><span class="line">属性：Normal, Inner Shareable, Write-Back</span><br><span class="line"></span><br><span class="line">Core0 获取锁：</span><br><span class="line"></span><br><span class="line">LDREX r1, [lock]      → r1 = 0（锁空闲）</span><br><span class="line">                       Core0 建立独占访问状态</span><br><span class="line"></span><br><span class="line">STREX r2, r0, [lock]  → 写入 1</span><br><span class="line">                       独占状态仍然有效</span><br><span class="line">                       STREX 成功（r2 = 0）</span><br><span class="line">                       lock = 1</span><br><span class="line">                       Core0 进入临界区</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Core1 尝试获取锁：</span><br><span class="line"></span><br><span class="line">LDREX r1, [lock]      → r1 = 1（锁已占用）</span><br><span class="line">                       Core1 建立自己的独占访问状态</span><br><span class="line"></span><br><span class="line">检查 r1 == 1</span><br><span class="line">继续自旋等待</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Core0 释放锁：</span><br><span class="line"></span><br><span class="line">STR r3, [lock]        → 写入 0</span><br><span class="line">                       Cache 一致性机制广播此次写入</span><br><span class="line">                       Shareable 地址发生写操作</span><br><span class="line">                       所有针对该地址的独占访问状态失效</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Core1 再次尝试：</span><br><span class="line"></span><br><span class="line">LDREX r1, [lock]      → r1 = 0</span><br><span class="line">                       重新建立独占访问状态</span><br><span class="line"></span><br><span class="line">STREX r2, r0, [lock]  → 写入 1</span><br><span class="line">                       独占状态仍有效</span><br><span class="line">                       STREX 成功（r2 = 0）</span><br><span class="line">                       Core1 获得锁</span><br></pre></td></tr></table></figure>
+
+<p>这个例子说明了三个关键点：</p>
+<ol>
+<li><strong>每个核心维护自己的独占访问状态。</strong> 一个核心再次执行 <code>LDREX</code> 会覆盖<strong>自己</strong>之前建立的独占状态，但不会因为执行 <code>LDREX</code> 而清除其他核心的独占状态。</li>
+<li><strong>Shareable 内存上的任何写操作</strong>（包括普通 <code>STR</code> 和成功的 <code>STREX</code>）都会使其他核心针对该地址建立的独占状态失效，因此后续 <code>STREX</code> 将返回失败。</li>
+<li>spinlock 正是利用这一特性实现互斥：只有当 <code>LDREX</code> 与 <code>STREX</code> 之间没有其他核心修改锁变量时，<code>STREX</code> 才能成功完成写入；否则立即失败并进入下一轮重试。</li>
+</ol>
+<h3 id="5-3-Local-Monitor-与-Global-Monitor"><a href="#5-3-Local-Monitor-与-Global-Monitor" class="headerlink" title="5.3 Local Monitor 与 Global Monitor"></a>5.3 Local Monitor 与 Global Monitor</h3><p>为了实现 <code>LDREX/STREX</code> 的独占访问，ARM 在硬件中引入了两级 Monitor，它们分别负责核心内部和多核之间的协调。</p>
+<ul>
+<li><strong>Local Monitor</strong>：位于每个 CPU 核心内部，负责维护当前核心的独占访问状态。执行 <code>LDREX</code> 时建立独占状态，执行 <code>STREX</code> 时检查该状态是否仍然有效；无论成功还是失败，<code>STREX</code> 都会清除这次独占状态。ARM 并未规定 Local Monitor 必须记录完整的地址信息，因此其内部实现可能因处理器而异。</li>
+<li><strong>Global Monitor</strong>：用于监测 <strong>Shareable</strong> 内存上的独占访问。当多个核心共享同一块内存时，仅靠 Local Monitor 已无法判断共享数据是否被其他核心修改，因此需要 Global Monitor 参与协调。如果其他核心对同一 Shareable 地址发生写入，Global Monitor 会使相关核心的独占状态失效，从而导致后续 <code>STREX</code> 返回失败。</li>
+</ul>
+<p>两级 Monitor 的职责可以简单理解为：</p>
+<ul>
+<li><strong>Local Monitor</strong>：负责”我是否还拥有独占访问资格”；</li>
+<li><strong>Global Monitor</strong>：负责”其他核心是否破坏了这次独占访问”。</li>
+</ul>
+<p>两者共同决定 <code>STREX</code> 是否能够成功完成写入。</p>
+<p>需要注意的是，并非所有内存区域都支持独占访问。如果目标地址没有对应的 Monitor（例如某些外设寄存器，或 SoC 未实现独占访问支持的内存区域），那么 <code>STREX</code> 将始终返回 <strong>1（失败）</strong>，软件也就无法利用 <code>LDREX/STREX</code> 在该区域实现原子操作。</p>
+<hr>
+<h2 id="6-多核中断处理"><a href="#6-多核中断处理" class="headerlink" title="6. 多核中断处理"></a>6. 多核中断处理</h2><h3 id="6-1-GIC-架构与中断分类"><a href="#6-1-GIC-架构与中断分类" class="headerlink" title="6.1 GIC 架构与中断分类"></a>6.1 GIC 架构与中断分类</h3><p>ARM 多核处理器集成了遵循 GIC 架构规范的中断控制器，中断被分为三类：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>缩写</th>
+<th>数量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Software Generated</td>
+<td>SGI</td>
+<td>每核 16 个 (ID 0-15)</td>
+<td>只能通过软件操作生成，用于核间通信</td>
+</tr>
+<tr>
+<td>Private Peripheral</td>
+<td>PPI</td>
+<td>每核 16 个 (ID 16-31)</td>
+<td>每个核心私有的外设中断</td>
+</tr>
+<tr>
+<td>Shared Peripheral</td>
+<td>SPI</td>
+<td>最多 224 个</td>
+<td>所有核心共享的外设中断，可路由到任意核心</td>
+</tr>
+</tbody></table>
+<p>GIC 控制寄存器是<strong>内存映射的</strong>，位于 Private Memory Region 内。</p>
+<h3 id="6-2-中断路由"><a href="#6-2-中断路由" class="headerlink" title="6.2 中断路由"></a>6.2 中断路由</h3><p><strong>Interrupt Processor Targets 寄存器</strong>控制每个 SPI 中断被路由到哪个（或哪些）核心。对于私有中断（SGI 和 PPI），该寄存器被忽略——私有中断永远只作用于所属核心。</p>
+<p>私有中断的配置寄存器（包括优先级、使能&#x2F;禁能）对每个核心是<strong>banked</strong>的——即每个核心有自己的独立副本。</p>
+<h3 id="6-3-软件生成中断（SGI）"><a href="#6-3-软件生成中断（SGI）" class="headerlink" title="6.3 软件生成中断（SGI）"></a>6.3 软件生成中断（SGI）</h3><p>SGI 是多核核间通信的关键机制：</p>
+<ul>
+<li>可以向<strong>任何核心或核心组</strong>发送 SGI</li>
+<li>接收方的中断优先级由其自己的优先级配置决定，而非发送方的配置</li>
+<li>中断确认寄存器（IAR）的 bits[12:10] 提供<strong>发送核心的 ID</strong></li>
+<li><strong>目标列表过滤器</strong>（Target List Filter）提供三种简写方式：<ul>
+<li>发送给所有处理器</li>
+<li>发送给除自己外的所有处理器</li>
+<li>发送给指定的目标列表</li>
+</ul>
+</li>
+</ul>
+<p>在实际代码中，向 Core1 发送 SGI ID 0 的典型写法如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">; 假设 GIC Distributor 基地址已加载到 r0</span><br><span class="line">; GICD_SGIR (Software Generated Interrupt Register) 偏移 0xF00</span><br><span class="line"></span><br><span class="line">; 构造 SGI 发送请求:</span><br><span class="line">;   bits[25:24] = 0b01  (Target List Filter = &quot;Send to specified list&quot;)</span><br><span class="line">;   bits[23:16] = 0x02  (CPU Target List = Core1, 即 bit[1] 置位)</span><br><span class="line">;   bits[3:0]   = 0x00  (SGI ID = 0)</span><br><span class="line"></span><br><span class="line">LDR  r1, =0x01020000    ; 组合上述字段</span><br><span class="line">STR  r1, [r0, #0xF00]   ; 写入 GICD_SGIR 触发中断发送</span><br></pre></td></tr></table></figure>
+
+<p>当 Core1 收到该 SGI 后，在中断服务例程中读取中断确认寄存器（GICC_IAR）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">; GICC_IAR 寄存器偏移 0x0C (CPU Interface 基地址在 Private Memory Region 0x0100)</span><br><span class="line">LDR  r2, [r0, #0x0C]     ; 读取 IAR</span><br><span class="line">; r2 的解析:</span><br><span class="line">;   bits[12:10] = 0b000   → Core0 发送了该中断</span><br><span class="line">;   bits[9:0]   = 0x000   → 中断 ID 为 0 (SGI ID 0)</span><br><span class="line">; ... 中断服务例程处理 ...</span><br><span class="line">STR  r2, [r0, #0x04]      ; 写入 End-Of-Interrupt Register (GICC_EOIR)</span><br><span class="line">                           ; r2 必须与从 IAR 读出的值完全相同</span><br><span class="line">                           ; 包括发送方核心 ID, 否则硬件不认可 EOI</span><br></pre></td></tr></table></figure>
+
+<p>需要注意的是，即便 Core0 和 Core1 都把 SGI ID 0 配置为不同的优先级，Core1 实际响应该中断时使用的<strong>是 Core1 自己对该 SGI ID 的优先级配置</strong>，而不是 Core0 发送时的配置——这给了每个接收核心独立的优先级控制权。</p>
+<p>SGI 广泛用于两类场景：</p>
+<ol>
+<li><strong>SMP 内核同步</strong>（softirq）：触发调度、RCU 回调、任务唤醒</li>
+<li><strong>AMP 核间通信</strong>：通过 SGI 作为”门铃”信号 + 共享内存缓冲区传递消息数据</li>
+</ol>
+<p>至此，我们已经覆盖了多核系统运行时的三大支柱——Cache 一致性保证数据可见、LDREX&#x2F;STREX 保护临界区、GIC&#x2F;SGI 提供核间信号。现在回到一切开始的起点：一个多核系统如何从 Reset 状态启动到所有核心都能独立运行？</p>
+<hr>
+<h2 id="7-SMP-系统启动流程"><a href="#7-SMP-系统启动流程" class="headerlink" title="7. SMP 系统启动流程"></a>7. SMP 系统启动流程</h2><p>SMP 系统的启动遵循”主从模式”：只有<strong>一个核心（主核&#x2F;Primary Core）</strong>负责初始化内存系统和外设，其余核心（从核&#x2F;Secondary Core）等待唤醒。</p>
+<h3 id="7-1-两种硬件启动策略"><a href="#7-1-两种硬件启动策略" class="headerlink" title="7.1 两种硬件启动策略"></a>7.1 两种硬件启动策略</h3><p><strong>策略一：所有核心同时从 Reset 向量启动</strong><br>主核读取 Cluster ID（MPIDR 寄存器）确认自己身份后执行初始化，初始化完成后向从核发出信号。从核在启动代码中检测到自己不是主核后进入等待状态。</p>
+<p><strong>策略二：硬件保持从核在 Reset 状态</strong><br>需要硬件支持来协调各核心的 Reset 状态，主核单独初始化完成后释放从核。这在 AMP 系统中尤为重要——每种应用可能需要不同的启动顺序。</p>
+<p>这两种策略是SoC厂商决定的，是SoC硬件设计的一部分。</p>
+<h3 id="7-2-MPIDR-寄存器"><a href="#7-2-MPIDR-寄存器" class="headerlink" title="7.2 MPIDR 寄存器"></a>7.2 MPIDR 寄存器</h3><p>CP15 的 <strong>MPIDR（Multiprocessor Affinity Register）</strong> 用于标识当前处理器在多核系统中的位置，是启动代码识别主核和操作系统管理 CPU 拓扑的重要依据。</p>
+<p>MPIDR 提供最多三级 <strong>Affinity（亲和性）</strong> 标识，每级 8 位：</p>
+<ul>
+<li><strong>Affinity Level 0（Aff0）</strong>：通常表示核心（Core）编号。</li>
+<li><strong>Affinity Level 1（Aff1）</strong>：通常表示核心簇（Cluster）编号。</li>
+<li><strong>Affinity Level 2（Aff2）</strong>：用于标识更高层级的处理器拓扑（如多 Cluster 或多 Socket 系统）。</li>
+</ul>
+<p>此外，ARMv7-A 多处理扩展还定义了 <strong>U（Uniprocessor）位</strong>，用于指示当前处理器是否属于单核实现：U&#x3D;1 表示系统中不存在其他可寻址的处理器，U&#x3D;0 则表示支持多处理器。</p>
+<p>MPIDR 的主要用途包括：</p>
+<ul>
+<li><strong>启动阶段</strong>：Bootloader 读取 MPIDR，判断当前核心是否为主核（Primary Core），决定继续执行系统初始化还是进入等待状态。</li>
+<li><strong>操作系统</strong>：内核利用 MPIDR 构建 CPU 拓扑，识别核心之间的层级关系，从而优化任务调度、负载均衡以及 Cache 局部性。</li>
+</ul>
+<h3 id="7-3-Linux-SMP-启动流程"><a href="#7-3-Linux-SMP-启动流程" class="headerlink" title="7.3 Linux SMP 启动流程"></a>7.3 Linux SMP 启动流程</h3><p>Linux 的 SMP 从核启动流程如下：</p>
+<ol>
+<li>主核完成常规启动流程（引导加载器 → 内核初始化），建立页表、使能 MMU 和 Cache，并完成 GIC 等关键硬件初始化。</li>
+<li>从核进入 <strong>Holding Pen</strong>，通常执行 <strong>WFE</strong>（Wait For Event）或 <strong>WFI</strong>（Wait For Interrupt）等待主核唤醒。</li>
+<li>主核将全局变量 <code>pen_release</code> 设置为待启动处理器的 MPIDR 值，指定本次允许启动的目标核心。</li>
+<li>主核通过 GIC 发送 <strong>IPI（Inter-Processor Interrupt，一种 SGI）</strong> 唤醒从核。</li>
+<li>从核被唤醒后读取自身 MPIDR，并与 <code>pen_release</code> 比较：<ul>
+<li>匹配 → 继续启动，加载内核页表、使能 MMU 和 Cache，并完成处理器相关初始化。</li>
+<li>不匹配 → 返回 Holding Pen，继续执行 WFE&#x2F;WFI 等待下一次唤醒。</li>
+</ul>
+</li>
+<li>从核完成初始化后，在 <code>cpu_online_map</code> 中标记自己已上线，并进入空闲循环（Idle Loop），等待调度器分配任务。</li>
+<li>主核检测到 <code>cpu_online_map</code> 更新后，修改 <code>pen_release</code> 为下一个待启动核心的 MPIDR，重复上述过程，直至所有从核完成启动。</li>
+</ol>
+<p>下图以时序图展示了 Linux 下主核与从核的典型交互：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">Primary Core (Core0)             Secondary Core (Core1)</span><br><span class="line">  |                                |</span><br><span class="line">  | Init MMU + GIC + Cache         |  Holding Pen (WFE/WFI)</span><br><span class="line">  |                                |</span><br><span class="line">  | pen_release = Core1_MPIDR      |</span><br><span class="line">  | SGI (IPI) ────────────────→    |  Wake up</span><br><span class="line">  |                                |  Read MPIDR</span><br><span class="line">  |                                |  MPIDR == pen_release ?</span><br><span class="line">  |                                |      Yes</span><br><span class="line">  |                                |  Enable MMU &amp; Cache</span><br><span class="line">  |                                |  Processor init</span><br><span class="line">  |                                |  cpu_online_map |= BIT1</span><br><span class="line">  |                                |  Enter Idle Loop</span><br><span class="line">  | Detect cpu_online_map change   |</span><br><span class="line">  | pen_release = Core2_MPIDR      |</span><br><span class="line">  | (repeat for next CPU)          |这个流程中，**WFI + IPI + pen_release** 构成了从核唤醒的三重保障：</span><br></pre></td></tr></table></figure>
+
+<p>Linux 的从核启动机制可以概括为 **Holding Pen + IPI + <code>pen_release</code>**：</p>
+<ul>
+<li><strong>Holding Pen</strong>：从核进入等待循环（通常执行 <code>WFE</code> 或 <code>WFI</code>），避免空转消耗处理器资源。</li>
+<li><strong>IPI（Inter-Processor Interrupt）</strong>：主核通过 GIC 发送软件生成中断（SGI），通知从核检查是否可以启动。</li>
+<li>**<code>pen_release</code>**：提供”点名”机制。从核被唤醒后立即将 <code>pen_release</code> 的值与自身 MPIDR 比较，只有匹配的核心继续启动，其余核心重新进入等待状态。</li>
+</ul>
+<p>这种”点名 + 唤醒”机制使主核能够按顺序启动各个从核，并确认每个从核完成初始化后，再继续启动下一个核心，从而保证整个 SMP 启动过程简单、可靠且易于管理。</p>
+<h3 id="7-4-AMP-启动的额外考量"><a href="#7-4-AMP-启动的额外考量" class="headerlink" title="7.4 AMP 启动的额外考量"></a>7.4 AMP 启动的额外考量</h3><p>在 AMP 系统中，引导加载器必须根据各核心的 Cluster ID 确定各自的起始地址（因为不同核心运行不同的代码）。当不同核心上的应用存在启动依赖关系时，需要额外小心确保正确的启动顺序。</p>
+<p>启动完成后，每个核心需要一个私有的硬件资源空间来存放自己的外设控制寄存器、定时器和看门狗。这个空间就是 ARM 多核处理器中的 Private Memory Region。</p>
+<hr>
+<h2 id="8-Private-Memory-Region"><a href="#8-Private-Memory-Region" class="headerlink" title="8. Private Memory Region"></a>8. Private Memory Region</h2><p>在 Cortex-A5 和 Cortex-A9 MPCore 处理器中，多个仅供处理器集群内部（Cluster内部）使用的硬件模块被统一映射到 <strong>Private Memory Region</strong>——一个 <strong>8 KB</strong> 的专用地址空间。其基地址由 SoC 硬件决定，可通过 CP15 的 <strong>Peripheral Base Address Register（PBAR）</strong> 获取。</p>
+<h3 id="8-1-寄存器布局"><a href="#8-1-寄存器布局" class="headerlink" title="8.1 寄存器布局"></a>8.1 寄存器布局</h3><table>
+<thead>
+<tr>
+<th>基地址偏移</th>
+<th>功能</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0x0000</code></td>
+<td>Snoop Control Unit（SCU）控制寄存器</td>
+</tr>
+<tr>
+<td><code>0x0100</code></td>
+<td>GIC CPU Interface（中断控制器 CPU 接口）</td>
+</tr>
+<tr>
+<td><code>0x0200</code></td>
+<td>Global Timer</td>
+</tr>
+<tr>
+<td><code>0x0600</code></td>
+<td>Private Timer &#x2F; Watchdog</td>
+</tr>
+<tr>
+<td><code>0x1000</code></td>
+<td>GIC Distributor（中断控制器分配器）</td>
+</tr>
+</tbody></table>
+<p>Private Memory Region 具有以下特点：</p>
+<ul>
+<li>所有寄存器均采用 <strong>Little-Endian</strong> 字节序访问，与处理器当前的 Endianness 设置无关，因此当处理器运行于 Big-Endian 模式时需要特别注意。</li>
+<li>部分寄存器采用 <strong>banked</strong> 设计，即每个核心拥有独立的一份寄存器副本（例如 Private Timer 和 Watchdog）。</li>
+<li>该区域仅供处理器集群内部访问，<strong>不能通过 ACP（Accelerator Coherency Port）访问</strong>。</li>
+</ul>
+<h3 id="8-2-定时器与看门狗"><a href="#8-2-定时器与看门狗" class="headerlink" title="8.2 定时器与看门狗"></a>8.2 定时器与看门狗</h3><p>每个核心都拥有一个 <strong>Private Timer</strong> 和一个 <strong>Watchdog</strong>。Private Timer 支持一次性（One-shot）和自动重载（Auto-reload）两种工作模式，通过 <strong>32 位计数器</strong>和 <strong>8 位预分频器</strong>配置定时时间；处理器进入调试状态时，定时器可暂停计数。</p>
+<p>此外，Cortex-A5 和 Cortex-A9 MPCore 还提供了一个 <strong>Global Timer</strong>。它是一个所有核心共享的 <strong>64 位递增计数器</strong>（寄存器通过两个 32 位寄存器访问），所有核心看到的是同一个计数值。</p>
+<p>虽然计数器是共享的，但<strong>每个核心都拥有独立的 Comparator 和 Auto-increment 寄存器</strong>。当 Global Timer 的计数值达到本核心设置的比较值时，即向该核心产生定时中断；若启用了 Auto-increment，比较值会在每次触发后自动递增，从而周期性地产生中断，而无需软件重新编程。</p>
+<p>这种设计非常适合操作系统实现每 CPU 定时事件（Per-CPU Timer Event）。例如，Linux 可以为每个核心设置不同的比较值，使各核心的调度 Tick 错开触发，避免所有核心在同一时刻进入调度器，从而降低锁竞争和总线压力。</p>
+<hr>
+<h2 id="9-关键要点"><a href="#9-关键要点" class="headerlink" title="9. 关键要点"></a>9. 关键要点</h2><ol>
+<li><p><strong>三种多处理模型各有分工</strong>：SMP 追求负载均衡和透明性，AMP 提供确定性和隔离，HMP&#x2F;big.LITTLE 在性能和能效间取得动态平衡。</p>
+</li>
+<li><p><strong>硬件 Cache 一致性是 SMP 的基础</strong>：MESI&#x2F;MOESI 协议配合 SCU 实现了无需软件介入的自动一致。SCU 还可以在 L1 Cache 之间直接迁移数据，避免外部内存访问。</p>
+</li>
+<li><p><strong>ACP 和 CCI-400 扩展了一致性边界</strong>：ACP 将一致性延伸到无 Cache 的 DMA 引擎等外部 Master；CCI-400 通过 AMBA 4 ACE 协议实现跨簇一致性。</p>
+</li>
+<li><p><strong>SMP、FW、MMU、Normal Shareable 四者必须同时满足</strong>，SCU 才能对一次内存访问执行一致性管理。</p>
+</li>
+<li><p><strong>LDREX&#x2F;STREX 是 ARM 多核同步的基础指令</strong>：与 Local&#x2F;Global Monitor 协同，为 spinlock 等同步原语提供硬件支持。STREX 返回 0 表示成功、1 表示失败。</p>
+</li>
+<li><p><strong>GIC 的分层中断体系</strong>覆盖了从核间信号（SGI）到私有外设（PPI）再到共享外设（SPI）的全部场景。SGI 的目标列表过滤器极大简化了核间中断的编程模型。</p>
+</li>
+<li><p><strong>SMP 启动遵循主从串行模式</strong>：Linux 用 <code>pen_release</code> + WFI + IPI 实现了稳妥的从核唤醒机制。</p>
+</li>
+<li><p><strong>Cache&#x2F;TLB 维护操作需要严格顺序</strong>：clean 从内到外，invalidate 从外到内，以避免 L1&#x2F;L2 两步操作间的一致性窗口。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/26/ARM-%E5%A4%84%E7%90%86%E5%99%A8%E4%BB%A3%E7%A0%81%E4%BC%98%E5%8C%96%E6%8A%80%E6%9C%AF/" rel="prev" title="ARM 处理器代码优化技术">
+                  <i class="fa fa-angle-left"></i> ARM 处理器代码优化技术
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
