@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从汇编指令 WFI&#x2F;WFE 出发，沿着 Standby → Retention → Power Down 的空闲状态谱系，经 DVFS 动态调节与 Hotplug 核心下线，最终收敛到 PSCI 接口在多特权级系统中的协调机制——本文覆盖 ARMv7-A 电源管理的完整技术栈。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM 电源管理">
+<meta property="og:url" content="http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从汇编指令 WFI&#x2F;WFE 出发，沿着 Standby → Retention → Power Down 的空闲状态谱系，经 DVFS 动态调节与 Hotplug 核心下线，最终收敛到 PSCI 接口在多特权级系统中的协调机制——本文覆盖 ARMv7-A 电源管理的完整技术栈。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+<meta property="article:published_time" content="2026-07-28T13:12:45.000Z">
+<meta property="article:modified_time" content="2026-07-28T13:17:41.435Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/","path":"2026/07/28/ARM-电源管理/","title":"ARM 电源管理"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM 电源管理 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%8A%A8%E6%80%81%E5%8A%9F%E8%80%97%E4%B8%8E%E9%9D%99%E6%80%81%E5%8A%9F%E8%80%97"><span class="nav-text">1. 动态功耗与静态功耗</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%B8%89%E5%A4%A7%E6%9C%BA%E5%88%B6%EF%BC%9AIdle%E3%80%81Hotplug-%E4%B8%8E-DVFS"><span class="nav-text">2. 三大机制：Idle、Hotplug 与 DVFS</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Idle-Management%EF%BC%88%E7%A9%BA%E9%97%B2%E7%AE%A1%E7%90%86%EF%BC%89"><span class="nav-text">2.1 Idle Management（空闲管理）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Hotplug%EF%BC%88%E7%83%AD%E6%8F%92%E6%8B%94%EF%BC%89"><span class="nav-text">2.2 Hotplug（热插拔）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-DVFS%EF%BC%88%E5%8A%A8%E6%80%81%E7%94%B5%E5%8E%8B%E9%A2%91%E7%8E%87%E8%B0%83%E8%8A%82%EF%BC%89"><span class="nav-text">2.3 DVFS（动态电压频率调节）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E7%A9%BA%E9%97%B2%E7%AE%A1%E7%90%86%E7%9A%84%E5%B1%82%E6%AC%A1%E4%BD%93%E7%B3%BB%EF%BC%9A%E5%9B%9B%E7%A7%8D%E6%A0%B8%E5%BF%83%E7%94%B5%E6%BA%90%E7%8A%B6%E6%80%81"><span class="nav-text">3. 空闲管理的层次体系：四种核心电源状态</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Standby%EF%BC%88%E5%BE%85%E6%9C%BA%E6%A8%A1%E5%BC%8F%EF%BC%89"><span class="nav-text">3.1 Standby（待机模式）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-Retention%EF%BC%88%E4%BF%9D%E6%8C%81%E6%A8%A1%E5%BC%8F%EF%BC%89"><span class="nav-text">3.2 Retention（保持模式）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-Power-Down%EF%BC%88%E6%96%AD%E7%94%B5%E6%A8%A1%E5%BC%8F%EF%BC%89"><span class="nav-text">3.3 Power Down（断电模式）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-Dormant-Mode%EF%BC%88%E4%BC%91%E7%9C%A0%E6%A8%A1%E5%BC%8F%EF%BC%89"><span class="nav-text">3.4 Dormant Mode（休眠模式）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-WFI-WFE-%E4%B8%8E-SEV%EF%BC%9A%E6%B1%87%E7%BC%96%E6%8C%87%E4%BB%A4%E7%BA%A7%E5%88%AB%E7%9A%84%E5%8A%9F%E8%80%97%E6%8E%A7%E5%88%B6"><span class="nav-text">4. WFI&#x2F;WFE 与 SEV：汇编指令级别的功耗控制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-WFI%EF%BC%9A%E7%AD%89%E5%BE%85%E4%B8%AD%E6%96%AD"><span class="nav-text">4.1 WFI：等待中断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-WFE-%E4%B8%8E-SEV%EF%BC%9A%E6%A0%B8%E9%97%B4%E4%BA%8B%E4%BB%B6%E5%90%8C%E6%AD%A5"><span class="nav-text">4.2 WFE 与 SEV：核间事件同步</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-DSB-%E5%B1%8F%E9%9A%9C%EF%BC%9AWFI-%E5%89%8D%E7%BD%AE%E5%90%8C%E6%AD%A5%E7%9A%84%E5%BF%85%E8%A6%81%E6%80%A7"><span class="nav-text">4.3 DSB 屏障：WFI 前置同步的必要性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Power-Down-%E4%B8%8E-Hotplug%EF%BC%9A%E6%B7%B1%E5%BA%A6%E7%8A%B6%E6%80%81%E4%B8%8B%E7%9A%84%E4%B8%8A%E4%B8%8B%E6%96%87%E7%AE%A1%E7%90%86"><span class="nav-text">5. Power Down 与 Hotplug：深度状态下的上下文管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-Power-Down-%E7%9A%84%E4%B8%8A%E4%B8%8B%E6%96%87%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-text">5.1 Power Down 的上下文生命周期</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Hotplug-%E4%B8%8E-Idle-%E7%9A%84%E8%AF%AD%E4%B9%89%E5%B7%AE%E5%BC%82"><span class="nav-text">5.2 Hotplug 与 Idle 的语义差异</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E8%BE%85%E5%8A%A9%E6%A0%B8%E5%90%AF%E5%8A%A8%E4%B8%8E-Hotplug-%E7%9A%84%E5%85%B3%E8%81%94"><span class="nav-text">5.3 辅助核启动与 Hotplug 的关联</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-DVFS%EF%BC%9AP-C-%C3%97-V%C2%B2-%C3%97-f-%E7%9A%84%E5%B7%A5%E7%A8%8B%E5%AE%9E%E7%8E%B0"><span class="nav-text">6. DVFS：P &#x3D; C × V² × f 的工程实现</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-Operating-Performance-Point-OPP"><span class="nav-text">6.1 Operating Performance Point (OPP)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E7%A1%AC%E4%BB%B6%E5%B1%82%E9%9D%A2%E7%9A%84%E6%8C%91%E6%88%98"><span class="nav-text">6.2 硬件层面的挑战</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E8%BD%AF%E4%BB%B6%E5%B1%82%E9%9D%A2%E7%9A%84%E6%8C%91%E6%88%98%EF%BC%9A%E8%B4%9F%E8%BD%BD%E9%A2%84%E6%B5%8B"><span class="nav-text">6.3 软件层面的挑战：负载预测</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-PSCI%EF%BC%9A%E8%B7%A8%E8%B6%8A%E7%89%B9%E6%9D%83%E7%BA%A7%E7%9A%84%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86%E5%8D%8F%E8%B0%83%E6%8E%A5%E5%8F%A3"><span class="nav-text">7. PSCI：跨越特权级的电源管理协调接口</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E9%97%AE%E9%A2%98%E5%9C%BA%E6%99%AF"><span class="nav-text">7.1 问题场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-PSCI-%E7%9A%84%E6%B6%88%E6%81%AF%E4%BC%A0%E9%80%92%E9%93%BE"><span class="nav-text">7.2 PSCI 的消息传递链</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-PSCI-%E5%9B%9B%E5%A4%A7%E6%A0%B8%E5%BF%83%E8%B0%83%E7%94%A8"><span class="nav-text">7.3 PSCI 四大核心调用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-PSCI-%E7%9A%84%E8%AE%BE%E8%AE%A1%E5%93%B2%E5%AD%A6"><span class="nav-text">7.4 PSCI 的设计哲学</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E6%80%BB%E7%BB%93%E4%B8%8E%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">8. 总结与关键要点</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">69</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM 电源管理 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM 电源管理
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-28 21:12:45" itemprop="dateCreated datePublished" datetime="2026-07-28T21:12:45+08:00">2026-07-28</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从汇编指令 WFI&#x2F;WFE 出发，沿着 Standby → Retention → Power Down 的空闲状态谱系，经 DVFS 动态调节与 Hotplug 核心下线，最终收敛到 PSCI 接口在多特权级系统中的协调机制——本文覆盖 ARMv7-A 电源管理的完整技术栈。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-动态功耗与静态功耗"><a href="#1-动态功耗与静态功耗" class="headerlink" title="1. 动态功耗与静态功耗"></a>1. 动态功耗与静态功耗</h2><p>对于 ARM Cortex-A 处理器而言，提升性能并不是唯一目标，如何降低功耗同样重要。无论是智能手机、平板电脑还是可穿戴设备，都受到电池容量和散热能力的限制，因此处理器需要在保证性能的同时尽可能减少能耗。</p>
+<p>处理器功耗主要由两部分组成：</p>
+<ul>
+<li><strong>动态功耗（Dynamic Power）</strong>：晶体管开关翻转产生的功耗，与工作电压、时钟频率以及电路活动程度有关。CPU 工作越繁忙、频率越高，动态功耗越大。</li>
+<li><strong>静态功耗（Static Power）</strong>：即使处理器没有执行任何指令，只要保持上电状态，晶体管仍会产生漏电流，从而持续消耗能量。随着制造工艺不断演进，静态功耗在总功耗中的占比越来越高。</li>
+</ul>
+<p>因此，现代处理器不仅需要在工作时提高性能，还需要在空闲时尽快进入低功耗状态，并根据系统负载动态调整运行性能。为此，ARMv7-A 提供了一系列电源管理机制，操作系统需要回答以下几个问题：</p>
+<ol>
+<li><strong>CPU 空闲时如何降低功耗？</strong> —— Idle Management（空闲管理）</li>
+<li><strong>系统负载变化时如何平衡性能与功耗？</strong> —— DVFS（动态电压频率调节）</li>
+<li><strong>多个软件实体如何协调 CPU 的电源状态？</strong> —— PSCI（Power State Coordination Interface，电源状态协调接口）</li>
+</ol>
+<p>本文将围绕这三个问题，介绍 ARMv7-A 平台上的电源管理机制及其软件实现。</p>
+<hr>
+<h2 id="2-三大机制：Idle、Hotplug-与-DVFS"><a href="#2-三大机制：Idle、Hotplug-与-DVFS" class="headerlink" title="2. 三大机制：Idle、Hotplug 与 DVFS"></a>2. 三大机制：Idle、Hotplug 与 DVFS</h2><p>ARMv7-A 的电源管理主要围绕三个方面展开，它们分别对应不同的使用场景：</p>
+<ul>
+<li><strong>Idle Management</strong>：CPU 没有工作时，如何进入低功耗状态。</li>
+<li><strong>Hotplug</strong>：系统负载长期较低时，如何将整个 CPU 核心下线。</li>
+<li><strong>DVFS</strong>：CPU 仍在工作时，如何在性能和功耗之间取得平衡。</li>
+</ul>
+<p>三者并不是互相替代，而是针对不同场景协同工作。</p>
+<h3 id="2-1-Idle-Management（空闲管理）"><a href="#2-1-Idle-Management（空闲管理）" class="headerlink" title="2.1 Idle Management（空闲管理）"></a>2.1 Idle Management（空闲管理）</h3><p>当某个核心暂时没有线程可调度时，OSPM 会将其置于低功耗状态。根据预计空闲时间的长短，可以进入不同深度的 Idle State：状态越深，功耗越低，但唤醒延迟也越高。</p>
+<p>空闲管理不仅作用于 CPU 核心，还可能影响更大的硬件范围。例如：</p>
+<ul>
+<li>一个 CPU 空闲，可以关闭该 CPU。</li>
+<li>一个 Cluster 中所有 CPU 都空闲，可以关闭整个 Cluster。</li>
+<li>整个 SoC 都空闲，可以让 DRAM 进入 Self-refresh 等更深层的低功耗状态。</li>
+</ul>
+<p>因此，Idle Management 关注的是**”暂时没有工作”时如何尽可能降低功耗，并在需要时快速恢复运行。**</p>
+<h3 id="2-2-Hotplug（热插拔）"><a href="#2-2-Hotplug（热插拔）" class="headerlink" title="2.2 Hotplug（热插拔）"></a>2.2 Hotplug（热插拔）</h3><p>Hotplug 用于<strong>长期不需要某个 CPU 核心</strong>的场景。</p>
+<p>与 Idle 不同，Hotplug 会将 CPU 从操作系统的调度域中移除，不再参与线程调度，也不会响应普通调度请求。只有当系统再次需要更多计算能力时，操作系统才会重新将该 CPU 上线。</p>
+<p>除了电源管理外，Hotplug 也常用于多核启动过程：主核完成系统初始化后，再依次启动其余 CPU。</p>
+<h3 id="2-3-DVFS（动态电压频率调节）"><a href="#2-3-DVFS（动态电压频率调节）" class="headerlink" title="2.3 DVFS（动态电压频率调节）"></a>2.3 DVFS（动态电压频率调节）</h3><p>DVFS 用于 CPU <strong>仍在运行，但不需要最高性能</strong>的场景。</p>
+<p>处理器的动态功耗近似满足：</p>
+<blockquote>
+<p><strong>P &#x3D; C × V² × f</strong></p>
+</blockquote>
+<p>其中：</p>
+<ul>
+<li><strong>P</strong>：动态功耗</li>
+<li><strong>C</strong>：等效开关电容</li>
+<li><strong>V</strong>：工作电压</li>
+<li><strong>f</strong>：工作频率</li>
+</ul>
+<p>DVFS 根据系统负载动态调整 CPU 的工作频率和电压：负载较低时降低频率，同时降低供电电压，从而显著减少动态功耗；负载升高时再恢复到较高性能状态。</p>
+<hr>
+<h2 id="3-空闲管理的层次体系：四种核心电源状态"><a href="#3-空闲管理的层次体系：四种核心电源状态" class="headerlink" title="3. 空闲管理的层次体系：四种核心电源状态"></a>3. 空闲管理的层次体系：四种核心电源状态</h2><p>ARM 核心支持的电源状态构成了一个由浅入深的层次体系。理解它们的区别，是理解整个空闲管理子系统的基础。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">Standby</span><br><span class="line">│</span><br><span class="line">├─ Clock Gating</span><br><span class="line">├─ CPU 完全上电</span><br><span class="line">├─ 数个 CPU 周期恢复</span><br><span class="line">└─ WFI/WFE</span><br><span class="line"></span><br><span class="line">        ↓</span><br><span class="line"></span><br><span class="line">Retention</span><br><span class="line">│</span><br><span class="line">├─ CPU 状态保持供电</span><br><span class="line">├─ 自动恢复</span><br><span class="line">├─ μs 级恢复</span><br><span class="line">└─ 调试状态不可保持</span><br><span class="line"></span><br><span class="line">        ↓</span><br><span class="line"></span><br><span class="line">Dormant</span><br><span class="line">│</span><br><span class="line">├─ CPU Logic 断电</span><br><span class="line">├─ Cache RAM 保持供电</span><br><span class="line">├─ Cache 退出一致性域</span><br><span class="line">├─ 恢复需重新建立一致性</span><br><span class="line">└─ 通常用于 Cluster 级低功耗</span><br><span class="line"></span><br><span class="line">        ↓</span><br><span class="line"></span><br><span class="line">Power Down</span><br><span class="line">│</span><br><span class="line">├─ CPU 完全断电</span><br><span class="line">├─ Cache/寄存器全部丢失</span><br><span class="line">├─ 从 Reset Vector 启动</span><br><span class="line">├─ OSPM 恢复上下文</span><br><span class="line">└─ 唤醒时间最长</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-1-Standby（待机模式）"><a href="#3-1-Standby（待机模式）" class="headerlink" title="3.1 Standby（待机模式）"></a>3.1 Standby（待机模式）</h3><p>Standby 是最浅的低功耗状态。核心保持上电，但大部分逻辑的时钟被门控（Clock Gating），停止执行指令；只有负责检测唤醒事件的少量逻辑继续接收时钟，因此能够快速响应唤醒请求。</p>
+<p><strong>进入方式</strong>：执行 <code>WFI</code>（Wait For Interrupt）或 <code>WFE</code>（Wait For Event）指令。需要注意的是，<code>WFI/WFE</code> 只是向硬件发出”可以进入低功耗状态”的提示，最终进入哪种低功耗状态由平台电源管理逻辑决定。</p>
+<p>ARM 建议在执行 <code>WFI/WFE</code> 前插入 <code>DSB</code>（Data Synchronization Barrier）指令，确保此前发起的内存访问已经完成，再进入低功耗状态。</p>
+<p><strong>唤醒条件：</strong></p>
+<ul>
+<li><strong>WFI</strong>：IRQ&#x2F;FIQ、中断、异步 Abort、调试请求等。</li>
+<li><strong>WFE</strong>：除上述事件外，还可由其他核心执行 <code>SEV</code>（Send Event）指令唤醒。</li>
+</ul>
+<p><strong>关键特性：</strong> 无需保存或恢复处理器上下文，因此进入和退出通常只需几个 CPU 时钟周期，是响应延迟最低的低功耗状态。</p>
+<h3 id="3-2-Retention（保持模式）"><a href="#3-2-Retention（保持模式）" class="headerlink" title="3.2 Retention（保持模式）"></a>3.2 Retention（保持模式）</h3><p>Retention 比 Standby 更深一级。进入该状态后，CPU 的执行状态（如寄存器等）保存在保持供电（Retention）的存储结构中，而大部分逻辑可以停止工作，从而进一步降低功耗。</p>
+<p>与 Standby 不同，Retention 的恢复时间更长（通常为微秒级），但仍无需重新复位处理器。唤醒后，硬件会自动恢复此前保存的处理器状态，并从休眠前的位置继续执行程序。</p>
+<p>由于 CPU 的调试逻辑所在电源域可能已关闭，Retention 期间外部调试请求通常会被挂起，待处理器恢复后再继续处理。</p>
+<blockquote>
+<p>与stand by的区别：stand by的时候，cpu还上电，只是clock gating；retention的时候，cpu的部分逻辑关闭。</p>
+</blockquote>
+<h3 id="3-3-Power-Down（断电模式）"><a href="#3-3-Power-Down（断电模式）" class="headerlink" title="3.3 Power Down（断电模式）"></a>3.3 Power Down（断电模式）</h3><p>这是最深的空闲状态。核心被完全断电，所有上下文丢失。进入此状态前，软件<strong>必须</strong>保存全部核心状态；退出时必须经历完整的复位→恢复流程。</p>
+<p>上下文破坏的范围取决于具体状态中哪些组件被断电——可能包括核心本身、GIC（通用中断控制器），甚至平台特定 IP。调试和跟踪上下文是否丢失，也取决于它们的电源域组织方式。</p>
+<p><strong>Power Down 的唤醒路径</strong>非常特殊。由于核心被完全断电，唤醒后从<strong>复位向量</strong>开始执行，通常在 Secure 模式下。Secure Firmware 首先恢复自身的上下文（寄存器、页表等），然后执行必要的硬件初始化，最后将执行权交还给发起 Power Down 请求的 OS，跳转到指定的返回地址继续执行。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="1"></p>
+<p>Power Down 前需要保存 <strong>CPU 上下文、系统控制寄存器、设备状态以及必要的内存状态</strong>；唤醒后由 Firmware&#x2F;OSPM 重新初始化硬件环境并恢复执行现场。相比 Retention，Power Down 的恢复成本更高，但可以获得最低功耗。</p>
+<p>这一流程在多特权级系统（如同时运行 Rich OS + Hypervisor + Secure Firmware 的设备）中引入了一个关键问题：<strong>谁来负责保存和恢复哪个层次的上下文</strong>？这正是 PSCI 接口要解决的核心问题——我们将在第7节详细展开。</p>
+<h3 id="3-4-Dormant-Mode（休眠模式）"><a href="#3-4-Dormant-Mode（休眠模式）" class="headerlink" title="3.4 Dormant Mode（休眠模式）"></a>3.4 Dormant Mode（休眠模式）</h3><p>Dormant Mode 是一种特殊的折中方案：<strong>核心逻辑被断电，但 Cache RAM 保持供电</strong>——通常 RAM 处于低功耗保持状态，内容保留但不可被功能访问。</p>
+<p>理论上，这提供了比完整关机快得多的重启速度——因为热数据和代码仍在缓存中。但在多核系统中，Dormant Mode 面临一个根本性限制：</p>
+<p>一个核心进入 Dormant Mode 前必须：</p>
+<ol>
+<li>清理所有脏数据（clean dirty data）</li>
+<li>退出一致性域（coherence domain）</li>
+<li>被唤醒后重新加入一致性域</li>
+</ol>
+<p>由于内存状态可能在休眠期间已被其他核心改变，唤醒后可能仍需失效（invalidate）缓存。因此，在 Cluster 中，Dormant Mode 通常只在<strong>最后一个核心</strong>（其他核心已关机）的场景下有意义。</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Dormant</th>
+<th>Power Down</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CPU Logic</td>
+<td>断电</td>
+<td>断电</td>
+</tr>
+<tr>
+<td>Cache RAM</td>
+<td>保持供电</td>
+<td>通常断电</td>
+</tr>
+<tr>
+<td>寄存器状态</td>
+<td>丢失，需要恢复</td>
+<td>丢失，需要恢复</td>
+</tr>
+<tr>
+<td>Cache 内容</td>
+<td>保留</td>
+<td>丢失</td>
+</tr>
+<tr>
+<td>唤醒方式</td>
+<td>Resume</td>
+<td>Reset&#x2F;Boot Resume</td>
+</tr>
+<tr>
+<td>软件参与</td>
+<td>需要</td>
+<td>需要更多</td>
+</tr>
+<tr>
+<td>恢复速度</td>
+<td>较快</td>
+<td>最慢</td>
+</tr>
+<tr>
+<td>功耗</td>
+<td>较低</td>
+<td>最低</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="4-WFI-WFE-与-SEV：汇编指令级别的功耗控制"><a href="#4-WFI-WFE-与-SEV：汇编指令级别的功耗控制" class="headerlink" title="4. WFI&#x2F;WFE 与 SEV：汇编指令级别的功耗控制"></a>4. WFI&#x2F;WFE 与 SEV：汇编指令级别的功耗控制</h2><p>ARM 架构在汇编语言层面直接暴露了功耗控制接口。<code>WFI</code>、<code>WFE</code> 和 <code>SEV</code> 这三个指令构成了 Standby 模式的硬件入口。</p>
+<h3 id="4-1-WFI：等待中断"><a href="#4-1-WFI：等待中断" class="headerlink" title="4.1 WFI：等待中断"></a>4.1 WFI：等待中断</h3><p><code>WFI</code> 指令使核心暂停执行，直到被以下任何一个条件唤醒：</p>
+<ul>
+<li>IRQ 中断（即使 CPSR 的 I 位被设置——即中断被屏蔽时仍会唤醒）</li>
+<li>FIQ 中断（同理，即使 F 位被设置）</li>
+<li>异步中止（Asynchronous Abort）</li>
+<li>调试入口请求（即使 JTAG Debug 被禁用）</li>
+</ul>
+<p><strong>一个值得注意的细节</strong>：当核心被中断唤醒，而 CPSR 中对应的中断屏蔽位被设置时，核心会执行 <code>WFI</code> 之后的<strong>下一条指令</strong>，而不是跳转到中断处理程序。这是因为中断在 CPSR 层面被屏蔽了——它只充当了唤醒信号的角色，而不会触发异常处理流程。</p>
+<p><strong>架构演进</strong>：在旧版 ARM 架构中，进入待机模式需要通过 CP15 协处理器操作实现；ARMv7-A 将其提升为专用指令，体现了电源管理在架构层面的重要性提升。</p>
+<h3 id="4-2-WFE-与-SEV：核间事件同步"><a href="#4-2-WFE-与-SEV：核间事件同步" class="headerlink" title="4.2 WFE 与 SEV：核间事件同步"></a>4.2 WFE 与 SEV：核间事件同步</h3><p><code>WFE</code>（Wait For Event）的唤醒条件比 <code>WFI</code> 更丰富。除了中断、中止和调试请求之外，它还可以被<strong>其他核心通过 <code>SEV</code> 指令</strong>唤醒。</p>
+<p>WFE&#x2F;SEV 的同步机制依赖于每个核心内部的 <strong>Event Register</strong>（1-bit 锁存器）：</p>
+<ul>
+<li><p><code>SEV</code>：将一致性域内所有核心的 Event Register 置位。</p>
+</li>
+<li><p><code>WFE</code>  ：检查本核心的 Event Register：</p>
+</li>
+<li><p>如果已经置位，则将其清零并立即返回；</p>
+<ul>
+<li>如果未置位，则进入待机状态。</li>
+</ul>
+</li>
+</ul>
+<p>因此，<code>WFE</code> 与 <code>SEV</code> 构成了一个轻量级的核间同步原语——无需中断控制器参与即可完成线程间通知。</p>
+<p>典型使用场景：核心 A 在等待核心 B 完成某项工作，核心 A 执行 <code>WFE</code> 进入待机；核心 B 完成后执行 <code>SEV</code> 唤醒核心 A。</p>
+<p><strong>SCU 唤醒</strong>：在多核系统中，Snoop Control Unit 也可以通过唤醒时钟来请求一个处于 Standby 状态的核心执行缓存一致性操作。这意味着处于 Standby 的核心，其缓存仍然与其他核心保持一致。</p>
+<h3 id="4-3-DSB-屏障：WFI-前置同步的必要性"><a href="#4-3-DSB-屏障：WFI-前置同步的必要性" class="headerlink" title="4.3 DSB 屏障：WFI 前置同步的必要性"></a>4.3 DSB 屏障：WFI 前置同步的必要性</h3><p>ARM 明确建议在 <code>WFI</code> 或 <code>WFE</code> 之前执行 <code>DSB</code> 指令：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">DSB    @ 确保所有待处理的内存访问完成</span><br><span class="line">WFI    @ 进入待机模式</span><br></pre></td></tr></table></figure>
+
+<p><code>DSB</code> 保证在核心停止执行之前，所有之前发起的内存事务（包括缓存操作、外部内存写入）都已经完成。如果缺少这个屏障，可能发生以下问题：</p>
+<ul>
+<li>某个 Store 操作尚未到达最终目的地，核心就进入了待机状态</li>
+<li>其他核心或 DMA 设备看到的数据与预期不一致</li>
+<li>恢复执行后，内存访问顺序可能出现意料之外的结果</li>
+</ul>
+<hr>
+<h2 id="5-Power-Down-与-Hotplug：深度状态下的上下文管理"><a href="#5-Power-Down-与-Hotplug：深度状态下的上下文管理" class="headerlink" title="5. Power Down 与 Hotplug：深度状态下的上下文管理"></a>5. Power Down 与 Hotplug：深度状态下的上下文管理</h2><p>Power Down 和 Hotplug 虽然在功耗目标上不同，但在技术实现上共享同一个核心挑战：<strong>上下文的保存与恢复</strong>。</p>
+<h3 id="5-1-Power-Down-的上下文生命周期"><a href="#5-1-Power-Down-的上下文生命周期" class="headerlink" title="5.1 Power Down 的上下文生命周期"></a>5.1 Power Down 的上下文生命周期</h3><p>进入 Power Down 状态的典型流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">1. OSPM 保存恢复运行所需的状态（CPU 上下文、系统寄存器等）</span><br><span class="line">2. 根据平台要求完成 Cache 维护（通常包括 clean，并在需要时 invalidate）</span><br><span class="line">3. 调用 PSCI CPU_SUSPEND 接口</span><br><span class="line">4. Secure Firmware 执行平台特定的断电操作</span><br><span class="line">5. 核心断电 → CPU 硬件状态丢失</span><br></pre></td></tr></table></figure>
+
+<p>唤醒流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">1. 唤醒事件触发 → 硬件恢复供电</span><br><span class="line">2. 核心从复位入口开始执行平台固件</span><br><span class="line">3. Secure Firmware 初始化必要的硬件环境</span><br><span class="line">4. 跳转到 OSPM 指定的恢复入口</span><br><span class="line">5. OSPM 恢复此前保存的状态</span><br><span class="line">6. 继续执行原来的程序</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-Hotplug-与-Idle-的语义差异"><a href="#5-2-Hotplug-与-Idle-的语义差异" class="headerlink" title="5.2 Hotplug 与 Idle 的语义差异"></a>5.2 Hotplug 与 Idle 的语义差异</h3><p>虽然 Hotplug 的下线操作（<code>CPU_OFF</code>）在底层可能使用与 Power Down 相同的硬件机制，但在操作系统语义层面有根本差异：</p>
+<ul>
+<li><strong>Power Down（Idle）</strong>：核心仍属于操作系统的调度域，OS 认为它仍是可用 CPU。当中断等唤醒事件到来后，核心恢复运行并继续参与任务调度。</li>
+<li><strong>Hotplug（CPU_OFF）</strong>：核心被彻底移出操作系统的可用资源池。调度器不会向它分派任何线程，中断也不会被路由给它。要将核心重新投入使用，必须显式调用 <code>CPU_ON</code> 接口。</li>
+</ul>
+<h3 id="5-3-辅助核启动与-Hotplug-的关联"><a href="#5-3-辅助核启动与-Hotplug-的关联" class="headerlink" title="5.3 辅助核启动与 Hotplug 的关联"></a>5.3 辅助核启动与 Hotplug 的关联</h3><p>操作系统通常在主核心上完成大部分内核启动流程，辅助核心稍后上线。辅助核启动的行为与 Hotplug 十分相似——两者在技术流程上几乎一致。</p>
+<p>也就是说，在多核 ARM 系统中，辅助核的首次上线在实现上与”热插入一个核心”非常接近。区别在于：辅助核是首次启动，而 Hotplug 是已经运行过的核心重新加入系统，因此需要完成离线与重新上线相关的管理流程。</p>
+<p>至此，我们讨论了核心在”不运行时”的功耗管理——从浅层时钟门控到完全断电。但 ARM 核心在”运行时”还有另一条优化路径：如果不需要全速运行，能否动态降低频率和电压来节省功耗？这正是 DVFS 的切入点。</p>
+<hr>
+<h2 id="6-DVFS：P-C-×-V²-×-f-的工程实现"><a href="#6-DVFS：P-C-×-V²-×-f-的工程实现" class="headerlink" title="6. DVFS：P &#x3D; C × V² × f 的工程实现"></a>6. DVFS：P &#x3D; C × V² × f 的工程实现</h2><p>DVFS 的理论基础——P &#x3D; C × V² × f——已在第2章介绍，但其工程实现涉及硬件和软件两方面的复杂挑战。</p>
+<h3 id="6-1-Operating-Performance-Point-OPP"><a href="#6-1-Operating-Performance-Point-OPP" class="headerlink" title="6.1 Operating Performance Point (OPP)"></a>6.1 Operating Performance Point (OPP)</h3><p>对于给定的电路，工作电压和可安全运行的频率范围之间存在实现特定的对应关系。一个经过芯片厂商验证、能够稳定工作的（频率，电压）组合被称为一个 **Operating Performance Point (OPP)**。系统中所有可用的 OPP 集合构成了 <strong>DVFS Curve</strong>。</p>
+<p>例如，一个典型的 DVFS Curve 可能包含：</p>
+<table>
+<thead>
+<tr>
+<th>OPP</th>
+<th>频率</th>
+<th>电压</th>
+<th>相对功耗 (P ∝ V² × f)</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>OPP0</td>
+<td>200 MHz</td>
+<td>0.85V</td>
+<td>基准 (1.0×)</td>
+<td>待机&#x2F;后台任务</td>
+</tr>
+<tr>
+<td>OPP1</td>
+<td>500 MHz</td>
+<td>0.95V</td>
+<td>3.2×</td>
+<td>轻度交互</td>
+</tr>
+<tr>
+<td>OPP2</td>
+<td>800 MHz</td>
+<td>1.05V</td>
+<td>6.3×</td>
+<td>网页浏览</td>
+</tr>
+<tr>
+<td>OPP3</td>
+<td>1.2 GHz</td>
+<td>1.15V</td>
+<td>11.3×</td>
+<td>游戏&#x2F;视频</td>
+</tr>
+</tbody></table>
+<p>（以上为基于 DVFS 公式的典型推算值，实际值取决于具体芯片设计）</p>
+<h3 id="6-2-硬件层面的挑战"><a href="#6-2-硬件层面的挑战" class="headerlink" title="6.2 硬件层面的挑战"></a>6.2 硬件层面的挑战</h3><p>实现 DVFS 不仅需要软件支持，还依赖 SoC 在硬件上的配合，例如独立供电域、电压调节电路以及跨电压域通信等。</p>
+<p>这些硬件设计增加了芯片面积和设计复杂度，但为动态调节电压和频率提供了基础。</p>
+<h3 id="6-3-软件层面的挑战：负载预测"><a href="#6-3-软件层面的挑战：负载预测" class="headerlink" title="6.3 软件层面的挑战：负载预测"></a>6.3 软件层面的挑战：负载预测</h3><p>硬件提供了调节能力，但<strong>决定何时调节、调节到什么程度</strong>是软件的责任。</p>
+<p>OS 的 DVFS Governor（如 Linux 中的 <code>ondemand</code>、<code>conservative</code>、<code>schedutil</code> 等）需要根据系统负载历史做出决策。同样重要的是软件对未来工作负载的准确预测能力——根据预测结果调整电压和时钟频率。</p>
+<p>这本质上是一个<strong>预测问题</strong>，而且需要在两个矛盾的目标之间取得平衡：</p>
+<ul>
+<li>**高性能策略 (Performance Policy)**：选择更高的频率&#x2F;电压，确保应用不卡顿，但功耗更高。</li>
+<li>**节能策略 (Power-Saving Policy)**：选择更低的频率&#x2F;电压，牺牲部分性能以换取更长的电池续航。</li>
+</ul>
+<p>调频过慢 → 应用感知到延迟；调频过快 → 无法有效节能。这是每一代 DVFS Governor 持续优化的方向。</p>
+<p>DVFS 和 Hotplug 解决了单个 OS 实例内部的功耗管理问题。但在 ARMv7-A 的多特权级架构中，一个设备上可能同时运行着来自不同供应商的多层软件。当 Rich OS 希望核心进入低功耗状态时，Hypervisor 和 Secure Firmware 如何知晓并协同？这引出了 ARM 电源管理的最后一块拼图——跨特权级协调。</p>
+<hr>
+<h2 id="7-PSCI：跨越特权级的电源管理协调接口"><a href="#7-PSCI：跨越特权级的电源管理协调接口" class="headerlink" title="7. PSCI：跨越特权级的电源管理协调接口"></a>7. PSCI：跨越特权级的电源管理协调接口</h2><p>ARMv7-A 架构通过特权级（PL0&#x2F;PL1&#x2F;PL2）以及 Security Extensions 和 Virtualization Extensions 将软件栈分为多个层次。这种分层带来了一个在单层 OS 中不存在的问题：<strong>如何协调不同特权级 OS 的电源决策？</strong></p>
+<h3 id="7-1-问题场景"><a href="#7-1-问题场景" class="headerlink" title="7.1 问题场景"></a>7.1 问题场景</h3><p>在一个典型的 ARM 移动设备上，可能同时运行着来自不同供应商的软件：</p>
+<table>
+<thead>
+<tr>
+<th>特权级</th>
+<th>运行软件</th>
+<th>供应商</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PL0</td>
+<td>用户应用（App）</td>
+<td>应用开发者</td>
+</tr>
+<tr>
+<td>PL1</td>
+<td>Rich OS（Linux Kernel &#x2F; Android）</td>
+<td>OS 供应商</td>
+</tr>
+<tr>
+<td>PL2</td>
+<td>Hypervisor</td>
+<td>虚拟化方案供应商</td>
+</tr>
+<tr>
+<td>Secure PL0</td>
+<td>Trusted OS 应用</td>
+<td>Trusted OS 供应商</td>
+</tr>
+<tr>
+<td>Secure PL1</td>
+<td>Trusted OS + Secure Firmware</td>
+<td>OEM &#x2F; 芯片厂商</td>
+</tr>
+</tbody></table>
+<p>当 Rich OS 需要将一个核心置于低功耗状态时，Hypervisor 需要知道这件事（以便管理自己的虚拟化状态），Secure Firmware 也需要知道（以便执行实际的硬件操作）。如果各层之间没有统一的接口，就会出现消息传递断裂——每层都可能在错误的时机做出错误的假设。</p>
+<h3 id="7-2-PSCI-的消息传递链"><a href="#7-2-PSCI-的消息传递链" class="headerlink" title="7.2 PSCI 的消息传递链"></a>7.2 PSCI 的消息传递链</h3><p>ARM 提供的答案就是 **Power State Coordination Interface (PSCI)**。它不是一个硬件接口，而是一套软件约定，定义了电源管理请求如何跨特权级传递。</p>
+<p>消息传递链：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/" alt="2"></p>
+<h3 id="7-3-PSCI-四大核心调用"><a href="#7-3-PSCI-四大核心调用" class="headerlink" title="7.3 PSCI 四大核心调用"></a>7.3 PSCI 四大核心调用</h3><p>PSCI 定义了四个核心函数，覆盖了从 Idle 到 Hotplug 到 big.LITTLE 迁移的全部场景：</p>
+<p><strong>CPU_SUSPEND</strong><br>挂起核心执行，用于空闲子系统——核心预期通过唤醒事件恢复执行。</p>
+<p>用于空闲管理场景。核心被挂起后，会通过硬件唤醒事件恢复执行。这是 Idle 子系统的主要接口。</p>
+<p><strong>CPU_OFF</strong><br>关闭核心电源，用于 Hotplug 场景。CPU_OFF 后的核心只能通过 CPU_ON 重新上线。</p>
+<p>用于 Hotplug 场景。CPU_OFF 后的核心只能通过 CPU_ON 重新上线——唤醒事件不会自动恢复它。这是与 CPU_SUSPEND 的语义边界：Suspend 是”暂时睡一会”，OFF 是”正式下线”。</p>
+<p><strong>CPU_ON</strong><br>激活一个核心，用于辅助核首次启动或此前 CPU_OFF 下线核心的重新上线。</p>
+<p>覆盖两个场景：辅助核的首次启动，以及此前 CPU_OFF 下线核心的重新上线。</p>
+<p><strong>MIGRATE</strong><br>请求将某个核心上 Trusted OS 的上下文迁移到指定的目标核心，用于 big.LITTLE 系统中的上下文迁移。</p>
+<p>用于 big.LITTLE 系统中的上下文迁移。当 OSPM 决定将任务从 big 核心迁移到 LITTLE 核心（或反向）时，Trusted OS 的上下文也需要随之移动。</p>
+<h3 id="7-4-PSCI-的设计哲学"><a href="#7-4-PSCI-的设计哲学" class="headerlink" title="7.4 PSCI 的设计哲学"></a>7.4 PSCI 的设计哲学</h3><p>PSCI 的设计体现了 ARM 对多供应商软件生态的深刻理解。它不规定每层具体做什么（那是各供应商的实现细节），只规定了：</p>
+<ol>
+<li><strong>统一的请求格式</strong>：所有 OS 层使用相同的调用规范</li>
+<li><strong>逐层传递义务</strong>：每层收到消息后必须决定自己需要做什么，然后将消息传递给下一层（或直接处理）</li>
+<li><strong>最终执行权在 Secure Firmware</strong>：因为只有 Secure Firmware 有权操作硬件电源控制器</li>
+</ol>
+<p>这种设计使得来自不同供应商的 OS 组件可以在不相互了解内部实现的情况下，协同完成电源管理任务。</p>
+<hr>
+<h2 id="8-总结与关键要点"><a href="#8-总结与关键要点" class="headerlink" title="8. 总结与关键要点"></a>8. 总结与关键要点</h2><p>ARMv7-A 的电源管理是一个从硬件指令到软件接口的完整分层体系。以下是在系统设计和调试中值得牢记的要点：</p>
+<ol>
+<li><strong>功耗来源决定优化方向</strong>：动态功耗通过降频降压控制，静态功耗通过断电（power gating）控制。130nm 以下工艺中，漏电流占比不可忽视。</li>
+<li><strong>空闲状态的层次是深度-延迟的权衡谱系</strong>：Standby（两周期延迟，功耗降低有限）→ Retention → Power Down（需复位恢复，功耗接近零）→ Dormant（Cache 保留的折中）。</li>
+<li><strong>WFI&#x2F;WFE 是 Standby 的唯一入口</strong>：WFI 前必须执行 DSB 屏障；WFE 配合 SEV 实现轻量级核间同步。</li>
+<li><strong>Power Down 与 Hotplug 共享底层机制但语义不同</strong>：前者核心仍被视为在线（中断可自动唤醒），后者核心被移出调度域（需显式 CPU_ON）。</li>
+<li><strong>DVFS 的物理红利来自 V² 项</strong>：降频仅带来线性收益，降频同时降压才能获得叠加红利。硬件需要电平转换器和跨域同步器支持。</li>
+<li>**PSCI 是多特权级系统的”翻译层”**：它不定义策略，只定义消息格式和传递路径，让 Rich OS &#x2F; Hypervisor &#x2F; Secure Firmware 各司其职。</li>
+<li><strong>调试电源管理代码时需注意</strong>：在 Retention 和 Power Down 状态下，调试寄存器可能不可访问，调试请求可能挂起——这不是 bug，是设计行为</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/28/ARM-%E5%A4%9A%E6%A0%B8%E5%B9%B6%E8%A1%8C%E7%BC%96%E7%A8%8B/" rel="prev" title="ARM 多核并行编程">
+                  <i class="fa fa-angle-left"></i> ARM 多核并行编程
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/28/ARM-TrustZone/" rel="next" title="ARM TrustZone">
+                  ARM TrustZone <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

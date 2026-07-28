@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文从 TrustZone 的设计动机出发，逐层讲清楚两个世界是如何隔离的、世界切换是怎么工作的、这套硬件机制为什么能保证 Normal world 绝对碰不到 Secure 资源，以及作为 Normal world 的程序员——即使你一行安全代码都不写——你写的代码行为会受到哪些影响。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM TrustZone">
+<meta property="og:url" content="http://yoursite.com/2026/07/28/ARM-TrustZone/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文从 TrustZone 的设计动机出发，逐层讲清楚两个世界是如何隔离的、世界切换是怎么工作的、这套硬件机制为什么能保证 Normal world 绝对碰不到 Secure 资源，以及作为 Normal world 的程序员——即使你一行安全代码都不写——你写的代码行为会受到哪些影响。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/pg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/pg">
+<meta property="og:image" content="http://yoursite.com/3.jpg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/pg">
+<meta property="og:image" content="http://yoursite.com/5.jpg">
+<meta property="article:published_time" content="2026-07-28T13:12:59.000Z">
+<meta property="article:modified_time" content="2026-07-28T13:19:19.170Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/pg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/28/ARM-TrustZone/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/28/ARM-TrustZone/","path":"2026/07/28/ARM-TrustZone/","title":"ARM TrustZone"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM TrustZone | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-TrustZone"><span class="nav-text">1. 为什么需要 TrustZone</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-TrustZone-%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88"><span class="nav-text">2. TrustZone 到底是什么</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%B8%A4%E4%B8%AA%E4%B8%96%E7%95%8C"><span class="nav-text">2.1 两个世界</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E4%B8%80%E9%A2%97%E7%89%A9%E7%90%86%E6%A0%B8%E5%BF%83"><span class="nav-text">2.2 一颗物理核心</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E7%A1%AC%E4%BB%B6%E9%9A%94%E7%A6%BB%E4%B8%8D%E5%90%8C%E4%BA%8E%E8%99%9A%E6%8B%9F%E5%8C%96"><span class="nav-text">2.3 硬件隔离不同于虚拟化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%96%E7%95%8C%E5%A6%82%E4%BD%95%E5%88%87%E6%8D%A2"><span class="nav-text">3. 世界如何切换</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Monitor-%E6%A8%A1%E5%BC%8F%EF%BC%9A%E5%94%AF%E4%B8%80%E7%9A%84%E9%80%9A%E9%81%93"><span class="nav-text">3.1 Monitor 模式：唯一的通道</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-SMC-%E6%8C%87%E4%BB%A4%EF%BC%9ANormal-world-%E7%9A%84%E6%95%B2%E9%97%A8%E7%A0%96"><span class="nav-text">3.2 SMC 指令：Normal world 的敲门砖</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%E7%9A%84%E5%BC%80%E9%94%80%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BD%8E"><span class="nav-text">3.3 上下文切换的开销为什么低</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E4%B8%96%E7%95%8C%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E8%83%BD%E4%BA%92%E7%9B%B8%E8%AE%BF%E9%97%AE"><span class="nav-text">4. 世界为什么不能互相访问</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-NS-%E4%BD%8D%EF%BC%9A%E4%B8%80%E5%88%87%E7%9A%84%E5%BC%80%E7%AB%AF"><span class="nav-text">4.1 NS 位：一切的开端</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E6%80%BB%E7%BA%BF%E7%BA%A7%E5%BC%BA%E5%88%B6"><span class="nav-text">4.2 总线级强制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E7%BC%93%E5%AD%98%EF%BC%9ASecure-%E8%A1%8C%E4%B8%8E-Normal-%E8%A1%8C%E5%8F%AF%E4%BB%A5%E5%85%B1%E5%AD%98"><span class="nav-text">4.3 缓存：Secure 行与 Normal 行可以共存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E9%A1%B5%E8%A1%A8%EF%BC%9A%E4%B8%A4%E5%A5%97%E7%8B%AC%E7%AB%8B%E7%9A%84%E8%99%9A%E6%8B%9F%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4"><span class="nav-text">4.4 页表：两套独立的虚拟地址空间</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%AF%B9%E7%A8%8B%E5%BA%8F%E5%91%98%E6%9C%89%E5%93%AA%E4%BA%9B%E5%BD%B1%E5%93%8D"><span class="nav-text">5. 对程序员有哪些影响</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-FIQ%EF%BC%9A%E5%8F%AF%E8%83%BD%E6%B0%B8%E8%BF%9C%E5%88%B0%E4%B8%8D%E4%BA%86%E4%BD%A0%E7%9A%84-handler"><span class="nav-text">5.1 FIQ：可能永远到不了你的 handler</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-CP15-%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%9A%E4%B8%8D%E6%98%AF%E6%89%80%E6%9C%89%E5%86%99%E5%85%A5%E9%83%BD%E7%94%9F%E6%95%88"><span class="nav-text">5.2 CP15 寄存器：不是所有写入都生效</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98%EF%BC%9ANS-%E4%BD%8D%E4%B8%8D%E5%90%8C%E7%AD%89%E4%BA%8E%E4%B8%A4%E4%B8%AA%E5%9C%B0%E5%9D%80"><span class="nav-text">5.3 共享内存：NS 位不同等于两个地址</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-Cache-Maintenance%EF%BC%9ANormal-%E7%BB%B4%E6%8A%A4%E4%B8%8D%E5%88%B0-Secure-%E8%A1%8C"><span class="nav-text">5.4 Cache Maintenance：Normal 维护不到 Secure 行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E6%80%A7%E8%83%BD%E5%8F%AF%E8%A7%81%E6%80%A7%E7%9A%84%E4%B8%A2%E5%A4%B1"><span class="nav-text">5.5 性能可见性的丢失</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%A4%9A%E6%A0%B8%E4%B8%8E%E8%B0%83%E8%AF%95"><span class="nav-text">6. 多核与调试</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%A4%9A%E6%A0%B8%E7%8B%AC%E7%AB%8B%E5%88%87%E6%8D%A2"><span class="nav-text">6.1 多核独立切换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E8%B0%83%E8%AF%95%E9%9A%94%E7%A6%BB"><span class="nav-text">6.2 调试隔离</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">关键要点</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">69</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/28/ARM-TrustZone/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM TrustZone | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM TrustZone
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-28 21:12:59" itemprop="dateCreated datePublished" datetime="2026-07-28T21:12:59+08:00">2026-07-28</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文从 TrustZone 的设计动机出发，逐层讲清楚两个世界是如何隔离的、世界切换是怎么工作的、这套硬件机制为什么能保证 Normal world 绝对碰不到 Secure 资源，以及作为 Normal world 的程序员——即使你一行安全代码都不写——你写的代码行为会受到哪些影响。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-为什么需要-TrustZone"><a href="#1-为什么需要-TrustZone" class="headerlink" title="1. 为什么需要 TrustZone"></a>1. 为什么需要 TrustZone</h2><p>传统操作系统的安全模型建立在软件隔离之上：用虚拟内存隔离进程、用特权级隔离内核与用户态。这套模型的前提是<strong>内核本身是可信的</strong>。</p>
+<p>问题在于，现代移动平台的开放性直接挑战了这个前提。用户可以安装任意来源的应用，系统支持加载第三方内核模块，有的甚至允许运行多套虚拟机。一旦恶意代码通过内核漏洞获取了最高特权级，整个系统的软件防线就全部崩塌——所有进程的内存、文件系统的加密密钥、用户的支付密码，一切暴露无遗。</p>
+<p>这说明了一个结论：<strong>软件级别的隔离无法抵御内核级别的攻击</strong>。换句话说，安全边界必须下沉到一个即使内核也无法逾越的位置。TrustZone 的思路是把隔离从操作系统搬到硬件：用电路而不是代码来执行安全策略。</p>
+<hr>
+<h2 id="2-TrustZone-到底是什么"><a href="#2-TrustZone-到底是什么" class="headerlink" title="2. TrustZone 到底是什么"></a>2. TrustZone 到底是什么</h2><h3 id="2-1-两个世界"><a href="#2-1-两个世界" class="headerlink" title="2.1 两个世界"></a>2.1 两个世界</h3><p>TrustZone 的核心设计极简：把一整颗 SoC 的全部硬件和软件资源<strong>一分为二</strong>。一部分属于 Secure world，专供安全敏感的子系统（密钥存储、加密运算、DRM、指纹识别）；其余一切都归 Normal world，跑常规操作系统和应用。</p>
+<p>这不是建议，是硬件强制执行：Normal world 的任何代码——包括运行在特权级最高的内核——尝试访问被标记为 Secure 的内存或外设时，总线控制器在物理层面直接拒绝该事务。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/pg" alt="1"></p>
+<h3 id="2-2-一颗物理核心"><a href="#2-2-一颗物理核心" class="headerlink" title="2.2 一颗物理核心"></a>2.2 一颗物理核心</h3><p>TrustZone 不需要两颗物理 CPU。一个 Cortex-A 核心以时间分片的方式在两个世界之间交替执行。上一微秒它还在 Normal world 里跑 Linux 的调度器，下一微秒它已经切到 Secure world 里做签名校验。</p>
+<p>从 Normal world 的视角看，Secure world 的执行时间是完全不可见的——它只表现为”处理器在某个不可中断的操作中停留了一段时间”。</p>
+<h3 id="2-3-硬件隔离不同于虚拟化"><a href="#2-3-硬件隔离不同于虚拟化" class="headerlink" title="2.3 硬件隔离不同于虚拟化"></a>2.3 硬件隔离不同于虚拟化</h3><p>第一次接触 TrustZone 的人经常把它和虚拟机混为一谈。两者本质不同：</p>
+<ul>
+<li><strong>虚拟机</strong>在同一个安全域内做<strong>垂直分层</strong>：Hypervisor（PL2）管着上面的 Guest OS（PL1），但大家都跑在同一个边（都用 Normal world）。安全边界仍然是软件（Hypervisor），只是比传统内核更高了一层。</li>
+<li><strong>TrustZone</strong> 做的是<strong>水平隔离</strong>：Secure 和 Normal 共享同一套特权级体系（各自都有自己的 PL0&#x2F;PL1），但被一道硬件墙完全隔开。两者不是谁管谁的关系，而是互不可见、只通过 Monitor 模式做受控通信。</li>
+</ul>
+<p>简单记法：虚拟化是楼上的住户和下层的物业；TrustZone 是同一层楼两套互相封死的单元。</p>
+<hr>
+<h2 id="3-世界如何切换"><a href="#3-世界如何切换" class="headerlink" title="3. 世界如何切换"></a>3. 世界如何切换</h2><h3 id="3-1-Monitor-模式：唯一的通道"><a href="#3-1-Monitor-模式：唯一的通道" class="headerlink" title="3.1 Monitor 模式：唯一的通道"></a>3.1 Monitor 模式：唯一的通道</h3><p>两个世界之间的切换必须经过一个特殊模式——Monitor。ARMv7-A 的处理器模式从 Reset、FIQ、SVC 等一路排下来，Monitor 是专门为 TrustZone 新增的一个。它的特殊之处有两点：</p>
+<p>第一，Monitor 模式<strong>始终运行在 Secure 状态</strong>。无论处理器是从 Secure 还是 Normal 世界进入的 Monitor，在 Monitor 的代码执行期间，它看到的都是 Secure 资源的完整视图。这意味着 Monitor 可以访问两套 banked 寄存器——Normal world 的和 Secure world 的——这是执行上下文切换的前提。</p>
+<p>第二，Monitor 模式是<strong>唯一可以合法切换世界的上下文</strong>。Normal 代码没有别的路径能绕过去。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/pg" alt="2"></p>
+<h3 id="3-2-SMC-指令：Normal-world-的敲门砖"><a href="#3-2-SMC-指令：Normal-world-的敲门砖" class="headerlink" title="3.2 SMC 指令：Normal world 的敲门砖"></a>3.2 SMC 指令：Normal world 的敲门砖</h3><p>Normal world 进入 Monitor 模式的标准方式是执行 SMC（Secure Monitor Call）指令。这是一条体系结构定义的指令，唯一的语义就是触发一个到 Monitor 向量表的异常。</p>
+<p>触发 Monitor 模式还有另外几条路：如果 SCR 寄存器配置了 FIQ 或外部 Abort 路由到 Monitor，那么这些硬件异常也会绕开当前世界的向量表，直接目标 Monitor。但从软件调用角度，SMC 是唯一的公开入口。</p>
+<p><img src="/3.jpg" alt="3"></p>
+<h3 id="3-3-上下文切换的开销为什么低"><a href="#3-3-上下文切换的开销为什么低" class="headerlink" title="3.3 上下文切换的开销为什么低"></a>3.3 上下文切换的开销为什么低</h3><p>从 Normal 世界切换到 Secure 世界，Monitor 模式的处理程序大致做这几步：</p>
+<ol>
+<li>保存当前世界的上下文——SPSR（保存返回地址和 CPSR）、R0 到 R12 等通用寄存器、必要时还包括 banked 的 R13&#x2F;R14。</li>
+<li>恢复目标世界的上下文——从内存中把 Secure 世界的寄存器状态加载回来。</li>
+<li>修改 SCR 寄存器的 NS 位（0 表示 Secure，1 表示 Non-secure），然后执行异常返回。</li>
+</ol>
+<p>整个过程本质上就是一次增强版的内核上下文切换。整个往返通常只需要几百个时钟周期。一个关键的原因后面会展开：切换世界不需要刷新缓存。</p>
+<hr>
+<h2 id="4-世界为什么不能互相访问"><a href="#4-世界为什么不能互相访问" class="headerlink" title="4. 世界为什么不能互相访问"></a>4. 世界为什么不能互相访问</h2><p>上一节讲了”怎么切换”，这一节讲”为什么换过去就碰不到了”。</p>
+<h3 id="4-1-NS-位：一切的开端"><a href="#4-1-NS-位：一切的开端" class="headerlink" title="4.1 NS 位：一切的开端"></a>4.1 NS 位：一切的开端</h3><p>TrustZone 的硬件隔离由一条比特驱动——NS 位。它被附加到<strong>每一笔</strong>内存系统事务上：CPU core 到缓存的请求、缓存到总线的请求、总线到外设控制器的请求。没有例外。这也包括缓存行标签——每一条缓存条目都带上了自己的 NS 标记。</p>
+<p>从效果上看，NS 位就是第 33 根地址线。Secure world 和 Normal world 各自拥有一套完整的 32 位物理地址空间。两套空间互不重叠，即使它们碰巧在软件侧使用相同的物理地址 <code>0x8000_0000</code>——地址相等但 NS 位不同，硬件就把它们路由到完全不同的物理存储体。</p>
+<h3 id="4-2-总线级强制"><a href="#4-2-总线级强制" class="headerlink" title="4.2 总线级强制"></a>4.2 总线级强制</h3><p>NS 位只是”标签”。只有标签没有执法者，标签就是摆设。总线系统上有一组配套硬件负责执行安全策略：</p>
+<ul>
+<li><strong>TZASC</strong>（TrustZone Address Space Controller）：管理 DRAM 的物理分区。它将物理地址空间划分出一块 Secure-only 区域，所有 NS&#x3D;1 的事务访问该区域都会被当场拒绝。</li>
+<li><strong>TZPC</strong>（TrustZone Protection Controller）：管理外设的安全属性。某些外设（如片内加密引擎）可以标记为 Secure-only，禁止 Normal world 读写。</li>
+<li><strong>TZMA</strong>（TrustZone Memory Adapter）：针对片内 SRAM 做类似的访问控制。</li>
+</ul>
+<p>这就是 ARM Programmer’s Guide 强调”TrustZone 没有内存系统支持就毫无用处”的原因。NS 位只是信息载体，TZASC&#x2F;TZPC&#x2F;TZMA 才是执行者。一个只支持 SMC 指令但总线不做安全检查的 SoC，TrustZone 只是一条 CPU 指令，没有安全价值。</p>
+<h3 id="4-3-缓存：Secure-行与-Normal-行可以共存"><a href="#4-3-缓存：Secure-行与-Normal-行可以共存" class="headerlink" title="4.3 缓存：Secure 行与 Normal 行可以共存"></a>4.3 缓存：Secure 行与 Normal 行可以共存</h3><p>NS 位也被写入了缓存行的标签。这意味着同一个缓存组里可以同时存在一条 NS&#x3D;0 的缓存行和一条 NS&#x3D;1 的缓存行，它们互不干扰，因为缓存在查找时会把 NS 位作为匹配条件。</p>
+<p>这个设计的工程后果非常关键：<strong>世界切换不需要刷缓存</strong>。如果两条世界的缓存行无法共存，每次从 Normal 切到 Secure（或反过来）都要 flush 整个缓存，重建缓存热度将消耗数千个周期。那样的话 SMC 调用的延迟会高到不可接受，TrustZone 就只适用于离线密钥存储等高延迟可接受的场景，而不适合 DRM 视频解密这种实时场景。</p>
+<h3 id="4-4-页表：两套独立的虚拟地址空间"><a href="#4-4-页表：两套独立的虚拟地址空间" class="headerlink" title="4.4 页表：两套独立的虚拟地址空间"></a>4.4 页表：两套独立的虚拟地址空间</h3><p>TrustZone 也给 MMU 做了双层设计。VBAR（异常向量表基址寄存器）、TTBR0&#x2F;TTBR1（页表基址寄存器）都是 banked 的——Secure 和 Normal 各有一套独立的副本，指向不同的页表集。</p>
+<p>页表描述符里也有 NS 位。但在这里，Normal 和 Secure 的硬件行为完全不同：</p>
+<ul>
+<li><strong>Secure 世界</strong>：页表项的 NS 位决定该页映射到 Secure 物理空间还是 Normal 物理空间。Secure 代码可以自由选择访问哪一边。</li>
+<li><strong>Normal 世界</strong>：硬件直接忽略页表描述符的 NS 字段，所有内存访问强制以 NS&#x3D;1 发出。不管你在页表里写什么，Normal 世界永远碰不到 Secure 物理地址。</li>
+</ul>
+<p>有一处实践细节值得一提：ARM Programmer’s Guide 建议不关心 TrustZone 的内核代码在修改页表时始终将 NS 位设为 0。这听起来矛盾——我在 Normal 世界、不关心安全、为什么要置零？理由很简单：硬件反正会强制覆盖成 NS&#x3D;1，设成 0 有什么坏处？而且同样的页表操作代码如果在两个世界间复用（比如共享的启动代码），置 0 可以避免把 Secure 世界的映射意外指到 Normal 物理空间去。</p>
+<hr>
+<h2 id="5-对程序员有哪些影响"><a href="#5-对程序员有哪些影响" class="headerlink" title="5. 对程序员有哪些影响"></a>5. 对程序员有哪些影响</h2><p>前面四节是 TrustZone 的设计和原理。对于大多数 Normal world 的程序员来说，道理归道理，他们真正关心的只有一个问题：<strong>我的代码行为会怎么变？</strong></p>
+<h3 id="5-1-FIQ：可能永远到不了你的-handler"><a href="#5-1-FIQ：可能永远到不了你的-handler" class="headerlink" title="5.1 FIQ：可能永远到不了你的 handler"></a>5.1 FIQ：可能永远到不了你的 handler</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/pg" alt="4"></p>
+<p>ARMv7-A 的异常向量表有三套：一套给 Normal world、一套给 Secure world、一套给 Monitor 模式。硬件根据当前安全状态自动选择对应的表。</p>
+<p>但 FIQ 和 IRQ 的路由是可以配置的。SCR 寄存器有两个位分别控制是否把 FIQ 和 IRQ 传到 Monitor 模式。最常见的配置是：<strong>FIQ 路由到 Monitor，留给 Secure world 专用；IRQ 留给 Normal world</strong>。</p>
+<p>这意味着你在 Normal world 注册的 FIQ handler <strong>可能永远不会被调用</strong>。不是因为代码写错了，而是硬件根本没把 FIQ 送到你的向量表。</p>
+<h3 id="5-2-CP15-寄存器：不是所有写入都生效"><a href="#5-2-CP15-寄存器：不是所有写入都生效" class="headerlink" title="5.2 CP15 寄存器：不是所有写入都生效"></a>5.2 CP15 寄存器：不是所有写入都生效</h3><p>TrustZone 要求硬件在 CP15 层面伪造出”两个独立核心”的假象。实现方式包括三层：</p>
+<ul>
+<li>一部分敏感寄存器（如 SCR、SDER）只能在 Secure 世界写。Normal 世界的写入被硬件静默忽略。</li>
+<li>一部分寄存器被硬件自动 bank，例如 TTBR0&#x2F;TTBR1、VBAR。你的写入确实会生效，但只影响 Normal world 自己的副本。切到 Secure world 后它看到的是另一套。</li>
+<li>只读识别寄存器（如 MIDR）两个世界共享，谁都一样。</li>
+</ul>
+<p>如果你在写一个驱动，尝试通过 CP15 修改某种系统行为却发现无效，第一反应应该不是怀疑硬件坏了，而是检查一下——这个寄存器是不是 TrustZone 的 secure-only 写限制对象。</p>
+<h3 id="5-3-共享内存：NS-位不同等于两个地址"><a href="#5-3-共享内存：NS-位不同等于两个地址" class="headerlink" title="5.3 共享内存：NS 位不同等于两个地址"></a>5.3 共享内存：NS 位不同等于两个地址</h3><p>Normal world 和 Secure world 之间可以通过共享物理内存传递数据——比如 Normal world 下载了一个固件更新包，请求 Secure world 的签名校验器验证。</p>
+<p>但这里有一个非常容易踩的坑。Normal world 访问更新包数据时以 NS&#x3D;1 发出，数据进入缓存后，该缓存行的标签被标记为 Non-secure。当 Secure world 接手后去读同一块物理地址，它<strong>必须</strong>用自己的页表建立一个 NS&#x3D;1 的映射去访问——因为缓存行的 NS 标签是 Non-secure。如果 Secure world 用了 NS&#x3D;0 的映射，即使物理地址相同，缓存硬件会因为 NS 位不匹配而<strong>视为不同的缓存条目</strong>（cache miss），读到的是旧数据甚至随机数据。</p>
+<p>这不是性能优化，是数据正确性问题。</p>
+<h3 id="5-4-Cache-Maintenance：Normal-维护不到-Secure-行"><a href="#5-4-Cache-Maintenance：Normal-维护不到-Secure-行" class="headerlink" title="5.4 Cache Maintenance：Normal 维护不到 Secure 行"></a>5.4 Cache Maintenance：Normal 维护不到 Secure 行</h3><p>前面讲过 Normal 和 Secure 的缓存行可以共存在同一组，因为它们的标签里带了 NS 位。反过来，这也意味着 Normal world 的 cache maintenance 操作（invalidate、clean）<strong>默认只作用于 NS&#x3D;1 的缓存行</strong>。你的 cache flush 操作不会误伤 Secure 世界的数据，但反过来也没法帮 Secure 世界做维护。</p>
+<h3 id="5-5-性能可见性的丢失"><a href="#5-5-性能可见性的丢失" class="headerlink" title="5.5 性能可见性的丢失"></a>5.5 性能可见性的丢失</h3><p>从 Normal world 的视角看，Secure world 的执行是完全不可见的。处理器进入 SMC 调用后，Normal 世界的调度器看到的现象是”当前线程在一条指令上卡了一段时间”——这段不可中断的执行窗口被归因给最后一条 Normal 世界指令。</p>
+<p>后果有二：第一，Normal 世界感知到的中断延迟会略微增加（Secure 执行期间 IRQ 被禁用）；第二，性能分析工具无法区分”CPU 在做 Secure 操作”和”线程因为某种原因被阻塞”——两者在 trace 里看起来一模一样。</p>
+<hr>
+<h2 id="6-多核与调试"><a href="#6-多核与调试" class="headerlink" title="6. 多核与调试"></a>6. 多核与调试</h2><h3 id="6-1-多核独立切换"><a href="#6-1-多核独立切换" class="headerlink" title="6.1 多核独立切换"></a>6.1 多核独立切换</h3><p>在 SMP 多核系统中，每个核心的 TrustZone 行为完全独立。任意数量的核心可以在任意时刻同时处于 Secure world，一个核心在加密、另一个在跑 Linux 用户程序、第三个在 idle——不需要任何同步。各核心之间的世界切换互不感知。</p>
+<p>不过工程实践中有一个折中：ARM Programmer’s Guide 建议 Secure world OS 只跑在单个核心上，其他核心的安全请求通过 IPC 路由到这个指定核心。不是因为做不到多核 Secure OS，而是减少攻击面——少一个跑 Secure 代码的核心，就少一套可能被侧信道攻击的执行上下文。</p>
+<p>共享硬件组件（SCU 缓存一致性控制器、GIC 中断控制器）也必须感知安全状态——它们并不会给 Normal world 随意配置安全相关寄存器。</p>
+<p><img src="/5.jpg" alt="5"></p>
+<h3 id="6-2-调试隔离"><a href="#6-2-调试隔离" class="headerlink" title="6.2 调试隔离"></a>6.2 调试隔离</h3><p>TrustZone 对调试的管控是最容易被忽略的防线。JTAG 调试器和 Trace 数据流的控制可以按世界独立配置：你可以选择只允许调试 Normal world、完全屏蔽 Secure world 的寄存器、内存和指令流。而且这不是软件拦截——是硬件开关。即使攻击者物理接入 JTAG 接口，Secure world 内部的信息也不会从调试通道泄漏。</p>
+<hr>
+<h2 id="关键要点"><a href="#关键要点" class="headerlink" title="关键要点"></a>关键要点</h2><ol>
+<li><p><strong>TrustZone 是总线级的硬件隔离</strong>。NS 位像第 33 根地址线一样附加到所有内存事务上，两个世界各有一套完整的 32 位物理地址空间，互不可见。软件隔离做不到这一点——因为内核有最高特权，它可以绕过一切自己设定的规则。</p>
+</li>
+<li><p><strong>没有 TZASC&#x2F;TZPC&#x2F;TZMA 配合，TrustZone 只是一条 CPU 指令</strong>。NS 位是标签，这些总线级组件才是执法者。只有 SMC 没有总线安全检查的 SoC，TrustZone 形同虚设。</p>
+</li>
+<li><p><strong>世界切换不需要刷缓存</strong>——NS 位写入了缓存行标签，Secure 和 Normal 的缓存行可以共存于同一组。这使得一次 SMC 调用往返仅需几百个周期，才能用于 DRM 解密等延迟敏感场景。</p>
+</li>
+<li><p><strong>你在 Normal world 写的 FIQ handler 可能永远不被调用</strong>——SCR 寄存器可以把 FIQ 路由到 Monitor 模式留给 Secure world 专用。这不是 bug，是合理的安全设计。默认配置下 FIQ 属于 Secure，IRQ 属于 Normal。</p>
+</li>
+<li><p><strong>页表项的 NS 位在 Normal 世界被硬件强制覆盖为 1</strong>——不管你在页表里写什么值。所以实践规则是始终置零，以兼容 Secure 和 Normal 两边的代码复用。</p>
+</li>
+<li><p><strong>跨世界共享内存时，Secure 世界必须用 NS&#x3D;1 的映射去访问，否则读不到 Normal 世界已有的缓存数据</strong>——因为缓存标签里带了 NS 位，NS 不同就不是同一条缓存行。这是数据正确性问题，不是性能问题。</p>
+</li>
+<li><p><strong>Secure 世界执行期间 Normal 世界看不到任何踪迹</strong>——调度器和性能分析工具看到的只是一个不可中断的指令窗口，无法区分 Secure 操作和被阻塞的线程。</p>
+</li>
+<li><p><strong>多核系统中每个核心独立切换世界</strong>，但实践中推荐只让一个核心跑 Secure OS 以缩小攻击面。</p>
+</li>
+<li><p><strong>JTAG 调试通道也可以按世界做硬件级隔离</strong>——即使物理接入 JTAG，Secure 世界的信息不会从调试通道泄漏。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/" rel="prev" title="ARM 电源管理">
+                  <i class="fa fa-angle-left"></i> ARM 电源管理
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
