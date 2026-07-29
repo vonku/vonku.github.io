@@ -26,19 +26,19 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="从软件开发者视角理解 ARMv7-A 虚拟化扩展的设计思想，以及 Hypervisor 如何借助硬件实现多个 Guest OS 的安全隔离。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/1.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/2.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/3.png">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/4.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/5.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/6.jpg">
+<meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-1.jpg">
+<meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-2.jpg">
+<meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-3.png">
+<meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-4.jpg">
+<meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-5.jpg">
+<meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-6.jpg">
 <meta property="article:published_time" content="2026-07-29T13:08:17.000Z">
-<meta property="article:modified_time" content="2026-07-29T13:13:36.759Z">
+<meta property="article:modified_time" content="2026-07-29T13:24:21.808Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/1.jpg">
+<meta name="twitter:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-1.jpg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/">
@@ -335,13 +335,15 @@
 <li><strong>Hyp mode 仅存在于 Normal World</strong>。与之对应，Monitor（MON）模式属于 Secure World 的 PL1，负责 TrustZone 的世界切换，两者职责完全不同。</li>
 </ol>
 <p>下图展示了 Normal World 和 Secure World 中各特权级别的分布：</p>
-<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/1.jpg" alt="1"></p>
+<img src="/images/虚拟化-1.jpg" width="67%">
+
 <h3 id="2-1-Bare-Metal-虚拟化的启动流程"><a href="#2-1-Bare-Metal-虚拟化的启动流程" class="headerlink" title="2.1 Bare Metal 虚拟化的启动流程"></a>2.1 Bare Metal 虚拟化的启动流程</h3><p>在 <strong>Type 1（Bare Metal）</strong> 虚拟化中，Hypervisor 是系统启动后运行的最高特权 Non-secure 软件。它首先完成自身初始化，然后为各个 Guest OS 建立运行环境，最后依次启动它们。</p>
 <p>典型启动流程如下：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">Boot</span><br><span class="line">  │</span><br><span class="line">  ▼</span><br><span class="line">Hypervisor（PL2）初始化</span><br><span class="line">  ├─ 建立自身页表（HTTBR）</span><br><span class="line">  ├─ 为各 Guest 建立 Stage 2 页表（VTTBR）</span><br><span class="line">  ├─ 配置中断路由</span><br><span class="line">  └─ 启动各 Guest OS（进入 PL1）</span><br><span class="line">        │</span><br><span class="line">        ├── Guest 1</span><br><span class="line">        ├── Guest 2</span><br><span class="line">        └── ...</span><br></pre></td></tr></table></figure>
 
 <p>从 Guest OS 的视角看，它仍然运行在 PL1，并认为自己独占整台机器；而 Hypervisor 始终运行在 PL2，负责管理所有 Guest 以及底层硬件资源。</p>
-<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/2.jpg" alt="2"></p>
+<img src="/images/虚拟化-2.jpg" width="67%">
+
 <hr>
 <h2 id="3-两阶段地址翻译"><a href="#3-两阶段地址翻译" class="headerlink" title="3. 两阶段地址翻译"></a>3. 两阶段地址翻译</h2><p>虚拟化最大的挑战在于：<strong>Guest OS 认为自己拥有整个物理内存。</strong></p>
 <p>例如，Guest Linux 建立了一张页表，将虚拟地址映射到 <code>0x80000000</code>。如果处理器直接把这个地址当作真实物理地址访问，那么多个 Guest 就会读写同一块内存，彼此完全无法隔离。</p>
@@ -559,7 +561,8 @@
 
 <p>同样，HCR.VF（bit 6）对应虚拟 FIQ，HCR.VI（bit 7）对应虚拟 IRQ，HCR.VA（bit 8）对应虚拟 Abort，这些位是 ARMv7-A 虚拟化扩展提供的虚拟异常注入机制。</p>
 <p>下图汇总了物理中断从产生、被 Hypervisor 截获、到最终注入虚拟中断的完整路由路径：</p>
-<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/3.png" alt="3"></p>
+<img src="/images/虚拟化-3.png" width="67%">
+
 <h3 id="5-5-中断虚拟化"><a href="#5-5-中断虚拟化" class="headerlink" title="5.5 中断虚拟化"></a>5.5 中断虚拟化</h3><p>虚拟化环境中的中断处理比裸机系统复杂，因为中断目标可能不是当前正在运行的 Guest。</p>
 <p>例如：</p>
 <ul>
@@ -676,7 +679,8 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Guest A:</span><br><span class="line">IPA 0x40000000 → PA 0x08_0000_0000</span><br><span class="line"></span><br><span class="line">Guest B:</span><br><span class="line">IPA 0x40000000 → PA 0x18_0000_0000</span><br></pre></td></tr></table></figure>
 
 <p>不同 Guest 可以拥有相同 IPA，而通过 Stage 2 映射到不同物理地址。</p>
-<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/4.jpg" alt="4"></p>
+<img src="/images/虚拟化-4.jpg" width="67%">
+
 <hr>
 <h3 id="7-1-Long-Descriptor-格式"><a href="#7-1-Long-Descriptor-格式" class="headerlink" title="7.1 Long-Descriptor 格式"></a>7.1 Long-Descriptor 格式</h3><p>虚拟化 + LPAE 引入新的页表格式：</p>
 <p><strong>long-descriptor（64-bit 描述符）</strong></p>
@@ -701,7 +705,8 @@
 <li>Stage 1 可以使用 short 或 long descriptor；</li>
 <li>Stage 2 只能使用 long descriptor。</li>
 </ul>
-<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/5.jpg" alt="5"></p>
+<img src="/images/虚拟化-5.jpg" width="67%">
+
 <hr>
 <h3 id="7-2-Long-Descriptor-三级页表结构"><a href="#7-2-Long-Descriptor-三级页表结构" class="headerlink" title="7.2 Long-Descriptor 三级页表结构"></a>7.2 Long-Descriptor 三级页表结构</h3><p>对于 <strong>32-bit VA + 4KB 页</strong>：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">VA[31:30] → Level 1 索引</span><br><span class="line">VA[29:21] → Level 2 索引</span><br><span class="line">VA[20:12] → Level 3 索引</span><br><span class="line">VA[11:0]  → 页内偏移</span><br></pre></td></tr></table></figure>
@@ -718,7 +723,8 @@
 
 <p>两个阶段都可能需要三级页表查询，因此最坏可能产生 6 次页表访问。</p>
 <p>这也是为什么虚拟化系统依赖 TLB 缓存转换结果。</p>
-<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/6.jpg" alt="6"></p>
+<img src="/images/虚拟化-6.jpg" width="67%">
+
 <hr>
 <p><strong>实例：一次 LPAE 地址翻译</strong></p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">VA = 0x0040_1234</span><br><span class="line"></span><br><span class="line">Level 1:</span><br><span class="line">VA[31:30] = 0</span><br><span class="line">→ 查询 L1 Table[0]</span><br><span class="line"></span><br><span class="line">Level 2:</span><br><span class="line">VA[29:21] = 0x002</span><br><span class="line">→ 查询 L2 Table[2]</span><br><span class="line"></span><br><span class="line">Level 3:</span><br><span class="line">VA[20:12] = 0x012</span><br><span class="line">→ 查询 L3 Table[18]</span><br><span class="line"></span><br><span class="line">得到:</span><br><span class="line">VA 0x0040_1234 → PA 0x08_0000_2234</span><br></pre></td></tr></table></figure>

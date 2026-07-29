@@ -26,22 +26,22 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="移动 SoC 如何平衡”高性能”与”长续航”这对根本矛盾？本文从 ARM big.LITTLE 的硬件架构出发，逐一拆解 Cluster 迁移、CPU 迁移、Global Task Scheduling 三种软件执行模型和五种任务迁移机制，完整揭示操作系统调度器在异构核心间做决策的底层逻辑。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/1.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/2.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/3.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/4.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/5.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/6.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/7.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/8.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/9.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-1.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-2.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-3.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-4.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-5.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-6.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-7.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-8.jpg">
+<meta property="og:image" content="http://yoursite.com/images/big-LITTLE-9.jpg">
 <meta property="article:published_time" content="2026-07-29T13:08:37.000Z">
-<meta property="article:modified_time" content="2026-07-29T13:18:06.609Z">
+<meta property="article:modified_time" content="2026-07-29T13:25:35.829Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/1.jpg">
+<meta name="twitter:image" content="http://yoursite.com/images/big-LITTLE-1.jpg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/29/ARM-big-LITTLE/">
@@ -335,7 +335,8 @@
 <p>要理解操作系统如何做出这个”该用大核还是小核”的决策，我们必须先从硬件层面的耦合方式入手。</p>
 <hr>
 <h2 id="2-big-LITTLE-系统的物理架构"><a href="#2-big-LITTLE-系统的物理架构" class="headerlink" title="2. big.LITTLE 系统的物理架构"></a>2. big.LITTLE 系统的物理架构</h2><p>要理解操作系统调度器如何在 big 和 LITTLE 核心之间迁移任务，必须先了解底层硬件的三项基础设施：<strong>两种核心的 ISA 一致性如何保证软件兼容、Cache 一致性如何让数据迁移透明高效、以及中断控制器如何让中断在异构核心间自由路由</strong>。这三者分别对应软件兼容性、数据通路和事件分发——缺一不可。</p>
-<p><img src="/2026/07/29/ARM-big-LITTLE/1.jpg" alt="1"></p>
+<img src="/images/big-LITTLE-1.jpg" width="67%">
+
 <h3 id="2-1-核心组成与-ISA-一致性"><a href="#2-1-核心组成与-ISA-一致性" class="headerlink" title="2.1 核心组成与 ISA 一致性"></a>2.1 核心组成与 ISA 一致性</h3><p>big.LITTLE 系统中的两类核心共享相同的指令集架构（ISA），差异仅在于内部微架构——这种微架构层面的设计取舍赋予了它们截然不同的功耗和性能特征。所有核心硬件 Cache 一致，同一份应用二进制不经修改即可在任一类型核心上运行。</p>
 <p>典型的配置以 Cortex-A7 作为 LITTLE 簇、Cortex-A15 作为 big 簇。LITTLE 簇负责处理音频播放、页面滚动、OS 事件等低强度、常驻后台的任务，big 簇则在游戏、视频处理等场景下投入运行。</p>
 <h3 id="2-2-硬件-Cache-一致性：CCI-400-的角色"><a href="#2-2-硬件-Cache-一致性：CCI-400-的角色" class="headerlink" title="2.2 硬件 Cache 一致性：CCI-400 的角色"></a>2.2 硬件 Cache 一致性：CCI-400 的角色</h3><p>在 big 和 LITTLE 簇之间迁移任务时，数据必须透明且高效地转移。如果缺乏硬件一致性支持，跨簇数据传输只能经过主存——这在速度和功耗上都是灾难，而且需要复杂的 cache 维护软件来保证数据正确。</p>
@@ -350,7 +351,8 @@
 <hr>
 <h2 id="3-三种软件执行模型"><a href="#3-三种软件执行模型" class="headerlink" title="3. 三种软件执行模型"></a>3. 三种软件执行模型</h2><p>ARM 将 big.LITTLE 的软件执行模型分为两大类：<strong>迁移（Migration）</strong>和<strong>全局任务调度（Global Task Scheduling）</strong>。其中迁移模型又可以细分为 Cluster 迁移和 CPU 迁移。</p>
 <p>理解迁移模型的关键类比是 <strong>DVFS（Dynamic Voltage and Frequency Scaling）</strong>——迁移行为本质上可视为 DVFS 操作点过渡的自然延伸：负载增加时沿当前核心的 DVFS 曲线上行，当当前核心（或簇）达到最高操作点仍不够时，触发核心（或簇）迁移，在新的 DVFS 曲线上继续遍历操作点。</p>
-<p><img src="/2026/07/29/ARM-big-LITTLE/2.jpg" alt="2"></p>
+<img src="/images/big-LITTLE-2.jpg" width="67%">
+
 <p>这种设计将迁移泛化为 DVFS 系统的一个高阶操作点——设计哲学上与已有电源管理框架完全兼容。</p>
 <h3 id="3-1-Cluster-迁移"><a href="#3-1-Cluster-迁移" class="headerlink" title="3.1 Cluster 迁移"></a>3.1 Cluster 迁移</h3><p>Cluster Migration 是<strong>早期</strong> big.LITTLE 系统采用的一种运行模式。<strong>在任意时刻，系统只选择一个簇（big 或 LITTLE）作为主要计算簇运行，另一个簇处于关闭或非调度状态。</strong>只有在簇切换的短暂过程中，两个簇可能同时处于过渡状态。</p>
 <p>软件栈大部分时间运行在 LITTLE 簇上，仅在需要峰值性能时切换至 big 簇。这种模式要求两个簇具有相同数量的核心，因为切换过程本质上是两个对等 cluster 之间的整体替换。</p>
@@ -390,7 +392,8 @@
 <td>Linaro In Kernel Switcher (IKS)</td>
 </tr>
 </tbody></table>
-<p><img src="/2026/07/29/ARM-big-LITTLE/3.jpg" alt="3"></p>
+<img src="/images/big-LITTLE-3.jpg" width="67%">
+
 <p><strong>实例：3+2 非对称拓扑下的 CPU 迁移</strong></p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">配置：2 个 big 核（Cortex-A15），3 个 LITTLE 核（Cortex-A7）</span><br><span class="line"></span><br><span class="line">OS 视角：</span><br><span class="line">逻辑核 0：LITTLE0 ↔ big0</span><br><span class="line">逻辑核 1：LITTLE1 ↔ big1</span><br><span class="line">逻辑核 2：仅包含 LITTLE2（无对应 big 核）</span><br><span class="line"></span><br><span class="line">时刻 T0 — 低负载</span><br><span class="line">    逻辑核 0 — 活跃: LITTLE0，big0 关闭</span><br><span class="line">    逻辑核 1 — 活跃: LITTLE1，big1 关闭</span><br><span class="line">    逻辑核 2 — 活跃: LITTLE2</span><br><span class="line"></span><br><span class="line">结果：</span><br><span class="line">	3 个逻辑核心均运行在 LITTLE 核心上</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">时刻 T1 — 逻辑核 0 负载升高</span><br><span class="line">    逻辑核 0：</span><br><span class="line">      LITTLE0 达到性能瓶颈</span><br><span class="line">      → 触发 CPU 迁移</span><br><span class="line">      → 上下文切换至 big0</span><br><span class="line"></span><br><span class="line">结果：</span><br><span class="line">    逻辑核 0 — 活跃: big0</span><br><span class="line">    逻辑核 1 — 活跃: LITTLE1</span><br><span class="line">    逻辑核 2 — 活跃: LITTLE2</span><br><span class="line"></span><br><span class="line">此时 big 和 LITTLE 核心可以同时工作</span><br></pre></td></tr></table></figure>
 
@@ -419,7 +422,8 @@
 <li><strong>下迁移阈值（down migration threshold）</strong>：当前运行在 big 核心上的线程，其跟踪负载低于此阈值 → 判定为应从 big 迁移到 LITTLE</li>
 </ul>
 <p>这两个阈值之间存在明显的滞后（hysteresis）间隙——如上迁移阈值为 80%、下迁移阈值为 20%。这种设计防止了负载在阈值边界附近波动时引发频繁的迁移振荡（ping-pong effect）。当一个线程的负载从 79% 升到 81% 再降到 79% 时，如果没有滞后间隙，调度器会在两个核心之间来回迁移该线程——每次迁移都伴随着上下文保存&#x2F;恢复和 cache 重新填充的开销。</p>
-<p><img src="/2026/07/29/ARM-big-LITTLE/4.jpg" alt="4"></p>
+<img src="/images/big-LITTLE-4.jpg" width="67%">
+
 <p>同一簇内则适用标准的 Linux 调度器负载均衡——将负载均匀分散到簇内各核心；跨簇迁移则由 big.LITTLE MP 调度逻辑负责。</p>
 <h3 id="4-2-DVFS-感知的负载跟踪"><a href="#4-2-DVFS-感知的负载跟踪" class="headerlink" title="4.2 DVFS 感知的负载跟踪"></a>4.2 DVFS 感知的负载跟踪</h3><p>跟踪负载并非简单的运行时间统计。它被设计为与 DVFS 频率变化协同工作：<strong>调度器会根据当前核心频率对负载进行归一化（frequency invariance）</strong>，尽量消除频率变化对负载估计的影响。这避免了线程因核心降频而被错误地判定为”轻量”，使得 big.LITTLE MP 与 DVFS 能够协同工作。</p>
 <h3 id="4-3-Fork-迁移"><a href="#4-3-Fork-迁移" class="headerlink" title="4.3 Fork 迁移"></a>4.3 Fork 迁移</h3><p>当创建新的任务（如通过 <code>fork()</code> 或 <code>clone()</code>）时，没有历史负载数据可供参考。系统默认将新任务放置在 big 核心上，以降低高负载任务首次运行的响应延迟；如果后续判断其负载较低，再通过 Wake 迁移快速下迁至 LITTLE 核。</p>
@@ -437,13 +441,16 @@
 <li><strong>关键约束</strong>：上迁优先选择<strong>空闲</strong>的 big 核，以避免影响已经运行在大核上的高负载任务；下迁则不存在这一限制，可直接迁移至负载较低的 LITTLE 核</li>
 <li>只有任务<strong>真正改变其行为模式</strong>——长期减少计算量——其跟踪负载才会随时间衰减到触发下迁移阈值</li>
 </ul>
-<p><img src="/2026/07/29/ARM-big-LITTLE/5.jpg" alt="5"></p>
-<p><img src="/2026/07/29/ARM-big-LITTLE/6.jpg" alt="6"></p>
+<img src="/images/big-LITTLE-5.jpg" width="67%">
+
+<img src="/images/big-LITTLE-6.jpg" width="67%">
+
 <blockquote>
 <p>主要说的是，睡眠期间跟踪负载不变，睡眠唤醒时用的是睡眠之前的值。</p>
 </blockquote>
 <h3 id="4-5-Forced-迁移"><a href="#4-5-Forced-迁移" class="headerlink" title="4.5 Forced 迁移"></a>4.5 Forced 迁移</h3><p>Fork 和 Wake 迁移都依赖”任务会偶尔睡眠”这一前提——在睡眠边界上产生调度点。但对于<strong>长期运行且从不睡眠</strong>的计算密集型任务，这两个机制无法生效。Forced 迁移通过<strong>定期检查</strong>来弥补这一盲区：调度器周期性地扫描每个 LITTLE 核心，如果发现任务跟踪负载超过上迁阈值，则将其迁移到空闲的 big 核心。这是一种主动的<strong>推（push）</strong>机制——由 LITTLE 核心端主动将过载任务推送至 big 核心，不依赖任务自身的睡眠行为。</p>
-<p><img src="/2026/07/29/ARM-big-LITTLE/7.jpg" alt="7"></p>
+<img src="/images/big-LITTLE-7.jpg" width="67%">
+
 <h3 id="4-6-Idle-Pull-迁移"><a href="#4-6-Idle-Pull-迁移" class="headerlink" title="4.6 Idle Pull 迁移"></a>4.6 Idle Pull 迁移</h3><p>当 <strong>big 核心空闲时</strong>，Idle Pull 机制会<strong>主动搜索 LITTLE 核心上的高负载任务</strong>：检查所有 LITTLE 核心上是否有任务的负载超过上迁阈值——如果有，则将其<strong>迁移到空闲的 big 核心</strong>。如果没有找到合适的任务，big 核心则直接断电。这保证了 big 核心在活跃时始终承担系统中计算最密集的任务，big 核在空闲时则断电避免空转浪费能源。这种”大核作为加速器”的定位是 big.LITTLE MP 效能优势的关键来源。</p>
 <h3 id="4-7-Offload-迁移"><a href="#4-7-Offload-迁移" class="headerlink" title="4.7 Offload 迁移"></a>4.7 Offload 迁移</h3><p>GTS 默认不会像同构 SMP 那样进行跨簇负载均衡——这防止了轻量任务被分散到 big 核上。但副作用是：高负载任务会集中在 big 核，LITTLE 核可能空转而未被充分利用。Offload 迁移周期性地检查 big 核上的任务：将那些跟踪负载低于下迁移阈值的任务向下迁移到 LITTLE 核，利用 LITTLE 核的闲置算力。关键约束：下迁的任务仍然是上迁移的候选对象，如果下一次调度检查时负载回升超过上迁阈值，会被重新标记为上迁候选。</p>
 <h3 id="4-8-五种迁移机制协同全景"><a href="#4-8-五种迁移机制协同全景" class="headerlink" title="4.8 五种迁移机制协同全景"></a>4.8 五种迁移机制协同全景</h3><table>
@@ -491,9 +498,11 @@
 <h2 id="5-实践效果与软件生态"><a href="#5-实践效果与软件生态" class="headerlink" title="5. 实践效果与软件生态"></a>5. 实践效果与软件生态</h2><p>前面五章从硬件架构到调度器算法，完整呈现了 big.LITTLE MP 的工作链路。本章聚焦于它的实际交付——在真实工作负载下的功耗和性能数据，以及开发者如何获取并集成这套方案。</p>
 <h3 id="5-1-能耗与性能数据"><a href="#5-1-能耗与性能数据" class="headerlink" title="5.1 能耗与性能数据"></a>5.1 能耗与性能数据</h3><p>ARM 在典型使用场景下测试了 big.LITTLE MP 相对于纯 Cortex-A15 系统的表现。比较对象是 <strong>四个 LITTLE 核心 + 四个大核心组成的 big.LITTLE 系统</strong>” vs <strong>仅由四个大核心组成的系统</strong>。</p>
 <p><strong>能耗表现</strong>：</p>
-<p><img src="/2026/07/29/ARM-big-LITTLE/8.jpg" alt="8"></p>
+<img src="/images/big-LITTLE-8.jpg" width="67%">
+
 <p><strong>Benchmark</strong>：</p>
-<p><img src="/2026/07/29/ARM-big-LITTLE/9.jpg" alt="9"></p>
+<img src="/images/big-LITTLE-9.jpg" width="67%">
+
 <ul>
 <li><strong>线程数较多（&gt;4）时</strong>：big.LITTLE MP 可以同时利用 big 和 LITTLE 核心，提高可用计算资源。<ul>
 <li>当 big 核心繁忙时，<strong>Offload 迁移</strong>会将部分计算密集型任务分散到 LITTLE 核心。</li>
