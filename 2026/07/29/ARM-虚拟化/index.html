@@ -33,7 +33,7 @@
 <meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-5.jpg">
 <meta property="og:image" content="http://yoursite.com/images/%E8%99%9A%E6%8B%9F%E5%8C%96-6.jpg">
 <meta property="article:published_time" content="2026-07-29T13:08:17.000Z">
-<meta property="article:modified_time" content="2026-07-29T13:29:24.831Z">
+<meta property="article:modified_time" content="2026-07-29T14:33:27.007Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -561,7 +561,7 @@
 
 <p>同样，HCR.VF（bit 6）对应虚拟 FIQ，HCR.VI（bit 7）对应虚拟 IRQ，HCR.VA（bit 8）对应虚拟 Abort，这些位是 ARMv7-A 虚拟化扩展提供的虚拟异常注入机制。</p>
 <p>下图汇总了物理中断从产生、被 Hypervisor 截获、到最终注入虚拟中断的完整路由路径：</p>
-<img src="/images/虚拟化-3.png" width="67%">
+<img src="/images/虚拟化-3.png" width="100%">
 
 <h3 id="5-5-中断虚拟化"><a href="#5-5-中断虚拟化" class="headerlink" title="5.5 中断虚拟化"></a>5.5 中断虚拟化</h3><p>虚拟化环境中的中断处理比裸机系统复杂，因为中断目标可能不是当前正在运行的 Guest。</p>
 <p>例如：</p>
