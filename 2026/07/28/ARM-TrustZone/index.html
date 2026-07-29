@@ -32,7 +32,7 @@
 <meta property="og:image" content="http://yoursite.com/images/TrustZone-4.jpg">
 <meta property="og:image" content="http://yoursite.com/images/TrustZone-5.png">
 <meta property="article:published_time" content="2026-07-28T13:12:59.000Z">
-<meta property="article:modified_time" content="2026-07-29T13:31:20.028Z">
+<meta property="article:modified_time" content="2026-07-29T13:40:01.397Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -278,7 +278,7 @@
 
 <h3 id="3-2-SMC-指令：Normal-world-的敲门砖"><a href="#3-2-SMC-指令：Normal-world-的敲门砖" class="headerlink" title="3.2 SMC 指令：Normal world 的敲门砖"></a>3.2 SMC 指令：Normal world 的敲门砖</h3><p>Normal world 进入 Monitor 模式的标准方式是执行 SMC（Secure Monitor Call）指令。这是一条体系结构定义的指令，唯一的语义就是触发一个到 Monitor 向量表的异常。</p>
 <p>触发 Monitor 模式还有另外几条路：如果 SCR 寄存器配置了 FIQ 或外部 Abort 路由到 Monitor，那么这些硬件异常也会绕开当前世界的向量表，直接目标 Monitor。但从软件调用角度，SMC 是唯一的公开入口。</p>
-<img src="/images/TrustZone-3.png" width="67%">
+<img src="/images/TrustZone-3.png" width="100%">
 
 <h3 id="3-3-上下文切换的开销为什么低"><a href="#3-3-上下文切换的开销为什么低" class="headerlink" title="3.3 上下文切换的开销为什么低"></a>3.3 上下文切换的开销为什么低</h3><p>从 Normal 世界切换到 Secure 世界，Monitor 模式的处理程序大致做这几步：</p>
 <ol>
@@ -331,7 +331,7 @@
 <h2 id="6-多核与调试"><a href="#6-多核与调试" class="headerlink" title="6. 多核与调试"></a>6. 多核与调试</h2><h3 id="6-1-多核独立切换"><a href="#6-1-多核独立切换" class="headerlink" title="6.1 多核独立切换"></a>6.1 多核独立切换</h3><p>在 SMP 多核系统中，每个核心的 TrustZone 行为完全独立。任意数量的核心可以在任意时刻同时处于 Secure world，一个核心在加密、另一个在跑 Linux 用户程序、第三个在 idle——不需要任何同步。各核心之间的世界切换互不感知。</p>
 <p>不过工程实践中有一个折中：ARM Programmer’s Guide 建议 Secure world OS 只跑在单个核心上，其他核心的安全请求通过 IPC 路由到这个指定核心。不是因为做不到多核 Secure OS，而是减少攻击面——少一个跑 Secure 代码的核心，就少一套可能被侧信道攻击的执行上下文。</p>
 <p>共享硬件组件（SCU 缓存一致性控制器、GIC 中断控制器）也必须感知安全状态——它们并不会给 Normal world 随意配置安全相关寄存器。</p>
-<img src="/images/TrustZone-5.png" width="67%">
+<img src="/images/TrustZone-5.png" width="100%">
 
 <h3 id="6-2-调试隔离"><a href="#6-2-调试隔离" class="headerlink" title="6.2 调试隔离"></a>6.2 调试隔离</h3><p>TrustZone 对调试的管控是最容易被忽略的防线。JTAG 调试器和 Trace 数据流的控制可以按世界独立配置：你可以选择只允许调试 Normal world、完全屏蔽 Secure world 的寄存器、内存和指令流。而且这不是软件拦截——是硬件开关。即使攻击者物理接入 JTAG 接口，Secure world 内部的信息也不会从调试通道泄漏。</p>
 <hr>
