@@ -29,7 +29,7 @@
 <meta property="og:image" content="http://yoursite.com/images/%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86-1.jpg">
 <meta property="og:image" content="http://yoursite.com/images/%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86-2.png">
 <meta property="article:published_time" content="2026-07-28T13:12:45.000Z">
-<meta property="article:modified_time" content="2026-07-29T13:35:48.599Z">
+<meta property="article:modified_time" content="2026-07-29T14:30:44.228Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -279,7 +279,7 @@
 <li>一个 Cluster 中所有 CPU 都空闲，可以关闭整个 Cluster。</li>
 <li>整个 SoC 都空闲，可以让 DRAM 进入 Self-refresh 等更深层的低功耗状态。</li>
 </ul>
-<p>因此，Idle Management 关注的是**”暂时没有工作”时如何尽可能降低功耗，并在需要时快速恢复运行。**</p>
+<p>因此，Idle Management 关注的是<strong>暂时没有工作时如何尽可能降低功耗，并在需要时快速恢复运行。</strong></p>
 <h3 id="2-2-Hotplug（热插拔）"><a href="#2-2-Hotplug（热插拔）" class="headerlink" title="2.2 Hotplug（热插拔）"></a>2.2 Hotplug（热插拔）</h3><p>Hotplug 用于<strong>长期不需要某个 CPU 核心</strong>的场景。</p>
 <p>与 Idle 不同，Hotplug 会将 CPU 从操作系统的调度域中移除，不再参与线程调度，也不会响应普通调度请求。只有当系统再次需要更多计算能力时，操作系统才会重新将该 CPU 上线。</p>
 <p>除了电源管理外，Hotplug 也常用于多核启动过程：主核完成系统初始化后，再依次启动其余 CPU。</p>
