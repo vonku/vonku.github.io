@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="从软件开发者视角理解 ARMv7-A 虚拟化扩展的设计思想，以及 Hypervisor 如何借助硬件实现多个 Guest OS 的安全隔离。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM 虚拟化">
+<meta property="og:url" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="从软件开发者视角理解 ARMv7-A 虚拟化扩展的设计思想，以及 Hypervisor 如何借助硬件实现多个 Guest OS 的安全隔离。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/1.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/2.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/3.png">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/4.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/5.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/6.jpg">
+<meta property="article:published_time" content="2026-07-29T13:08:17.000Z">
+<meta property="article:modified_time" content="2026-07-29T13:13:36.759Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/1.jpg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/","path":"2026/07/29/ARM-虚拟化/","title":"ARM 虚拟化"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM 虚拟化 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%BC%95%E8%A8%80"><span class="nav-text">1. 引言</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-ARMv7-A-%E8%99%9A%E6%8B%9F%E5%8C%96%E6%89%A9%E5%B1%95"><span class="nav-text">1.1 ARMv7-A 虚拟化扩展</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-Hypervisor-%E7%9A%84%E4%B8%A4%E7%A7%8D%E9%83%A8%E7%BD%B2%E6%96%B9%E5%BC%8F"><span class="nav-text">1.2 Hypervisor 的两种部署方式</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-PL2-%E7%89%B9%E6%9D%83%E7%BA%A7%E5%88%AB"><span class="nav-text">2. PL2 特权级别</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-Bare-Metal-%E8%99%9A%E6%8B%9F%E5%8C%96%E7%9A%84%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">2.1 Bare Metal 虚拟化的启动流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%A4%E9%98%B6%E6%AE%B5%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91"><span class="nav-text">3. 两阶段地址翻译</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Stage-1-PL1-0-%EF%BC%9AGuest-OS-%E7%9C%BC%E4%B8%AD%E7%9A%84%E2%80%9D%E7%89%A9%E7%90%86%E5%9C%B0%E5%9D%80%E2%80%9D"><span class="nav-text">3.1 Stage 1 (PL1&amp;0)：Guest OS 眼中的”物理地址”</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-Stage-2-PL1-0-%EF%BC%9AHypervisor-%E6%8E%A7%E5%88%B6%E7%9A%84-IPA-%E2%86%92-PA"><span class="nav-text">3.2 Stage 2 (PL1&amp;0)：Hypervisor 控制的 IPA → PA</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-Stage-2-%E5%A7%8B%E7%BB%88%E7%94%B1-Hypervisor-%E6%8E%A7%E5%88%B6"><span class="nav-text">3.3 Stage 2 始终由 Hypervisor 控制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-PL2-%E7%BF%BB%E8%AF%91%E6%9C%BA%E5%88%B6%EF%BC%9AHypervisor-%E8%87%AA%E5%B7%B1%E7%9A%84-VA-%E2%86%92-PA"><span class="nav-text">3.4 PL2 翻译机制：Hypervisor 自己的 VA → PA</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E4%B8%89%E7%A7%8D%E7%BF%BB%E8%AF%91%E6%9C%BA%E5%88%B6%E5%AF%B9%E6%AF%94"><span class="nav-text">3.5 三种翻译机制对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Stage-2-%E6%95%85%E9%9A%9C%E5%A4%84%E7%90%86%E7%9A%84%E7%BB%86%E8%8A%82"><span class="nav-text">4. Stage 2 故障处理的细节</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Hypervisor-%E8%BD%AF%E4%BB%B6%E7%9A%84%E8%81%8C%E8%B4%A3%E5%85%A8%E6%99%AF"><span class="nav-text">5. Hypervisor 软件的职责全景</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86"><span class="nav-text">5.1 内存管理</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E8%AE%BE%E5%A4%87%E6%A8%A1%E6%8B%9F-Device-Emulation"><span class="nav-text">5.2 设备模拟 (Device Emulation)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E8%AE%BE%E5%A4%87%E5%88%86%E9%85%8D-Device-Assignment"><span class="nav-text">5.3 设备分配 (Device Assignment)</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E4%B8%8E%E8%99%9A%E6%8B%9F%E5%BC%82%E5%B8%B8"><span class="nav-text">5.4 异常处理与虚拟异常</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96"><span class="nav-text">5.5 中断虚拟化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-Guest-%E8%B0%83%E5%BA%A6"><span class="nav-text">5.6 Guest 调度</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-7-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2"><span class="nav-text">5.7 上下文切换</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E8%99%9A%E6%8B%9F%E5%8C%96%E4%B8%8E-TrustZone-%E5%AE%89%E5%85%A8%E6%89%A9%E5%B1%95%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="nav-text">6. 虚拟化与 TrustZone 安全扩展的关系</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-LPAE%EF%BC%9A%E4%B8%BA%E8%99%9A%E6%8B%9F%E5%8C%96%E5%87%86%E5%A4%87%E7%9A%84%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E6%89%A9%E5%B1%95"><span class="nav-text">7. LPAE：为虚拟化准备的地址空间扩展</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-Long-Descriptor-%E6%A0%BC%E5%BC%8F"><span class="nav-text">7.1 Long-Descriptor 格式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-Long-Descriptor-%E4%B8%89%E7%BA%A7%E9%A1%B5%E8%A1%A8%E7%BB%93%E6%9E%84"><span class="nav-text">7.2 Long-Descriptor 三级页表结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-VMID%EF%BC%9A%E4%B8%BA%E8%99%9A%E6%8B%9F%E5%8C%96%E8%80%8C%E7%94%9F%E7%9A%84-TLB-%E6%A0%87%E7%AD%BE"><span class="nav-text">7.3 VMID：为虚拟化而生的 TLB 标签</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9%E6%80%BB%E7%BB%93"><span class="nav-text">8. 关键要点总结</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">71</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM 虚拟化 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM 虚拟化
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-29 21:08:17" itemprop="dateCreated datePublished" datetime="2026-07-29T21:08:17+08:00">2026-07-29</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>从软件开发者视角理解 ARMv7-A 虚拟化扩展的设计思想，以及 Hypervisor 如何借助硬件实现多个 Guest OS 的安全隔离。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-引言"><a href="#1-引言" class="headerlink" title="1. 引言"></a>1. 引言</h2><p>现代 Cortex-A 处理器拥有越来越强的计算能力，但很多场景并不满足于”运行一个操作系统”。</p>
+<p>例如，在一辆智能汽车中，娱乐系统通常运行 Linux，而制动、转向等安全关键任务则运行实时操作系统（RTOS）。两者需要共享同一套硬件平台，却又必须彼此隔离：Linux 的崩溃不能影响 RTOS，普通应用也不能访问安全关键资源。</p>
+<p>类似的需求也广泛存在于工业控制、通信设备和云服务器中。它们希望：</p>
+<ul>
+<li>在一颗 CPU 上同时运行多个操作系统；</li>
+<li>每个操作系统拥有独立的地址空间和设备资源；</li>
+<li>一个系统发生故障，不影响其他系统继续运行。</li>
+</ul>
+<p>最直接的办法当然是使用多颗 CPU，但这意味着更高的成本、更大的功耗以及更复杂的硬件设计。</p>
+<p>于是，虚拟化提供了另一种思路：</p>
+<blockquote>
+<p><strong>让一颗物理 CPU 看起来像多颗独立的 CPU，每个操作系统都认为自己独占整个系统。</strong></p>
+</blockquote>
+<p>这就是虚拟化（Virtualization）的核心思想。</p>
+<p>然而，这里马上会产生一个新的问题。</p>
+<p>Linux 内核一直认为自己运行在处理器的最高特权级，可以自由访问所有内存、控制所有外设、响应所有异常。如果现在同时运行两个 Linux，它们都会认为自己拥有整个系统，那么冲突几乎不可避免。</p>
+<p>因此，要实现虚拟化，仅仅依靠软件远远不够。<strong>处理器必须提供专门的硬件支持</strong>，让多个 Guest OS 都能够正常运行，却又始终处于 Hypervisor 的管理之下。</p>
+<h3 id="1-1-ARMv7-A-虚拟化扩展"><a href="#1-1-ARMv7-A-虚拟化扩展" class="headerlink" title="1.1 ARMv7-A 虚拟化扩展"></a>1.1 ARMv7-A 虚拟化扩展</h3><p>ARMv7-A 虚拟化扩展并不是重新设计处理器，而是在原有架构基础上增加了一系列专门面向虚拟化的硬件能力，使多个 Guest OS 能够在同一套硬件上高效运行，并尽可能无需修改原有代码。</p>
+<p>主要新增了以下四项能力：</p>
+<ul>
+<li><strong>Hyp Mode（PL2）</strong>：新增比 PL1 更高的特权级，专门运行 Hypervisor，负责管理 Guest OS 和系统资源。</li>
+<li><strong>Stage 2 地址翻译</strong>：在传统 MMU 的基础上增加第二阶段地址翻译，使 Hypervisor 能够控制 Guest 对物理内存的访问。</li>
+<li><strong>中断虚拟化</strong>：物理中断可以先路由到 Hypervisor，再由 Hypervisor 转发给对应的 Guest，实现多个 Guest 共享同一套中断控制器。</li>
+<li><strong>HVC（Hypervisor Call）指令</strong>：Guest OS 可通过 HVC 主动请求 Hypervisor 提供服务，类似于用户程序通过 SVC 调用操作系统。</li>
+</ul>
+<p>这些硬件机制共同构成了 ARMv7-A 虚拟化扩展的基础。它们的目标只有一个：</p>
+<blockquote>
+<p><strong>让多个 Guest OS 都认为自己独占整台机器，而实际的资源分配和访问控制则全部由 Hypervisor 负责。</strong></p>
+</blockquote>
+<p>后续章节将分别介绍这些机制的工作原理，其中最核心的便是 <strong>Hyp Mode</strong> 和 <strong>两阶段地址翻译（Stage 2 Translation）</strong>。</p>
+<h3 id="1-2-Hypervisor-的两种部署方式"><a href="#1-2-Hypervisor-的两种部署方式" class="headerlink" title="1.2 Hypervisor 的两种部署方式"></a>1.2 Hypervisor 的两种部署方式</h3><p>Hypervisor 根据自身所处的位置，通常分为两种类型。</p>
+<ul>
+<li><strong>Type 1（Bare Metal Hypervisor）</strong>：Hypervisor 直接运行在硬件之上，最先接管处理器和外设，再启动各个 Guest OS。由于没有 Host OS 参与，资源控制能力强、开销低，因此广泛应用于服务器、汽车电子和工业控制等场景。</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"> Guest OS</span><br><span class="line"> Guest OS</span><br><span class="line"> Guest OS</span><br><span class="line">───────────────</span><br><span class="line"> Hypervisor</span><br><span class="line">───────────────</span><br><span class="line"> Hardware</span><br></pre></td></tr></table></figure>
+
+<p>常见实现包括 <strong>Xen、Jailhouse、VMware ESXi</strong> 等。</p>
+<hr>
+<ul>
+<li><strong>Type 2（Hosted Hypervisor）</strong>：Hypervisor 作为普通应用运行在 Host OS 之上，由 Host OS 负责管理硬件资源，再由 Hypervisor 为 Guest OS 构建虚拟机。这种方式开发简单，更适合桌面开发和测试环境。</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"> Guest OS</span><br><span class="line">───────────────</span><br><span class="line"> Hypervisor</span><br><span class="line">───────────────</span><br><span class="line"> Host OS</span><br><span class="line">───────────────</span><br><span class="line"> Hardware</span><br></pre></td></tr></table></figure>
+
+<p>典型代表包括 <strong>VirtualBox、VMware Workstation</strong>。</p>
+<hr>
+<p>不过，对于 ARMv7-A 虚拟化扩展来说，这种分类并不是重点。无论 Hypervisor 属于哪一种类型，它们最终都依赖处理器提供的 Hyp Mode、两级地址翻译和虚拟中断等硬件机制来管理 Guest OS。本文后续讨论的内容，同样适用于这两类 Hypervisor。</p>
+<hr>
+<h2 id="2-PL2-特权级别"><a href="#2-PL2-特权级别" class="headerlink" title="2. PL2 特权级别"></a>2. PL2 特权级别</h2><p>在虚拟化扩展出现之前，ARMv7-A 的 Normal World 中只有两个特权级别：</p>
+<table>
+<thead>
+<tr>
+<th>特权级别</th>
+<th>运行模式</th>
+<th>典型软件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PL0</td>
+<td>User (USR)</td>
+<td>用户态应用程序</td>
+</tr>
+<tr>
+<td>PL1</td>
+<td>SVC, FIQ, IRQ, ABT, UND, SYS</td>
+<td>操作系统内核</td>
+</tr>
+</tbody></table>
+<p>虚拟化扩展新增了一个更高的特权级——<strong>PL2</strong>，以及对应的 <strong>Hyp mode</strong>（模式编码 <code>11010</code>）。Hyp mode 仅存在于 <strong>Non-secure（Normal）World</strong>，专门用于运行 Hypervisor。</p>
+<p>它具有以下几个特点：</p>
+<ul>
+<li>拥有独立的 <strong>SP_hyp</strong> 和 <strong>SPSR_hyp</strong>，与 PL1 的寄存器相互隔离。</li>
+<li>复用 User 模式的 <strong>LR</strong> 作为函数返回地址，并新增专用的 <strong>ELR_hyp</strong> 保存异常返回地址。</li>
+<li>只有 Hyp mode 才能访问虚拟化扩展提供的相关功能。</li>
+</ul>
+<p>需要注意两点：</p>
+<ol>
+<li><strong>SP_hyp</strong>、<strong>SPSR_hyp</strong> 是独立的 banked 寄存器，而 <strong>ELR_hyp</strong> 是 Hyp mode 专用的异常返回寄存器。</li>
+<li><strong>Hyp mode 仅存在于 Normal World</strong>。与之对应，Monitor（MON）模式属于 Secure World 的 PL1，负责 TrustZone 的世界切换，两者职责完全不同。</li>
+</ol>
+<p>下图展示了 Normal World 和 Secure World 中各特权级别的分布：</p>
+<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/1.jpg" alt="1"></p>
+<h3 id="2-1-Bare-Metal-虚拟化的启动流程"><a href="#2-1-Bare-Metal-虚拟化的启动流程" class="headerlink" title="2.1 Bare Metal 虚拟化的启动流程"></a>2.1 Bare Metal 虚拟化的启动流程</h3><p>在 <strong>Type 1（Bare Metal）</strong> 虚拟化中，Hypervisor 是系统启动后运行的最高特权 Non-secure 软件。它首先完成自身初始化，然后为各个 Guest OS 建立运行环境，最后依次启动它们。</p>
+<p>典型启动流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">Boot</span><br><span class="line">  │</span><br><span class="line">  ▼</span><br><span class="line">Hypervisor（PL2）初始化</span><br><span class="line">  ├─ 建立自身页表（HTTBR）</span><br><span class="line">  ├─ 为各 Guest 建立 Stage 2 页表（VTTBR）</span><br><span class="line">  ├─ 配置中断路由</span><br><span class="line">  └─ 启动各 Guest OS（进入 PL1）</span><br><span class="line">        │</span><br><span class="line">        ├── Guest 1</span><br><span class="line">        ├── Guest 2</span><br><span class="line">        └── ...</span><br></pre></td></tr></table></figure>
+
+<p>从 Guest OS 的视角看，它仍然运行在 PL1，并认为自己独占整台机器；而 Hypervisor 始终运行在 PL2，负责管理所有 Guest 以及底层硬件资源。</p>
+<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/2.jpg" alt="2"></p>
+<hr>
+<h2 id="3-两阶段地址翻译"><a href="#3-两阶段地址翻译" class="headerlink" title="3. 两阶段地址翻译"></a>3. 两阶段地址翻译</h2><p>虚拟化最大的挑战在于：<strong>Guest OS 认为自己拥有整个物理内存。</strong></p>
+<p>例如，Guest Linux 建立了一张页表，将虚拟地址映射到 <code>0x80000000</code>。如果处理器直接把这个地址当作真实物理地址访问，那么多个 Guest 就会读写同一块内存，彼此完全无法隔离。</p>
+<p>因此，ARMv7-A 虚拟化扩展在传统 MMU 的基础上增加了<strong>第二阶段地址翻译（Stage 2 Translation）</strong>。</p>
+<p>在传统系统中，地址只需翻译一次：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VA ── Stage 1 ──→ PA</span><br></pre></td></tr></table></figure>
+
+<p>Stage 1 页表由操作系统维护，MMU 根据页表直接得到物理地址。</p>
+<p>而在虚拟化系统中，地址需要经过两次翻译：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">VA ── Stage 1 ──→ IPA ── Stage 2 ──→ PA</span><br><span class="line">      Guest OS          Hypervisor</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><strong>Stage 1</strong> 仍由 Guest OS 管理，将虚拟地址（VA）转换为<strong>中间物理地址（IPA）</strong>。</li>
+<li><strong>Stage 2</strong> 由 Hypervisor 管理，再将 IPA 转换为真正的物理地址（PA）。</li>
+</ul>
+<p>Guest OS 始终认为自己得到的是物理地址，实际上它看到的只是 IPA，真正的物理内存布局完全由 Hypervisor 决定。</p>
+<p>也正因为如此，多个 Guest 即使都把自己的内核放在 <code>0x80000000</code>，最终仍可以映射到不同的物理内存，而彼此互不干扰。</p>
+<p><strong>注意：</strong></p>
+<ul>
+<li><strong>Stage 2 的页表由 Hypervisor 创建和维护，但实际的 IPA → PA 转换由 MMU 硬件在 Guest 运行过程中自动完成，并不会进入 Hyp mode。</strong></li>
+</ul>
+<h3 id="3-1-Stage-1-PL1-0-：Guest-OS-眼中的”物理地址”"><a href="#3-1-Stage-1-PL1-0-：Guest-OS-眼中的”物理地址”" class="headerlink" title="3.1 Stage 1 (PL1&amp;0)：Guest OS 眼中的”物理地址”"></a>3.1 Stage 1 (PL1&amp;0)：Guest OS 眼中的”物理地址”</h3><p>Stage 1 页表完全由 <strong>Guest OS</strong> 管理。Guest 像运行在裸机上一样，配置 TTBR0&#x2F;TTBR1、建立页表、设置访问权限，MMU 的工作方式与传统系统没有任何区别。</p>
+<p>唯一的不同在于，Stage 1 的输出不再是真正的物理地址（PA），而是<strong>中间物理地址（Intermediate Physical Address，IPA）</strong>。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VA ── Stage 1（Guest OS）──→ IPA</span><br></pre></td></tr></table></figure>
+
+<p>虽然称为 <strong>IPA</strong>，但 <strong>Guest 并不知道它的存在</strong>。在 Guest 看来，Stage 1 输出的就是”物理地址”，它会像往常一样继续访问内存。</p>
+<p>实际上，这个地址还会经过 Hypervisor 控制的 <strong>Stage 2</strong> 翻译，最终才能得到真正的物理地址（PA）。</p>
+<p>因此，可以把 Stage 1 理解为<strong>Guest OS 眼中的地址翻译</strong>：Guest 始终认为自己控制着整个物理内存，而真正的物理内存布局则完全由 Stage 2 决定。</p>
+<h3 id="3-2-Stage-2-PL1-0-：Hypervisor-控制的-IPA-→-PA"><a href="#3-2-Stage-2-PL1-0-：Hypervisor-控制的-IPA-→-PA" class="headerlink" title="3.2 Stage 2 (PL1&amp;0)：Hypervisor 控制的 IPA → PA"></a>3.2 Stage 2 (PL1&amp;0)：Hypervisor 控制的 IPA → PA</h3><p>Stage 2 由运行在 <strong>PL2 Hyp mode 的 Hypervisor 控制</strong>。</p>
+<p>Hypervisor 通过 <code>VTTBR</code> 指向 Stage 2 页表：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">IPA ── Stage 2 ──→ PA</span><br></pre></td></tr></table></figure>
+
+<p>Stage 2 的作用是控制：</p>
+<ul>
+<li>Guest 的物理地址空间；</li>
+<li>Guest 可访问的内存范围；</li>
+<li>不同 Guest 之间的内存隔离。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">              Stage 2</span><br><span class="line">Guest A:</span><br><span class="line">IPA 0x40000000  ───────────&gt;  PA 0x80000000</span><br><span class="line"></span><br><span class="line">Guest B:</span><br><span class="line">IPA 0x40000000  ───────────&gt;  PA 0x90000000</span><br></pre></td></tr></table></figure>
+
+<p>两个 Guest 可以拥有完全一样的 IPA 地址，但最终映射到不同的物理内存。</p>
+<h3 id="3-3-Stage-2-始终由-Hypervisor-控制"><a href="#3-3-Stage-2-始终由-Hypervisor-控制" class="headerlink" title="3.3 Stage 2 始终由 Hypervisor 控制"></a>3.3 Stage 2 始终由 Hypervisor 控制</h3><p>Suest OS 运行在 PL1，通过 <code>SCTLR.M</code> 控制自己的 Stage 1：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">SCTLR.M = 1  →  Stage 1 enabled</span><br><span class="line">SCTLR.M = 0  →  Stage 1 disabled</span><br></pre></td></tr></table></figure>
+
+<p>而 Hypervisor 运行在 PL2 Hyp mode，通过 <code>HSCTLR</code>、<code>HCR</code>、<code>VTTBR</code> 等寄存器控制虚拟化环境。Stage 2 的启用和页表映射由 Hypervisor 管理，不受 Guest 的 <code>SCTLR.M</code> 影响。</p>
+<p>因此，即使 Guest OS 关闭自己的 MMU，访问仍然需要经过 Hypervisor 控制的 Stage 2 转换。：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Guest Address ── Stage 2 ──&gt; Physical Address</span><br></pre></td></tr></table></figure>
+
+<p>这正是 ARMv7-A 虚拟化隔离的关键：</p>
+<ul>
+<li>Stage 1 负责 Guest OS 自己的虚拟地址空间；</li>
+<li>Stage 2 负责 Hypervisor 对 Guest 物理地址空间的管理。</li>
+</ul>
+<p>两者相互独立：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">Guest PL1:  SCTLR.M  ──&gt;  Stage 1  ──&gt;  IPA</span><br><span class="line"></span><br><span class="line">Hyp PL2:    HCR + VTTBR  ──&gt;  Stage 2  ──&gt;  PA</span><br></pre></td></tr></table></figure>
+
+<p>因此，Guest OS 虽然拥有完整的内存管理能力，但它管理的只是自己的地址视图；真实物理内存的分配和隔离始终由 Hypervisor 控制。</p>
+<h3 id="3-4-PL2-翻译机制：Hypervisor-自己的-VA-→-PA"><a href="#3-4-PL2-翻译机制：Hypervisor-自己的-VA-→-PA" class="headerlink" title="3.4 PL2 翻译机制：Hypervisor 自己的 VA → PA"></a>3.4 PL2 翻译机制：Hypervisor 自己的 VA → PA</h3><p>Hypervisor 运行在 ARMv7-A 的 PL2 Hyp mode 下，同样需要访问内存。因此，ARM 为 Hyp 模式提供了独立的地址翻译机制。</p>
+<p>与 Guest 不同，Hypervisor 不经过 Stage 2：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Hyp VA ── PL2 Translation ──&gt; PA</span><br></pre></td></tr></table></figure>
+
+<p>PL2 使用 Hypervisor 自己维护的页表，由 <code>HTTBR</code>（Hyp Translation Table Base Register）指向。</p>
+<p>因此，地址转换关系为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Guest:</span><br><span class="line"></span><br><span class="line">VA ── Stage 1 ──&gt; IPA ── Stage 2 ──&gt; PA</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Hypervisor:</span><br><span class="line"></span><br><span class="line">VA ── PL2 Translation ──&gt; PA</span><br></pre></td></tr></table></figure>
+
+<p>Hypervisor 拥有整个系统的资源管理权限，因此不需要像 Guest 一样通过 Stage 2 虚拟化自己的物理地址视图。</p>
+<h3 id="3-5-三种翻译机制对比"><a href="#3-5-三种翻译机制对比" class="headerlink" title="3.5 三种翻译机制对比"></a>3.5 三种翻译机制对比</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">模式              地址转换路径                                控制者</span><br><span class="line">──────────────────────────────────────────────────────────────────────</span><br><span class="line">PL1&amp;0 (裸机)      VA ── Stage 1 ──&gt; PA                       OS</span><br><span class="line"></span><br><span class="line">PL1&amp;0 (虚拟化)    VA ── Stage 1 ──&gt; IPA ── Stage 2 ──&gt; PA</span><br><span class="line">                                                           Guest OS</span><br><span class="line">                                                         + Hypervisor</span><br><span class="line"></span><br><span class="line">PL2 (Hyp)         VA ── PL2 Translation ──&gt; PA              Hypervisor</span><br></pre></td></tr></table></figure>
+
+<p>这三种翻译机制共存于同一个 MMU 硬件中。</p>
+<p>当处理器运行在不同模式下时，MMU 根据当前特权级别选择对应的页表和翻译路径：</p>
+<ul>
+<li>Guest PL1&#x2F;0 使用 Guest 的 Stage 1；</li>
+<li>Hypervisor PL2 使用自己的 Hyp 页表；</li>
+<li>Stage 2 只用于 Guest 对物理资源的访问。</li>
+</ul>
+<p>因此，Guest OS 只看到自己的 Stage 1 地址空间，并不知道 Hypervisor 在背后额外进行了一次 IPA → PA 转换。</p>
+<hr>
+<h2 id="4-Stage-2-故障处理的细节"><a href="#4-Stage-2-故障处理的细节" class="headerlink" title="4. Stage 2 故障处理的细节"></a>4. Stage 2 故障处理的细节</h2><p>两级地址转换意味着故障也分属于不同层级。</p>
+<p>Stage 1 和 Stage 2 的页表由不同的软件维护，因此对应的异常处理者也不同：</p>
+<ul>
+<li><strong>Stage 1 故障</strong>（例如 Guest 页表缺失、访问权限错误）<br> → 进入 Guest OS 的 Abort handler，由 Guest 自己处理。</li>
+<li><strong>Stage 2 故障</strong>（例如 Hypervisor 未建立对应 IPA 的映射、访问权限不允许）<br> → 进入 Hyp 模式，由 Hypervisor 捕获并处理。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Guest VA ── Stage 1 ──&gt; IPA ── Stage 2 ──X</span><br><span class="line">                                      |</span><br><span class="line">                                      v</span><br><span class="line">                                  Hyp mode</span><br><span class="line">                              (Hypervisor处理)</span><br></pre></td></tr></table></figure>
+
+<p>Stage 2 fault 对 Guest OS 是不可见的。Guest 只知道自己的内存访问失败，而具体原因（IPA 无映射、权限限制等）由 Hypervisor 决定。</p>
+<p>Hypervisor 可以根据故障类型采取不同策略：</p>
+<ul>
+<li>对于合法场景（例如动态分配 Guest 内存），建立新的 Stage 2 映射后继续执行；</li>
+<li>对于非法访问或不可恢复错误，可以终止 Guest。</li>
+</ul>
+<p>因此，两级翻译机制形成了清晰的故障隔离：</p>
+<blockquote>
+<p>Guest OS 负责管理自己的 Stage 1 地址空间；Hypervisor 负责管理 Stage 2 映射以及对应的资源隔离。</p>
+</blockquote>
+<p>简单来说：</p>
+<p><strong>谁维护页表，谁处理对应层级的故障。</strong></p>
+<hr>
+<h2 id="5-Hypervisor-软件的职责全景"><a href="#5-Hypervisor-软件的职责全景" class="headerlink" title="5. Hypervisor 软件的职责全景"></a>5. Hypervisor 软件的职责全景</h2><p>以”功能清单”的方式逐一列出了 Hypervisor 的职责。我将它们重新组织为六个核心维度来阐述。</p>
+<h3 id="5-1-内存管理"><a href="#5-1-内存管理" class="headerlink" title="5.1 内存管理"></a>5.1 内存管理</h3><p>内存管理是 Hypervisor 最基础的任务。归纳了三层内存管理：</p>
+<p>在 Secure&#x2F;Non-secure 两套 TTBR 之外，还有 <strong>VTTBR</strong>（指向当前 Guest 的 Stage 2 页表）和 <strong>HTTBR</strong>（指向 Hypervisor 自身的 PL2 页表）。</p>
+<table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>用途</th>
+<th>格式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>TTBR (Secure)</td>
+<td>Secure 世界 Stage 1 页表</td>
+<td>短描述符 &#x2F; 长描述符</td>
+</tr>
+<tr>
+<td>TTBR (Non-secure)</td>
+<td>Guest OS 使用的 Stage 1 页表</td>
+<td>短描述符 &#x2F; 长描述符</td>
+</tr>
+<tr>
+<td>VTTBR</td>
+<td>指向当前 Guest 的 Stage 2 页表</td>
+<td><strong>仅长描述符</strong></td>
+</tr>
+<tr>
+<td>HTTBR</td>
+<td>指向 Hypervisor 自身的 PL2 页表</td>
+<td><strong>仅长描述符</strong></td>
+</tr>
+</tbody></table>
+<p>两个关键设计点：</p>
+<ul>
+<li><strong>VTTBR 和 HTTBR 强制使用 long-descriptor 格式</strong>（短描述符的最大物理地址范围不足以支持虚拟化场景）</li>
+<li><strong>Stage 2 的 Abort 都在 Hyp 模式处理</strong>——Hypervisor 可以决定是分配更多物理内存还是终止 Guest</li>
+</ul>
+<p><strong>实例：三个 Guest 的 Stage 2 页表共存</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">物理内存布局 (1GB total):</span><br><span class="line"> PA 0x0000_0000 — 0x0FFF_FFFF → Hypervisor 自身使用</span><br><span class="line"> PA 0x1000_0000 — 0x3FFF_FFFF → Guest A 独占区</span><br><span class="line"> PA 0x4000_0000 — 0x5FFF_FFFF → Guest B 独占区</span><br><span class="line"> PA 0x6000_0000 — 0x7FFF_FFFF → Guest C 独占区</span><br><span class="line"></span><br><span class="line">Guest A 的 Stage 2 页表 (VTTBR → 指向):</span><br><span class="line"> IPA 0x0000_0000–0x2FFF_FFFF → PA 0x1000_0000–0x3FFF_FFFF</span><br><span class="line"> (Guest A 看到的&quot;物理内存&quot; 0–768MB，实际在 PA 256MB–1GB)</span><br><span class="line"></span><br><span class="line">Guest B 的 Stage 2 页表 (VTTBR → 指向):</span><br><span class="line"> IPA 0x0000_0000–0x1FFF_FFFF → PA 0x4000_0000–0x5FFF_FFFF</span><br><span class="line"> (Guest B 看到的&quot;物理内存&quot; 0–512MB，实际在 PA 1GB–1.5GB)</span><br><span class="line"></span><br><span class="line">Guest C 的 Stage 2 页表 (VTTBR → 指向):</span><br><span class="line"> IPA 0x0000_0000–0x1FFF_FFFF → PA 0x6000_0000–0x7FFF_FFFF</span><br><span class="line"></span><br><span class="line">切换 Guest 时: VTTBR 值更新 → 新的 Stage 2 页表生效 → 同名 IPA 映射到不同 PA</span><br><span class="line"> 三个 Guest 都认为&quot;物理内存从 0 开始&quot;，实际使用互不重叠的物理区域</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-设备模拟-Device-Emulation"><a href="#5-2-设备模拟-Device-Emulation" class="headerlink" title="5.2 设备模拟 (Device Emulation)"></a>5.2 设备模拟 (Device Emulation)</h3><p>平台设备通常采用 <strong>Memory-mapped I&#x2F;O（MMIO）</strong> 方式访问。Guest 访问设备寄存器地址时，该访问同样会经过 Stage 2 翻译。</p>
+<p>如果 Hypervisor 没有在对应 IPA 区域的 Stage 2 页表中建立有效映射，MMU 会触发 <strong>Stage 2 Abort</strong>，随后陷入 Hyp 模式。</p>
+<p>Hypervisor 在 Abort handler 中分析异常原因，识别出这是 Guest 对设备寄存器的访问后，可以通过软件模拟设备行为：</p>
+<ul>
+<li>返回虚拟寄存器值；</li>
+<li>模拟写入效果；</li>
+<li>更新设备状态；</li>
+<li>触发虚拟中断。</li>
+</ul>
+<p>需要注意的是：</p>
+<blockquote>
+<p>Stage 2 fault 并不是设备模拟本身，而是 Hypervisor 利用 Stage 2 fault 作为一种“陷入机制”，主动截获 Guest 对设备的访问。</p>
+</blockquote>
+<p>设备模拟主要解决两个问题：</p>
+<ol>
+<li><p><strong>共享设备仲裁</strong></p>
+<p>多个 Guest 都知道并使用同一个平台设备，但不能允许 Guest 直接访问真实硬件。</p>
+<p>Hypervisor 截获访问请求，通过软件模拟统一管理设备状态，避免多个 Guest 之间产生冲突。</p>
+</li>
+<li><p><strong>设备隐藏</strong></p>
+<p>某些设备不应该暴露给 Guest，例如：</p>
+<ul>
+<li>设备已经分配给其他 Guest；</li>
+<li>设备只允许 Hypervisor 使用；</li>
+<li>平台安全策略禁止 Guest 访问。</li>
+</ul>
+<p>此时 Hypervisor 可以不建立对应 Stage 2 映射，使访问触发 fault，并返回虚拟设备信息。</p>
+</li>
+</ol>
+<p><strong>实例：Hypervisor 用 Stage 2 fault 模拟 UART 设备</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">平台 UART 真实地址: PA 0xE000_1000</span><br><span class="line">Guest A 认为 UART 在: IPA 0x2000_0000</span><br><span class="line">Guest B 认为 UART 在: IPA 0x2000_0000</span><br><span class="line"></span><br><span class="line">Hypervisor 的策略: 不为 UART 区域在 Stage 2 页表中建立任何映射</span><br><span class="line"></span><br><span class="line">Guest A 执行: STR R0, [0x2000_0000] (写 UART 数据寄存器)</span><br><span class="line"> Stage 1: VA → IPA 0x2000_0000 (成功)</span><br><span class="line"> Stage 2: IPA 0x2000_0000 → fault（未映射）→ 进入 Hyp mode</span><br><span class="line"> Hypervisor Abort handler:</span><br><span class="line"> 1. 识别 fault address = 0x2000_0000 → 属于 UART 区域</span><br><span class="line"> 2. 读取 Guest A 的上下文 → 知道 Guest A 在写数据</span><br><span class="line"> 3. 软件模拟: 将数据写入真实 UART PA 0xE000_1000</span><br><span class="line"> 4. 模拟 UART 状态寄存器变化 → 设置虚拟 IRQ (HCR.VI=1)</span><br><span class="line"> 5. 返回 Guest A → Guest A 的写指令&quot;成功完成&quot;</span><br><span class="line"></span><br><span class="line">结果: Guest A &quot;以为&quot;自己成功访问了地址 0x2000_0000 上的 UART</span><br><span class="line"> 实际上 Hypervisor 软件完成了真正的硬件操作</span><br><span class="line"> Guest A 完全不知道这中间发生了什么</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-设备分配-Device-Assignment"><a href="#5-3-设备分配-Device-Assignment" class="headerlink" title="5.3 设备分配 (Device Assignment)"></a>5.3 设备分配 (Device Assignment)</h3><p>设备模拟功能强大，但代价高昂——每次 Guest 访问设备都必须陷入 Hyp 模式进行软件模拟。描述了另一种选择：</p>
+<p>Hypervisor 还可以将设备”赠与”某个 Guest 独占——Guest 可以直接操作设备而无需 Hypervisor 介入，性能接近裸机。挑战在于通过 Stage 2 映射和中断虚拟化隐藏设备的真实物理地址和中断号。</p>
+<p>设备分配的思路很简单：<strong>把设备”送给”某个 Guest 独占</strong>。挑战在于两点：</p>
+<ul>
+<li>设备的真实物理地址可能与 Guest 预期的不一致 → 通过 Stage 2 映射修正</li>
+<li>设备产生的中断 ID 可能与 Guest 预期的不一致 → 通过中断虚拟化修正</li>
+<li>一旦映射建立，Guest 就可以直接访问该设备，<strong>无需 Hypervisor 介入</strong>——性能接近裸机</li>
+</ul>
+<p>通过 Stage 2 的透明映射和虚拟中断，Hypervisor 可以让 Guest 以为设备就在它期望的地址上。</p>
+<p><strong>实例：将 NIC 设备”赠与”Guest B 独占使用</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">真实 NIC 物理地址: PA 0xE000_2000</span><br><span class="line">真实 NIC 中断号: IRQ #42</span><br><span class="line">Guest B 期望 NIC 在: IPA 0x1C00_0000, Virtual IRQ #17</span><br><span class="line"></span><br><span class="line">Hypervisor 配置 Stage 2 映射:</span><br><span class="line"> IPA 0x1C00_0000–0x1C00_0FFF → PA 0xE000_2000–0xE000_2FFF</span><br><span class="line"></span><br><span class="line">Hypervisor 配置中断虚拟化:</span><br><span class="line"> Physical IRQ #42 → Virtual IRQ #17 → 注入 Guest B</span><br><span class="line"></span><br><span class="line">结果:</span><br><span class="line"> Guest B 认为 NIC 位于 0x1C00_0000，中断号为 #17</span><br><span class="line"> 实际访问的是 PA 0xE000_2000，中断号为 #42</span><br><span class="line"></span><br><span class="line">Stage 2 隐藏设备地址差异，Interrupt virtualization 隐藏中断号差异。</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-4-异常处理与虚拟异常"><a href="#5-4-异常处理与虚拟异常" class="headerlink" title="5.4 异常处理与虚拟异常"></a>5.4 异常处理与虚拟异常</h3><p>ARM 虚拟化扩展引入了 <strong>虚拟异常（Virtual Exceptions）</strong> 的概念，这是虚拟化环境中隔离 Guest 与真实硬件的重要机制。</p>
+<p><strong>物理异常（Physical Exception）</strong> 是硬件真实产生的事件，例如：外设产生 IRQ&#x2F;FIQ、MMU 触发 Abort、执行非法指令产生 Undefined Exception。</p>
+<p><strong>虚拟异常（Virtual Exception）</strong> 是由 Hypervisor 注入给 Guest 的异常事件。它可能对应真实的物理异常，也可能完全由 Hypervisor 软件模拟产生，例如模拟设备产生的虚拟中断。</p>
+<p>关键区别在于：</p>
+<ul>
+<li><strong>物理异常属于 Hypervisor 管理范围；</strong></li>
+<li><strong>虚拟异常属于 Guest OS 感知范围。</strong></li>
+</ul>
+<p>典型流程如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">物理异常 ──&gt; Hypervisor ──&gt; 虚拟异常 ──&gt; Guest OS</span><br></pre></td></tr></table></figure>
+
+<p>当真实物理异常发生后，Hypervisor 可以根据当前虚拟化策略决定：</p>
+<ul>
+<li>由自己处理；</li>
+<li>转换成虚拟异常注入 Guest；</li>
+<li>完全模拟一个不存在的硬件事件。</li>
+</ul>
+<p>因此，Guest OS 看到的只是虚拟异常，并不知道底层真实硬件事件的存在。</p>
+<p>例如：</p>
+<ul>
+<li>真实 UART 产生物理 IRQ；</li>
+<li>Hypervisor 捕获该事件；</li>
+<li>更新虚拟 UART 状态；</li>
+<li>通过虚拟 GIC 注入 Virtual IRQ；</li>
+<li>Guest UART 驱动收到中断。</li>
+</ul>
+<p>从 Guest 角度看，它只是收到了一个普通设备中断。</p>
+<p><strong>实例：Hypervisor 利用 HCR 注入虚拟 IRQ 到 Guest</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">Hypervisor 收到物理 IRQ #37（以太网控制器）</span><br><span class="line">        |</span><br><span class="line">        v</span><br><span class="line">判断该设备属于当前 Guest</span><br><span class="line"></span><br><span class="line">Step 1 — Hypervisor 处理物理中断，并准备注入虚拟 IRQ</span><br><span class="line"> 真实设备:</span><br><span class="line">   Physical IRQ #37</span><br><span class="line"> Guest 看到:</span><br><span class="line">   Virtual IRQ #17</span><br><span class="line"></span><br><span class="line">Step 2 — Hypervisor 更新虚拟 GIC 状态</span><br><span class="line"> Virtual IRQ #17 = Pending</span><br><span class="line"> （虚拟 GIC 保存虚拟中断状态，</span><br><span class="line">  HCR.VI 用于控制虚拟 IRQ 路由）</span><br><span class="line"></span><br><span class="line">Step 3 — 返回 Guest 执行</span><br><span class="line"> CPU 检测到：</span><br><span class="line"> - Virtual IRQ pending</span><br><span class="line"> - HCR 允许虚拟 IRQ 注入</span><br><span class="line"> - Guest CPSR.I 未屏蔽 IRQ</span><br><span class="line"></span><br><span class="line"> → 向 Guest 注入 Virtual IRQ #17</span><br><span class="line"> Guest 进入 IRQ mode，</span><br><span class="line"> 执行自己的 ISR handler</span><br><span class="line"></span><br><span class="line">Step 4 — Guest 完成中断处理</span><br><span class="line"> Guest 写 Virtual GIC EOI</span><br><span class="line"> Virtual GIC 清除 Virtual IRQ #17 的 active/pending 状态</span><br><span class="line"> Guest 继续正常执行</span><br></pre></td></tr></table></figure>
+
+<p>同样，HCR.VF（bit 6）对应虚拟 FIQ，HCR.VI（bit 7）对应虚拟 IRQ，HCR.VA（bit 8）对应虚拟 Abort，这些位是 ARMv7-A 虚拟化扩展提供的虚拟异常注入机制。</p>
+<p>下图汇总了物理中断从产生、被 Hypervisor 截获、到最终注入虚拟中断的完整路由路径：</p>
+<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/3.png" alt="3"></p>
+<h3 id="5-5-中断虚拟化"><a href="#5-5-中断虚拟化" class="headerlink" title="5.5 中断虚拟化"></a>5.5 中断虚拟化</h3><p>虚拟化环境中的中断处理比裸机系统复杂，因为中断目标可能不是当前正在运行的 Guest。</p>
+<p>例如：</p>
+<ul>
+<li>当前核心上正在运行的 Guest → Hypervisor 可以直接注入虚拟中断；</li>
+<li>另一个核心上的 Guest → Hypervisor 需要进行跨核调度和中断转发；</li>
+<li>已经挂起的 Guest → Hypervisor 需要保存中断状态，等待 Guest 下次运行时注入。</li>
+</ul>
+<p>解决方案：<strong>Hypervisor 接管物理中断，并负责虚拟中断分发。</strong></p>
+<p>注入流程如下：</p>
+<ol>
+<li>物理中断触发 → 根据配置进入 Hyp 模式 → Hypervisor 处理；</li>
+<li>Hypervisor 判断该中断属于哪个 Guest，以及 Guest 当前是否正在运行；</li>
+<li>Hypervisor 通过虚拟 GIC 设置对应的 Virtual IRQ&#x2F;FIQ 状态，恢复 Guest 执行后，由硬件向 Guest 注入虚拟异常。</li>
+</ol>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Physical IRQ ──&gt; Hypervisor ──&gt; Virtual GIC ──&gt; Virtual IRQ ──&gt; Guest OS</span><br></pre></td></tr></table></figure>
+
+<p>Guest OS 收到的是一个普通的中断事件，处理流程与裸机环境完全一致。它只知道自己收到了一次设备中断，并不知道该中断实际上经过了 Hypervisor 的转换和注入。</p>
+<h3 id="5-6-Guest-调度"><a href="#5-6-Guest-调度" class="headerlink" title="5.6 Guest 调度"></a>5.6 Guest 调度</h3><p>Hypervisor 负责调度 Guest 的虚拟 CPU（vCPU）到物理 CPU 核心上，这与传统 OS 调度任务类似。</p>
+<p>区别在于：</p>
+<ul>
+<li>OS 调度的是进程&#x2F;线程；</li>
+<li>Hypervisor 调度的是 vCPU。</li>
+</ul>
+<p>Guest OS 认为自己的 vCPU 就是真实 CPU，可以像裸机一样运行自己的调度器，管理内部线程和进程，而不知道底层物理 CPU 的分配情况。</p>
+<p>调度链如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Hypervisor 调度 vCPU（粗粒度）</span><br><span class="line">        |</span><br><span class="line">        v</span><br><span class="line">Guest OS 调度线程/进程（细粒度）</span><br></pre></td></tr></table></figure>
+
+<p>这种两级调度结构是虚拟化系统的典型特征：</p>
+<ul>
+<li>Hypervisor 负责物理 CPU 资源分配；</li>
+<li>Guest OS 负责自身任务调度。</li>
+</ul>
+<p>Guest OS 只看到自己的 vCPU，并不知道它实际运行在哪个物理核心上。</p>
+<h3 id="5-7-上下文切换"><a href="#5-7-上下文切换" class="headerlink" title="5.7 上下文切换"></a>5.7 上下文切换</h3><p>当 Hypervisor 将一个 Guest 换出、切换到另一个 Guest 时，需要保存当前 Guest 的运行状态，并恢复目标 Guest 的上下文。</p>
+<p>Guest 上下文切换需要保存和恢复：</p>
+<ul>
+<li>通用寄存器（包括各异常模式下的 banked 寄存器）；</li>
+<li>系统寄存器（MMU、权限控制等配置）；</li>
+<li>虚拟中断状态（pending &#x2F; active）；</li>
+<li>虚拟定时器状态。</li>
+</ul>
+<p>上下文切换流程：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">保存 Guest A 上下文  →  恢复 Guest B 上下文</span><br><span class="line"></span><br><span class="line">├─ 通用寄存器 R0-R14 + banked 寄存器</span><br><span class="line">├─ 系统寄存器 SCTLR、TTBR0/TTBR1、TTBCR、DACR 等</span><br><span class="line">├─ 虚拟 GIC 中断状态（pending / active）</span><br><span class="line">└─ 虚拟定时器寄存器</span><br></pre></td></tr></table></figure>
+
+<p><strong>实例：一次完整的 Guest 上下文切换</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">切换场景：</span><br><span class="line">Guest A (Linux) 被换出 → Guest B (RTOS) 被换入</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Hypervisor 保存 Guest A 状态：</span><br><span class="line"></span><br><span class="line">R0-R14</span><br><span class="line">→ 保存到 Guest A 上下文区域</span><br><span class="line"></span><br><span class="line">R13_usr、R13_svc、R13_irq、R13_abt、R13_und、R13_fiq</span><br><span class="line">→ 保存各模式 Stack Pointer</span><br><span class="line"></span><br><span class="line">SPSR_svc、SPSR_irq、SPSR_abt、SPSR_und、SPSR_fiq</span><br><span class="line">→ 保存异常返回状态</span><br><span class="line"></span><br><span class="line">TTBR0、TTBR1、TTBCR、DACR、SCTLR</span><br><span class="line">→ 保存 Guest A 的 Stage 1 MMU 配置</span><br><span class="line"></span><br><span class="line">Virtual GIC 状态</span><br><span class="line">→ 保存 Guest A 的虚拟中断状态</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">恢复 Guest B：</span><br><span class="line"></span><br><span class="line">加载 Guest B 上下文</span><br><span class="line">更新 VTTBR 指向 Guest B 的 Stage 2 页表</span><br><span class="line"></span><br><span class="line">ERET 返回 Guest B</span><br></pre></td></tr></table></figure>
+
+<p>注意：<strong>物理内存页本身不参与保存和恢复。</strong></p>
+<p>Stage 2 翻译保证不同 Guest 使用不同的物理内存区域，Guest 切换时只需要：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">更新 VTTBR</span><br><span class="line">        |</span><br><span class="line">        v</span><br><span class="line">切换到新的 Stage 2 地址空间</span><br></pre></td></tr></table></figure>
+
+<p>而不需要复制或搬移内存内容。</p>
+<p>这也是虚拟化高效运行的关键：Hypervisor 切换的是 <strong>CPU 状态和地址映射关系</strong>，而不是整个 Guest 的内存。</p>
+<hr>
+<h2 id="6-虚拟化与-TrustZone-安全扩展的关系"><a href="#6-虚拟化与-TrustZone-安全扩展的关系" class="headerlink" title="6. 虚拟化与 TrustZone 安全扩展的关系"></a>6. 虚拟化与 TrustZone 安全扩展的关系</h2><p>ARM 系统中存在两条正交的隔离轴：</p>
+<ul>
+<li><strong>特权级别（Exception Level &#x2F; Privilege Level）</strong></li>
+<li><strong>安全状态（Secure &#x2F; Non-secure）</strong></li>
+</ul>
+<p>两者独立工作，共同决定当前代码运行环境。</p>
+<p>在 ARMv7-A 中：</p>
+<ul>
+<li>TrustZone 将系统划分为 Normal World 和 Secure World；</li>
+<li>Virtualization Extension 在 Normal World 中增加 PL2 Hyp mode。</li>
+</ul>
+<p>两者关系如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Normal World                  Secure World</span><br><span class="line">─────────────                 ────────────</span><br><span class="line">PL0: User                    PL0: User</span><br><span class="line"></span><br><span class="line">PL1: SVC, ABT, IRQ,          PL1: SVC, ABT, IRQ,</span><br><span class="line">     FIQ, UND, SYS                 FIQ, UND, SYS</span><br><span class="line"></span><br><span class="line">PL2: Hyp                     Monitor mode</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><strong>Hyp mode（PL2）属于 Normal World，用于运行 Hypervisor；</strong></li>
+<li><strong>Monitor mode 属于 TrustZone，用于 Secure &#x2F; Non-secure 世界切换。</strong></li>
+</ul>
+<hr>
+<p>关键结论：</p>
+<p>Hypervisor 的控制范围仅限于 <strong>Normal World</strong>。</p>
+<p>它可以管理：</p>
+<ul>
+<li>Guest OS；</li>
+<li>Normal World 内存；</li>
+<li>Normal World 设备；</li>
+<li>虚拟中断和 CPU 资源。</li>
+</ul>
+<p>但它不能直接控制 Secure World：</p>
+<ul>
+<li>不能访问 Secure World 内存；</li>
+<li>不能修改 Secure OS 状态；</li>
+<li>不能替代 Monitor mode。</li>
+</ul>
+<p>Secure World 由 Secure Monitor 管理，通过 <code>SMC</code> 指令完成 Normal World 与 Secure World 的切换。</p>
+<hr>
+<h2 id="7-LPAE：为虚拟化准备的地址空间扩展"><a href="#7-LPAE：为虚拟化准备的地址空间扩展" class="headerlink" title="7. LPAE：为虚拟化准备的地址空间扩展"></a>7. LPAE：为虚拟化准备的地址空间扩展</h2><p>虚拟化扩展要求处理器同时实现 <strong>LPAE（Large Physical Address Extension）</strong>。</p>
+<p>原因有两个：</p>
+<ol>
+<li>多 Guest 运行会增加物理内存需求；</li>
+<li>更重要的是，ARMv7-A 的 <strong>Stage 2 翻译依赖 LPAE 的 long-descriptor 格式</strong>。</li>
+</ol>
+<p>传统 ARMv7-A：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VA ── Stage 1 ──→ PA</span><br></pre></td></tr></table></figure>
+
+<p>物理地址通常限制在 32-bit（最大 4GB）。</p>
+<p>而虚拟化环境：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VA ── Stage 1 ──→ IPA ── Stage 2 ──→ PA</span><br></pre></td></tr></table></figure>
+
+<p>需要 Hypervisor 管理更大的物理地址空间。</p>
+<p>LPAE 将物理地址扩展到 <strong>40-bit（最大 1TB）</strong>：</p>
+<ul>
+<li>虚拟地址仍保持 32-bit；</li>
+<li>物理地址扩展到 40-bit；</li>
+<li>支持 long-descriptor 页表格式；</li>
+<li>支持 Stage 2 地址翻译。</li>
+</ul>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Guest A:</span><br><span class="line">IPA 0x40000000 → PA 0x08_0000_0000</span><br><span class="line"></span><br><span class="line">Guest B:</span><br><span class="line">IPA 0x40000000 → PA 0x18_0000_0000</span><br></pre></td></tr></table></figure>
+
+<p>不同 Guest 可以拥有相同 IPA，而通过 Stage 2 映射到不同物理地址。</p>
+<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/4.jpg" alt="4"></p>
+<hr>
+<h3 id="7-1-Long-Descriptor-格式"><a href="#7-1-Long-Descriptor-格式" class="headerlink" title="7.1 Long-Descriptor 格式"></a>7.1 Long-Descriptor 格式</h3><p>虚拟化 + LPAE 引入新的页表格式：</p>
+<p><strong>long-descriptor（64-bit 描述符）</strong></p>
+<p>与传统 short-descriptor 共存。</p>
+<p>Long-descriptor 特性：</p>
+<ul>
+<li>64-bit 页表描述符；</li>
+<li>最多三级页表；</li>
+<li>支持 40-bit 物理地址；</li>
+<li>支持 1GB &#x2F; 2MB &#x2F; 4KB 页；</li>
+<li>支持 Stage 2 翻译；</li>
+<li>支持 PXN 权限控制；</li>
+<li>支持 Shareable 属性。</li>
+</ul>
+<p>与短描述符类似：</p>
+<ul>
+<li>使用 TTBR0&#x2F;TTBR1 指向页表；</li>
+<li>使用 TTBCR 控制地址空间划分。</li>
+</ul>
+<p>区别：</p>
+<ul>
+<li>Stage 1 可以使用 short 或 long descriptor；</li>
+<li>Stage 2 只能使用 long descriptor。</li>
+</ul>
+<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/5.jpg" alt="5"></p>
+<hr>
+<h3 id="7-2-Long-Descriptor-三级页表结构"><a href="#7-2-Long-Descriptor-三级页表结构" class="headerlink" title="7.2 Long-Descriptor 三级页表结构"></a>7.2 Long-Descriptor 三级页表结构</h3><p>对于 <strong>32-bit VA + 4KB 页</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">VA[31:30] → Level 1 索引</span><br><span class="line">VA[29:21] → Level 2 索引</span><br><span class="line">VA[20:12] → Level 3 索引</span><br><span class="line">VA[11:0]  → 页内偏移</span><br></pre></td></tr></table></figure>
+
+<p>页表结构：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">Level 1</span><br><span class="line"> |</span><br><span class="line"> +-- Block descriptor → 1GB 区域</span><br><span class="line"> |</span><br><span class="line"> +-- Table descriptor</span><br><span class="line">        |</span><br><span class="line">        v</span><br><span class="line">     Level 2</span><br><span class="line">        |</span><br><span class="line">        +-- Block descriptor → 2MB 区域</span><br><span class="line">        |</span><br><span class="line">        +-- Table descriptor</span><br><span class="line">               |</span><br><span class="line">               v</span><br><span class="line">            Level 3</span><br><span class="line">               |</span><br><span class="line">               +-- Page descriptor → 4KB 页面</span><br></pre></td></tr></table></figure>
+
+<p>一次 Stage 1 翻译：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VA → L1 → L2 → L3 → PA</span><br></pre></td></tr></table></figure>
+
+<p>最多需要 3 次页表访问。</p>
+<p>如果开启 Stage 2：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">VA</span><br><span class="line"> |</span><br><span class="line">Stage 1</span><br><span class="line"> |</span><br><span class="line">IPA</span><br><span class="line"> |</span><br><span class="line">Stage 2</span><br><span class="line"> |</span><br><span class="line">PA</span><br></pre></td></tr></table></figure>
+
+<p>两个阶段都可能需要三级页表查询，因此最坏可能产生 6 次页表访问。</p>
+<p>这也是为什么虚拟化系统依赖 TLB 缓存转换结果。</p>
+<p><img src="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/6.jpg" alt="6"></p>
+<hr>
+<p><strong>实例：一次 LPAE 地址翻译</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">VA = 0x0040_1234</span><br><span class="line"></span><br><span class="line">Level 1:</span><br><span class="line">VA[31:30] = 0</span><br><span class="line">→ 查询 L1 Table[0]</span><br><span class="line"></span><br><span class="line">Level 2:</span><br><span class="line">VA[29:21] = 0x002</span><br><span class="line">→ 查询 L2 Table[2]</span><br><span class="line"></span><br><span class="line">Level 3:</span><br><span class="line">VA[20:12] = 0x012</span><br><span class="line">→ 查询 L3 Table[18]</span><br><span class="line"></span><br><span class="line">得到:</span><br><span class="line">VA 0x0040_1234 → PA 0x08_0000_2234</span><br></pre></td></tr></table></figure>
+
+<p>结果：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">3 次页表查询完成地址翻译</span><br><span class="line">输出 40-bit 物理地址</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="7-3-VMID：为虚拟化而生的-TLB-标签"><a href="#7-3-VMID：为虚拟化而生的-TLB-标签" class="headerlink" title="7.3 VMID：为虚拟化而生的 TLB 标签"></a>7.3 VMID：为虚拟化而生的 TLB 标签</h3><p>虚拟化扩展在 <strong>VTTBR</strong> 中引入 <strong>VMID（Virtual Machine ID）</strong>，用于区分不同 Guest 的 Stage 2 地址空间。</p>
+<p>传统系统：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ASID + VA → PA</span><br></pre></td></tr></table></figure>
+
+<p>ASID 用于区分不同进程。</p>
+<p>虚拟化后：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Stage 1:</span><br><span class="line"></span><br><span class="line">ASID + VA → IPA</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Stage 2:</span><br><span class="line"></span><br><span class="line">VMID + IPA → PA</span><br></pre></td></tr></table></figure>
+
+<p>VMID 用于区分不同 Guest。</p>
+<p>例如：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">Guest A:</span><br><span class="line">VMID=1</span><br><span class="line">IPA 0x40000000 → PA 0x80000000</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">Guest B:</span><br><span class="line">VMID=2</span><br><span class="line">IPA 0x40000000 → PA 0x90000000</span><br></pre></td></tr></table></figure>
+
+<p>即使两个 Guest 使用相同地址，TLB 也不会混淆。</p>
+<p>因此，切换 Guest 时无需刷新整个 TLB，只需要切换 VTTBR 指向新的 Stage 2 页表。</p>
+<p>VMID 是 ARMv7-A 虚拟化能够高效运行的重要硬件支持。</p>
+<hr>
+<h2 id="8-关键要点总结"><a href="#8-关键要点总结" class="headerlink" title="8. 关键要点总结"></a>8. 关键要点总结</h2><ol>
+<li><strong>PL2 (Hyp mode)</strong> 是 ARMv7-A 虚拟化扩展的核心硬件增强——一个高于 Guest OS 的特权级别，仅存在于 Normal World，用于运行 Hypervisor。</li>
+<li><strong>Stage 2 翻译是虚拟化隔离的核心</strong>——地址转换流程为：</li>
+</ol>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VA → IPA → PA</span><br></pre></td></tr></table></figure>
+
+<p>其中 Stage 1 由 Guest OS 控制，将 VA 转换为 IPA；Stage 2 由 Hypervisor 控制，将 IPA 转换为真实物理地址。Guest OS 认为 IPA 就是自己的物理地址，无法感知 Stage 2 的存在。</p>
+<ol>
+<li><strong>Stage 2 不受 Guest 控制</strong>——即使 Guest OS 关闭自己的 Stage 1（MMU disabled），Guest 的地址访问仍然受到 Hypervisor 管理的 Stage 2 约束。</li>
+<li><strong>三种地址翻译机制共存</strong>：</li>
+</ol>
+<ul>
+<li>PL1&amp;0 Stage 1：Guest OS 控制，VA → IPA；</li>
+<li>PL1&amp;0 Stage 2：Hypervisor 控制，IPA → PA；</li>
+<li>PL2 翻译：Hypervisor 自身使用，VA → PA。</li>
+</ul>
+<ol>
+<li><strong>虚拟异常是 Hypervisor 注入的事件</strong>——物理异常由 Hypervisor 根据配置进行处理，必要时向 Guest 注入虚拟 IRQ&#x2F;FIQ&#x2F;Abort，让 Guest 以为自己直接处理硬件异常。</li>
+<li><strong>中断虚拟化让 Hypervisor 管理物理中断分发</strong>——物理中断可以路由到 Hyp 模式，由 Hypervisor 判断归属，并转换为虚拟中断交付给对应 Guest。</li>
+<li><strong>Guest 上下文切换只保存 CPU 状态，不搬移内存内容</strong>——切换时主要保存寄存器、系统寄存器、中断状态和定时器状态；通过切换 VTTBR 指向不同 Stage 2 页表，实现 Guest 内存隔离。</li>
+<li><strong>Hypervisor 与 TrustZone 是两条独立隔离路径</strong>——运行在 Normal World PL2 的 Hypervisor 无法控制 Secure World，Secure World 由 Monitor 和 Secure OS 管理。</li>
+<li><strong>LPAE 为虚拟化提供地址空间支持</strong>——将物理地址扩展到 40-bit（最大 1TB），并提供 long-descriptor 页表格式。Stage 2、VTTBR 和 HTTBR 使用 long-descriptor 格式。</li>
+<li><strong>VMID 用于区分不同 Guest 的 Stage 2 地址空间</strong>——与 ASID 一起帮助 TLB 区分不同虚拟机和进程，使 Guest 切换时无需刷新整个 TLB，提高虚拟化性能。</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/28/ARM-TrustZone/" rel="prev" title="ARM TrustZone">
+                  <i class="fa fa-angle-left"></i> ARM TrustZone
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/07/29/ARM-big-LITTLE/" rel="next" title="ARM big.LITTLE">
+                  ARM big.LITTLE <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

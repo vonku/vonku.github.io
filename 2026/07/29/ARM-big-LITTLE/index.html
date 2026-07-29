@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="移动 SoC 如何平衡”高性能”与”长续航”这对根本矛盾？本文从 ARM big.LITTLE 的硬件架构出发，逐一拆解 Cluster 迁移、CPU 迁移、Global Task Scheduling 三种软件执行模型和五种任务迁移机制，完整揭示操作系统调度器在异构核心间做决策的底层逻辑。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ARM big.LITTLE">
+<meta property="og:url" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="移动 SoC 如何平衡”高性能”与”长续航”这对根本矛盾？本文从 ARM big.LITTLE 的硬件架构出发，逐一拆解 Cluster 迁移、CPU 迁移、Global Task Scheduling 三种软件执行模型和五种任务迁移机制，完整揭示操作系统调度器在异构核心间做决策的底层逻辑。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/1.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/2.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/3.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/4.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/5.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/6.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/7.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/8.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/9.jpg">
+<meta property="article:published_time" content="2026-07-29T13:08:37.000Z">
+<meta property="article:modified_time" content="2026-07-29T13:18:06.609Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARM">
+<meta property="article:tag" content="ARMv7-a">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/1.jpg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/07/29/ARM-big-LITTLE/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/29/ARM-big-LITTLE/","path":"2026/07/29/ARM-big-LITTLE/","title":"ARM big.LITTLE"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>ARM big.LITTLE | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E7%A7%BB%E5%8A%A8%E5%A4%84%E7%90%86%E5%99%A8%E7%9A%84%E6%80%A7%E8%83%BD%E4%B8%8E%E5%8A%9F%E8%80%97%E6%82%96%E8%AE%BA"><span class="nav-text">1. 移动处理器的性能与功耗悖论</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-big-LITTLE-%E7%B3%BB%E7%BB%9F%E7%9A%84%E7%89%A9%E7%90%86%E6%9E%B6%E6%9E%84"><span class="nav-text">2. big.LITTLE 系统的物理架构</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%A0%B8%E5%BF%83%E7%BB%84%E6%88%90%E4%B8%8E-ISA-%E4%B8%80%E8%87%B4%E6%80%A7"><span class="nav-text">2.1 核心组成与 ISA 一致性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E7%A1%AC%E4%BB%B6-Cache-%E4%B8%80%E8%87%B4%E6%80%A7%EF%BC%9ACCI-400-%E7%9A%84%E8%A7%92%E8%89%B2"><span class="nav-text">2.2 硬件 Cache 一致性：CCI-400 的角色</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%85%B1%E4%BA%AB%E4%B8%AD%E6%96%AD%E6%8E%A7%E5%88%B6%E5%99%A8%EF%BC%9AGIC-400"><span class="nav-text">2.3 共享中断控制器：GIC-400</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%89%E7%A7%8D%E8%BD%AF%E4%BB%B6%E6%89%A7%E8%A1%8C%E6%A8%A1%E5%9E%8B"><span class="nav-text">3. 三种软件执行模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-Cluster-%E8%BF%81%E7%A7%BB"><span class="nav-text">3.1 Cluster 迁移</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-CPU-%E8%BF%81%E7%A7%BB%EF%BC%88In-Kernel-Switcher%EF%BC%89"><span class="nav-text">3.2 CPU 迁移（In Kernel Switcher）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%85%A8%E5%B1%80%E4%BB%BB%E5%8A%A1%E8%B0%83%E5%BA%A6-GTS"><span class="nav-text">3.3 全局任务调度 (GTS)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E4%BA%94%E7%A7%8D%E4%BB%BB%E5%8A%A1%E8%BF%81%E7%A7%BB%E6%9C%BA%E5%88%B6"><span class="nav-text">4. 五种任务迁移机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%BF%81%E7%A7%BB%E9%98%88%E5%80%BC"><span class="nav-text">4.1 迁移阈值</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-DVFS-%E6%84%9F%E7%9F%A5%E7%9A%84%E8%B4%9F%E8%BD%BD%E8%B7%9F%E8%B8%AA"><span class="nav-text">4.2 DVFS 感知的负载跟踪</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-Fork-%E8%BF%81%E7%A7%BB"><span class="nav-text">4.3 Fork 迁移</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-Wake-%E8%BF%81%E7%A7%BB"><span class="nav-text">4.4 Wake 迁移</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-Forced-%E8%BF%81%E7%A7%BB"><span class="nav-text">4.5 Forced 迁移</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-Idle-Pull-%E8%BF%81%E7%A7%BB"><span class="nav-text">4.6 Idle Pull 迁移</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-7-Offload-%E8%BF%81%E7%A7%BB"><span class="nav-text">4.7 Offload 迁移</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-8-%E4%BA%94%E7%A7%8D%E8%BF%81%E7%A7%BB%E6%9C%BA%E5%88%B6%E5%8D%8F%E5%90%8C%E5%85%A8%E6%99%AF"><span class="nav-text">4.8 五种迁移机制协同全景</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%AE%9E%E8%B7%B5%E6%95%88%E6%9E%9C%E4%B8%8E%E8%BD%AF%E4%BB%B6%E7%94%9F%E6%80%81"><span class="nav-text">5. 实践效果与软件生态</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E8%83%BD%E8%80%97%E4%B8%8E%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AE"><span class="nav-text">5.1 能耗与性能数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E4%B8%8E-DVFS-%E5%92%8C%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86%E7%9A%84%E9%9B%86%E6%88%90"><span class="nav-text">5.2 与 DVFS 和电源管理的集成</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E4%BC%A0%E7%BB%9F%E5%AF%B9%E7%A7%B0%E5%A4%9A%E5%A4%84%E7%90%86%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-text">5.3 传统对称多处理的对比</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%85%B3%E9%94%AE%E8%A6%81%E7%82%B9"><span class="nav-text">6. 关键要点</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">71</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">20</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/07/29/ARM-big-LITTLE/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="ARM big.LITTLE | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ARM big.LITTLE
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-07-29 21:08:37" itemprop="dateCreated datePublished" datetime="2026-07-29T21:08:37+08:00">2026-07-29</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>移动 SoC 如何平衡”高性能”与”长续航”这对根本矛盾？本文从 ARM big.LITTLE 的硬件架构出发，逐一拆解 Cluster 迁移、CPU 迁移、Global Task Scheduling 三种软件执行模型和五种任务迁移机制，完整揭示操作系统调度器在异构核心间做决策的底层逻辑。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-移动处理器的性能与功耗悖论"><a href="#1-移动处理器的性能与功耗悖论" class="headerlink" title="1. 移动处理器的性能与功耗悖论"></a>1. 移动处理器的性能与功耗悖论</h2><p>现代移动软件栈对处理器提出了相互矛盾的双重需求：一方面，游戏、视频渲染等场景需要极高的峰值性能；另一方面，音频播放、后台同步等低强度任务必须极度省电。传统设计的困境在于：<strong>单一微架构处理器不可能同时满足高性能和高能效这两端</strong>。用高性能核处理低强度任务会白白浪费能量、缩短电池续航；而在高性能场景中，核心又受制于热约束（thermal bounds）无法持续运行在最高频率。</p>
+<p>ARM 给出的答案是 <strong>big.LITTLE 技术</strong>——将高能效”LITTLE”核心与高性能”big”核心耦合在同一系统中。它属于<strong>异构多处理（Heterogeneous Multi-Processing, HMP）</strong>的一种实现。</p>
+<p>AMP, SMP和HMP的对比如下：</p>
+<table>
+<thead>
+<tr>
+<th>特征</th>
+<th>AMP (Asymmetric Multi-Processing)</th>
+<th>SMP (Symmetric Multi-Processing)</th>
+<th>HMP (Heterogeneous Multi-Processing)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>核心类型</td>
+<td>可以完全不同</td>
+<td>完全相同</td>
+<td>不同性能等级（big + LITTLE）</td>
+</tr>
+<tr>
+<td>指令集兼容性</td>
+<td>可以不同（如 Cortex-A + Cortex-M）</td>
+<td>一致（同一 ISA）</td>
+<td>100% 一致（通常同为 ARMv8-A）</td>
+</tr>
+<tr>
+<td>核心能力</td>
+<td>差异很大</td>
+<td>等价</td>
+<td>有性能差异</td>
+</tr>
+<tr>
+<td>Cache 一致性</td>
+<td>通常不要求（也可能有）</td>
+<td>必须支持一致性</td>
+<td>通常全部核心在同一一致性域内</td>
+</tr>
+<tr>
+<td>操作系统</td>
+<td>每个核心可能运行独立 OS</td>
+<td>所有核心运行同一 OS 镜像</td>
+<td>所有核心运行同一 OS 镜像</td>
+</tr>
+<tr>
+<td>调度方式</td>
+<td>静态分配，软件决定任务在哪个核</td>
+<td>OS 自动负载均衡</td>
+<td>OS 根据性能&#x2F;功耗选择核心</td>
+</tr>
+<tr>
+<td>OS 视角</td>
+<td>多个独立执行单元</td>
+<td>多个等价 CPU</td>
+<td>多个能力不同的 CPU</td>
+</tr>
+<tr>
+<td>典型场景</td>
+<td>Cortex-A + Cortex-M</td>
+<td>8× Cortex-A53</td>
+<td>4× Cortex-A53 + 2× Cortex-A73</td>
+</tr>
+<tr>
+<td>任务迁移</td>
+<td>通常不迁移</td>
+<td>任意迁移</td>
+<td>可以迁移，但需考虑代价</td>
+</tr>
+<tr>
+<td>主要目标</td>
+<td>分工协作</td>
+<td>提升吞吐</td>
+<td>平衡性能和功耗</td>
+</tr>
+</tbody></table>
+<p>核心前提是简洁的：<strong>big 和 LITTLE 共享相同的 ISA，软件同一份二进制可在两类核心上不加修改地运行</strong>。操作系统根据性能需求将线程动态分配到 big 或 LITTLE 核上——需要峰值性能时运行在 big 核上，其余大部分时间在 LITTLE 核上执行。</p>
+<p>要理解操作系统如何做出这个”该用大核还是小核”的决策，我们必须先从硬件层面的耦合方式入手。</p>
+<hr>
+<h2 id="2-big-LITTLE-系统的物理架构"><a href="#2-big-LITTLE-系统的物理架构" class="headerlink" title="2. big.LITTLE 系统的物理架构"></a>2. big.LITTLE 系统的物理架构</h2><p>要理解操作系统调度器如何在 big 和 LITTLE 核心之间迁移任务，必须先了解底层硬件的三项基础设施：<strong>两种核心的 ISA 一致性如何保证软件兼容、Cache 一致性如何让数据迁移透明高效、以及中断控制器如何让中断在异构核心间自由路由</strong>。这三者分别对应软件兼容性、数据通路和事件分发——缺一不可。</p>
+<p><img src="/2026/07/29/ARM-big-LITTLE/1.jpg" alt="1"></p>
+<h3 id="2-1-核心组成与-ISA-一致性"><a href="#2-1-核心组成与-ISA-一致性" class="headerlink" title="2.1 核心组成与 ISA 一致性"></a>2.1 核心组成与 ISA 一致性</h3><p>big.LITTLE 系统中的两类核心共享相同的指令集架构（ISA），差异仅在于内部微架构——这种微架构层面的设计取舍赋予了它们截然不同的功耗和性能特征。所有核心硬件 Cache 一致，同一份应用二进制不经修改即可在任一类型核心上运行。</p>
+<p>典型的配置以 Cortex-A7 作为 LITTLE 簇、Cortex-A15 作为 big 簇。LITTLE 簇负责处理音频播放、页面滚动、OS 事件等低强度、常驻后台的任务，big 簇则在游戏、视频处理等场景下投入运行。</p>
+<h3 id="2-2-硬件-Cache-一致性：CCI-400-的角色"><a href="#2-2-硬件-Cache-一致性：CCI-400-的角色" class="headerlink" title="2.2 硬件 Cache 一致性：CCI-400 的角色"></a>2.2 硬件 Cache 一致性：CCI-400 的角色</h3><p>在 big 和 LITTLE 簇之间迁移任务时，数据必须透明且高效地转移。如果缺乏硬件一致性支持，跨簇数据传输只能经过主存——这在速度和功耗上都是灾难，而且需要复杂的 cache 维护软件来保证数据正确。</p>
+<p>ARM 通过 <strong>CoreLink CCI-400</strong>（Cache Coherent Interconnect）提供硬件一致性支持。CCI-400 实现了 MOESI 协议，使得大数据可以直接在参与核心的 L1 Cache 之间传输，无需经主存中转。</p>
+<h3 id="2-3-共享中断控制器：GIC-400"><a href="#2-3-共享中断控制器：GIC-400" class="headerlink" title="2.3 共享中断控制器：GIC-400"></a>2.3 共享中断控制器：GIC-400</h3><p>除了数据一致性，中断路由也是异构系统必须解决的硬件问题。当中断可以在任意核心上触发时，迁移中断目标核心需要：</p>
+<ul>
+<li><strong>CoreLink GIC-400</strong>（Generic Interrupt Controller）：支持中断在选定的任意核心间迁移</li>
+<li>所有核心可以通过分布式中断控制器互相发信号</li>
+</ul>
+<p>任务切换完全由 OS 调度器处理，对应用程序透明。</p>
+<p>硬件提供了 Cache 一致性和中断可迁移性这两个基础能力。在此基础上，软件如何组织两类核心的协同工作，便有了三种不同的执行模型。</p>
+<hr>
+<h2 id="3-三种软件执行模型"><a href="#3-三种软件执行模型" class="headerlink" title="3. 三种软件执行模型"></a>3. 三种软件执行模型</h2><p>ARM 将 big.LITTLE 的软件执行模型分为两大类：<strong>迁移（Migration）</strong>和<strong>全局任务调度（Global Task Scheduling）</strong>。其中迁移模型又可以细分为 Cluster 迁移和 CPU 迁移。</p>
+<p>理解迁移模型的关键类比是 <strong>DVFS（Dynamic Voltage and Frequency Scaling）</strong>——迁移行为本质上可视为 DVFS 操作点过渡的自然延伸：负载增加时沿当前核心的 DVFS 曲线上行，当当前核心（或簇）达到最高操作点仍不够时，触发核心（或簇）迁移，在新的 DVFS 曲线上继续遍历操作点。</p>
+<p><img src="/2026/07/29/ARM-big-LITTLE/2.jpg" alt="2"></p>
+<p>这种设计将迁移泛化为 DVFS 系统的一个高阶操作点——设计哲学上与已有电源管理框架完全兼容。</p>
+<h3 id="3-1-Cluster-迁移"><a href="#3-1-Cluster-迁移" class="headerlink" title="3.1 Cluster 迁移"></a>3.1 Cluster 迁移</h3><p>Cluster Migration 是<strong>早期</strong> big.LITTLE 系统采用的一种运行模式。<strong>在任意时刻，系统只选择一个簇（big 或 LITTLE）作为主要计算簇运行，另一个簇处于关闭或非调度状态。</strong>只有在簇切换的短暂过程中，两个簇可能同时处于过渡状态。</p>
+<p>软件栈大部分时间运行在 LITTLE 簇上，仅在需要峰值性能时切换至 big 簇。这种模式要求两个簇具有相同数量的核心，因为切换过程本质上是两个对等 cluster 之间的整体替换。</p>
+<p>Cluster Migration 的主要缺陷是无法处理非均衡负载。当簇内只有一个核心负载较高，而其他核心处于空闲状态时，Cluster Migration 仍然会进行整个簇级别切换，导致不必要的性能和功耗开销。</p>
+<p><strong>实例：非均衡负载导致的”过度升级”</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">场景：4 核 LITTLE 簇，其中一个核心运行视频解码（高负载），其余核心空闲</span><br><span class="line"></span><br><span class="line">Cluster 迁移的行为：</span><br><span class="line">  步骤 1 — LITTLE 簇性能不足，达到当前 DVFS 上限</span><br><span class="line">  步骤 2 — 整体触发 Cluster 切换至 big 簇</span><br><span class="line">  步骤 3 — 整个 big 簇接管运行任务，视频解码迁移到对应的大核上继续执行</span><br><span class="line">  其余大核没有实际负载，但仍会带来额外的功耗开销</span><br><span class="line">  </span><br><span class="line">  净效果：为了满足单个高负载任务的性能需求，整体启用了 big 簇资源</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-CPU-迁移（In-Kernel-Switcher）"><a href="#3-2-CPU-迁移（In-Kernel-Switcher）" class="headerlink" title="3.2 CPU 迁移（In Kernel Switcher）"></a>3.2 CPU 迁移（In Kernel Switcher）</h3><p>CPU 迁移将粒度从”簇”细化到”核心对”：每个 big 核心与一个 LITTLE 核心组成一对。在任意时刻，每对中只有一个核心处于活跃状态，另一个核心被关闭或保持低功耗状态。</p>
+<p>在 Linaro In Kernel Switcher（IKS）实现中，操作系统看到的是若干个逻辑 CPU，每个逻辑 CPU 的底层物理实现可以根据负载需求，在 big 和 LITTLE 核心之间切换。</p>
+<p>与 Cluster 迁移的关键区别：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Cluster 迁移</th>
+<th>CPU 迁移</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>活跃核心</td>
+<td>同一时刻只有一个簇工作</td>
+<td>不同核心对可分别选择 big 或 LITTLE</td>
+</tr>
+<tr>
+<td>拓扑支持</td>
+<td>通常要求核心数量对称</td>
+<td>支持非完全对称拓扑</td>
+</tr>
+<tr>
+<td>粒度</td>
+<td>整个簇</td>
+<td>单个核心对</td>
+</tr>
+<tr>
+<td>代表实现</td>
+<td>—</td>
+<td>Linaro In Kernel Switcher (IKS)</td>
+</tr>
+</tbody></table>
+<p><img src="/2026/07/29/ARM-big-LITTLE/3.jpg" alt="3"></p>
+<p><strong>实例：3+2 非对称拓扑下的 CPU 迁移</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">配置：2 个 big 核（Cortex-A15），3 个 LITTLE 核（Cortex-A7）</span><br><span class="line"></span><br><span class="line">OS 视角：</span><br><span class="line">逻辑核 0：LITTLE0 ↔ big0</span><br><span class="line">逻辑核 1：LITTLE1 ↔ big1</span><br><span class="line">逻辑核 2：仅包含 LITTLE2（无对应 big 核）</span><br><span class="line"></span><br><span class="line">时刻 T0 — 低负载</span><br><span class="line">    逻辑核 0 — 活跃: LITTLE0，big0 关闭</span><br><span class="line">    逻辑核 1 — 活跃: LITTLE1，big1 关闭</span><br><span class="line">    逻辑核 2 — 活跃: LITTLE2</span><br><span class="line"></span><br><span class="line">结果：</span><br><span class="line">	3 个逻辑核心均运行在 LITTLE 核心上</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">时刻 T1 — 逻辑核 0 负载升高</span><br><span class="line">    逻辑核 0：</span><br><span class="line">      LITTLE0 达到性能瓶颈</span><br><span class="line">      → 触发 CPU 迁移</span><br><span class="line">      → 上下文切换至 big0</span><br><span class="line"></span><br><span class="line">结果：</span><br><span class="line">    逻辑核 0 — 活跃: big0</span><br><span class="line">    逻辑核 1 — 活跃: LITTLE1</span><br><span class="line">    逻辑核 2 — 活跃: LITTLE2</span><br><span class="line"></span><br><span class="line">此时 big 和 LITTLE 核心可以同时工作</span><br></pre></td></tr></table></figure>
+
+<p>然而，CPU 迁移的一对一绑定约束限制了核心利用率：同一个核心对中的 big 和 LITTLE 不能同时运行。当 big 和 LITTLE 数量不匹配时，多出的核心无法参与迁移配对，无法获得异构切换带来的性能收益。</p>
+<h3 id="3-3-全局任务调度-GTS"><a href="#3-3-全局任务调度-GTS" class="headerlink" title="3.3 全局任务调度 (GTS)"></a>3.3 全局任务调度 (GTS)</h3><p>ARM 将 big.LITTLE 的软件模型从早期的簇级迁移模型逐步演进到全局任务调度（Global Task Scheduling，GTS）。GTS 是 ARM big.LITTLE MP（Multi-Processing）方案中的核心调度思想。</p>
+<p>GTS 的核心突破在于：</p>
+<p><strong>操作系统调度器开始感知 big 和 LITTLE 核心之间的计算能力差异，而不是将所有 CPU 视为同等性能的处理单元。</strong></p>
+<p>它通过统计线程运行历史和负载变化，估计每个线程的性能需求，并据此决定线程应该运行在哪类核心上。</p>
+<p>例如：</p>
+<p>Cortex-A15 大核的单线程性能高于 Cortex-A7 小核。调度器通过维护不同核心的性能容量信息，将线程负载转换为统一的容量指标：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">         线程负载需求</span><br><span class="line">              |</span><br><span class="line">              v</span><br><span class="line">      +----------------+</span><br><span class="line">      |  调度器比较能力  |</span><br><span class="line">      +----------------+</span><br><span class="line">         /          \</span><br><span class="line">        /            \</span><br><span class="line">       v              v</span><br><span class="line">LITTLE 核心       big 核心</span><br><span class="line">容量较低          容量较高</span><br><span class="line"></span><br><span class="line">适合低负载        适合高负载</span><br></pre></td></tr></table></figure>
+
+<p>这样，调度器可以判断某个线程更适合运行在 LITTLE 核心还是 big 核心，而不是简单根据固定阈值进行核心切换。</p>
+<p>GTS 相对迁移模型的三大优势：</p>
+<ol>
+<li><strong>拓扑自由</strong>：big 和 LITTLE 核心数量可以任意不等</li>
+<li><strong>全核心利用</strong>：当需要峰值性能时，所有核心（big + LITTLE）可以同时上线</li>
+<li><strong>隔离执行</strong>：可将 big 簇专用于计算密集型线程，LITTLE 簇处理后台服务和中断——这使得重量级计算任务能更快完成，因为没有额外的后台线程干扰。</li>
+</ol>
+<p>中断也可以被定向到特定类型的核心——将高频系统中断绑定到 LITTLE 核，避免打断 big 核上的持续计算。GTS 确定了”按线程负载分配核心”的调度哲学，但具体的分配决策如何落地？big.LITTLE MP 通过五种不同场景触发的迁移机制来回答这个工程问题。</p>
+<hr>
+<h2 id="4-五种任务迁移机制"><a href="#4-五种任务迁移机制" class="headerlink" title="4. 五种任务迁移机制"></a>4. 五种任务迁移机制</h2><p>big.LITTLE MP 调度器的根本任务是决定：每个软件线程应该运行在 LITTLE 核心还是 big 核心上。</p>
+<h3 id="4-1-迁移阈值"><a href="#4-1-迁移阈值" class="headerlink" title="4.1 迁移阈值"></a>4.1 迁移阈值</h3><p>调度器通过比较每个线程的跟踪负载（tracked load）与两个可调阈值来做出迁移决策——上迁移阈值和下迁移阈值。</p>
+<ul>
+<li><strong>上迁移阈值（up migration threshold）</strong>：当前运行在 LITTLE 核心上的线程，其跟踪负载超过此阈值 → 判定为应从 LITTLE 迁移到 big</li>
+<li><strong>下迁移阈值（down migration threshold）</strong>：当前运行在 big 核心上的线程，其跟踪负载低于此阈值 → 判定为应从 big 迁移到 LITTLE</li>
+</ul>
+<p>这两个阈值之间存在明显的滞后（hysteresis）间隙——如上迁移阈值为 80%、下迁移阈值为 20%。这种设计防止了负载在阈值边界附近波动时引发频繁的迁移振荡（ping-pong effect）。当一个线程的负载从 79% 升到 81% 再降到 79% 时，如果没有滞后间隙，调度器会在两个核心之间来回迁移该线程——每次迁移都伴随着上下文保存&#x2F;恢复和 cache 重新填充的开销。</p>
+<p><img src="/2026/07/29/ARM-big-LITTLE/4.jpg" alt="4"></p>
+<p>同一簇内则适用标准的 Linux 调度器负载均衡——将负载均匀分散到簇内各核心；跨簇迁移则由 big.LITTLE MP 调度逻辑负责。</p>
+<h3 id="4-2-DVFS-感知的负载跟踪"><a href="#4-2-DVFS-感知的负载跟踪" class="headerlink" title="4.2 DVFS 感知的负载跟踪"></a>4.2 DVFS 感知的负载跟踪</h3><p>跟踪负载并非简单的运行时间统计。它被设计为与 DVFS 频率变化协同工作：<strong>调度器会根据当前核心频率对负载进行归一化（frequency invariance）</strong>，尽量消除频率变化对负载估计的影响。这避免了线程因核心降频而被错误地判定为”轻量”，使得 big.LITTLE MP 与 DVFS 能够协同工作。</p>
+<h3 id="4-3-Fork-迁移"><a href="#4-3-Fork-迁移" class="headerlink" title="4.3 Fork 迁移"></a>4.3 Fork 迁移</h3><p>当创建新的任务（如通过 <code>fork()</code> 或 <code>clone()</code>）时，没有历史负载数据可供参考。系统默认将新任务放置在 big 核心上，以降低高负载任务首次运行的响应延迟；如果后续判断其负载较低，再通过 Wake 迁移快速下迁至 LITTLE 核。</p>
+<p>三类任务的行为差异：</p>
+<ul>
+<li><strong>持续低强度任务</strong>（如 Android 系统服务）：仅在创建时短暂运行在 big 核上，随后快速下迁至 LITTLE 核，几乎无额外开销。</li>
+<li><strong>持续高强度任务</strong>：从 big 核启动，后续持续运行在 big 核——避免了”先在小核启动再迁移”的惩罚。</li>
+<li><strong>间歇性高强度任务</strong>：从 big 核启动，大多数调度周期保持在 big 核上，利用 big 核的加速优势。</li>
+</ul>
+<h3 id="4-4-Wake-迁移"><a href="#4-4-Wake-迁移" class="headerlink" title="4.4 Wake 迁移"></a>4.4 Wake 迁移</h3><p>当任务从睡眠中被唤醒时，调度器需要选择将其放置在哪个簇上。核心机制依赖于跟踪负载的<strong>睡眠不变性</strong>：负载指标在睡眠期间冻结在最后一次运行时的值。因此，周期性繁忙的任务唤醒时总是倾向于分配在 big 核心上——只有任务真正改变其行为模式，在后续运行中以明显更低的计算强度执行，其跟踪负载才会逐步降低，最终触发下迁移。</p>
+<ul>
+<li>睡眠期间负载指标<strong>冻结</strong>在最后一次运行时的值</li>
+<li>周期性繁忙的任务（睡眠 → 唤醒 → 计算 → 睡眠）始终保持高负载指标</li>
+<li>这些任务唤醒时自然会被分配到与上次运行相同的簇——在 Fork 默认放 big 且高负载不触发下迁的前提下，相同簇通常为 big 核</li>
+<li><strong>关键约束</strong>：上迁优先选择<strong>空闲</strong>的 big 核，以避免影响已经运行在大核上的高负载任务；下迁则不存在这一限制，可直接迁移至负载较低的 LITTLE 核</li>
+<li>只有任务<strong>真正改变其行为模式</strong>——长期减少计算量——其跟踪负载才会随时间衰减到触发下迁移阈值</li>
+</ul>
+<p><img src="/2026/07/29/ARM-big-LITTLE/5.jpg" alt="5"></p>
+<p><img src="/2026/07/29/ARM-big-LITTLE/6.jpg" alt="6"></p>
+<blockquote>
+<p>主要说的是，睡眠期间跟踪负载不变，睡眠唤醒时用的是睡眠之前的值。</p>
+</blockquote>
+<h3 id="4-5-Forced-迁移"><a href="#4-5-Forced-迁移" class="headerlink" title="4.5 Forced 迁移"></a>4.5 Forced 迁移</h3><p>Fork 和 Wake 迁移都依赖”任务会偶尔睡眠”这一前提——在睡眠边界上产生调度点。但对于<strong>长期运行且从不睡眠</strong>的计算密集型任务，这两个机制无法生效。Forced 迁移通过<strong>定期检查</strong>来弥补这一盲区：调度器周期性地扫描每个 LITTLE 核心，如果发现任务跟踪负载超过上迁阈值，则将其迁移到空闲的 big 核心。这是一种主动的<strong>推（push）</strong>机制——由 LITTLE 核心端主动将过载任务推送至 big 核心，不依赖任务自身的睡眠行为。</p>
+<p><img src="/2026/07/29/ARM-big-LITTLE/7.jpg" alt="7"></p>
+<h3 id="4-6-Idle-Pull-迁移"><a href="#4-6-Idle-Pull-迁移" class="headerlink" title="4.6 Idle Pull 迁移"></a>4.6 Idle Pull 迁移</h3><p>当 <strong>big 核心空闲时</strong>，Idle Pull 机制会<strong>主动搜索 LITTLE 核心上的高负载任务</strong>：检查所有 LITTLE 核心上是否有任务的负载超过上迁阈值——如果有，则将其<strong>迁移到空闲的 big 核心</strong>。如果没有找到合适的任务，big 核心则直接断电。这保证了 big 核心在活跃时始终承担系统中计算最密集的任务，big 核在空闲时则断电避免空转浪费能源。这种”大核作为加速器”的定位是 big.LITTLE MP 效能优势的关键来源。</p>
+<h3 id="4-7-Offload-迁移"><a href="#4-7-Offload-迁移" class="headerlink" title="4.7 Offload 迁移"></a>4.7 Offload 迁移</h3><p>GTS 默认不会像同构 SMP 那样进行跨簇负载均衡——这防止了轻量任务被分散到 big 核上。但副作用是：高负载任务会集中在 big 核，LITTLE 核可能空转而未被充分利用。Offload 迁移周期性地检查 big 核上的任务：将那些跟踪负载低于下迁移阈值的任务向下迁移到 LITTLE 核，利用 LITTLE 核的闲置算力。关键约束：下迁的任务仍然是上迁移的候选对象，如果下一次调度检查时负载回升超过上迁阈值，会被重新标记为上迁候选。</p>
+<h3 id="4-8-五种迁移机制协同全景"><a href="#4-8-五种迁移机制协同全景" class="headerlink" title="4.8 五种迁移机制协同全景"></a>4.8 五种迁移机制协同全景</h3><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>触发源</th>
+<th>方向</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Fork 迁移</strong></td>
+<td>新线程创建（<code>fork()</code>）</td>
+<td>→ big</td>
+<td>默认上迁；轻量线程后续自然下迁</td>
+</tr>
+<tr>
+<td><strong>Wake 迁移</strong></td>
+<td>线程从睡眠中唤醒</td>
+<td>保持或按负载迁</td>
+<td>负载指标睡眠期间冻结</td>
+</tr>
+<tr>
+<td><strong>Forced 迁移</strong></td>
+<td>LITTLE 核周期性 tick 检查</td>
+<td>LITTLE → big（推）</td>
+<td>弥补无睡眠线程的盲区</td>
+</tr>
+<tr>
+<td><strong>Idle Pull 迁移</strong></td>
+<td>big 核空闲</td>
+<td>LITTLE → big（拉）</td>
+<td>大核即时空闲利用</td>
+</tr>
+<tr>
+<td><strong>Offload 迁移</strong></td>
+<td>周期性反向检查</td>
+<td>big → LITTLE（推）</td>
+<td>防止小核算力闲置</td>
+</tr>
+</tbody></table>
+<p>这五种机制覆盖了从线程创建、唤醒、长运行到核心空闲所有关键状态转换——形成一个完整的决策闭环。那么，这套机制在实际硅片上能带来多少能效收益？ARM 在真实平台上的测试数据给出了量化的答案。</p>
+<hr>
+<h2 id="5-实践效果与软件生态"><a href="#5-实践效果与软件生态" class="headerlink" title="5. 实践效果与软件生态"></a>5. 实践效果与软件生态</h2><p>前面五章从硬件架构到调度器算法，完整呈现了 big.LITTLE MP 的工作链路。本章聚焦于它的实际交付——在真实工作负载下的功耗和性能数据，以及开发者如何获取并集成这套方案。</p>
+<h3 id="5-1-能耗与性能数据"><a href="#5-1-能耗与性能数据" class="headerlink" title="5.1 能耗与性能数据"></a>5.1 能耗与性能数据</h3><p>ARM 在典型使用场景下测试了 big.LITTLE MP 相对于纯 Cortex-A15 系统的表现。比较对象是 <strong>四个 LITTLE 核心 + 四个大核心组成的 big.LITTLE 系统</strong>” vs <strong>仅由四个大核心组成的系统</strong>。</p>
+<p><strong>能耗表现</strong>：</p>
+<p><img src="/2026/07/29/ARM-big-LITTLE/8.jpg" alt="8"></p>
+<p><strong>Benchmark</strong>：</p>
+<p><img src="/2026/07/29/ARM-big-LITTLE/9.jpg" alt="9"></p>
+<ul>
+<li><strong>线程数较多（&gt;4）时</strong>：big.LITTLE MP 可以同时利用 big 和 LITTLE 核心，提高可用计算资源。<ul>
+<li>当 big 核心繁忙时，<strong>Offload 迁移</strong>会将部分计算密集型任务分散到 LITTLE 核心。</li>
+<li>当 big 核心空闲时，<strong>Idle Pull 迁移</strong>会优先利用 big 核心作为性能加速器。</li>
+</ul>
+</li>
+<li><strong>线程数较少时</strong>：big.LITTLE MP 至少不会降低性能，通常还有小幅提升。原因是调度器可以让 big 核心专注运行高强度任务，避免被低负载系统服务或频繁中断干扰。</li>
+</ul>
+<h3 id="5-2-与-DVFS-和电源管理的集成"><a href="#5-2-与-DVFS-和电源管理的集成" class="headerlink" title="5.2 与 DVFS 和电源管理的集成"></a>5.2 与 DVFS 和电源管理的集成</h3><p>big.LITTLE 并非孤立技术。它与核心电源管理框架深度集成：</p>
+<ul>
+<li>核心断电：未使用的核心可以单独断电；若某簇中全部核心关闭，整个簇本身可以断电</li>
+<li>DVFS 协同：DVFS 感知的负载跟踪确保 big.LITTLE MP 和 DVFS 和谐工作</li>
+<li>PSCI 接口：通过电源状态协调接口（PSCI），迁移操作可以在多特权级 OS 之间协调进行</li>
+</ul>
+<h3 id="5-3-传统对称多处理的对比"><a href="#5-3-传统对称多处理的对比" class="headerlink" title="5.3 传统对称多处理的对比"></a>5.3 传统对称多处理的对比</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>传统 4×big SMP</th>
+<th>4×big + 4×LITTLE HMP</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>峰值性能</td>
+<td>4 个大核</td>
+<td>8 个核心同时上线的潜力</td>
+</tr>
+<tr>
+<td>低负载功耗</td>
+<td>4 个大核均需上电</td>
+<td>仅 LITTLE 核活跃，big 核断电</td>
+</tr>
+<tr>
+<td>后台任务干扰</td>
+<td>后台服务占用大核算力</td>
+<td>后台隔离在 LITTLE 核</td>
+</tr>
+<tr>
+<td>热约束</td>
+<td>大核长时间运行易触碰热墙</td>
+<td>负载分流避免单个簇过热</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="6-关键要点"><a href="#6-关键要点" class="headerlink" title="6. 关键要点"></a>6. 关键要点</h2><p>以下九条要点从硬件基础、调度演进到电源管理，总结了 big.LITTLE 异构多处理的核心思想，可作为理解和评估异构架构的检查项。</p>
+<ol>
+<li><p><strong>big.LITTLE 解决性能与能效的矛盾</strong></p>
+<p>单一微架构难以同时满足移动设备”峰值性能 + 持续低功耗”的需求。big.LITTLE 通过组合高性能 big 核和高能效 LITTLE 核，在不同负载阶段选择合适的计算资源；HMP 进一步支持两类核心同时参与调度。</p>
+</li>
+<li><p><strong>硬件 Cache 一致性是任务迁移的基础</strong></p>
+<p>没有 CCI-400 等硬件一致性支持，big 和 LITTLE 核之间迁移任务需要频繁访问主存，导致延迟和功耗增加。硬件一致性使任务迁移对软件更加透明。</p>
+</li>
+<li><p><strong>迁移机制是 DVFS 的扩展</strong></p>
+<p>DVFS 通过调整频率改变计算能力，而 big.LITTLE 在此基础上增加了”切换核心类型”这一维度。当当前核心升频仍无法满足性能需求时，任务可以迁移到更强的核心。</p>
+</li>
+<li><p><strong>CPU Migration 比 Cluster Migration 更灵活</strong></p>
+<p>Cluster Migration 以整个簇为单位切换，粒度较粗；CPU Migration（如 IKS）允许 big 和 LITTLE 核混合运行，提高资源利用率。但早期一对一绑定仍限制了扩展性。</p>
+</li>
+<li><p><strong>GTS&#x2F;big.LITTLE MP 实现真正异构调度</strong></p>
+<p>GTS 让调度器直接感知不同核心的计算能力，不再依赖固定 big-LITTLE 配对关系，使任意核心都可以参与任务调度，充分利用异构资源。</p>
+</li>
+<li><p><strong>五种迁移机制覆盖线程生命周期</strong></p>
+<ul>
+<li>Fork：创建任务时选择核心  </li>
+<li>Wake：唤醒任务时重新评估  </li>
+<li>Forced Migration：运行过程中主动迁移  </li>
+<li>Idle Pull：空闲核心主动获取任务  </li>
+<li>Offload：高负载核心卸载任务</li>
+</ul>
+<p>五种机制共同形成动态负载均衡闭环。</p>
+</li>
+<li><p><strong>DVFS 感知负载跟踪避免调度误判</strong></p>
+<p>频率变化会影响 CPU 实际计算能力，因此不能直接使用原始利用率判断负载。结合当前频率进行负载归一化，可以避免降频导致的负载低估。</p>
+</li>
+<li><p><strong>睡眠期间冻结负载避免任务抖动</strong></p>
+<p>对于音频、视频等周期性任务，睡眠期间保持已有负载状态，可以避免线程频繁迁移；只有任务行为真正变化时才重新触发调度。</p>
+</li>
+<li><p><strong>big.LITTLE 与电源管理深度结合</strong></p>
+<p>异构调度不仅决定任务运行位置，也管理硬件资源状态。空闲核心和簇可以进入低功耗状态，并通过 PSCI 等接口协调 CPU 上下电和迁移。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARM/" rel="tag"># ARM</a>
+              <a href="/tags/ARMv7-a/" rel="tag"># ARMv7-a</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/07/29/ARM-%E8%99%9A%E6%8B%9F%E5%8C%96/" rel="prev" title="ARM 虚拟化">
+                  <i class="fa fa-angle-left"></i> ARM 虚拟化
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
