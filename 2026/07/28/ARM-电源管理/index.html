@@ -26,15 +26,15 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="从汇编指令 WFI&#x2F;WFE 出发，沿着 Standby → Retention → Power Down 的空闲状态谱系，经 DVFS 动态调节与 Hotplug 核心下线，最终收敛到 PSCI 接口在多特权级系统中的协调机制——本文覆盖 ARMv7-A 电源管理的完整技术栈。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/1.jpg">
-<meta property="og:image" content="http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/2.png">
+<meta property="og:image" content="http://yoursite.com/images/%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86-1.jpg">
+<meta property="og:image" content="http://yoursite.com/images/%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86-2.png">
 <meta property="article:published_time" content="2026-07-28T13:12:45.000Z">
-<meta property="article:modified_time" content="2026-07-28T13:22:59.543Z">
+<meta property="article:modified_time" content="2026-07-29T13:35:48.599Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/1.jpg">
+<meta name="twitter:image" content="http://yoursite.com/images/%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86-1.jpg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/">
@@ -318,7 +318,8 @@
 <h3 id="3-3-Power-Down（断电模式）"><a href="#3-3-Power-Down（断电模式）" class="headerlink" title="3.3 Power Down（断电模式）"></a>3.3 Power Down（断电模式）</h3><p>这是最深的空闲状态。核心被完全断电，所有上下文丢失。进入此状态前，软件<strong>必须</strong>保存全部核心状态；退出时必须经历完整的复位→恢复流程。</p>
 <p>上下文破坏的范围取决于具体状态中哪些组件被断电——可能包括核心本身、GIC（通用中断控制器），甚至平台特定 IP。调试和跟踪上下文是否丢失，也取决于它们的电源域组织方式。</p>
 <p><strong>Power Down 的唤醒路径</strong>非常特殊。由于核心被完全断电，唤醒后从<strong>复位向量</strong>开始执行，通常在 Secure 模式下。Secure Firmware 首先恢复自身的上下文（寄存器、页表等），然后执行必要的硬件初始化，最后将执行权交还给发起 Power Down 请求的 OS，跳转到指定的返回地址继续执行。</p>
-<p><img src="/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/1.jpg" alt="1"></p>
+<img src="/images/电源管理-1.jpg" width="67%">
+
 <p>Power Down 前需要保存 <strong>CPU 上下文、系统控制寄存器、设备状态以及必要的内存状态</strong>；唤醒后由 Firmware&#x2F;OSPM 重新初始化硬件环境并恢复执行现场。相比 Retention，Power Down 的恢复成本更高，但可以获得最低功耗。</p>
 <p>这一流程在多特权级系统（如同时运行 Rich OS + Hypervisor + Secure Firmware 的设备）中引入了一个关键问题：<strong>谁来负责保存和恢复哪个层次的上下文</strong>？这正是 PSCI 接口要解决的核心问题——我们将在第7节详细展开。</p>
 <h3 id="3-4-Dormant-Mode（休眠模式）"><a href="#3-4-Dormant-Mode（休眠模式）" class="headerlink" title="3.4 Dormant Mode（休眠模式）"></a>3.4 Dormant Mode（休眠模式）</h3><p>Dormant Mode 是一种特殊的折中方案：<strong>核心逻辑被断电，但 Cache RAM 保持供电</strong>——通常 RAM 处于低功耗保持状态，内容保留但不可被功能访问。</p>
@@ -526,7 +527,8 @@
 <p>当 Rich OS 需要将一个核心置于低功耗状态时，Hypervisor 需要知道这件事（以便管理自己的虚拟化状态），Secure Firmware 也需要知道（以便执行实际的硬件操作）。如果各层之间没有统一的接口，就会出现消息传递断裂——每层都可能在错误的时机做出错误的假设。</p>
 <h3 id="7-2-PSCI-的消息传递链"><a href="#7-2-PSCI-的消息传递链" class="headerlink" title="7.2 PSCI 的消息传递链"></a>7.2 PSCI 的消息传递链</h3><p>ARM 提供的答案就是 **Power State Coordination Interface (PSCI)**。它不是一个硬件接口，而是一套软件约定，定义了电源管理请求如何跨特权级传递。</p>
 <p>消息传递链：</p>
-<p><img src="/2026/07/28/ARM-%E7%94%B5%E6%BA%90%E7%AE%A1%E7%90%86/2.png" alt="2"></p>
+<img src="/images/电源管理-2.png" width="100%">
+
 <h3 id="7-3-PSCI-四大核心调用"><a href="#7-3-PSCI-四大核心调用" class="headerlink" title="7.3 PSCI 四大核心调用"></a>7.3 PSCI 四大核心调用</h3><p>PSCI 定义了四个核心函数，覆盖了从 Idle 到 Hotplug 到 big.LITTLE 迁移的全部场景：</p>
 <p><strong>CPU_SUSPEND</strong><br>挂起核心执行，用于空闲子系统——核心预期通过唤醒事件恢复执行。</p>
 <p>用于空闲管理场景。核心被挂起后，会通过硬件唤醒事件恢复执行。这是 Idle 子系统的主要接口。</p>

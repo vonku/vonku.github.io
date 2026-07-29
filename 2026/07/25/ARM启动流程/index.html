@@ -26,16 +26,16 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文逐指令分析 Cortex-A 裸机系统的核心初始化序列，深入拆解从处理器上电复位、建立异常向量表、配置 Cache 和 MMU，直至移交控制权给 Linux 内核的完整技术路径。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/1.png">
-<meta property="og:image" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/2.png">
-<meta property="og:image" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/3.png">
+<meta property="og:image" content="http://yoursite.com/images/%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B-1.png">
+<meta property="og:image" content="http://yoursite.com/images/%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B-2.png">
+<meta property="og:image" content="http://yoursite.com/images/%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B-3.png">
 <meta property="article:published_time" content="2026-07-25T02:19:12.000Z">
-<meta property="article:modified_time" content="2026-07-25T09:45:44.896Z">
+<meta property="article:modified_time" content="2026-07-29T13:34:50.671Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/1.png">
+<meta name="twitter:image" content="http://yoursite.com/images/%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B-1.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/">
@@ -268,7 +268,8 @@
 </blockquote>
 <p>这八个步骤的执行顺序至关重要——每一步都为后续步骤建立依赖。让我们（Examples 13.1–13.5）逐一分析每一步的汇编实现。</p>
 <p>下图展示了从复位到 <code>main()</code> 的完整裸机启动流程：</p>
-<p><img src="/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/1.png" alt="1"></p>
+<img src="/images/启动流程-1.png" width="100%">
+
 <hr>
 <h2 id="2-第一步：建立异常向量表"><a href="#2-第一步：建立异常向量表" class="headerlink" title="2. 第一步：建立异常向量表"></a>2. 第一步：建立异常向量表</h2><blockquote>
 <p>The first consideration is placement of the exception vector table. You must make sure that it contains a valid set of instructions that branch to the appropriate handlers.</p>
@@ -422,7 +423,8 @@
 <h2 id="7-从裸机到-Linux：Bootloader-与内核启动流程"><a href="#7-从裸机到-Linux：Bootloader-与内核启动流程" class="headerlink" title="7. 从裸机到 Linux：Bootloader 与内核启动流程"></a>7. 从裸机到 Linux：Bootloader 与内核启动流程</h2><p>裸机的硬件初始化完成后，控制权需要移交给操作系统。一个典型的 Linux 启动总流程：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">上电 → ROM Boot Code → Bootloader (U-Boot) → Linux Kernel → User Space</span><br><span class="line">│         │                │                    │</span><br><span class="line">│         │                │                    └── start_kernel() → /sbin/init</span><br><span class="line">│         │                └── 加载 zImage，设 ATAGs/DTB，跳转</span><br><span class="line">│         └── 初始化 DRAM 控制器，拷贝自身到 RAM</span><br><span class="line">└── 执行复位向量中的 Reset_Handler</span><br></pre></td></tr></table></figure>
 
-<p><img src="/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/2.png" alt="2"></p>
+<img src="/images/启动流程-2.png" width="100%">
+
 <p>Linux 启动路径分为五个阶段，每两个阶段之间发生一次控制权交接：</p>
 <ol>
 <li><p><strong>ROM Boot（平台固件）</strong>：完成最基础的 DRAM 和时钟初始化后，将控制权移交给 Bootloader。</p>
@@ -543,7 +545,8 @@
 <li><code>do_basic_setup()</code> — 驱动初始化、sysctl、工作队列、网络栈</li>
 </ol>
 <p>Linux 虚拟内存视图如下：</p>
-<p><img src="/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/3.png" alt="3"></p>
+<img src="/images/启动流程-3.png" width="50%">
+
 <hr>
 <h2 id="8-关键要点总结"><a href="#8-关键要点总结" class="headerlink" title="8. 关键要点总结"></a>8. 关键要点总结</h2><ol>
 <li><strong>复位后 R0-R14 不可预测</strong>——第一条指令必须来自异常向量表（<code>0x00000000</code> 或 <code>0xFFFF0000</code>）的复位向量槽位</li>
