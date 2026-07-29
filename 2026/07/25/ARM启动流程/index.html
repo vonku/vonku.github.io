@@ -30,7 +30,7 @@
 <meta property="og:image" content="http://yoursite.com/images/%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B-2.png">
 <meta property="og:image" content="http://yoursite.com/images/%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B-3.png">
 <meta property="article:published_time" content="2026-07-25T02:19:12.000Z">
-<meta property="article:modified_time" content="2026-07-29T13:34:50.671Z">
+<meta property="article:modified_time" content="2026-07-29T14:27:12.947Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -357,7 +357,7 @@
 
 <p>这 5 行汇编是 boot code 中最精巧的构造。逐行分解：</p>
 <ol>
-<li><p>**<code>r0</code> 是 PTE 描述符的”属性模板”**。十六进制 <code>0x00000DE2</code>（二进制 <code>2_00000000000000000000110111100010</code>）的分解为：</p>
+<li><p><code>r0</code> 是 PTE 描述符的”属性模板”。十六进制 <code>0x00000DE2</code>（二进制 <code>2_00000000000000000000110111100010</code>）的分解为：</p>
 <ul>
 <li>Bits [1:0] &#x3D; <code>10</code> — Section 描述符类型标识</li>
 <li>Bits [3:2] &#x3D; <code>00</code> — C &#x3D; 0, B &#x3D; 0（与 TEX 联用表示内存类型）</li>
@@ -408,7 +408,7 @@
 
 <p>核心机制分析：</p>
 <ol>
-<li><p>**<code>MRC p15, 0, r1, c0, c0, 5</code>**：读取 MPIDR（Multi-Processor ID Register）。ARMv7-A 规范中，MPIDR 的低 8 位 <code>[7:0]</code> 编码了 Affinity Level 0（即核心在 Cluster 内的编号）。<code>AND r1, r1, #0x3</code> 提取仅最低 2 位（在 4 核 Cluster 中够用，一般 SCLTR 最多 4 核）。</p>
+<li><p><code>MRC p15, 0, r1, c0, c0, 5</code>：读取 MPIDR（Multi-Processor ID Register）。ARMv7-A 规范中，MPIDR 的低 8 位 <code>[7:0]</code> 编码了 Affinity Level 0（即核心在 Cluster 内的编号）。<code>AND r1, r1, #0x3</code> 提取仅最低 2 位（在 4 核 Cluster 中够用，一般 SCLTR 最多 4 核）。</p>
 </li>
 <li><p><strong>非主核进入 WFI 状态</strong>：WFI（Wait For Interrupt）让核心进入低功耗待机。主核后续会通过 <strong>IPI（Inter-Processor Interrupt）</strong>——即 SGIs（Software Generated Interrupts）via GIC——唤醒这些从核，并让它们跳到 SMP OS 的启动代码。</p>
 </li>
