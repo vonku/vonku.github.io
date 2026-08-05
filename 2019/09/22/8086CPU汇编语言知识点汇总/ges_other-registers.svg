@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="Layer_1" version="1.1" width="1395" height="405" viewBox="0 0 1395 405">
+  <!-- Generator: Adobe Illustrator 29.0.0, SVG Export Plug-In . SVG Version: 2.1.0 Build 186)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: none;
+      }
+
+      .st1 {
+        fill: #0091bd;
+        stroke: #fff;
+        stroke-miterlimit: 10;
+      }
+
+      .st2 {
+        fill: #333e48;
+        font-family: Lato-Medium, Lato;
+        font-size: 22px;
+        font-weight: 500;
+      }
+    </style>
+  </defs>
+  <rect class="st1" x="735" y="270" width="570" height="60"/>
+  <text class="st2" transform="translate(1013.6 369.4)"><tspan x="0" y="0">V1</tspan></text>
+  <text class="st2" transform="translate(1336.5 69.4)"><tspan x="0" y="0">B1</tspan></text>
+  <text class="st2" transform="translate(1335.2 129.4)"><tspan x="0" y="0">H1</tspan></text>
+  <text class="st2" transform="translate(1337.6 189.4)"><tspan x="0" y="0">S1</tspan></text>
+  <text class="st2" transform="translate(1335.3 249.4)"><tspan x="0" y="0">D1</tspan></text>
+  <text class="st2" transform="translate(1334.8 309.4)"><tspan x="0" y="0">Q1</tspan></text>
+  <rect class="st0" width="1395" height="405"/>
+  <rect class="st1" x="1050" y="210" width="255" height="60"/>
+  <rect class="st1" x="1095" y="150" width="210" height="60"/>
+  <rect class="st1" x="1170" y="90" width="135" height="60"/>
+  <rect class="st1" x="1245" y="30" width="60" height="60"/>
+  <rect class="st1" x="30" y="270" width="570" height="60"/>
+  <text class="st2" transform="translate(308.6 369.4)"><tspan x="0" y="0">V0</tspan></text>
+  <text class="st2" transform="translate(631.5 69.4)"><tspan x="0" y="0">B0</tspan></text>
+  <text class="st2" transform="translate(630.2 129.4)"><tspan x="0" y="0">H0</tspan></text>
+  <text class="st2" transform="translate(632.6 189.4)"><tspan x="0" y="0">S0</tspan></text>
+  <text class="st2" transform="translate(630.3 249.4)"><tspan x="0" y="0">D0</tspan></text>
+  <text class="st2" transform="translate(629.8 309.4)"><tspan x="0" y="0">Q0</tspan></text>
+  <rect class="st1" x="315" y="210" width="285" height="60"/>
+  <rect class="st1" x="390" y="150" width="210" height="60"/>
+  <rect class="st1" x="465" y="90" width="135" height="60"/>
+  <rect class="st1" x="540" y="30" width="60" height="60"/>
+</svg>

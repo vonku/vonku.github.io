@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文介绍AArch64异常模型的异常处理。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AArch64 异常模型 - 异常处理">
+<meta property="og:url" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍AArch64异常模型的异常处理。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_011.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_006.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_012.svg">
+<meta property="article:published_time" content="2026-08-05T13:07:57.000Z">
+<meta property="article:modified_time" content="2026-08-05T13:13:16.673Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="AArch64">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_011.svg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/","path":"2026/08/05/AArch64-异常模型-异常处理/","title":"AArch64 异常模型 - 异常处理"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AArch64 异常模型 - 异常处理 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%A4%84%E7%90%86%E5%BC%82%E5%B8%B8"><span class="nav-text">1. 处理异常</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%89%8D%E8%A8%80%E6%A6%82%E8%BF%B0"><span class="nav-text">1.1 前言概述</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8F%91%E7%94%9F%E5%BC%82%E5%B8%B8%E6%97%B6%E7%9A%84%E7%A1%AC%E4%BB%B6%E8%87%AA%E5%8A%A8%E8%A1%8C%E4%B8%BA"><span class="nav-text">发生异常时的硬件自动行为</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#AArch64-%E5%BC%82%E5%B8%B8%E5%90%91%E9%87%8F%E8%A1%A8%EF%BC%88Vector-Table%EF%BC%89%E7%9A%84%E7%89%B9%E7%82%B9"><span class="nav-text">AArch64 异常向量表（Vector Table）的特点</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%9D%83%E9%99%90%E7%BA%A7%E5%88%AB%EF%BC%88EL%EF%BC%89%E5%8F%98%E8%BF%81%E8%A7%84%E5%88%99"><span class="nav-text">权限级别（EL）变迁规则</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%89%A7%E8%A1%8C%E7%8A%B6%E6%80%81%EF%BC%88AArch32-%E2%86%94-AArch64%EF%BC%89%E5%88%87%E6%8D%A2%E4%B8%8E%E6%98%A0%E5%B0%84%EF%BC%88Interprocessing%EF%BC%89"><span class="nav-text">执行状态（AArch32 ↔ AArch64）切换与映射（Interprocessing）</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E6%9E%B6%E6%9E%84%E5%B1%82%E9%9D%A2%E7%9A%84%E7%BA%A7%E5%88%AB%E7%BA%A6%E6%9D%9F"><span class="nav-text">架构层面的级别约束</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Armv9-A-%E4%B8%8E%E9%83%A8%E5%88%86-Armv8-A-%E7%9A%84%E9%99%90%E5%88%B6"><span class="nav-text">Armv9-A 与部分 Armv8-A 的限制</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%AF%84%E5%AD%98%E5%99%A8%E6%98%A0%E5%B0%84%E8%A7%84%E5%88%99%EF%BC%88AArch32-%E5%88%B0-AArch64%EF%BC%89"><span class="nav-text">寄存器映射规则（AArch32 到 AArch64）</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E4%BF%9D%E5%AD%98%E5%BD%93%E5%89%8D%E5%A4%84%E7%90%86%E5%99%A8%E7%8A%B6%E6%80%81"><span class="nav-text">1.2 保存当前处理器状态</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#PSTATE-%E6%A6%82%E5%BF%B5%E4%B8%8E%E4%BF%9D%E5%AD%98%E6%9C%BA%E5%88%B6"><span class="nav-text">PSTATE 概念与保存机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%8A%B6%E6%80%81%E4%BF%9D%E5%AD%98%E4%B8%8E%E6%81%A2%E5%A4%8D%E7%9A%84%E5%85%A8%E6%B5%81%E7%A8%8B"><span class="nav-text">状态保存与恢复的全流程</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E8%B7%AF%E7%94%B1%E5%92%8C%E4%B8%AD%E6%96%AD%E6%8E%A7%E5%88%B6"><span class="nav-text">1.3 路由和中断控制</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E8%B7%AF%E7%94%B1%E7%9A%84%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5%EF%BC%88Target-Exception-Level%EF%BC%89"><span class="nav-text">中断路由的基本概念（Target Exception Level）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%BC%82%E5%B8%B8%E7%B1%BB%E5%9E%8B%E7%9A%84%E8%B7%AF%E7%94%B1%E8%A7%84%E5%88%99"><span class="nav-text">异常类型的路由规则</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B7%AF%E7%94%B1%E6%8E%A7%E5%88%B6%E5%AF%84%E5%AD%98%E5%99%A8%E4%B8%8E%E4%BC%98%E5%85%88%E7%BA%A7%EF%BC%88SCR-EL3-HCR-EL2%EF%BC%89"><span class="nav-text">路由控制寄存器与优先级（SCR_EL3 &amp; HCR_EL2）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E8%B7%AF%E7%94%B1%E5%AF%B9%E4%B8%AD%E6%96%AD%E5%B1%8F%E8%94%BD%EF%BC%88Masking%EF%BC%89%E7%9A%84%E5%BD%B1%E5%93%8D"><span class="nav-text">路由对中断屏蔽（Masking）的影响</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A1%AC%E4%BB%B6%E4%B8%AD%E6%96%AD%E6%8E%A7%E5%88%B6%E5%99%A8%EF%BC%88GIC%EF%BC%89%E7%9A%84%E4%BD%9C%E7%94%A8"><span class="nav-text">硬件中断控制器（GIC）的作用</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%9B%AE%E6%A0%87%E5%BC%82%E5%B8%B8%E7%BA%A7%E5%88%AB%E7%9A%84%E6%89%A7%E8%A1%8C%E7%8A%B6%E6%80%81%E7%9A%84%E5%86%B3%E5%AE%9A"><span class="nav-text">目标异常级别的执行状态的决定</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-AArch64-%E5%90%91%E9%87%8F%E8%A1%A8"><span class="nav-text">1.4 AArch64 向量表</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%90%91%E9%87%8F%E8%A1%A8%E7%9A%84%E5%9F%BA%E6%9C%AC%E5%AE%9A%E4%B9%89%E4%B8%8E%E5%AD%98%E5%82%A8%E6%96%B9%E5%BC%8F"><span class="nav-text">向量表的基本定义与存储方式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%90%91%E9%87%8F%E8%A1%A8%E5%9F%BA%E5%9C%B0%E5%9D%80%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%88VBAR-ELx%EF%BC%89"><span class="nav-text">向量表基地址寄存器（VBAR_ELx）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%A5%E5%8F%A3%E7%A1%AE%E5%AE%9A%E4%BE%9D%E6%8D%AE%EF%BC%88Entry-Selection-Factors%EF%BC%89"><span class="nav-text">入口确定依据（Entry Selection Factors）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%90%91%E9%87%8F%E8%A1%A8%E5%81%8F%E7%A7%BB%E9%87%8F%E7%BB%93%E6%9E%84"><span class="nav-text">向量表偏移量结构</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-5-%E6%A0%88%E6%8C%87%E9%92%88%E7%9A%84%E9%80%89%E6%8B%A9"><span class="nav-text">1.5 栈指针的选择</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%A0%88%E6%8C%87%E9%92%88%E7%9A%84%E7%A1%AC%E4%BB%B6%E9%80%89%E6%8B%A9%E6%9C%BA%E5%88%B6"><span class="nav-text">栈指针的硬件选择机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%BC%82%E5%B8%B8%E5%85%A5%E5%8F%A3%E4%B8%8E%E5%A4%84%E7%90%86%E5%87%BD%E6%95%B0%E7%9A%84%E2%80%9D%E5%88%86%E6%A0%88%E5%A4%84%E7%90%86%E2%80%9D%E7%AD%96%E7%95%A5"><span class="nav-text">异常入口与处理函数的”分栈处理”策略</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%AE%BE%E8%AE%A1%E2%80%9D%E6%A0%88%E6%8C%87%E9%92%88%E9%9A%94%E7%A6%BB%E2%80%9D"><span class="nav-text">为什么设计”栈指针隔离”</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%90%91%E9%87%8F%E8%A1%A8%E5%85%A5%E5%8F%A3%E5%AF%B9%E7%B3%BB%E7%BB%9F%E7%8A%B6%E6%80%81%E7%9A%84%E8%AF%8A%E6%96%AD%E6%9A%97%E7%A4%BA"><span class="nav-text">向量表入口对系统状态的诊断暗示</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%BB%8E%E5%BC%82%E5%B8%B8%E8%BF%94%E5%9B%9E"><span class="nav-text">2. 从异常返回</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%BB%8E%E5%BC%82%E5%B8%B8%E8%BF%94%E5%9B%9E%E7%9A%84%E5%9F%BA%E6%9C%AC%E6%AD%A5%E9%AA%A4"><span class="nav-text">2.1 从异常返回的基本步骤</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-ERET-%E6%8C%87%E4%BB%A4%E7%9A%84%E7%A1%AC%E4%BB%B6%E5%BA%95%E5%B1%82%E8%A1%8C%E4%B8%BA"><span class="nav-text">2.2 ERET 指令的硬件底层行为</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E4%B8%8D%E5%90%8C%E5%BC%82%E5%B8%B8%E7%B1%BB%E5%9E%8B%E7%9A%84%E9%A6%96%E9%80%89%E8%BF%94%E5%9B%9E%E5%9C%B0%E5%9D%80%EF%BC%88ELR-ELx%EF%BC%89"><span class="nav-text">2.3 不同异常类型的首选返回地址（ELR_ELx）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86%E7%A4%BA%E4%BE%8B"><span class="nav-text">3. 异常处理示例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%90%8C%E6%AD%A5%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="nav-text">3.1 同步异常处理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-1%EF%BC%9A%E8%B7%A8%E6%89%A7%E8%A1%8C%E7%8A%B6%E6%80%81%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%EF%BC%88AArch32-EL0-%E2%86%92-AArch64-EL1%EF%BC%89"><span class="nav-text">示例 1：跨执行状态系统调用（AArch32 EL0 → AArch64 EL1）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-2%EF%BC%9A%E8%B7%A8%E5%AE%89%E5%85%A8%E7%8A%B6%E6%80%81%E4%B8%8E%E6%9D%83%E9%99%90%E7%BA%A7%E5%88%AB%E8%B0%83%E7%94%A8%EF%BC%88NS-EL0-%E2%86%92-S-EL1%EF%BC%89"><span class="nav-text">示例 2：跨安全状态与权限级别调用（NS.EL0 → S.EL1）</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%BC%82%E6%AD%A5%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86"><span class="nav-text">3.2 异步异常处理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B-3%EF%BC%9A%E5%B8%B8%E8%A7%84%E5%A4%96%E9%83%A8%E4%B8%AD%E6%96%AD%E5%93%8D%E5%BA%94%EF%BC%88AArch32-EL0-%E2%86%92-AArch64-EL1%EF%BC%89"><span class="nav-text">示例 3：常规外部中断响应（AArch32 EL0 → AArch64 EL1）</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%BC%82%E5%B8%B8%E5%B1%8F%E8%94%BD%E4%B8%8E%E4%B8%8D%E5%8F%AF%E5%B1%8F%E8%94%BD%E4%B8%AD%E6%96%AD%EF%BC%88NMI%EF%BC%89"><span class="nav-text">3.3 异常屏蔽与不可屏蔽中断（NMI）</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E5%B1%8F%E8%94%BD%E8%A7%84%E5%88%99"><span class="nav-text">中断屏蔽规则</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%8D%E5%8F%AF%E5%B1%8F%E8%94%BD%E4%B8%AD%E6%96%AD%EF%BC%88NMI%EF%BC%89"><span class="nav-text">不可屏蔽中断（NMI）</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%BC%95%E5%85%A5%E8%83%8C%E6%99%AF"><span class="nav-text">引入背景</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E8%A1%8D%E7%94%9F%E9%97%AE%E9%A2%98"><span class="nav-text">衍生问题</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#ARM-%E7%9A%84%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88"><span class="nav-text">ARM 的解决方案</span></a></li></ol></li></ol></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">74</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AArch64 异常模型 - 异常处理 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AArch64 异常模型 - 异常处理
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-05 21:07:57" itemprop="dateCreated datePublished" datetime="2026-08-05T21:07:57+08:00">2026-08-05</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>本文介绍AArch64异常模型的异常处理。</p>
+<span id="more"></span>
+
+<h2 id="1-处理异常"><a href="#1-处理异常" class="headerlink" title="1. 处理异常"></a>1. 处理异常</h2><h3 id="1-1-前言概述"><a href="#1-1-前言概述" class="headerlink" title="1.1 前言概述"></a>1.1 前言概述</h3><h4 id="发生异常时的硬件自动行为"><a href="#发生异常时的硬件自动行为" class="headerlink" title="发生异常时的硬件自动行为"></a>发生异常时的硬件自动行为</h4><p>当异常发生并进入以 AArch64 运行的目标异常级别（<code>ELx</code>）时，处理器（PE）会自动完成以下操作：</p>
+<ul>
+<li>把异常发生前一刻的 <code>PSTATE</code> 内容保存到对应的 <code>SPSR_ELx</code>（Saved Program Status Register）；</li>
+<li>把首选异常返回地址保存到 <code>ELR_ELx</code>（Exception Link Register）；</li>
+<li>记录异常原因：对同步异常与 SError 中断，把具体原因（Exception Syndrome）写入 <code>ESR_ELx</code>；对与内存地址相关的同步异常（如 MMU Fault），再把触发异常的虚拟地址写入 <code>FAR_ELx</code>（Fault Address Register）。</li>
+</ul>
+<h4 id="AArch64-异常向量表（Vector-Table）的特点"><a href="#AArch64-异常向量表（Vector-Table）的特点" class="headerlink" title="AArch64 异常向量表（Vector Table）的特点"></a>AArch64 异常向量表（Vector Table）的特点</h4><p>与很多传统架构不同，AArch64 的向量表存放的不是跳转地址，而是可执行代码&#x2F;指令。每个向量条目最多包含 32 条指令（128 字节 &#x2F; 32 字），这个空间刚好够软件完成基础的寄存器压栈保存（Stacking），并根据异常类型跳转到更深的处理函数（Handler）。</p>
+<h4 id="权限级别（EL）变迁规则"><a href="#权限级别（EL）变迁规则" class="headerlink" title="权限级别（EL）变迁规则"></a>权限级别（EL）变迁规则</h4><p>权限的升降各有且仅有一条途径：提升权限只能通过触发异常（Taking an Exception），降低权限只能通过异常返回（Exception Return，如 <code>ERET</code>）。方向上，发生异常时 EL 可以升高或保持不变，异常返回时 EL 可以降低或保持不变。异常的目标 EL 可以由异常类型隐式定义，也可以通过系统寄存器配置位指定。</p>
+<p>EL0 尤为特殊：异常只能从 EL0 提升到更高的 EL（EL1~EL3），异常永远不会路由给 EL0，也不存在 EL0 向量表。</p>
+<h4 id="执行状态（AArch32-↔-AArch64）切换与映射（Interprocessing）"><a href="#执行状态（AArch32-↔-AArch64）切换与映射（Interprocessing）" class="headerlink" title="执行状态（AArch32 ↔ AArch64）切换与映射（Interprocessing）"></a>执行状态（AArch32 ↔ AArch64）切换与映射（Interprocessing）</h4><p>处理器只能在系统复位（Reset）、发生异常或异常返回时更改执行状态。</p>
+<h5 id="架构层面的级别约束"><a href="#架构层面的级别约束" class="headerlink" title="架构层面的级别约束"></a>架构层面的级别约束</h5><ul>
+<li>如果某个 EL 使用 AArch32，则其所有较低的 EL 必须全部使用 AArch32；</li>
+<li>如果某个 EL 使用 AArch64，则其所有较高的 EL 必须全部使用 AArch64。</li>
+</ul>
+<h5 id="Armv9-A-与部分-Armv8-A-的限制"><a href="#Armv9-A-与部分-Armv8-A-的限制" class="headerlink" title="Armv9-A 与部分 Armv8-A 的限制"></a>Armv9-A 与部分 Armv8-A 的限制</h5><p>在 Armv9-A 及部分 Armv8-A 实现中，AArch32 仅在 EL0 受支持。要更改 EL0 的执行状态，必须先触发异常提升到更高级别的 EL，修改配置后再返回 EL0。</p>
+<h5 id="寄存器映射规则（AArch32-到-AArch64）"><a href="#寄存器映射规则（AArch32-到-AArch64）" class="headerlink" title="寄存器映射规则（AArch32 到 AArch64）"></a>寄存器映射规则（AArch32 到 AArch64）</h5><p>从 AArch32 陷入 AArch64 时，为方便处理程序读取数据，通用寄存器做了物理映射：</p>
+<ul>
+<li>R0–R12 → X0–X12；</li>
+<li>Banked SP &#x2F; LR → X13–X23；</li>
+<li>Banked FIQ → X24–X30。</li>
+</ul>
+<p>对于高位与不可访问的寄存器：AArch32 状态下无法访问的寄存器，保留先前 AArch64 执行时的原值；双状态共享的 64 位寄存器，低 32 位是映射后的 AArch32 寄存器值，高 32 位为 UNKNOWN 或保留旧值&#x2F;全 0。</p>
+<h3 id="1-2-保存当前处理器状态"><a href="#1-2-保存当前处理器状态" class="headerlink" title="1.2 保存当前处理器状态"></a>1.2 保存当前处理器状态</h3><h4 id="PSTATE-概念与保存机制"><a href="#PSTATE-概念与保存机制" class="headerlink" title="PSTATE 概念与保存机制"></a>PSTATE 概念与保存机制</h4><p>AArch64 用 PSTATE（Processor State，处理器状态）记录当前的运行环境与状态，在 Armv7 及更早架构中被称为 CPSR。PSTATE 主要包含：条件标志位（N、Z、C、V）、执行状态控制位、访问控制位、时序与投机执行控制位，以及异常屏蔽标志位 <code>DAIF</code>——对应位为 1 时该异常被屏蔽（Masked），暂时不触发：</p>
+<ul>
+<li>D（Debug）：调试异常屏蔽位；</li>
+<li>A（SError）：异步 SError 屏蔽位；</li>
+<li>I（IRQ）：常规中断屏蔽位；</li>
+<li>F（FIQ）：快速中断屏蔽位。</li>
+</ul>
+<h4 id="状态保存与恢复的全流程"><a href="#状态保存与恢复的全流程" class="headerlink" title="状态保存与恢复的全流程"></a>状态保存与恢复的全流程</h4><p>异常发生时，硬件与软件按下述流程协同工作：</p>
+<ol>
+<li><strong>自动快照保存</strong>：处理器把当前 <code>PSTATE</code> 快照写入目标异常级别的 SPSR（如异常跳转到 EL1 处理，则更新 <code>SPSR_EL1</code>）；</li>
+<li><strong>硬件更新 PSTATE</strong>：处理器随后把当前 <code>PSTATE</code> 更新为该异常类型定义的全新状态（包括更新目标 EL 与安全状态）；</li>
+<li><strong>跳转至处理函数</strong>：状态更新完成后，跳转到向量表中对应的异常入口，开始执行 handler 代码；</li>
+<li><strong>恢复与返回（ERET）</strong>：异常处理完毕后执行 <code>ERET</code>，硬件自动把 <code>SPSR_ELx</code> 的内容还原回 <code>PSTATE</code>，并跳转到 <code>ELR_ELx</code> 记录的返回地址，恢复被中断程序的运行。</li>
+</ol>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_011.svg" alt="images_011"></p>
+<h3 id="1-3-路由和中断控制"><a href="#1-3-路由和中断控制" class="headerlink" title="1.3 路由和中断控制"></a>1.3 路由和中断控制</h3><h4 id="中断路由的基本概念（Target-Exception-Level）"><a href="#中断路由的基本概念（Target-Exception-Level）" class="headerlink" title="中断路由的基本概念（Target Exception Level）"></a>中断路由的基本概念（Target Exception Level）</h4><p>每种异常触发后跳转到哪个 EL，要么由架构隐式固定，要么通过系统寄存器的配置位由软件动态配置。但有一条铁律：异常绝对不能被路由给 EL0——EL0 没有异常向量表，也不允许接收异常。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_006.svg" alt="images_006"></p>
+<hr>
+<h4 id="异常类型的路由规则"><a href="#异常类型的路由规则" class="headerlink" title="异常类型的路由规则"></a>异常类型的路由规则</h4><ul>
+<li><strong>同步异常（Synchronous）</strong>：按照发起指令（如 <code>SVC</code>、<code>HVC</code>、<code>SMC</code>）自带的固定架构规则路由；</li>
+<li><strong>异步异常（IRQ &#x2F; FIQ &#x2F; SError）</strong>：可以独立配置路由到 EL2（Hypervisor）或 EL3（Secure Monitor）。操作系统常见的配置是：把所有 IRQ 路由到 EL1 由 OS 内核处理，把系统硬件级别的致命错误 SError 路由到 EL3 由固件统一兜底处理。</li>
+</ul>
+<hr>
+<h4 id="路由控制寄存器与优先级（SCR-EL3-HCR-EL2）"><a href="#路由控制寄存器与优先级（SCR-EL3-HCR-EL2）" class="headerlink" title="路由控制寄存器与优先级（SCR_EL3 &amp; HCR_EL2）"></a>路由控制寄存器与优先级（SCR_EL3 &amp; HCR_EL2）</h4><p>控制异常路由的寄存器有两个：<code>SCR_EL3</code> 控制哪些异常被截获路由到 EL3，<code>HCR_EL2</code> 控制哪些异常被截获路由到 EL2。两者的优先级有明确高低：若配置冲突，<code>SCR_EL3</code> 会覆盖（Override）<code>HCR_EL2</code>。这些路由控制位在 CPU 复位（Reset）时处于未定义状态（UNKNOWN），因此软件初始化时必须显式配置。</p>
+<hr>
+<h4 id="路由对中断屏蔽（Masking）的影响"><a href="#路由对中断屏蔽（Masking）的影响" class="headerlink" title="路由对中断屏蔽（Masking）的影响"></a>路由对中断屏蔽（Masking）的影响</h4><p>异常能否被屏蔽，取决于当前 CPU 所处的 EL 与目标路由 EL 的关系：</p>
+<table>
+<thead>
+<tr>
+<th><strong>异常目标 EL 与当前 EL 的关系</strong></th>
+<th><strong>中断屏蔽表现（Masking Rules）</strong></th>
+<th><strong>说明 &#x2F; 逻辑</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>目标 EL &gt; 当前 EL</strong></td>
+<td><strong>不可被当前 EL 屏蔽</strong></td>
+<td>高权限级别的中断不能被低权限级别关中断（如 EL1 关中断影响不到路由给 EL2 的中断）。</td>
+</tr>
+<tr>
+<td><strong>目标 EL &lt; 当前 EL</strong></td>
+<td><strong>隐式屏蔽（Implicitly Masked）</strong></td>
+<td>中断保持挂起状态，直到 CPU 降级回不高于目标 EL 的级别才响应（遵循”异常绝不降低权限”原则）。</td>
+</tr>
+<tr>
+<td><strong>目标 EL &#x3D;&#x3D; 当前 EL</strong></td>
+<td><strong>由 <code>PSTATE</code> 的屏蔽位控制</strong></td>
+<td>由当前级别的 <code>PSTATE</code>（<code>DAIF</code> 标志位）决定是否响应。</td>
+</tr>
+</tbody></table>
+<hr>
+<h4 id="硬件中断控制器（GIC）的作用"><a href="#硬件中断控制器（GIC）的作用" class="headerlink" title="硬件中断控制器（GIC）的作用"></a>硬件中断控制器（GIC）的作用</h4><p>在真实的 Arm 系统中，通常搭配 <a target="_blank" rel="noopener" href="https://support.arm.com/documentation/102412/0103/Handling-exceptions/Taking-an-exception?lang=en#Routing-and-interrupt-controllers">Arm Generic Interrupt Controller (GIC)</a> 硬件统一进行中断的收集、优先级排序和路由分发，这极大降低了虚拟化场景下的软件开销。</p>
+<h4 id="目标异常级别的执行状态的决定"><a href="#目标异常级别的执行状态的决定" class="headerlink" title="目标异常级别的执行状态的决定"></a>目标异常级别的执行状态的决定</h4><p>发生异常时，CPU 会跳转到更高的异常级别（Target EL）去处理。那么 Target EL 到底运行在 AArch64 还是 AArch32？架构规定：低级别的执行状态由比它更高级别的系统寄存器的 RW 位（Register Width）决定。</p>
+<table>
+<thead>
+<tr>
+<th><strong>异常跳转到的 Target EL</strong></th>
+<th><strong>执行状态由谁决定？</strong></th>
+<th><strong>详细解释</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>EL1</strong> (Guest OS &#x2F; Host Kernel)</td>
+<td><strong><code>HCR_EL2.RW</code></strong></td>
+<td>当异常跳转到 EL1 时，EL1 是 64 位还是 32 位，由 EL2（Hypervisor）的 <code>HCR_EL2</code> 寄存器中的 RW（Register Width）位决定：RW &#x3D; 1 时 EL1 以 AArch64 运行，RW &#x3D; 0 时以 AArch32 运行。</td>
+</tr>
+<tr>
+<td><strong>EL2</strong> (Hypervisor &#x2F; 虚拟化层)</td>
+<td><strong><code>SCR_EL3.RW</code></strong></td>
+<td>当异常跳转到 EL2 时，EL2 的执行状态由 EL3（Secure Monitor &#x2F; 安全固件）的 <code>SCR_EL3</code> 寄存器中的 RW 位决定：RW &#x3D; 1 时 EL2 以 AArch64 运行，RW &#x3D; 0 时以 AArch32 运行。</td>
+</tr>
+<tr>
+<td><strong>EL3</strong> (Root &#x2F; Secure Monitor)</td>
+<td><strong>Reset state of EL3（硬件复位状态）</strong></td>
+<td>EL3 是全系统最高权限级别，上面已经没有更高的 EL 来控制它了。因此 EL3 是 AArch64 还是 AArch32，由芯片复位（Reset）时的硬件物理引脚配置或固件复位状态直接决定。</td>
+</tr>
+</tbody></table>
+<h3 id="1-4-AArch64-向量表"><a href="#1-4-AArch64-向量表" class="headerlink" title="1.4 AArch64 向量表"></a>1.4 AArch64 向量表</h3><h4 id="向量表的基本定义与存储方式"><a href="#向量表的基本定义与存储方式" class="headerlink" title="向量表的基本定义与存储方式"></a>向量表的基本定义与存储方式</h4><p>当 CPU 响应并进入异常时，执行流程会跳转到内存中固定的位置执行处理代码，这个内存区域称为异常向量（Exception Vector），保存这些向量的区域就是异常向量表（Vector Table）。每个异常级别（EL1、EL2、EL3）都有各自独立的向量表。</p>
+<p>与传统架构的关键区别在于：AArch64 向量表直接存放可执行代码&#x2F;指令（很多传统处理器如 Cortex-M 存放的是跳转地址），每个入口固定最多 32 条指令（128 字节 &#x2F; 32 字），足够完成基础的寄存器压栈保存并根据异常原因跳转到更深的处理代码。EL0 没有专属向量表，因为异常永远不会路由给 EL0。</p>
+<hr>
+<h4 id="向量表基地址寄存器（VBAR-ELx）"><a href="#向量表基地址寄存器（VBAR-ELx）" class="headerlink" title="向量表基地址寄存器（VBAR_ELx）"></a>向量表基地址寄存器（VBAR_ELx）</h4><p>每个 EL 的向量表基地址由对应的 <code>VBAR_EL&lt;x&gt;</code>（Vector Base Address Register，即 <code>VBAR_EL1</code>、<code>VBAR_EL2</code>、<code>VBAR_EL3</code>）定义。注意，<code>VBAR_ELx</code> 在复位后的初始值未定义（UNDEFINED），软件在使能&#x2F;开启中断之前必须显式初始化。</p>
+<hr>
+<h4 id="入口确定依据（Entry-Selection-Factors）"><a href="#入口确定依据（Entry-Selection-Factors）" class="headerlink" title="入口确定依据（Entry Selection Factors）"></a>入口确定依据（Entry Selection Factors）</h4><p>发生异常时，CPU 硬件根据以下 4 个因素计算偏移量，决定跳转到向量表中的哪个入口：</p>
+<ol>
+<li>异常类型：SError、FIQ、IRQ 还是同步异常；</li>
+<li>异常发生源与目标 EL：异常从当前 EL 触发，还是从更低权限的 EL 陷入（Lower EL）；</li>
+<li>支持的 Execution State：Lower EL 运行在 AArch64 还是 AArch32；</li>
+<li>使用的栈指针：当前使用的是 <code>SP_EL0</code> 还是 <code>SP_ELx</code>。</li>
+</ol>
+<hr>
+<h4 id="向量表偏移量结构"><a href="#向量表偏移量结构" class="headerlink" title="向量表偏移量结构"></a>向量表偏移量结构</h4><p>全表划分为 4 大场景，每种场景包含 4 种异常类型，共 16 个入口（每个入口步长固定为 0x80 &#x2F; 128 字节）：</p>
+<ul>
+<li>场景 A：当前 EL 触发，用 <code>SP_EL0</code>；</li>
+<li>场景 B：当前 EL 触发，用 <code>SP_ELx</code>；</li>
+<li>场景 C：来自低 EL，低 EL 是 AArch64；</li>
+<li>场景 D：来自低 EL，低 EL 是 AArch32。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th><strong>向量地址偏移 (Offset)</strong></th>
+<th><strong>异常类型 (Exception Type)</strong></th>
+<th><strong>触发场景描述</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong><code>VBAR_ELx + 0x000</code></strong></td>
+<td>Synchronous</td>
+<td><strong>当前 EL 触发</strong>，且使用的是 <code>SP_EL0</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x080</code></strong></td>
+<td>IRQ &#x2F; vIRQ</td>
+<td>当前 EL 触发，且使用的是 <code>SP_EL0</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x100</code></strong></td>
+<td>FIQ &#x2F; vFIQ</td>
+<td>当前 EL 触发，且使用的是 <code>SP_EL0</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x180</code></strong></td>
+<td>SError &#x2F; vSError</td>
+<td>当前 EL 触发，且使用的是 <code>SP_EL0</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x200</code></strong></td>
+<td>Synchronous</td>
+<td><strong>当前 EL 触发</strong>，且使用的是专属 <code>SP_ELx</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x280</code></strong></td>
+<td>IRQ &#x2F; vIRQ</td>
+<td>当前 EL 触发，且使用的是专属 <code>SP_ELx</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x300</code></strong></td>
+<td>FIQ &#x2F; vFIQ</td>
+<td>当前 EL 触发，且使用的是专属 <code>SP_ELx</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x380</code></strong></td>
+<td>SError &#x2F; vSError</td>
+<td>当前 EL 触发，且使用的是专属 <code>SP_ELx</code> 栈指针</td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x400</code></strong></td>
+<td>Synchronous</td>
+<td><strong>来自较低 EL</strong>，且 lower EL 至少有一个运行在 <strong>AArch64</strong></td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x480</code></strong></td>
+<td>IRQ &#x2F; vIRQ</td>
+<td>来自较低 EL，且 lower EL 至少有一个运行在 <strong>AArch64</strong></td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x500</code></strong></td>
+<td>FIQ &#x2F; vFIQ</td>
+<td>来自较低 EL，且 lower EL 至少有一个运行在 <strong>AArch64</strong></td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x580</code></strong></td>
+<td>SError &#x2F; vSError</td>
+<td>来自较低 EL，且 lower EL 至少有一个运行在 <strong>AArch64</strong></td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x600</code></strong></td>
+<td>Synchronous</td>
+<td><strong>来自较低 EL</strong>，且 lower EL 全部运行在 <strong>AArch32</strong></td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x680</code></strong></td>
+<td>IRQ &#x2F; vIRQ</td>
+<td>来自较低 EL，且 lower EL 全部运行在 <strong>AArch32</strong></td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x700</code></strong></td>
+<td>FIQ &#x2F; vFIQ</td>
+<td>来自较低 EL，且 lower EL 全部运行在 <strong>AArch32</strong></td>
+</tr>
+<tr>
+<td><strong><code>VBAR_ELx + 0x780</code></strong></td>
+<td>SError &#x2F; vSError</td>
+<td>来自较低 EL，且 lower EL 全部运行在 <strong>AArch32</strong></td>
+</tr>
+</tbody></table>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_012.svg" alt="images_012"></p>
+<h3 id="1-5-栈指针的选择"><a href="#1-5-栈指针的选择" class="headerlink" title="1.5 栈指针的选择"></a>1.5 栈指针的选择</h3><h4 id="栈指针的硬件选择机制"><a href="#栈指针的硬件选择机制" class="headerlink" title="栈指针的硬件选择机制"></a>栈指针的硬件选择机制</h4><p>在 AArch64 中，运行环境有两种栈指针可选：<code>SP_EL0</code> 或当前异常级别专属的 <code>SP_EL&lt;x&gt;</code>（如 <code>SP_EL1</code>、<code>SP_EL2</code>、<code>SP_EL3</code>）。硬件根据当前权限级别和 <code>PSTATE.SP</code> 位自动选择：</p>
+<ul>
+<li>运行在 EL0：强制固定使用 <code>SP_EL0</code>；</li>
+<li>运行在 EL1 &#x2F; EL2 &#x2F; EL3：<code>PSTATE.SP == 0</code> 时使用 <code>SP_EL0</code>，<code>PSTATE.SP == 1</code> 时使用当前级别的专属栈 <code>SP_ELx</code>。</li>
+</ul>
+<p>另外，当异常发生进入新的 ELx 时，CPU 硬件默认自动设置 <code>PSTATE.SP = 1</code>，从而自动选中专属的 <code>SP_ELx</code>。</p>
+<h4 id="异常入口与处理函数的”分栈处理”策略"><a href="#异常入口与处理函数的”分栈处理”策略" class="headerlink" title="异常入口与处理函数的”分栈处理”策略"></a>异常入口与处理函数的”分栈处理”策略</h4><p>真实的操作系统&#x2F;架构设计中，推荐采用两阶段切栈（Split Stack）策略：</p>
+<ol>
+<li>刚进入向量表顶层处理程序（Top-level Handler）时，CPU 默认使用 <code>SP_ELx</code>，用这个安全的专属栈压栈保存现场通用寄存器（Context Saving）；</li>
+<li>现场保存完毕后，软件再显式切换回 <code>SP_EL0</code>，去调用深层的异常处理逻辑（如复杂的 C 语言函数）。</li>
+</ol>
+<h4 id="为什么设计”栈指针隔离”"><a href="#为什么设计”栈指针隔离”" class="headerlink" title="为什么设计”栈指针隔离”"></a>为什么设计”栈指针隔离”</h4><p>栈指针隔离有两个重要的工程价值。</p>
+<p>一是安全防范与栈溢出保护：如果系统因内核主栈溢出（Stack Overflow）触发 Fault，此时主栈已损坏，若异常入口继续使用主栈，系统会直接崩溃；而使用独立的 <code>SP_ELx</code> 能保证异常现场一定有干净、可用的栈空间来保存现场和处理错误。</p>
+<p>二是隔离不同线程&#x2F;任务的栈开销：把”异常响应入口”与”高深度栈消耗的业务逻辑（如 C 代码）”隔离开，可以给 <code>SP_EL0</code> 分配更大的栈空间跑主任务，而 <code>SP_ELx</code> 只保留很小一块空间专门做中断压栈，大幅提升系统稳定性与内存利用率。</p>
+<h4 id="向量表入口对系统状态的诊断暗示"><a href="#向量表入口对系统状态的诊断暗示" class="headerlink" title="向量表入口对系统状态的诊断暗示"></a>向量表入口对系统状态的诊断暗示</h4><p>向量表专门分出了”当前 EL 且使用 <code>SP_ELx</code> 触发异常”的入口（如 <code>VBAR_EL1 + 0x280</code>）。由于异常响应的入口和出口期间系统通常是屏蔽中断的，如果在 <code>SP_ELx</code> 场景下收到异步中断&#x2F;错误，往往意味着发生了极其严重的系统级致命错误（如 Kernel Panic），软件可以借此入口精准捕获并记录 Panic 日志。</p>
+<h2 id="2-从异常返回"><a href="#2-从异常返回" class="headerlink" title="2. 从异常返回"></a>2. 从异常返回</h2><h3 id="2-1-从异常返回的基本步骤"><a href="#2-1-从异常返回的基本步骤" class="headerlink" title="2.1 从异常返回的基本步骤"></a>2.1 从异常返回的基本步骤</h3><p>异常处理程序（Handler）处理完成后，需要返回到触发异常前正在运行的代码，主要分两步：</p>
+<ol>
+<li>出栈并还原此前保存的所有易失寄存器（Corruptible Registers）；</li>
+<li>执行异常返回指令 <code>ERET</code>，触发硬件自动还原处理器状态并跳转。</li>
+</ol>
+<hr>
+<h3 id="2-2-ERET-指令的硬件底层行为"><a href="#2-2-ERET-指令的硬件底层行为" class="headerlink" title="2.2 ERET 指令的硬件底层行为"></a>2.2 ERET 指令的硬件底层行为</h3><p>CPU 执行 <code>ERET</code> 时，硬件自动完成三个动作：</p>
+<ul>
+<li>把当前异常级别对应的 <code>SPSR_ELx</code> 内容还原回 <code>PSTATE</code>（包含目标异常级别与执行状态）；</li>
+<li>把 PC 更新为 <code>ELR_ELx</code> 中记录的异常返回地址；</li>
+<li>对 PSTATE 和 PC 的更新是不可分割的原子操作，确保 CPU 绝不会处于未定义状态。</li>
+</ul>
+<p>另外还有一个合法性检查：<code>SPSR_ELx</code> 中指定的执行状态（AArch64 或 AArch32）必须与 <code>SCR_EL3.RW</code> 或 <code>HCR_EL2.RW</code> 的寄存器宽度配置一致，否则会触发非法的异常返回（Illegal Exception Return）。</p>
+<hr>
+<h3 id="2-3-不同异常类型的首选返回地址（ELR-ELx）"><a href="#2-3-不同异常类型的首选返回地址（ELR-ELx）" class="headerlink" title="2.3 不同异常类型的首选返回地址（ELR_ELx）"></a>2.3 不同异常类型的首选返回地址（ELR_ELx）</h3><p><code>ELR_ELx</code> 保存的首选返回地址（Preferred Exception Return Address）取决于异常类型：</p>
+<table>
+<thead>
+<tr>
+<th><strong>异常类型</strong></th>
+<th><strong>首选返回地址记录位置</strong></th>
+<th><strong>典型说明 &#x2F; 逻辑</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>同步服务调用</strong>（如 <code>SVC</code>）</td>
+<td><strong>异常指令的下一条指令</strong>（Next Instruction）</td>
+<td>系统调用处理完后，需要继续往下执行下一条用户指令。</td>
+</tr>
+<tr>
+<td><strong>其他同步异常</strong>（如 Page Fault）</td>
+<td><strong>生成异常的该条指令本身</strong>（Current Instruction）</td>
+<td>修复完错误（如补上缺页）后，需要重新执行触发 Fault 的那条指令。</td>
+</tr>
+<tr>
+<td><strong>异步异常</strong>（如 IRQ &#x2F; FIQ 中断）</td>
+<td><strong>中断发生时尚未完全执行的第一条指令</strong></td>
+<td>中断处理完后，回到当时被打断、未完整执行的指令处继续执行。</td>
+</tr>
+</tbody></table>
+<h2 id="3-异常处理示例"><a href="#3-异常处理示例" class="headerlink" title="3. 异常处理示例"></a>3. 异常处理示例</h2><h3 id="3-1-同步异常处理"><a href="#3-1-同步异常处理" class="headerlink" title="3.1 同步异常处理"></a>3.1 同步异常处理</h3><p>同步异常由指令直接触发，返回地址指示了引发异常的指令。处理时用到三个核心寄存器：<code>ESR_ELx</code> 提供同步异常的原因和类型信息，<code>FAR_ELx</code> 保存与地址相关的同步异常（如 MMU fault）的触发虚拟地址，<code>ELR_ELx</code> 保存触发指令的地址、提供异常返回地址。</p>
+<hr>
+<h4 id="示例-1：跨执行状态系统调用（AArch32-EL0-→-AArch64-EL1）"><a href="#示例-1：跨执行状态系统调用（AArch32-EL0-→-AArch64-EL1）" class="headerlink" title="示例 1：跨执行状态系统调用（AArch32 EL0 → AArch64 EL1）"></a>示例 1：跨执行状态系统调用（AArch32 EL0 → AArch64 EL1）</h4><p>AArch32 应用程序运行在 EL0，需要向运行在 AArch64 的 OS&#x2F;kernel（EL1）请求堆内存分配，于是执行 <code>SVC</code> 指令触发系统调用。硬件和软件的完整流程如下：</p>
+<ol>
+<li>把当前 <code>PSTATE</code> 作为快照保存到 <code>SPSR_EL1</code>；</li>
+<li>把首选异常返回地址（下一条指令）写入 <code>ELR_EL1</code>；</li>
+<li>把异常综合信息（异常原因，即 <code>SVC</code>）写入 <code>ESR_EL1</code>；</li>
+<li>读取 Hypervisor 控制寄存器 <code>HCR_EL2.RW</code> 位，确定目标执行状态；</li>
+<li>更新 <code>PSTATE</code>：异常级别切换为 EL1，执行状态切换为 AArch64；</li>
+<li>跳转到 <code>VBAR_EL1</code> 向量表，偏移量 <code>0x600</code>（<code>VBAR_EL1 + 0x600</code>）——来自较低 EL、且所有较低 EL 均为 AArch32 的同步异常；</li>
+<li>把相关寄存器压入栈中，维护寄存器上下文；</li>
+<li>从 <code>ESR_EL1</code> 识别同步异常的具体类型，本例为 <code>SVC</code>；</li>
+<li>执行特定的 <code>SVC</code> 处理程序代码；</li>
+<li>处理完成后，控制流返回顶层 handler；</li>
+<li>恢复所有压栈保存的寄存器并执行 <code>ERET</code>；</li>
+<li>PSTATE 从 <code>SPSR_EL1</code> 恢复（包括返回 EL0 与 AArch32 状态），PC 更新为 <code>ELR_EL1</code> 中的值。</li>
+</ol>
+<hr>
+<h4 id="示例-2：跨安全状态与权限级别调用（NS-EL0-→-S-EL1）"><a href="#示例-2：跨安全状态与权限级别调用（NS-EL0-→-S-EL1）" class="headerlink" title="示例 2：跨安全状态与权限级别调用（NS.EL0 → S.EL1）"></a>示例 2：跨安全状态与权限级别调用（NS.EL0 → S.EL1）</h4><p>运行在非安全状态（Non-secure，NS）EL0 的 AArch64 应用，需要调用运行在 EL1 的安全可信 OS（Secure，Trusted OS）：</p>
+<ol>
+<li>EL0 无法直接发起 <code>SMC</code> 调用到 EL3，所以先从 NS.EL0 发起 <code>SVC</code> 到 NS.EL1；</li>
+<li>NS.EL1 接收到请求后，再通过 <code>SMC</code> 调用到 EL3 处理安全状态切换；</li>
+<li>最终由 EL3 完成状态转换并过渡到 S.EL1。</li>
+</ol>
+<hr>
+<h3 id="3-2-异步异常处理"><a href="#3-2-异步异常处理" class="headerlink" title="3.2 异步异常处理"></a>3.2 异步异常处理</h3><p>异步异常（中断）来自处理器（PE）外部以及当前正在执行的指令外部。Arm 架构未定义何时响应异步异常，因此异步异常相对于其他异常（包括同步和异步）的优先级由实现决定（IMPLEMENTATION DEFINED）。</p>
+<hr>
+<h4 id="示例-3：常规外部中断响应（AArch32-EL0-→-AArch64-EL1）"><a href="#示例-3：常规外部中断响应（AArch32-EL0-→-AArch64-EL1）" class="headerlink" title="示例 3：常规外部中断响应（AArch32 EL0 → AArch64 EL1）"></a>示例 3：常规外部中断响应（AArch32 EL0 → AArch64 EL1）</h4><p>处理器在 AArch32 EL0 执行应用代码时发生 IRQ 中断，此时 <code>HCR_EL2</code> 和 <code>SCR_EL3</code> 已配置为把 IRQ 路由到 AArch64 EL1。完整流程如下：</p>
+<ol>
+<li>把当前 <code>PSTATE</code> 作为快照保存到 <code>SPSR_EL1</code>；</li>
+<li>把首选异常返回地址（尚未完成的第一条指令）写入 <code>ELR_EL1</code>；</li>
+<li>读取 Hypervisor 控制寄存器 <code>HCR_EL2.RW</code> 位，确定目标执行状态；</li>
+<li>更新 <code>PSTATE</code>：异常级别切换为 EL1，执行状态切换为 AArch64；</li>
+<li>跳转到 <code>VBAR_EL1</code> 向量表，偏移量 <code>0x680</code>（<code>VBAR_EL1 + 0x680</code>）——来自较低 EL、且所有较低 EL 均为 AArch32 的 IRQ 异常；</li>
+<li>把相关寄存器压入栈中，维护寄存器上下文；</li>
+<li>执行特定的 IRQ 处理程序代码；</li>
+<li>处理完成后，控制流返回顶层 handler；</li>
+<li>恢复所有寄存器并执行 <code>ERET</code>；</li>
+<li>PSTATE 从 <code>SPSR_EL1</code> 恢复（包括返回 EL0 与 AArch32 状态），PC 更新为 <code>ELR_EL1</code> 中的值。</li>
+</ol>
+<blockquote>
+<p><strong>关于 GIC 中断源识别</strong>：</p>
+<p>IRQ 异常本身不区分具体中断原因（如定时器或 UART）。假设使用了 GIC，可以通过读取 GIC 的中断确认寄存器 <code>IAR</code> 来识别中断：读取会返回中断 ID，并在 GIC 中把该中断标记为 Active。处理完成后，再向 GIC 的中断结束寄存器 <code>EOIR</code> 写入该 ID，把状态清除回 Inactive。</p>
+<p>与同步异常不同，IRQ&#x2F;FIQ 发生时不需要更新 <code>ESR_ELx</code>，因为它们在硬件向量表中已按类型分流（有专门的 <code>IRQ</code>、<code>FIQ</code> 入口）。不过要注意，SError 异常依然会更新 <code>ESR_ELx</code>，用于记录具体的系统错误原因。</p>
+</blockquote>
+<hr>
+<h3 id="3-3-异常屏蔽与不可屏蔽中断（NMI）"><a href="#3-3-异常屏蔽与不可屏蔽中断（NMI）" class="headerlink" title="3.3 异常屏蔽与不可屏蔽中断（NMI）"></a>3.3 异常屏蔽与不可屏蔽中断（NMI）</h3><h4 id="中断屏蔽规则"><a href="#中断屏蔽规则" class="headerlink" title="中断屏蔽规则"></a>中断屏蔽规则</h4><ul>
+<li><strong>自动屏蔽</strong>：处理器响应异常进入 AArch64 执行状态时，PSTATE 的中断屏蔽位（<code>DAIF</code>，即 Debug、Abort&#x2F;SError、IRQ、FIQ）会被自动置位。写 1 相当于屏蔽&#x2F;忽略该异常类型，让它保持 Pending 状态直到显式解除屏蔽；</li>
+<li><strong>同步异常不可屏蔽</strong>：同步异常由指令执行直接引发，若被忽略会导致执行阻塞；</li>
+<li><strong>跨级别屏蔽限制</strong>：在较低 EL 设置 PSTATE 屏蔽位，无法阻止路由到更高 EL 的异常触发（如设置了 <code>SCR_EL3.FIQ=1</code>，在 EL1 或 EL2 设 <code>PSTATE.F=1</code> 也挡不住 FIQ）；反过来，处理器处于更高 EL 时，路由到较低 EL 的异常会被隐式屏蔽（如 IRQ 路由到 EL2 或 EL1 时，EL3 运行期间 IRQ 始终被隐式屏蔽）；</li>
+<li><strong>嵌套异常（Nested Exceptions）</strong>：若要支持高优先级异常打断低优先级异常，软件必须在压栈保存易失寄存器后显式重新开启中断。</li>
+</ul>
+<h4 id="不可屏蔽中断（NMI）"><a href="#不可屏蔽中断（NMI）" class="headerlink" title="不可屏蔽中断（NMI）"></a>不可屏蔽中断（NMI）</h4><h5 id="引入背景"><a href="#引入背景" class="headerlink" title="引入背景"></a>引入背景</h5><p>在 Armv8.8-A 之前，所有异步中断都受制于 <code>PSTATE.DAIF</code> 掩码。一旦软件为了保护临界区（如内核锁操作、调度的关键逻辑）屏蔽中断（写 <code>PSTATE.I = 1</code>），所有中断都会被一刀切地挡在外面。可如果此时系统遇到致命紧急事件（如硬件过热、内存发生无法纠正的 ECC 错误、watchdog 超时、或需要高精度的看门狗采样 profiling），软件即使发出最紧急的中断，处理器也只能等 <code>PSTATE.I</code> 解除后才能响应。这对高可靠性（High Availability）、汽车安全（Safety）和实时系统是不可接受的。</p>
+<p>为此，Arm 在 Armv8.8-A &#x2F; Armv9.3-A 引入 NMI（不可屏蔽中断），赋予某些特殊中断超级优先级（Superpriority）：即使 <code>PSTATE</code> 的常规中断掩码生效，也能强制穿透屏蔽、立即打断 CPU 进行紧急处理。</p>
+<h5 id="衍生问题"><a href="#衍生问题" class="headerlink" title="衍生问题"></a>衍生问题</h5><p>“强制打断”解决了紧急响应问题，却带来了一个危险的新问题：</p>
+<blockquote>
+<p>NMI 打断 CPU 的瞬间，CPU 必须把现场通用寄存器压入栈保存。如果这几条压栈指令还没执行完又来了一个 NMI，现场数据就会被覆写破坏，导致系统直接崩溃（Panic）！</p>
+</blockquote>
+<p>所以绝对不能允许 NMI 无限制地随时打断，硬件必须提供一种”让软件在保现场时拉下闸门”的机制。</p>
+<h5 id="ARM-的解决方案"><a href="#ARM-的解决方案" class="headerlink" title="ARM 的解决方案"></a>ARM 的解决方案</h5><p>为此 ARM 引入了 <code>PSTATE.ALLINT</code> 屏蔽位和 <code>SCTLR_ELx</code> 配置项。</p>
+<p><strong><code>PSTATE.ALLINT</code> 掩码</strong></p>
+<p>当 CPU 第一次响应 NMI 跳进 Handler 时，硬件会自动把 NMI 也暂时屏蔽。软件通过控制 <code>ALLINT</code> 位可以在 3 种状态间切换：</p>
+<ol>
+<li>完全解禁：常规 IRQ 和 NMI 都能进来；</li>
+<li>只放行 NMI：常规 IRQ 被挡住，但紧急的 NMI 可以进来（NMI 的正常工作状态）；</li>
+<li>全部封锁：连 NMI 也挡住（专用于刚进中断 Handler、正在压栈保现场的那几条指令）。</li>
+</ol>
+<p><strong><code>SCTLR_ELx.NMI</code> 与 <code>SPINTMASK</code>（硬件级自动防护）</strong></p>
+<p>为了防止程序员忘记手动设置 <code>ALLINT</code> 导致现场被打断破坏，<a target="_blank" rel="noopener" href="https://support.arm.com/documentation/102412/0103/Handling-exceptions/Exception-handling-examples?lang=en">SCTLR_ELx 寄存器</a> 提供了自动化保护配置：</p>
+<ul>
+<li><code>SCTLR_ELx.NMI = 0</code>：关闭 NMI，所有中断退回传统模式（用 <code>PSTATE.I</code> &#x2F; <code>PSTATE.F</code> 控制）；</li>
+<li><code>SCTLR_ELx.NMI = 1</code>：开启 NMI，并通过 <code>SPINTMASK</code> 控制防踩坑的方式：<ul>
+<li><code>SPINTMASK = 0</code>（手动模式）：完全由软件显式修改 <code>PSTATE.ALLINT</code>，决定何时封锁&#x2F;解封 NMI；</li>
+<li><code>SPINTMASK = 1</code>（硬件自动安全模式，推荐）：只要 CPU 切换到异常专属栈指针 <code>SP_ELx</code>（说明刚触发异常、正处于入口压栈阶段），硬件就自动隐式屏蔽 NMI，无需程序员手动加锁，彻底杜绝现场压栈时被二次打断的风险。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">SPINTMASK = 1 的情况：</span><br><span class="line"></span><br><span class="line">[ 触发 NMI 异常 ]</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line"> 1. 硬件自动切到 SP_ELx 栈</span><br><span class="line"> 2. 硬件自动将 PSTATE.ALLINT 置 1 (拉起全屏屏蔽，防止 NMI 撞烂现场)</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">【软件开始压栈保存寄存器】</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">【压栈完成】--&gt; 软件显式清空 ALLINT (写 ALLINT = 0，尝试解封 NMI)</span><br><span class="line">       │</span><br><span class="line">       ▼</span><br><span class="line">【硬件进行双重检查】：</span><br><span class="line">  &quot;虽然软件写了 ALLINT = 0，但 CPU 此时是不是还在用 SP_ELx 栈？&quot;</span><br><span class="line">       │</span><br><span class="line">   ┌───┴──────────────────────────────┐</span><br><span class="line">   │                                  │</span><br><span class="line">[ 是，还在用 SP_ELx ]             [ 否，已经切回 SP_EL0 ]</span><br><span class="line">   │                                  │</span><br><span class="line">   ▼                                  ▼</span><br><span class="line"> 硬件继续隐式屏蔽 NMI !           NMI 正式解封，允许穿透！</span><br><span class="line">(防止程序逻辑漏写保护代码)      (安全进入深层 Handler / C 代码)</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AArch64/" rel="tag"># AArch64</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/" rel="prev" title="AArch64 异常模型 - 基础概念">
+                  <i class="fa fa-angle-left"></i> AArch64 异常模型 - 基础概念
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/" rel="next" title="AArch64 指令集架构">
+                  AArch64 指令集架构 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

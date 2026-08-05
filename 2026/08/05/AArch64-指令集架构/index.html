@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文介绍AArch64的指令集架构。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AArch64 指令集架构">
+<meta property="og:url" content="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍AArch64的指令集架构。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/images_example-pipeline.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/images_register-diagram.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/images_other-registers.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_instruction-format.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_FP16_BF16.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_bit-instructions.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_reverse-order.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_extension-instructions.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_emov-example.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_atomic-load.svg">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_pcs.svg">
+<meta property="article:published_time" content="2026-08-05T13:08:14.000Z">
+<meta property="article:modified_time" content="2026-08-05T13:20:05.661Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="AArch64">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/images_example-pipeline.svg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/","path":"2026/08/05/AArch64-指令集架构/","title":"AArch64 指令集架构"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AArch64 指令集架构 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#A64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84%E5%AD%A6%E4%B9%A0%E7%AC%94%E8%AE%B0"><span class="nav-text">A64 指令集架构学习笔记</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E7%AE%80%E5%8D%95%E9%A1%BA%E5%BA%8F%E6%89%A7%E8%A1%8C"><span class="nav-text">1. 简单顺序执行</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-AArch64-%E7%9A%84%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">2. AArch64 的寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E9%80%9A%E7%94%A8%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">2.1 通用寄存器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%85%B6%E4%BB%96%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">2.2 其他寄存器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E7%B3%BB%E7%BB%9F%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">2.3 系统寄存器</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E6%95%B0%E6%8D%AE%E5%A4%84%E7%90%86"><span class="nav-text">3. 数据处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E7%AE%97%E6%9C%AF%E4%B8%8E%E9%80%BB%E8%BE%91%E8%BF%90%E7%AE%97"><span class="nav-text">3.1 算术与逻辑运算</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%B5%AE%E7%82%B9%E6%95%B0"><span class="nav-text">3.2 浮点数</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#8%E4%BD%8D%E5%92%8C16%E4%BD%8D%E6%B5%AE%E7%82%B9%E6%95%B0%E6%94%AF%E6%8C%81"><span class="nav-text">8位和16位浮点数支持</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%B5%AE%E7%82%B9%E6%95%B0%E6%98%AF%E5%8F%AF%E9%80%89%E7%9A%84%E5%90%97%EF%BC%9F"><span class="nav-text">浮点数是可选的吗？</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E4%BD%8D%E6%93%8D%E4%BD%9C"><span class="nav-text">3.3 位操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E6%89%A9%E5%B1%95%E5%92%8C%E9%A5%B1%E5%92%8C"><span class="nav-text">3.4 扩展和饱和</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Arm64-%E5%A6%82%E4%BD%95%E5%A4%84%E7%90%86-8-%E4%BD%8D-16-%E4%BD%8D%E5%B0%8F%E6%95%B4%E6%95%B0%E8%AE%A1%E7%AE%97"><span class="nav-text">Arm64 如何处理 8 位&#x2F;16 位小整数计算</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2"><span class="nav-text">3.5 格式转换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-%E5%90%91%E9%87%8F%E5%92%8C%E7%9F%A9%E9%98%B5%E6%95%B0%E6%8D%AE"><span class="nav-text">3.6 向量和矩阵数据</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Loads-and-stores"><span class="nav-text">4. Loads and stores</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E6%95%B0%E6%8D%AEsize"><span class="nav-text">4.1 数据size</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E9%9B%B6%E6%89%A9%E5%B1%95%E5%92%8C%E7%AC%A6%E5%8F%B7%E6%89%A9%E5%B1%95"><span class="nav-text">4.2 零扩展和符号扩展</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%AF%BB%E5%9D%80"><span class="nav-text">4.3 寻址</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E5%8A%A0%E8%BD%BD%E5%AF%B9%E5%92%8C%E5%AD%98%E5%82%A8%E5%AF%B9"><span class="nav-text">4.4 加载对和存储对</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E4%BD%BF%E7%94%A8%E6%B5%AE%E7%82%B9%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">4.5 使用浮点寄存器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E7%89%B9%E6%AE%8A%E6%8C%87%E4%BB%A4"><span class="nav-text">4.6 特殊指令</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Load-Acquire-and-Store-Release"><span class="nav-text">Load-Acquire and Store-Release</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#64-%E5%AD%97%E8%8A%82%E5%8E%9F%E5%AD%90%E5%8A%A0%E8%BD%BD%E5%92%8C%E5%AD%98%E5%82%A8"><span class="nav-text">64 字节原子加载和存储</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E7%A8%8B%E5%BA%8F%E6%B5%81%E7%A8%8B"><span class="nav-text">5 程序流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%BE%AA%E7%8E%AF%E5%92%8C%E5%86%B3%E7%AD%96"><span class="nav-text">5.1 循环和决策</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E6%9D%A1%E4%BB%B6%E5%88%86%E6%94%AF%E6%8C%87%E4%BB%A4-Conditional-Branch-Instructions"><span class="nav-text">条件分支指令 (Conditional Branch Instructions)</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-%E6%A0%B8%E5%BF%83%E6%8C%87%E4%BB%A4%E7%B1%BB%E5%9E%8B"><span class="nav-text">1. 核心指令类型</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-C-%E8%AF%AD%E8%A8%80%E6%8E%A7%E5%88%B6%E6%B5%81%E6%98%A0%E5%B0%84%E7%A4%BA%E4%BE%8B"><span class="nav-text">2. C 语言控制流映射示例</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E6%9D%A1%E4%BB%B6%E7%A0%81%E7%9A%84%E7%94%9F%E6%88%90%E4%B8%8E%E6%A0%87%E5%BF%97%E4%BD%8D"><span class="nav-text">5.2 条件码的生成与标志位</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E6%9D%A1%E4%BB%B6%E9%80%89%E6%8B%A9%E6%8C%87%E4%BB%A4-Conditional-Select-Instructions"><span class="nav-text">5.3 条件选择指令 (Conditional Select Instructions)</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8"><span class="nav-text">6 函数调用</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E4%B8%8E%E8%BF%94%E5%9B%9E"><span class="nav-text">6.1 函数调用与返回</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E7%A8%8B%E5%BA%8F%E8%B0%83%E7%94%A8%E6%A0%87%E5%87%86"><span class="nav-text">6.2 程序调用标准</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8"><span class="nav-text">7 系统调用</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">74</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AArch64 指令集架构 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AArch64 指令集架构
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-05 21:08:14" itemprop="dateCreated datePublished" datetime="2026-08-05T21:08:14+08:00">2026-08-05</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>本文介绍AArch64的指令集架构。</p>
+<span id="more"></span>
+
+<h1 id="A64-指令集架构学习笔记"><a href="#A64-指令集架构学习笔记" class="headerlink" title="A64 指令集架构学习笔记"></a>A64 指令集架构学习笔记</h1><h2 id="1-简单顺序执行"><a href="#1-简单顺序执行" class="headerlink" title="1. 简单顺序执行"></a>1. 简单顺序执行</h2><p>Arm 架构采用简单顺序执行（SSE）模型来描述指令。这意味着处理器会按照指令在内存中出现的顺序，一次读取、解码并执行一条指令。</p>
+<p><strong>顺序阶段（In-Order）</strong></p>
+<p>在这个阶段，指令严格按照在程序&#x2F;内存中出现的顺序依次流过：</p>
+<ul>
+<li><strong>Fetch（取指）：</strong> 从内存或一级指令缓存（L1 I-Cache）中抓取指令。</li>
+<li><strong>Decode, Rename, Dispatch（译码、重命名、分发）：</strong><ul>
+<li><strong>Decode</strong>：解析指令含义。</li>
+<li><strong>Rename</strong>：通过“寄存器重命名”解除伪数据依赖（RAW &#x2F; WAW 冲突），防止不同指令抢占同一个通用寄存器。</li>
+<li><strong>Dispatch</strong>：将指令分发到对应的发射队列中。</li>
+</ul>
+</li>
+<li><strong>Issue（发射）：</strong> 当指令所需的输入数据就绪时，将其发送到具体的执行单元。</li>
+</ul>
+<p><strong>乱序阶段（Out-of-Order）</strong></p>
+<p>指令被发射后，不再需要等待前面的慢指令，只要资源和数据就绪就可以<strong>并行或乱序执行</strong>。图中展示了不同的<strong>专用硬件执行单元</strong>：</p>
+<ul>
+<li><strong>Branch：</strong> 处理分支预测与跳转指令。</li>
+<li><strong>Integer 0 &#x2F; Integer 1：</strong> 处理单周期的基础整数算术&#x2F;逻辑运算（如加减法、位操作）。</li>
+<li><strong>Integer Multi-Cycle：</strong> 处理耗时较长的多周期整数运算（如乘法、除法）。</li>
+<li><strong>FP&#x2F;ASIMD 0 &#x2F; FP&#x2F;ASIMD 1：</strong> 处理浮点数运算（Floating-Point）以及 SIMD 向量运算（NEON&#x2F;SVE 指令）。</li>
+<li><strong>Load &#x2F; Store：</strong> 分别负责从内存加载数据到寄存器，以及将数据写入内存。</li>
+</ul>
+<img src="images_example-pipeline.svg" alt="images_example-pipeline" style="zoom: 67%;" />
+
+<p><strong>举例：</strong></p>
+<p>假设有以下4条按顺序排列的指令：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">1.  LDR   R0, [R1]      ; 从内存读取数据到 R0（从内存找数据非常慢，需要等待）</span><br><span class="line">2.  ADD   R2, R0, #1    ; 计算 R2 = R0 + 1  （依赖第 1 条指令的 R0 结果）</span><br><span class="line">3.  ADD   R3, R4, #5    ; 计算 R3 = R4 + 5  （跟前面的指令完全无关，非常快）</span><br><span class="line">4.  MUL   R6, R7, R8    ; 计算 R6 = R7 * R8 （乘法，交给专门的乘法单元）</span><br></pre></td></tr></table></figure>
+
+<p>实际执行的结果可能是：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">时间轴 --------------------------------------------------------&gt;</span><br><span class="line"></span><br><span class="line">[Load/Store 单元]  : 执行第 1 条指令 (LDR)... (耗时等待内存返回 R0) </span><br><span class="line">[Integer 0 单元]   : [卡住等待 R0] --------&gt; 执行第 2 条指令 (ADD R2)</span><br><span class="line">[Integer 1 单元]   : 立刻执行第 3 条指令 (ADD R3)！⚡ (第0周期完成)</span><br><span class="line">[Multi-Cycle 单元] : 立刻执行第 4 条指令 (MUL R6)！⚡ (并发处理)</span><br></pre></td></tr></table></figure>
+
+<p>最终结果：</p>
+<ul>
+<li>实际执行完成的顺序可能是： <code>第 3 条</code> -&gt; <code>第 4 条</code> -&gt; <code>第 1 条</code> -&gt; <code>第 2 条</code></li>
+<li>对外的结果： CPU 会在最后重排，确保让程序“感觉”所有指令依然是按 <code>1 -&gt; 2 -&gt; 3 -&gt; 4</code> 顺序生效的。</li>
+</ul>
+<h2 id="2-AArch64-的寄存器"><a href="#2-AArch64-的寄存器" class="headerlink" title="2. AArch64 的寄存器"></a>2. AArch64 的寄存器</h2><h3 id="2-1-通用寄存器"><a href="#2-1-通用寄存器" class="headerlink" title="2.1 通用寄存器"></a>2.1 通用寄存器</h3><p><strong>通用寄存器（General-Purpose Registers）</strong></p>
+<ul>
+<li>数量与位数： 提供 <strong>31 个</strong>通用寄存器，每个均可作为 <strong>64 位</strong>使用（命名为 <code>X0</code> ~ <code>X30</code>）。</li>
+<li>访问方式（X 与 W）：<ul>
+<li>同一个寄存器既可以用作 64 位的 **<code>X</code>**，也可以访问其低 32 位的 **<code>W</code>**（如 <code>W0</code> 是 <code>X0</code> 的低 32 位）。</li>
+<li>寄存器的名称决定了计算的位宽：<code>ADD W0, W1, W2</code> 执行 32 位加法；<code>ADD X0, X1, X2</code> 执行 64 位加法。</li>
+<li><strong>高位清零机制：</strong> 当向 <code>W</code> 寄存器写入数据时，对应的 64 位寄存器的高 32 位会被自动清零。</li>
+</ul>
+</li>
+</ul>
+<img src="images_register-diagram.svg" alt="images_register-diagram" style="zoom: 67%;" />
+
+<p><strong>浮点与向量寄存器（FP &amp; Vector Registers）</strong></p>
+<ul>
+<li>数量与位数： 拥有独立的一组 <strong>32 个 128 位</strong>寄存器。</li>
+<li>标量访问模式： 可通过不同视图读取部分位宽，名称决定计算精度：<ul>
+<li><strong><code>B</code></strong> (8-bit) &#x2F; <strong><code>H</code></strong> (16-bit)</li>
+<li><strong><code>S</code></strong> (32-bit 单精度，如 <code>FADD S0, S1, S2</code>)</li>
+<li><strong><code>D</code></strong> (64-bit 双精度，如 <code>FADD D0, D1, D2</code>)</li>
+<li><strong><code>Q</code></strong> (128-bit)</li>
+</ul>
+</li>
+<li>向量访问模式（V 寄存器&#x2F;SIMD）：<ul>
+<li>当以 <strong><code>V</code></strong> 的形式调用时，128 位寄存器被视为包含多个独立数据的向量。</li>
+<li><strong><code>FADD V0.2D, V1.2D, V2.2D</code><strong>：将寄存器切分为 2 个 64 位元素，并行进行</strong>向量浮点加法</strong>。</li>
+<li><strong><code>ADD V0.2D, V1.2D, V2.2D</code><strong>：结构相同，但进行的是</strong>向量整数加法</strong>。</li>
+</ul>
+</li>
+</ul>
+<img src="images_other-registers.svg" alt="images_other-registers" style="zoom: 67%;" />
+
+<h3 id="2-2-其他寄存器"><a href="#2-2-其他寄存器" class="headerlink" title="2.2 其他寄存器"></a>2.2 其他寄存器</h3><p><strong>零寄存器（<code>XZR</code> &#x2F; <code>WZR</code>）</strong></p>
+<p>在指令执行中，我们经常需要清零变量或丢弃没用的计算结果。</p>
+<ul>
+<li><strong><code>XZR</code>（64位）&#x2F; <code>WZR</code>（32位）：</strong> 读它永远返回纯粹的 <code>0</code>，写它会被系统直接忽略。</li>
+<li><strong>优势：</strong> 靠硬件特性省去了专门的清零指令，代码更高效。</li>
+</ul>
+<p><strong>堆栈指针（<code>SP</code>）</strong></p>
+<p><code>SP</code> 在 A64 中被收回了通用寄存器的身份，主要用来做内存加载&#x2F;存储（Load&#x2F;Store）的基地址。</p>
+<ul>
+<li><strong>多栈机制：</strong> Armv8-A 硬件为每个异常级别（Exception Level）都配了独立的 <code>SP</code>。</li>
+<li><strong>安全隔离：</strong> 指令用到 <code>SP</code> 时，硬件会自动切到当前运行级别的栈指针，从底层防止权限越界。</li>
+</ul>
+<p><strong>链接寄存器（<code>X30</code> &#x2F; <code>LR</code>）</strong></p>
+<p>负责程序跳转时的返回地址管理：</p>
+<ul>
+<li><strong>普通函数返回：</strong> 由 <strong><code>X30</code>（即 <code>LR</code>）</strong> 负责保存返回地址。</li>
+<li><strong>系统异常返回：</strong> 硬件会改用独立的 <strong><code>ELR_ELx</code></strong> 寄存器，避免异常处理打乱正常的函数调用链。</li>
+</ul>
+<p><strong>程序计数器（<code>PC</code>）</strong></p>
+<p>老 Arm32 或 x86 允许直接用算术指令改写 <code>PC</code>，但 A64 彻底把 <code>PC</code> 封锁了。</p>
+<ul>
+<li><strong>如何读取：</strong> 需要使用相对寻址指令间接获取当前地址（比如 <code>ADR Xd, .</code>，其中 <code>.</code> 表示当前位置）。</li>
+<li><strong>设计目的：</strong> 剥离通用属性后，大大简化了现代 CPU 的乱序流水线与分支预测逻辑。</li>
+</ul>
+<h3 id="2-3-系统寄存器"><a href="#2-3-系统寄存器" class="headerlink" title="2.3 系统寄存器"></a>2.3 系统寄存器</h3><p>Arm64 里的<strong>系统寄存器</strong>是用来管底层硬件配置的（比如控制 MMU 内存管理、异常处理等）。它和普通寄存器最大的不同是<strong>不能直接进行加减计算或做 <code>LDR</code>&#x2F;<code>STR</code> 内存读写</strong>。</p>
+<p>想要改动系统寄存器，必须走“中转”流程：</p>
+<ul>
+<li><strong><code>MRS Xd, &lt;system_reg&gt;</code><strong>：把系统寄存器的值</strong>读</strong>到通用寄存器 <code>Xd</code> 中。</li>
+<li><strong><code>MSR &lt;system_reg&gt;, Xn</code><strong>：把通用寄存器 <code>Xn</code> 修改后的值</strong>写</strong>回系统寄存器。</li>
+</ul>
+<p>另外，系统寄存器名称结尾的 <strong><code>_ELx</code><strong>（如 <code>SCTLR_EL1</code>）标明了访问它所需的</strong>最低权限级别</strong>。如果你在用户态（<code>EL0</code>）尝试读取内核态（<code>EL1</code>）的寄存器，硬件会直接报异常打断程序。</p>
+<h2 id="3-数据处理"><a href="#3-数据处理" class="headerlink" title="3. 数据处理"></a>3. 数据处理</h2><h3 id="3-1-算术与逻辑运算"><a href="#3-1-算术与逻辑运算" class="headerlink" title="3.1 算术与逻辑运算"></a>3.1 算术与逻辑运算</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_instruction-format.svg" alt="images_instruction-format"></p>
+<p><strong>基础指令结构</strong></p>
+<p>标准的算术（如 <code>ADD</code>）与逻辑（如 <code>AND</code>）指令通常包含 4 部分：</p>
+<ul>
+<li><strong>操作码（Operation）：</strong> 决定具体干啥。如果在末尾加 <strong><code>S</code><strong>（如 <code>ADDS</code>），代表运算后会</strong>更新 CPU 的标志位</strong>（标志位用于后面的条件判断）。</li>
+<li><strong>目标寄存器（Destination）：</strong> 存放结果。如果是 32 位的 <code>W</code> 寄存器，写入后对应 <code>X</code> 寄存器的<strong>高 32 位会自动清零</strong>。</li>
+<li><strong>操作数 1（Operand 1）：</strong> 必须是寄存器。</li>
+<li><strong>操作数 2（Operand 2）：</strong> 可以是寄存器或常数（立即数）。如果是寄存器，还能附带<strong>可选的移位操作</strong>；如果是常数，因为要直接编进指令里，所以取值范围有限。</li>
+</ul>
+<hr>
+<p><strong>特殊情况：单操作数指令</strong></p>
+<p>大多数指令需要两个输入，但有些只需要一个输入操作数（寄存器或常数）：</p>
+<ul>
+<li><strong><code>MOV</code>（赋值）：</strong> 把常数或另一个寄存器的值传给目标寄存器（如 <code>MOV X0, #1</code>）。</li>
+<li><strong><code>MVN</code>（按位取反）：</strong> 把输入值按位取反后传给目标寄存器（如 <code>MVN W0, W1</code>，相当于 $W0 &#x3D; ~ W1$）。</li>
+</ul>
+<h3 id="3-2-浮点数"><a href="#3-2-浮点数" class="headerlink" title="3.2 浮点数"></a>3.2 浮点数</h3><p><strong>语法结构一致：</strong> 浮点指令的格式与前面的整数指令非常相似，只不过操作的是专门的浮点寄存器。</p>
+<p><strong>标志性前缀 <code>F</code>：</strong> 浮点指令的操作码全部以字母 <strong><code>F</code></strong> 开头（如 <code>FADD</code> 加法、<code>FSUB</code> 减法、<code>FDIV</code> 除法）。</p>
+<p><strong>寄存器决定精度：</strong> 使用什么前缀的寄存器，就代表什么精度的运算：</p>
+<ul>
+<li><strong><code>H</code>（16位）：</strong> 半精度，例如 <code>FDIV H0, H1, H2</code></li>
+<li><strong><code>S</code>（32位）：</strong> 单精度，例如 <code>FADD S0, S1, S2</code></li>
+<li><strong><code>D</code>（64位）：</strong> 双精度，例如 <code>FSUB D0, D1, D2</code></li>
+</ul>
+<h4 id="8位和16位浮点数支持"><a href="#8位和16位浮点数支持" class="headerlink" title="8位和16位浮点数支持"></a>8位和16位浮点数支持</h4><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_FP16_BF16.svg" alt="images_FP16_BF16"></p>
+<blockquote>
+<p>核心差异就在于指数位（Exponent，用 E 表示）<strong>和</strong>尾数&#x2F;小数位（Mantissa，用 M 表示）的分配不同。</p>
+</blockquote>
+<p><strong>16 位浮点：FP16 与 BF16</strong></p>
+<ul>
+<li><strong>FP16</strong>：从 Armv8.2-A 开始引入，主要用于兼顾精度和精简内存。如果芯片实现了 SVE&#x2F;SVE2，或者升级到了 Armv9-A，FP16 就变成了强制支持的标准。</li>
+<li><strong>BF16 (BFloat16)<strong>：专为神经网络&#x2F;AI 训练设计。它的特点是</strong>指数位范围与 FP32 完全一致</strong>，只是截短了尾数精度，因此和 FP32 之间的相互转换极其简单高效。</li>
+</ul>
+<p><strong>8 位浮点：FP8 (OCP8 标准)</strong></p>
+<ul>
+<li>由 Arm、Intel 和 Nvidia 联合制定，从 Armv9.2-A 开始支持。</li>
+<li>包含 <strong>E5M2</strong>（侧重动态范围）和 <strong>E4M3</strong>（侧重数值精度）两种模式，可通过 <code>FPMR</code> 寄存器灵活配置，方便不同输入的计算。</li>
+</ul>
+<p><strong>更小数据类型的转换 (2&#x2F;4&#x2F;6 位)</strong></p>
+<ul>
+<li>Armv9.6-A &#x2F; 9.7-A 引入了查找表指令（LUT），专门用来高效地把 2 位、4 位或 6 位这类超小数据格式快速转换为标准格式进行处理。</li>
+</ul>
+<h4 id="浮点数是可选的吗？"><a href="#浮点数是可选的吗？" class="headerlink" title="浮点数是可选的吗？"></a>浮点数是可选的吗？</h4><p>在 Armv8-A 架构中，<strong>浮点运算支持是强制要求的（Mandatory）</strong>，尤其是当运行 Linux 这类功能丰富的操作系统时，硬件层面必须具备浮点支持。</p>
+<p>只有在极少数运行完全自研的专有软件栈时，理论上才允许省略浮点单元。不过像 GCC、Arm Compiler 6 等主流编译器工具链，默认都会假设 CPU 拥有浮点功能并据此生成代码。</p>
+<h3 id="3-3-位操作"><a href="#3-3-位操作" class="headerlink" title="3.3 位操作"></a>3.3 位操作</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_bit-instructions.svg" alt="images_bit-instructions"></p>
+<p><strong>位域插入（<code>BFI</code>）：</strong> 将源寄存器中指定长度的一段二进制位，精准“塞入”到目标寄存器的指定位置。利用 <code>BFI</code> 结合零寄存器 <code>WZR</code>，还能快速清空（置 0）某一段特定的二进制位。</p>
+<p><strong>无符号位域提取（<code>UBFX</code>）：</strong> 从源寄存器的某位置抠出一段指定长度的二进制位，右对齐放到目标寄存器（低位），高位自动补 0。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_reverse-order.svg" alt="images_reverse-order"></p>
+<p><strong>字节&#x2F;位顺序反转（如 <code>REV16</code>、<code>RBIT</code>）：</strong> 专门用来倒序排列字节或二进制位，在处理大小端（Endianness）数据格式转换时非常实用。</p>
+<h3 id="3-4-扩展和饱和"><a href="#3-4-扩展和饱和" class="headerlink" title="3.4 扩展和饱和"></a>3.4 扩展和饱和</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_extension-instructions.svg" alt="images_extension-instructions"></p>
+<p>在第一条指令中<code>SXTB</code>，<code>B</code>表示字节。它取字节的最低字节<code>W0</code>，并将其符号扩展至 32 位。</p>
+<p><code>UXTH</code>是半字（）的无符号扩展<code>H</code>。它取 W1 的低 16 位，并将其扩展为 32 位。</p>
+<p>前两个示例的目标地址是<code>W</code>寄存器，这意味着扩展位为 32 位。第三个示例的目标地址是<code>X</code>寄存器，这意味着符号位扩展位为 64 位。</p>
+<h4 id="Arm64-如何处理-8-位-16-位小整数计算"><a href="#Arm64-如何处理-8-位-16-位小整数计算" class="headerlink" title="Arm64 如何处理 8 位&#x2F;16 位小整数计算"></a>Arm64 如何处理 8 位&#x2F;16 位小整数计算</h4><p>由于硬件没有专门的 8&#x2F;16 位通用寄存器，处理 <code>uint16_t</code> 或 <code>int16_t</code> 计算时，CPU 必须先将数据扩展到 32 位，再配合带扩展后缀的计算指令将结果饱和截断回 16 位范围。这就导致 16 位运算相比原生的 32 位运算会<strong>多消耗一条扩展指令</strong>。</p>
+<p><strong>例 1：原生的 32 位加法（<code>add32</code>）</strong></p>
+<p>当 C 语言处理 32 位数据 <code>uint32_t a + b</code> 时，硬件可以直接映射到 <code>W</code> 寄存器完成，只需一条指令：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">add32:</span><br><span class="line">    ADD W0, W1, W0    ; 直接相加</span><br><span class="line">    RET</span><br></pre></td></tr></table></figure>
+
+<p><strong>例 2：16 位无符号加法（<code>uadd16</code>）</strong></p>
+<p>处理 <code>uint16_t a + b</code> 时，为了清空高位杂音，CPU 先用 <code>AND</code> 把 <code>W1</code> 截取为 16 位，再在 <code>ADD</code> 中加上 <code>, UXTH</code> 后缀，边加边对另一个参数做 16 位无符号扩展和截断：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">uadd16:</span><br><span class="line">    AND W8, W1, #0xffff    ; W1 高位清零，保留低 16 位存入 W8</span><br><span class="line">    ADD W0, W8, W0, UXTH   ; 相加并在计算中把 W0 截断/扩展为 16 位</span><br><span class="line">    RET</span><br></pre></td></tr></table></figure>
+
+<p><strong>例 3：16 位有符号加法（<code>sadd16</code>）</strong></p>
+<p>处理 <code>int16_t a + b</code> 时，先用 <code>SXTH</code> 指令保留 <code>W1</code> 的符号位扩展成 32 位，再用带 <code>, SXTH</code> 后缀的加法完成计算并做饱和处理（结果限制在 16 位有符号范围内，防止越界错乱）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">sadd16:</span><br><span class="line">    SXTH W8, W1             ; W1 符号扩展到 32 位存入 W8</span><br><span class="line">    ADD  W0, W8, W0, SXTH   ; W8 与扩展后的 W0 相加，并进行 16 位饱和/截断</span><br><span class="line">    RET</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-5-格式转换"><a href="#3-5-格式转换" class="headerlink" title="3.5 格式转换"></a>3.5 格式转换</h3><p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_emov-example.svg" alt="images_emov-example"></p>
+<p><strong>位模式直接复制：<code>FMOV</code></strong></p>
+<ul>
+<li><p><strong>机制</strong>：仅仅将通用寄存器里的二进制位（0 和 1）<strong>原封不动地搬运</strong>到浮点寄存器中，<strong>不改变数值的底层解释方式</strong>。</p>
+</li>
+<li><p><strong>例子</strong>：</p>
+<p>如果通用寄存器 <code>X0</code> 中保存整数 <code>2</code>（对应十六进制 <code>0x0000_0000_0000_0002</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FMOV D0, X0</span><br></pre></td></tr></table></figure>
+
+<p>执行后，<code>D0</code> 里的二进制位依然是 <code>0x0000_0000_0000_0002</code>。但如果把它当作双精度浮点数解读，其数值会变成极小的极非规范数 <strong>9.88131 * 10^-324</strong>（并不是浮点数 2.0）。</p>
+</li>
+</ul>
+<hr>
+<p><strong>数值等价转换：<code>SCVTF</code> &#x2F; <code>UCVTF</code></strong></p>
+<ul>
+<li><p><strong>机制</strong>：将整数转换为数值上<strong>最接近的浮点数表示</strong>（有符号&#x2F;无符号数值转换）。</p>
+</li>
+<li><p><strong>例子</strong>：</p>
+<p>同样是把 <code>X0</code>（整数 <code>2</code>）转存到浮点寄存器：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SCVTF D1, X0   ; S = Signed, CVT = Convert, F = Float</span><br></pre></td></tr></table></figure>
+
+<p>执行后，<code>D1</code> 的实际十六进制编码会被重构为 <code>0x4000_0000_0000_0002</code>，解读为浮点数正是 **$2.0$**。</p>
+</li>
+</ul>
+<hr>
+<p><strong>浮点转整数：<code>FCVTxx</code></strong></p>
+<ul>
+<li><p><strong>机制</strong>：将浮点数转换为最接近的整数格式。指令后缀 <code>xx</code> 用来控制不同的<strong>舍入模式（Rounding Mode）</strong>（例如向零舍入、向最近值舍入等）。</p>
+</li>
+<li><p><strong>例子</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">FCVTNS X0, D0   ; 将 D0 中的浮点数按“四舍五入（Round to Nearest）”转换为有符号整数</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h3 id="3-6-向量和矩阵数据"><a href="#3-6-向量和矩阵数据" class="headerlink" title="3.6 向量和矩阵数据"></a>3.6 向量和矩阵数据</h3><p>A64 架构也支持矢量数据处理。可用的两种矢量处理方式是：</p>
+<ul>
+<li>高级 SIMD，也称为 NEON。</li>
+<li>可扩展矢量扩展（SVE 和 SVE2）。SVE 在 Armv8-A 中引入，并针对高性能计算 (HPC) 工作负载进行了优化。Armv9-A 引入了 SVE2，它扩展了基础 SVE，以支持更多应用场景。</li>
+</ul>
+<p><strong>高级 SIMD（NEON）</strong></p>
+<p>NEON 是 Arm 的传统单指令多数据（SIMD）扩展技术，支持 128 位向量操作，广泛应用于多媒体编解码和常规图形信号处理。</p>
+<p><strong>可扩展向量扩展（SVE &amp; SVE2）</strong></p>
+<ul>
+<li><strong>SVE（Armv8-A）：</strong> 突破了固定向量长度的限制，支持硬件自适应的可变长度向量计算，主要面向高性能计算（HPC）领域。</li>
+<li><strong>SVE2（Armv9-A）：</strong> 在 SVE 的基础上进行了大幅扩充，将向量计算能力推广到更广泛的场景，如 GEMV（矩阵向量乘法）、非线性求解器、稀疏矩阵计算及特征提取等。</li>
+</ul>
+<p><strong>可扩展矩阵扩展（SME &amp; SME2）</strong></p>
+<ul>
+<li><strong>SME（Armv9-A）：</strong> 基于 SVE2 专门为矩阵运算设计的可选扩展。它引入了矩阵图块存储（Matrix Tile Storage）<strong>和</strong>外积（Outer Product）指令，大大提升了矩阵乘法等密集运算的效率。</li>
+<li><strong>SME2：</strong> 进一步强化了矩阵计算能力，新增多向量并行指令、多向量谓词、范围预取以及 2b&#x2F;4b 权重压缩技术，专门用于极大加速 AI 模型推理与深度学习工作负载。</li>
+</ul>
+<blockquote>
+<p><strong>💡 总结：</strong> 从 NEON 的固定长度向量，到 SVE 的可扩展向量，再到 SME 的专用矩阵加速，Arm64 逐步构建起了从常规多媒体处理到现代 AI&#x2F;ML 运算的全方位并行计算生态。</p>
+</blockquote>
+<h2 id="4-Loads-and-stores"><a href="#4-Loads-and-stores" class="headerlink" title="4. Loads and stores"></a>4. Loads and stores</h2><h3 id="4-1-数据size"><a href="#4-1-数据size" class="headerlink" title="4.1 数据size"></a>4.1 数据size</h3><p><strong>标准尺寸传输（32 位 &#x2F; 64 位）</strong></p>
+<p>通过寄存器名称直接指定读写 32 位还是 64 位：</p>
+<ul>
+<li><strong>32 位加载</strong>：<code>LDR W0, [&lt;address&gt;]</code>（将 32 位数据读取到 <code>W0</code>）</li>
+<li><strong>64 位加载</strong>：<code>LDR X0, [&lt;address&gt;]</code>（将 64 位数据读取到 <code>X0</code>）</li>
+</ul>
+<p><strong>子寄存器尺寸传输（低于 32 位的数据）</strong></p>
+<p>当需要写低于完整寄存器宽度的数据（如单字节 8 位、半字 16 位）到内存时，使用带后缀的 <code>STR</code> 指令，只截取寄存器<strong>低位</strong>的数据写入：</p>
+<ul>
+<li><strong>写入 1 字节（8 位）</strong>：<code>STRB W0, [&lt;address&gt;]</code>（仅写入 <code>W0</code> 的最低字节 B）</li>
+<li><strong>写入半字（16 位）</strong>：<code>STRH W0, [&lt;address&gt;]</code>（仅写入 <code>W0</code> 的低 16 位 H）</li>
+<li><strong>写入单字（32 位）</strong>：<code>STRW X0, [&lt;address&gt;]</code>（仅写入 <code>X0</code> 的低 32 位 W）</li>
+</ul>
+<h3 id="4-2-零扩展和符号扩展"><a href="#4-2-零扩展和符号扩展" class="headerlink" title="4.2 零扩展和符号扩展"></a>4.2 零扩展和符号扩展</h3><p><strong>默认零扩展</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">LDRB W4, [&lt;addr&gt;]   ; 将 1 字节数据读取到 W4 的低 8 位，W4 的高 24 位以及 X4 的高 32 位全部清零（Zero-extend）</span><br></pre></td></tr></table></figure>
+
+<p><strong>显示控制：符号扩展</strong></p>
+<p>如果在加载指令中加上 <strong><code>S</code> 后缀</strong>（如 <code>LDRSB</code>、<code>LDRSH</code>、<code>LDRSW</code>），硬件会提取数据的符号位（最高位），并将其一路填充覆盖至整个目标寄存器的最高位，用来保持有符号数的正负值不变。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">LDRSB W0, [&lt;addr&gt;]   ; 将 1 字节有符号数读入，并用其符号位填充扩展至整个 W0（32 位）</span><br><span class="line">LDRSB X0, [&lt;addr&gt;]   ; 将 1 字节有符号数读入，并用其符号位填充扩展至整个 X0（64 位）</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-寻址"><a href="#4-3-寻址" class="headerlink" title="4.3 寻址"></a>4.3 寻址</h3><p><strong>基址寄存器寻址（Base Register）</strong></p>
+<ul>
+<li><strong>语法</strong>：<code>[X1]</code></li>
+<li><strong>机制</strong>：直接使用寄存器中保存的完整虚拟地址。</li>
+<li><strong>示例</strong>：<code>LDR W0, [X1]</code> -&gt; 从 <code>X1</code> 指向的地址读取数据到 <code>W0</code>。</li>
+</ul>
+<p><strong>偏移寻址（Offset Addressing）</strong></p>
+<ul>
+<li><strong>语法</strong>：<code>[X1, #12]</code></li>
+<li><strong>机制</strong>：在基址上加上一个固定的常数（或另一个寄存器的值）作为偏移量，用于访问结构体成员或数组元素。<strong>基址寄存器 <code>X1</code> 的值保持不变</strong>。</li>
+<li><strong>示例</strong>：<code>LDR W0, [X1, #12]</code> -&gt; 从 <code>X1 + 12</code> 的地址读取数据。</li>
+</ul>
+<p><strong>预索引寻址（Pre-index Addressing）</strong></p>
+<ul>
+<li><strong>语法</strong>：<code>[X1, #12]!</code>（注意末尾有感叹号 <code>!</code>）</li>
+<li><strong>机制</strong>：先计算新地址 <code>X1 + 12</code> 并访问内存，**访问完成后自动将 <code>X1</code> 更新为新地址 <code>X1 + 12</code>**。</li>
+<li><strong>示例</strong>：<code>LDR W0, [X1, #12]!</code> -&gt; 先读 <code>X1 + 12</code>，然后 <code>X1 = X1 + 12</code>。</li>
+</ul>
+<p><strong>后索引寻址（Post-index Addressing）</strong></p>
+<ul>
+<li><strong>语法</strong>：<code>[X1], #12</code>（偏移量放在方括号外面）</li>
+<li><strong>机制</strong>：<strong>先使用 <code>X1</code> 当前的旧地址</strong>访问内存，访问完成后再将 <code>X1</code> 更新为 <code>X1 + 12</code>。常用于出栈操作或循环遍历数组。</li>
+<li><strong>示例</strong>：<code>LDR W0, [X1], #12</code> -&gt; 先读 <code>X1</code>，然后 <code>X1 = X1 + 12</code>。</li>
+</ul>
+<h3 id="4-4-加载对和存储对"><a href="#4-4-加载对和存储对" class="headerlink" title="4.4 加载对和存储对"></a>4.4 加载对和存储对</h3><p> <strong><code>LDP</code>（Load Pair）与 <code>STP</code>（Store Pair）</strong>是Arm64 中用于成对传输数据指令。它们可以在一条指令内同时完成两个寄存器的数据加载或存储，是函数调用、栈操作（Push&#x2F;Pop）以及内存拷贝等场景下的性能利器。</p>
+<p><strong>指令基本语法与语义</strong></p>
+<p><code>LDP</code> 和 <code>STP</code> 按从左到右的操作数顺序，依次与连续的内存地址进行交互：</p>
+<ul>
+<li>**<code>LDP W3, W7, [X0]</code>**：从 <code>X0</code> 处读取 32 位存入 <code>W3</code>，紧接着从 <code>X0 + 4</code> 处读取 32 位存入 <code>W7</code>。</li>
+<li>**<code>STP D0, D1, [X4]</code>**：把双精度浮点寄存器 <code>D0</code> 写入 <code>X4</code>，并将 <code>D1</code> 写入 <code>X4 + 8</code>。</li>
+</ul>
+<p>这两条指令配合预&#x2F;后索引（Pre&#x2F;Post-index），能够非常高效地实现压栈和出栈：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">STP X0, X1, [SP, #-16]!  ; 压栈：SP 先减 16，再将 X0, X1 写入栈顶</span><br><span class="line">LDP X0, X1, [SP], #16    ; 出栈：先从栈顶读取 X0, X1，SP 再加 16</span><br></pre></td></tr></table></figure>
+
+<p><em>(注：在 AArch64 中，栈指针 <code>SP</code> 必须保持 128 位对齐)</em></p>
+<p><strong>内存对齐、原子性与访问顺序</strong></p>
+<p>硬件在处理成对读写时，实际上会拆分为<strong>两次独立的内存访问</strong>：</p>
+<ul>
+<li><strong>对齐要求</strong>：按“单次访问的大小”而非“总传输大小”对齐。例如 <code>LDP W3, W7, [X0]</code> 传输总计 8 字节，但只需要 4 字节（32 位）对齐即可。</li>
+<li><strong>原子性</strong>：只要目标地址已对齐，每次单独的访问都是单拷贝原子的（Single-copy Atomic）；若硬件支持 <code>FEAT_LSE2</code> 扩展，特定场景下整个成对操作可实现完全的单拷贝原子性。</li>
+<li><strong>访问顺序</strong>：架构<strong>不保证</strong>两个寄存器写入&#x2F;读取内存的先后顺序。如果业务场景对内存访问的顺序有严格要求，则不建议使用成对指令。</li>
+</ul>
+<p><strong>严禁在 MMIO 中使用 LDP&#x2F;STP</strong></p>
+<p>在编写底层驱动或访问硬件外设（MMIO 寄存器）时，编译器生成或手动编写 <code>LDP</code>&#x2F;<code>STP</code> 往往会引发隐蔽的 Bug：</p>
+<ol>
+<li><strong>顺序不可控</strong>：对外设寄存器的读写顺序通常十分敏感，而 Pair 指令的内部访问顺序是未定义的。</li>
+<li><strong>访问宽度不匹配</strong>：很多硬件外设（如 GICv3 中断控制器）仅支持严格的 32 位对齐访问，用 <code>LDP</code> 读取两个连续外设寄存器可能会被拆分或合并成硬件不支持的传输形式。</li>
+<li><strong>故障定位困难</strong>：如果 <code>LDP</code>&#x2F;<code>STP</code> 在访问 MMIO 时触发 Exception 异常，系统提供的 Syndrome 信息可能无法可靠地重建到底是“前半部分”还是“后半部分”指令引发的故障。</li>
+</ol>
+<h3 id="4-5-使用浮点寄存器"><a href="#4-5-使用浮点寄存器" class="headerlink" title="4.5 使用浮点寄存器"></a>4.5 使用浮点寄存器</h3><p>在现代高性能计算与系统开发中，<strong>浮点寄存器（Floating-point&#x2F;SIMD Registers）不仅能用来算浮点数，更是批量搬运数据的利器</strong>。</p>
+<p><strong>使用浮点寄存器进行内存读写</strong></p>
+<p>与通用寄存器（<code>X</code>&#x2F;<code>W</code>）类似，Arm64 允许直接使用 <code>LDR</code>、<code>STR</code> 以及 <code>LDP</code> 指令配合浮点寄存器（如 <code>D</code> 寄存器为 64 位，<code>Q</code> 寄存器为 128 位）来搬运内存数据：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">LDR D1, [X0]           ; 从 [X0] 加载 64 位数据到 D1 寄存器</span><br><span class="line">STR Q0, [X0, X1]       ; 将 128 位数据从 Q0 写入 [X0 + X1]</span><br><span class="line">LDP Q1, Q3, [X5], #256 ; 从 X5 处连续加载两个 128 位值（共 256 位）到 Q1 和 Q3，随后 X5 自增 256</span><br></pre></td></tr></table></figure>
+
+<p><strong>使用浮点寄存器寻址的限制规则</strong></p>
+<p>在使用浮点寄存器进行读写时，需要注意以下三点硬件特性的约束：</p>
+<ul>
+<li><strong>尺寸由寄存器类型硬性决定</strong>：数据的传输宽度完全取决于指令中指定的寄存器前缀（如 <code>S</code> 代表 32 位，<code>D</code> 代表 64 位，<code>Q</code> 代表 128 位），无法通过指令后缀额外调整。</li>
+<li><strong>不支持符号扩展</strong>：无法像通用寄存器那样使用 <code>LDRSB</code> 或 <code>LDRSH</code> 自动进行符号填充扩展。</li>
+<li><strong>寻址基址仍须是通用寄存器</strong>：计算内存地址的基址寄存器必须依然是 <code>X</code> 寄存器，不能使用浮点寄存器来保存内存地址。</li>
+</ul>
+<p><strong>为什么纯整数代码里也有浮点读写？</strong></p>
+<p>在阅读底层标准库（如 <code>memcpy()</code>、<code>memset()</code> 或 <code>strcpy()</code>）的汇编代码时，经常会看到 <code>Q</code> 寄存器的读写身影。</p>
+<p>这并不是因为代码在处理浮点计算，而是因为<strong>浮点寄存器拥有 128 位的超大容量</strong>（相比通用寄存器的 64 位直接翻倍）。借助 <code>LDP Q0, Q1, [...]</code> 这类成对加载指令，单条指令就能单次吞吐 256 位数据。这大幅减少了循环迭代次数与指令开销，能够极大提升纯数据搬运与内存拷贝时的硬件吞吐效率。</p>
+<h3 id="4-6-特殊指令"><a href="#4-6-特殊指令" class="headerlink" title="4.6 特殊指令"></a>4.6 特殊指令</h3><h4 id="Load-Acquire-and-Store-Release"><a href="#Load-Acquire-and-Store-Release" class="headerlink" title="Load-Acquire and Store-Release"></a><strong>Load-Acquire and Store-Release</strong></h4><p>Load-Acquire (LDAR) 和 Store-Release (STLR) 是 Arm64 架构中用于处理<strong>多线程并发与内存顺序</strong>的核心指令。它们相当于带有“隐式内存屏障（Memory Barrier）”的读写操作。</p>
+<p>在 Arm 这种弱内存模型（Weak Memory Model）架构中，CPU 为了优化性能可能会乱序执行指令。这两个指令就像单向的“内存屏障关卡”，强制规范了多核&#x2F;多线程之间的内存可见性顺序：</p>
+<p><strong>Load-Acquire（获取：<code>LDAR</code>）</strong></p>
+<ul>
+<li><strong>方向</strong>：从内存读取数据（Load）。</li>
+<li><strong>作用</strong>：<strong>单向防止指令“向上”重排序</strong>。</li>
+<li><strong>规则</strong>：保证在 <code>LDAR</code> <strong>之后</strong>的所有内存读写指令，绝对不能被 CPU 提前重排序到 <code>LDAR</code> <strong>之前</strong>执行。只有当 <code>LDAR</code> 成功从内存拿到数据后，后面的读写指令才能开始。</li>
+</ul>
+<p><strong>Store-Release（释放：<code>STLR</code>）</strong></p>
+<ul>
+<li><strong>方向</strong>：向内存写入数据（Store）。</li>
+<li><strong>作用</strong>：<strong>单向防止指令“向下”重排序</strong>。</li>
+<li><strong>规则</strong>：保证在 <code>STLR</code> <strong>之前</strong>的所有内存读写指令，必须全部执行完毕并对其他 CPU 核可见后，<code>STLR</code> 自身的写入操作才能生效。</li>
+</ul>
+<p>把这两个指令想象成一个临界区（加锁&#x2F;解锁）的过程：</p>
+<ul>
+<li><strong>进入临界区（获取锁）</strong>：使用 <strong><code>LDAR</code></strong> 读锁状态。它确保你<strong>拿锁之后</strong>才能去修改临界区里的数据（防止数据读取跑到了加锁之前）。</li>
+<li><strong>退出临界区（释放锁）</strong>：使用 <strong><code>STLR</code></strong> 写锁状态。它确保你在临界区里<strong>对数据的修改全部完成</strong>后，才正式把锁释放出去（防止释放锁的操作跑到了修改数据之前）。</li>
+</ul>
+<h4 id="64-字节原子加载和存储"><a href="#64-字节原子加载和存储" class="headerlink" title="64 字节原子加载和存储"></a>64 字节原子加载和存储</h4><p>在企业级系统中，为了快速向硬件加速器的队列中添加任务，需要实现极低延迟的硬件通信机制。</p>
+<p>针对这种场景，<strong>Armv8.7-A</strong> 与 <strong>Armv9.2-A</strong> 架构引入了专门的 <strong>64 字节原子加载与存储指令</strong>：</p>
+<ul>
+<li><strong>原子加载</strong>：<code>LD64B</code> 指令，用于原子读取 64 字节数据。</li>
+<li><strong>原子存储</strong>：<code>ST64Bx</code> 系列指令，用于将 64 字节数据原子压入硬件队列，并在需要时返回入队（Enqueue）结果状态。</li>
+</ul>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_atomic-load.svg" alt="images_atomic-load"></p>
+<p>这张架构图核心展示了 <strong>Arm CPU 如何通过一条指令完成向加速器（Accelerator）的任务推送与结果确认</strong>：</p>
+<ol>
+<li><strong>下发任务（Enqueue）</strong>：CPU 使用 <code>ST64BV...</code> 指令，将 <strong>64 字节</strong> 的任务数据通过系统总线（Interconnect）和 PCIe 直接<strong>原子写入</strong>加速器的硬件队列（Work Item Queue）。</li>
+<li><strong>确认结果（Check Success）</strong>：写入完成后，硬件会立即将“是否成功入队”的状态反向返回给 CPU。</li>
+</ol>
+<blockquote>
+<p>以前需要多次读写与确认的操作，现在用一条 <code>ST64BV</code> 指令就能实现<strong>“推任务入队 + 拿成功状态”</strong>的低延迟硬件级交互。</p>
+</blockquote>
+<p><strong>A64 内存操作优化指令（memcpy &#x2F; memset）</strong></p>
+<p><code>memcpy()</code> 和 <code>memset()</code> 系列函数在各类计算负载中应用极其广泛，其执行效率对系统性能至关重要。</p>
+<p>为了在不同微架构的处理器上均能提供标准且高效的实现，A64 指令集专门引入了 <strong><code>CPYx</code></strong> 和 <strong><code>SETx</code></strong> 系列指令，用于在硬件层面直接优化内存拷贝与内存填充操作。</p>
+<h2 id="5-程序流程"><a href="#5-程序流程" class="headerlink" title="5 程序流程"></a>5 程序流程</h2><p>改变指令执行顺序的一种方法是使用分支指令。分支指令可以改变程序流程，常用于循环、决策和函数调用。</p>
+<h3 id="5-1-循环和决策"><a href="#5-1-循环和决策" class="headerlink" title="5.1 循环和决策"></a>5.1 循环和决策</h3><p><strong>无条件分支指令 (Unconditional Branch Instructions)</strong></p>
+<p>A64 指令集中的无条件分支指令主要分为 <strong>直接分支</strong> 和 <strong>间接分支</strong> 两类：</p>
+<ul>
+<li><strong><code>B &lt;label&gt;</code> (Branch)</strong><ul>
+<li><strong>机制</strong>：直接、相对于程序计数器（PC-relative）的跳转。</li>
+<li><strong>特点</strong>：跳转的目标偏移量（Offset）直接编码在指令内部。</li>
+<li><strong>范围限制</strong>：由于指令编码长度有限，跳转范围限制在 <strong>±128MB</strong> 以内。</li>
+</ul>
+</li>
+<li><strong><code>BR &lt;Xn&gt;</code> (Branch with Register)</strong><ul>
+<li><strong>机制</strong>：间接、绝对地址（Absolute）跳转。</li>
+<li><strong>特点</strong>：跳转的目标地址存放在 64 位通用寄存器 <code>Xn</code> 中，突破了指令内编码偏移量的范围限制。</li>
+</ul>
+</li>
+</ul>
+<p><strong>条件分支指令</strong></p>
+<p>为你整理了当前页面（<a target="_blank" rel="noopener" href="https://support.arm.com/documentation/102374/0103/Program-flow---loops-and-decisions/Conditional-branch-instructions">Conditional branch instructions</a>）的知识点。这一节的核心是 <strong>条件分支指令（Conditional Branch Instructions）</strong>，可以直接作为你博客中该模块的笔记小节：</p>
+<hr>
+<h3 id="条件分支指令-Conditional-Branch-Instructions"><a href="#条件分支指令-Conditional-Branch-Instructions" class="headerlink" title="条件分支指令 (Conditional Branch Instructions)"></a>条件分支指令 (Conditional Branch Instructions)</h3><p>条件分支用于根据特定条件改变程序的执行流程。与无条件分支不同，条件分支指令的跳转范围通常较小，因为指令编码中需要占用一部分比特位来存储条件码。</p>
+<h4 id="1-核心指令类型"><a href="#1-核心指令类型" class="headerlink" title="1. 核心指令类型"></a>1. 核心指令类型</h4><ul>
+<li><strong><code>B.&lt;cond&gt; &lt;label&gt;</code>（基于条件码跳转）</strong><ul>
+<li><strong>机制</strong>：通过检查 <code>PSTATE</code> 中的 ALU 标志位（通常由上条指令如 <code>CMP</code> 生成）来判断是否满足 <code>&lt;cond&gt;</code>。</li>
+<li><strong>跳转范围</strong>：<strong>±1MB</strong>（由于条件码占用了部分编码位，范围小于无条件分支 <code>B</code> 的 ±128MB）。</li>
+</ul>
+</li>
+<li><strong><code>CBZ</code> &#x2F; <code>CBNZ</code>（基于零值比较跳转）</strong><ul>
+<li><strong>机制</strong>：直接测试寄存器的值，无需预先生成 ALU 标志位。<ul>
+<li><code>CBZ &lt;Xn&gt;, &lt;label&gt;</code>：若寄存器 <code>Xn == 0</code>，则跳转。</li>
+<li><code>CBNZ &lt;Xn&gt;, &lt;label&gt;</code>：若寄存器 <code>Xn != 0</code>，则跳转。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong><code>TBZ</code> &#x2F; <code>TBNZ</code>（基于特定位测试跳转）</strong><ul>
+<li><strong>机制</strong>：测试寄存器中指定的单比特（bit），无需检查整个寄存器的值。<ul>
+<li><code>TBZ &lt;Xn&gt;, #&lt;imm&gt;, &lt;label&gt;</code>：若 <code>Xn</code> 的第 <code>#imm</code> 位为 <code>0</code>，则跳转。</li>
+<li><code>TBNZ &lt;Xn&gt;, #&lt;imm&gt;, &lt;label&gt;</code>：若 <code>Xn</code> 的第 <code>#imm</code> 位为 <code>1</code>，则跳转。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h4 id="2-C-语言控制流映射示例"><a href="#2-C-语言控制流映射示例" class="headerlink" title="2. C 语言控制流映射示例"></a>2. C 语言控制流映射示例</h4><ul>
+<li><p><strong><code>if</code> 条件判断映射</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">if (a == 5) b = 5;</span><br></pre></td></tr></table></figure>
+
+<p><em>汇编实现</em>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">    CMP  W0, #5       ; 比较 a (W0) 是否等于 5</span><br><span class="line">    B.NE skip         ; 不等于则跳转跳过赋值</span><br><span class="line">    MOV  W8, #5       ; b = 5</span><br><span class="line">skip:</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong><code>while</code> 循环映射</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">while (a != 0) &#123;</span><br><span class="line">    b = b + c;</span><br><span class="line">    a = a - 1;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><em>汇编实现</em>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">loop:</span><br><span class="line">    CBZ  W8, skip     ; 若 a (W8) == 0 则跳出循环</span><br><span class="line">    ADD  W9, W9, W10  ; b = b + c</span><br><span class="line">    SUB  W8, W8, #1   ; a = a - 1</span><br><span class="line">    B    loop         ; 跳回循环开头</span><br><span class="line">skip:</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h3 id="5-2-条件码的生成与标志位"><a href="#5-2-条件码的生成与标志位" class="headerlink" title="5.2 条件码的生成与标志位"></a>5.2 条件码的生成与标志位</h3><p>在 A64 架构中，条件分支指令（如 <code>B.EQ</code>）依赖于 <code>PSTATE</code> 寄存器中的 <strong>ALU 标志位</strong> 来判断是否跳转。</p>
+<p><strong>标志位更新控制：S 后缀</strong></p>
+<p>与许多传统架构自动更新标志位不同，A64 允许软件精确控制是否更新标志位：</p>
+<ul>
+<li><strong>无 <code>S</code> 后缀</strong>（如 <code>ADD X0, X1, X2</code>）：仅执行计算并写入目标寄存器，<strong>不更新</strong> ALU 标志位。</li>
+<li><strong>带 <code>S</code> 后缀</strong>（如 <code>ADDS</code> &#x2F; <code>SUBS</code>）：执行计算的同时，<strong>更新</strong> ALU 标志位。</li>
+</ul>
+<blockquote>
+<p><strong>逻辑隔离</strong>：这种设计允许在产生标志位的指令（如 <code>SUBS</code>）和使用该标志位的条件跳转指令（如 <code>B.EQ</code>）之间插入其他普通计算指令（如 <code>AND</code>），且不会干扰跳转条件的判定。</p>
+</blockquote>
+<p><strong>四大 ALU 标志位 (ALU Flags)</strong></p>
+<p>标志位反映了最近一次带 <code>S</code> 指令的运算结果状态：</p>
+<ul>
+<li>**<code>N</code> (Negative)**：结果为负数。</li>
+<li>**<code>Z</code> (Zero)**：结果为 0（例如：结果为 0 时 <code>Z = 1</code>，否则 <code>Z = 0</code>）。</li>
+<li>**<code>C</code> (Carry)**：无符号运算产生进位。</li>
+<li>**<code>V</code> (Overflow)**：有符号运算产生溢出。</li>
+</ul>
+<p><strong>条件码映射 (Condition Codes)</strong></p>
+<p>条件码是用于检查标志位的组合逻辑，通常成对出现：</p>
+<ul>
+<li>**<code>EQ</code> (Equal)**：检查 <code>Z == 1</code>（运算结果为 0，即两数相等）。</li>
+<li>**<code>NE</code> (Not Equal)**：检查 <code>Z == 0</code>（运算结果不为 0，即两数不等）。</li>
+</ul>
+<p><strong>纯测试&#x2F;比较指令（指令别名）</strong></p>
+<p>除了普通的算术指令加上 <code>S</code> 之外，A64 还提供了专用于测试条件但不保存运算结果的指令。它们本质上是将目标寄存器设为<strong>零寄存器 (<code>XZR</code>&#x2F;<code>WZR</code>)</strong> 的别名指令：</p>
+<ul>
+<li>**<code>CMP X0, X7</code>**：比较两数。<ul>
+<li><strong>等价于</strong>：<code>SUBS XZR, X0, X7</code>（计算 $X0 - X7$，丢弃结果，仅更新标志位）。</li>
+</ul>
+</li>
+<li>**<code>TST W5, #1</code>**：测试位状态。<ul>
+<li><strong>等价于</strong>：<code>ANDS WZR, W5, #1</code>（执行按位与，丢弃结果，仅根据测试位更新标志位）。</li>
+</ul>
+</li>
+</ul>
+<h3 id="5-3-条件选择指令-Conditional-Select-Instructions"><a href="#5-3-条件选择指令-Conditional-Select-Instructions" class="headerlink" title="5.3 条件选择指令 (Conditional Select Instructions)"></a>5.3 条件选择指令 (Conditional Select Instructions)</h3><p>在 A64 指令集中，条件选择指令用于替代简单的分支指令（<code>B.cond</code>），通过无分支的算术逻辑运算来实现 <code>if-else</code> 的选择逻辑。</p>
+<p><strong>(1) 基础指令：CSEL</strong></p>
+<ul>
+<li><p><strong>语法</strong>：<code>CSEL Xd, Xn, Xm, cond</code></p>
+</li>
+<li><p><strong>逻辑</strong>：</p>
+<p>if cond  is true then  Xd &#x3D; Xn  else  Xd &#x3D; Xm$$</p>
+</li>
+<li><p><strong>示例</strong>：</p>
+<p><code>CMP W1, #0</code> + <code>CSEL W5, W6, W7, EQ</code></p>
+<p>相当于 C 语言中的：<code>W5 = (W1 == 0) ? W6 : W7;</code></p>
+</li>
+</ul>
+<p><strong>(2) 组合复合指令与别名 (Variants &amp; Aliases)</strong></p>
+<p>A64 允许将条件选择与其他操作（如自增、取反）合并为一条指令：</p>
+<ul>
+<li>**<code>CSINC</code> (Conditional Select Increment)**：<ul>
+<li><strong>语法</strong>：<code>CSINC Xd, Xn, Xm, cond</code></li>
+<li><strong>逻辑</strong>：若 <code>cond</code> 为真则 $Xd &#x3D; Xn$，否则 $Xd &#x3D; Xm + 1$。</li>
+</ul>
+</li>
+<li>**<code>CINC</code> (Conditional Increment)**：<ul>
+<li><strong>机制</strong>：<code>CSINC</code> 的别名指令，用于<strong>条件自增</strong>。</li>
+<li><strong>逻辑区别</strong>（注意与 <code>CSINC</code> 反转）：<ul>
+<li><code>CSINC X0, X0, X0, cond</code>：若条件为<strong>假</strong>，<code>X0</code> 才自增。</li>
+<li><code>CINC X0, X0, cond</code>：若条件为<strong>真</strong>，<code>X0</code> 才自增。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p><strong>(3) 代码实现对比 (Branching vs Conditional Select)</strong></p>
+<p>编译器在遇到简单的 <code>if-else</code> 逻辑时，通常会自动优化为条件选择：</p>
+<table>
+<thead>
+<tr>
+<th><strong>逻辑需求 (C)</strong></th>
+<th><strong>传统分支实现 (Branching)</strong></th>
+<th><strong>条件选择实现 (Conditional Select)</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>if (a != 0) b++;</code></td>
+<td><code>CMP W0, #0</code> <code>B.EQ skip</code> <code>ADD W1, W1, #1</code> <code>skip:</code></td>
+<td><code>CMP W0, #0</code> <code>CINC W1, W1, NE</code></td>
+</tr>
+<tr>
+<td><code>if (a == 0) y++;</code> <code>else y--;</code></td>
+<td><code>CMP W0, #0</code> <code>B.NE else</code> <code>ADD W1, W1, #1</code> <code>B end</code> <code>else: SUB W1, W1, #1</code> <code>end:</code></td>
+<td><code>CMP W0, #0</code> <code>SUB W2, W1, #1</code> <code>CSINC W1, W2, W1, NE</code></td>
+</tr>
+</tbody></table>
+<h2 id="6-函数调用"><a href="#6-函数调用" class="headerlink" title="6 函数调用"></a>6 函数调用</h2><h3 id="6-1-函数调用与返回"><a href="#6-1-函数调用与返回" class="headerlink" title="6.1 函数调用与返回"></a>6.1 函数调用与返回</h3><ul>
+<li><p><strong>调用：<code>BL</code> &#x2F; <code>BLR</code></strong></p>
+<ul>
+<li>执行跳转前，CPU 会自动将返回地址写入链接寄存器 **<code>LR</code> (<code>X30</code>)**。</li>
+</ul>
+<p><strong>返回：<code>RET</code></strong></p>
+<ul>
+<li>间接跳转回 <code>LR</code> 保存的地址。</li>
+</ul>
+<p><strong>为何不用 <code>BR LR</code> 替代 <code>RET</code>？</strong></p>
+<ul>
+<li>逻辑功能完全等效，但 <strong><code>RET</code> 带有“函数返回”的硬件语义</strong>，能配合 CPU 的分支预测器（Branch Predictor）预加载指令，<strong>避免流水线停顿（Pipeline Flush）</strong>。</li>
+</ul>
+</li>
+</ul>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/ges_pcs.svg" alt="images_pcs"></p>
+<h3 id="6-2-程序调用标准"><a href="#6-2-程序调用标准" class="headerlink" title="6.2 程序调用标准"></a>6.2 程序调用标准</h3><p>为了让不同开发者编写的代码或编译器生成的代码能够顺畅交互，Arm 架构定义了一套通用寄存器的使用与保护规则，即 **PCS (Procedure Call Standard)**。</p>
+<p><strong>(1) 参数传递与返回值规范</strong></p>
+<ul>
+<li><strong>通用参数传递</strong>：前 8 个参数按顺序使用寄存器 <code>X0</code> - <code>X7</code>（如果是 32 位类型则使用对应 <code>W0</code> - <code>W7</code>）传递。超出 8 个的额外参数通过栈（Stack）传递。</li>
+<li><strong>返回值</strong>：函数返回值同样通过 <code>X0</code>（或 <code>W0</code>）返回。</li>
+<li><strong>特殊语言映射</strong>：在 C++ 中，<code>X0</code> 默认用于隐式传递指向当前对象的 <code>this</code> 指针。</li>
+</ul>
+<p><strong>(2) 寄存器分类与保存规则</strong></p>
+<p>PCS 将寄存器明确分为两大类，区分在函数调用时<strong>由谁负责保存与恢复</strong>：</p>
+<ul>
+<li><strong>易损寄存器 &#x2F; 调用者保存寄存器 (Caller-saved &#x2F; Corruptible)</strong><ul>
+<li><strong>范围</strong>：<code>X0</code> - <code>X15</code>（其中 <code>X0-X7</code> 兼做参数&#x2F;返回值寄存器）。</li>
+<li><strong>规则</strong>：被调用函数（Callee）可以<strong>直接覆盖使用</strong>这些寄存器，无需事先保存或事后恢复。如果调用者（Caller）后续还需要使用这些值，必须在调用前自行存栈。</li>
+</ul>
+</li>
+<li><strong>被调用者保存寄存器 (Callee-saved &#x2F; Non-corruptible)</strong><ul>
+<li><strong>范围</strong>：<code>X19</code> - <code>X28</code>。</li>
+<li><strong>规则</strong>：被调用函数（Callee）若想使用这些寄存器，<strong>必须在入口处将其压栈保存，并在函数返回前从栈中恢复</strong>，保证调用者感知不到它们的变化。</li>
+</ul>
+</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th align="left">X0-X7</th>
+<th align="left">X8-X15</th>
+<th align="left">X16-X23</th>
+<th align="left">X24-X30</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">Parameter and Result Registers (<code>X0-X7</code>)</td>
+<td align="left"><code>XR</code> (<code>X8</code>)</td>
+<td align="left"><code>IP0</code> (<code>X16</code>)</td>
+<td align="left">Callee-saved Registers (<code>X24-X28</code>)</td>
+</tr>
+<tr>
+<td align="left">-</td>
+<td align="left">Corruptible Registers (<code>X9-X15</code>)</td>
+<td align="left"><code>IP1</code> (<code>X17</code>)</td>
+<td align="left"><code>FP</code> (<code>X29</code>)</td>
+</tr>
+<tr>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="left"><code>PR</code> (<code>X18</code>)</td>
+<td align="left"><code>LR</code> (<code>X30</code>)</td>
+</tr>
+<tr>
+<td align="left">-</td>
+<td align="left">-</td>
+<td align="left">Callee-saved Registers (<code>X19-X23</code>)</td>
+<td align="left">-</td>
+</tr>
+</tbody></table>
+<p><strong>(3) 具备特殊用途的寄存器</strong></p>
+<ul>
+<li><strong>XR (X8) — 间接结果指针寄存器 (Indirect Result Register)</strong><ul>
+<li>当函数返回大型数据结构（如 <code>struct</code>）时，调用者会预先分配内存空间，并将该内存的起始地址通过 <code>X8</code> 传递给子程序。</li>
+</ul>
+</li>
+<li><strong>IP0 &#x2F; IP1 (X16 &#x2F; X17) — 过程内调用临时寄存器</strong><ul>
+<li>专供链接器（Linker）插入代码片段（Veneer）使用。例如当 <code>B</code> 或 <code>BL</code> 指令的跳转范围超过限制时，链接器会借助 <code>IP0</code>&#x2F;<code>IP1</code> 自动生成长跳转代码片段。</li>
+<li>平时写代码一般不用这两个寄存器，主要就是给 veneer 代码用</li>
+</ul>
+</li>
+<li>**LR (X30)**：链接寄存器（Link Register），保存函数返回地址。</li>
+<li>**FP (X29)**：帧指针（Frame Pointer）。</li>
+</ul>
+<p>当程序崩溃需要看“调用栈（Backtrace）”时，CPU 就是顺着 <code>FP</code> 像顺藤摸瓜一样，一层层找回上一级函数是谁调用的。</p>
+<p><code>FP</code> 永远指向<strong>当前函数栈帧（Stack Frame）的底部&#x2F;基准点</strong>（高地址）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">func:</span><br><span class="line">    STP X29, X30, [SP, #-16]!  ; 1. 保存上一级的 FP 和 LR</span><br><span class="line">    MOV X29, SP                ; 2. 设置当前函数的 FP</span><br><span class="line">    ...                        ; 3. 函数体（此时 SP 可以随便动，FP 不动）</span><br><span class="line">    MOV SP, X29                ; 4. 恢复 SP</span><br><span class="line">    LDP X29, X30, [SP], #16    ; 5. 恢复上一级的 FP 和 LR</span><br><span class="line">    RET</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">高地址 (High Address)</span><br><span class="line">+---------------------------------+</span><br><span class="line">|   main() 的局部变量 &amp; 内存        |  &lt;--- 这区间的底部，其实就是 main() 之前存的旧 FP/LR</span><br><span class="line">+=================================+  &lt;--- [main 的栈帧界线]</span><br><span class="line">|  1. foo() 保存的 main 的 LR      |  </span><br><span class="line">+---------------------------------+</span><br><span class="line">|  2. foo() 保存的 main 的 FP      |  &lt;--- 此时 foo 的 FP (X29) 指向这里！</span><br><span class="line">+---------------------------------+</span><br><span class="line">|                                 |</span><br><span class="line">|  3. foo() 自己的局部变量          |  &lt;--- 用 [FP, #-8] 等固定偏移量来访问</span><br><span class="line">|                                 |</span><br><span class="line">+---------------------------------+  &lt;--- 此时 foo 的 SP (Stack Pointer) 指向这里</span><br><span class="line">低地址 (Low Address)</span><br></pre></td></tr></table></figure>
+
+<p><strong>(4) 其他状态与浮点寄存器规范</strong></p>
+<ul>
+<li><strong>ALU 标志位</strong>：<code>PSTATE</code> 中的 ALU 标志位（N, Z, C, V）<strong>无需在函数调用前后保留</strong>，子程序可以随意改变它们。</li>
+<li>**浮点&#x2F;向量寄存器 (VFP&#x2F;SIMD)**：<ul>
+<li><code>D0</code> - <code>D7</code>：用于传递浮点参数与返回值（易损寄存器）。</li>
+<li><code>D8</code> - <code>D15</code>：被调用者保存寄存器（Callee-saved）。</li>
+<li><code>D16</code> - <code>D31</code>：易损寄存器。</li>
+</ul>
+</li>
+</ul>
+<h2 id="7-系统调用"><a href="#7-系统调用" class="headerlink" title="7 系统调用"></a>7 系统调用</h2><p>系统调用是低特权级软件（如用户态应用）向高特权级实体（如操作系统、Hypervisor）请求服务或功能的受控机制。在 A64 架构中，系统调用通过触发异常（Exception）来实现跨特权级跳转。</p>
+<p><strong>核心系统调用指令</strong></p>
+<ul>
+<li>**<code>SVC</code> (Supervisor Call)**：<ul>
+<li><strong>目标层级</strong>：EL1 (OS Kernel)。</li>
+<li><strong>场景</strong>：普通应用程序（EL0）向操作系统内核请求服务（如打开文件、分配内存）。</li>
+</ul>
+</li>
+<li>**<code>HVC</code> (Hypervisor Call)**：<ul>
+<li><strong>目标层级</strong>：EL2 (Hypervisor)。</li>
+<li><strong>场景</strong>：操作系统（EL1）向虚拟化管理层请求服务。<em>（EL0 无法直接调用）</em></li>
+</ul>
+</li>
+<li>**<code>SMC</code> (Secure Monitor Call)**：<ul>
+<li><strong>目标层级</strong>：EL3 (Firmware &#x2F; Secure Monitor)。</li>
+<li><strong>场景</strong>：OS 或 Hypervisor 向安全固件请求服务。<em>（EL0 无法直接调用）</em></li>
+</ul>
+</li>
+</ul>
+<hr>
+<p><strong>特权级不降低原则 (No Privilege Loss)</strong></p>
+<ul>
+<li><strong>基本规则</strong>：异常调用<strong>绝不允许导致 CPU 降低特权级别</strong>。</li>
+<li><strong>边界行为</strong>：如果从<strong>高于或等于</strong>目标异常级别的状态下执行系统调用指令（例如在 EL2 执行 <code>SVC</code>），异常会在<strong>当前 Exception Level</strong> 触发并处理（即在 EL2 处理该异常），而不会降级到 EL1。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AArch64/" rel="tag"># AArch64</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/" rel="prev" title="AArch64 异常模型 - 异常处理">
+                  <i class="fa fa-angle-left"></i> AArch64 异常模型 - 异常处理
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
