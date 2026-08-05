@@ -21,14 +21,14 @@
 
     <meta name="description" content="本文从 Cache 一致性协议底层原理出发，剖析 ARMv7-A 架构下基于 LDREX&#x2F;STREX 的独占访存与同步原语。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ARM 多核处理器架构">
+<meta property="og:title" content="ARMv7-a 多核处理器架构">
 <meta property="og:url" content="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文从 Cache 一致性协议底层原理出发，剖析 ARMv7-A 架构下基于 LDREX&#x2F;STREX 的独占访存与同步原语。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://yoursite.com/images/acp.jpg">
 <meta property="article:published_time" content="2026-07-27T13:30:59.000Z">
-<meta property="article:modified_time" content="2026-07-27T14:02:09.824Z">
+<meta property="article:modified_time" content="2026-08-05T13:36:59.335Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -39,10 +39,10 @@
 <link rel="canonical" href="http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/","path":"2026/07/27/ARM-多核处理器架构/","title":"ARM 多核处理器架构"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/27/ARM-%E5%A4%9A%E6%A0%B8%E5%A4%84%E7%90%86%E5%99%A8%E6%9E%B6%E6%9E%84/","path":"2026/07/27/ARM-多核处理器架构/","title":"ARMv7-a 多核处理器架构"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>ARM 多核处理器架构 | Vonku's Blog</title>
+<title>ARMv7-a 多核处理器架构 | Vonku's Blog</title>
   
 
 
@@ -208,12 +208,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="ARM 多核处理器架构 | Vonku's Blog">
+      <meta itemprop="name" content="ARMv7-a 多核处理器架构 | Vonku's Blog">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          ARM 多核处理器架构
+          ARMv7-a 多核处理器架构
         </h1>
 
         <div class="post-meta-container">
@@ -971,13 +971,13 @@
 
           <div class="post-nav">
             <div class="post-nav-item">
-                <a href="/2026/07/26/ARM-%E5%A4%84%E7%90%86%E5%99%A8%E4%BB%A3%E7%A0%81%E4%BC%98%E5%8C%96%E6%8A%80%E6%9C%AF/" rel="prev" title="ARM 处理器代码优化技术">
-                  <i class="fa fa-angle-left"></i> ARM 处理器代码优化技术
+                <a href="/2026/07/26/ARM-%E5%A4%84%E7%90%86%E5%99%A8%E4%BB%A3%E7%A0%81%E4%BC%98%E5%8C%96%E6%8A%80%E6%9C%AF/" rel="prev" title="ARMv7-a 处理器代码优化技术">
+                  <i class="fa fa-angle-left"></i> ARMv7-a 处理器代码优化技术
                 </a>
             </div>
             <div class="post-nav-item">
-                <a href="/2026/07/28/ARM-%E5%A4%9A%E6%A0%B8%E5%B9%B6%E8%A1%8C%E7%BC%96%E7%A8%8B/" rel="next" title="ARM 多核并行编程">
-                  ARM 多核并行编程 <i class="fa fa-angle-right"></i>
+                <a href="/2026/07/28/ARM-%E5%A4%9A%E6%A0%B8%E5%B9%B6%E8%A1%8C%E7%BC%96%E7%A8%8B/" rel="next" title="ARMv7-a 多核并行编程">
+                  ARMv7-a 多核并行编程 <i class="fa fa-angle-right"></i>
                 </a>
             </div>
           </div>

@@ -21,13 +21,13 @@
 
     <meta name="description" content="本文系统梳理了向 ARMv7 平台移植代码时最常见的跨架构问题：端序差异如何导致静默数据错误、ARMv4 与 ARMv7 非对齐访问行为的不兼容、C 语言实现定义行为在不同编译器间的分歧，以及 ARM 汇编与 Thumb-2 互操作的关键约束。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ARM 代码移植指南">
+<meta property="og:title" content="ARMv7-a 代码移植指南">
 <meta property="og:url" content="http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文系统梳理了向 ARMv7 平台移植代码时最常见的跨架构问题：端序差异如何导致静默数据错误、ARMv4 与 ARMv7 非对齐访问行为的不兼容、C 语言实现定义行为在不同编译器间的分歧，以及 ARM 汇编与 Thumb-2 互操作的关键约束。">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-07-25T02:37:52.000Z">
-<meta property="article:modified_time" content="2026-07-25T09:45:28.028Z">
+<meta property="article:modified_time" content="2026-08-05T13:37:17.874Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -37,10 +37,10 @@
 <link rel="canonical" href="http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/","path":"2026/07/25/ARM代码移植指南/","title":"ARM 代码移植指南"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/25/ARM%E4%BB%A3%E7%A0%81%E7%A7%BB%E6%A4%8D%E6%8C%87%E5%8D%97/","path":"2026/07/25/ARM代码移植指南/","title":"ARMv7-a 代码移植指南"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>ARM 代码移植指南 | Vonku's Blog</title>
+<title>ARMv7-a 代码移植指南 | Vonku's Blog</title>
   
 
 
@@ -206,12 +206,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="ARM 代码移植指南 | Vonku's Blog">
+      <meta itemprop="name" content="ARMv7-a 代码移植指南 | Vonku's Blog">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          ARM 代码移植指南
+          ARMv7-a 代码移植指南
         </h1>
 
         <div class="post-meta-container">
@@ -523,8 +523,8 @@
 
           <div class="post-nav">
             <div class="post-nav-item">
-                <a href="/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/" rel="prev" title="ARM 启动流程">
-                  <i class="fa fa-angle-left"></i> ARM 启动流程
+                <a href="/2026/07/25/ARM%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/" rel="prev" title="ARMv7-a 启动流程">
+                  <i class="fa fa-angle-left"></i> ARMv7-a 启动流程
                 </a>
             </div>
             <div class="post-nav-item">
