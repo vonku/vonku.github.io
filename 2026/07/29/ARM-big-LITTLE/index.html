@@ -21,7 +21,7 @@
 
     <meta name="description" content="移动 SoC 如何平衡”高性能”与”长续航”这对根本矛盾？本文从 ARM big.LITTLE 的硬件架构出发，逐一拆解 Cluster 迁移、CPU 迁移、Global Task Scheduling 三种软件执行模型和五种任务迁移机制，完整揭示操作系统调度器在异构核心间做决策的底层逻辑。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ARM big.LITTLE">
+<meta property="og:title" content="ARMv7-a big.LITTLE">
 <meta property="og:url" content="http://yoursite.com/2026/07/29/ARM-big-LITTLE/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="移动 SoC 如何平衡”高性能”与”长续航”这对根本矛盾？本文从 ARM big.LITTLE 的硬件架构出发，逐一拆解 Cluster 迁移、CPU 迁移、Global Task Scheduling 三种软件执行模型和五种任务迁移机制，完整揭示操作系统调度器在异构核心间做决策的底层逻辑。">
@@ -36,7 +36,7 @@
 <meta property="og:image" content="http://yoursite.com/images/big-LITTLE-8.jpg">
 <meta property="og:image" content="http://yoursite.com/images/big-LITTLE-9.jpg">
 <meta property="article:published_time" content="2026-07-29T13:08:37.000Z">
-<meta property="article:modified_time" content="2026-07-29T13:25:35.829Z">
+<meta property="article:modified_time" content="2026-08-05T13:43:46.442Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -47,10 +47,10 @@
 <link rel="canonical" href="http://yoursite.com/2026/07/29/ARM-big-LITTLE/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/29/ARM-big-LITTLE/","path":"2026/07/29/ARM-big-LITTLE/","title":"ARM big.LITTLE"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/29/ARM-big-LITTLE/","path":"2026/07/29/ARM-big-LITTLE/","title":"ARMv7-a big.LITTLE"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>ARM big.LITTLE | Vonku's Blog</title>
+<title>ARMv7-a big.LITTLE | Vonku's Blog</title>
   
 
 
@@ -216,12 +216,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="ARM big.LITTLE | Vonku's Blog">
+      <meta itemprop="name" content="ARMv7-a big.LITTLE | Vonku's Blog">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          ARM big.LITTLE
+          ARMv7-a big.LITTLE
         </h1>
 
         <div class="post-meta-container">

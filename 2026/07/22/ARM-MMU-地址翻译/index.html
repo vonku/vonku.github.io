@@ -21,7 +21,7 @@
 
     <meta name="description" content="本文通过一次完整的 L1→L2 页表遍历实例，深入解析 ARMv7-A MMU 的地址翻译机制、TLB 缓存体系、内存属性编码及多任务上下文切换的底层细节。">
 <meta property="og:type" content="article">
-<meta property="og:title" content="ARM MMU 地址翻译">
+<meta property="og:title" content="ARMv7-a MMU 地址翻译">
 <meta property="og:url" content="http://yoursite.com/2026/07/22/ARM-MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文通过一次完整的 L1→L2 页表遍历实例，深入解析 ARMv7-A MMU 的地址翻译机制、TLB 缓存体系、内存属性编码及多任务上下文切换的底层细节。">
@@ -35,7 +35,7 @@
 <meta property="og:image" content="http://yoursite.com/images/MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91-7.png">
 <meta property="og:image" content="http://yoursite.com/images/MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91-8.png">
 <meta property="article:published_time" content="2026-07-22T12:40:03.000Z">
-<meta property="article:modified_time" content="2026-07-29T14:23:53.779Z">
+<meta property="article:modified_time" content="2026-08-05T13:43:52.410Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARM">
 <meta property="article:tag" content="ARMv7-a">
@@ -46,10 +46,10 @@
 <link rel="canonical" href="http://yoursite.com/2026/07/22/ARM-MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91/">
 
 
-<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM-MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91/","path":"2026/07/22/ARM-MMU-地址翻译/","title":"ARM MMU 地址翻译"}</script>
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/07/22/ARM-MMU-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91/","path":"2026/07/22/ARM-MMU-地址翻译/","title":"ARMv7-a MMU 地址翻译"}</script>
 
 <script class="next-config" data-name="calendar" type="application/json">""</script>
-<title>ARM MMU 地址翻译 | Vonku's Blog</title>
+<title>ARMv7-a MMU 地址翻译 | Vonku's Blog</title>
   
 
 
@@ -215,12 +215,12 @@
     </span>
 
     <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content="ARM MMU 地址翻译 | Vonku's Blog">
+      <meta itemprop="name" content="ARMv7-a MMU 地址翻译 | Vonku's Blog">
       <meta itemprop="description" content="">
     </span>
       <header class="post-header">
         <h1 class="post-title" itemprop="name headline">
-          ARM MMU 地址翻译
+          ARMv7-a MMU 地址翻译
         </h1>
 
         <div class="post-meta-container">
@@ -670,8 +670,8 @@
 
           <div class="post-nav">
             <div class="post-nav-item">
-                <a href="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/" rel="prev" title="ARM Cache 架构详解">
-                  <i class="fa fa-angle-left"></i> ARM Cache 架构详解
+                <a href="/2026/07/22/ARM-Cache-%E6%9E%B6%E6%9E%84%E8%AF%A6%E8%A7%A3/" rel="prev" title="ARMv7-a Cache 架构详解">
+                  <i class="fa fa-angle-left"></i> ARMv7-a Cache 架构详解
                 </a>
             </div>
             <div class="post-nav-item">
