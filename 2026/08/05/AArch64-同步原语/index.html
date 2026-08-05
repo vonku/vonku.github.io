@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文介绍AArch64的同步原语。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AArch64 同步原语">
+<meta property="og:url" content="http://yoursite.com/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍AArch64的同步原语。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/g">
+<meta property="article:published_time" content="2026-08-05T13:23:06.000Z">
+<meta property="article:modified_time" content="2026-08-05T13:25:48.637Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="AArch64">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/g">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/","path":"2026/08/05/AArch64-同步原语/","title":"AArch64 同步原语"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AArch64 同步原语 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-AArch64-%E5%8E%9F%E5%AD%90%E6%8C%87%E4%BB%A4"><span class="nav-text">1. AArch64 原子指令</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%8E%9F%E5%AD%90%E6%8C%87%E4%BB%A4%E5%88%86%E7%BB%84%EF%BC%88LSE-%E4%B8%8E-FEAT-LSE128%EF%BC%89"><span class="nav-text">1.1 原子指令分组（LSE 与 FEAT_LSE128）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E5%8E%9F%E5%AD%90%E6%8C%87%E4%BB%A4%E7%A4%BA%E4%BE%8B"><span class="nav-text">1.2 原子指令示例</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AE%80%E5%8D%95-lock-unlock-%E7%A4%BA%E4%BE%8B"><span class="nav-text">简单 lock()&#x2F;unlock() 示例</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E6%97%A0%E9%94%81%E5%A0%86%E6%A0%88%E7%A4%BA%E4%BE%8B"><span class="nav-text">无锁堆栈示例</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BA%BF%E7%A8%8B%E5%B1%8F%E9%9A%9C%E7%A4%BA%E4%BE%8B"><span class="nav-text">线程屏障示例</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%8E%9F%E5%AD%90%E4%BD%8D%E6%93%8D%E4%BD%9C%E7%A4%BA%E4%BE%8B"><span class="nav-text">原子位操作示例</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E5%8E%9F%E5%AD%90%E8%AE%BF%E9%97%AE%E5%9C%B0%E5%9D%80%E7%9A%84%E5%86%85%E5%AD%98%E5%B1%9E%E6%80%A7"><span class="nav-text">1.3 原子访问地址的内存属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-Linux-%E5%86%85%E6%A0%B8%E4%B8%AD%E7%9A%84%E5%BA%94%E7%94%A8"><span class="nav-text">1.4 Linux 内核中的应用</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%B8%E5%9E%8B%E7%9A%84%E5%8E%9F%E5%AD%90%E6%93%8D%E4%BD%9C"><span class="nav-text">典型的原子操作</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Linux-%E5%86%85%E6%A0%B8%E4%B8%AD%E7%9A%84%E8%87%AA%E6%97%8B%E9%94%81"><span class="nav-text">Linux 内核中的自旋锁</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%8B%AC%E5%8D%A0%E8%AE%BF%E9%97%AE"><span class="nav-text">2. 独占访问</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%A6%82%E8%BF%B0"><span class="nav-text">2.1 概述</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E7%8B%AC%E5%8D%A0%E7%9B%91%E8%A7%86%E5%99%A8"><span class="nav-text">2.2 独占监视器</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-2-1-%E6%9C%AC%E5%9C%B0%E7%9B%91%E8%A7%86%E5%99%A8"><span class="nav-text">2.2.1 本地监视器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-2-2-%E5%85%A8%E5%B1%80%E7%9B%91%E8%A7%86%E5%99%A8"><span class="nav-text">2.2.2 全局监视器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-2-3-%E7%8B%AC%E5%8D%A0%E8%AE%BF%E9%97%AE%E7%9A%84%E5%86%85%E5%AD%98%E7%9B%91%E6%8E%A7%E8%8C%83%E5%9B%B4%EF%BC%88ERG%EF%BC%89"><span class="nav-text">2.2.3 独占访问的内存监控范围（ERG）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-2-4-%E6%B8%85%E9%99%A4-ERET-%E5%92%8C-CLREX-%E4%B8%8A%E7%9A%84%E6%9C%AC%E5%9C%B0%E7%9B%91%E8%A7%86%E5%99%A8"><span class="nav-text">2.2.4 清除 ERET 和 CLREX 上的本地监视器</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E7%8B%AC%E5%8D%A0%E7%A4%BA%E4%BE%8B"><span class="nav-text">2.3 独占示例</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%BD%BF%E7%94%A8WFE"><span class="nav-text">3. 使用WFE</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%BD%BF%E7%94%A8WFE%E7%9A%84-lock-%E7%A4%BA%E4%BE%8B"><span class="nav-text">3.1 使用WFE的 lock() 示例</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E5%A4%B1%E5%8E%BB%E7%8B%AC%E5%8D%A0%E6%A0%87%E8%AE%B0%E5%BC%95%E5%8F%91%E7%9A%84%E5%94%A4%E9%86%92%E4%B8%8E%E5%86%85%E5%AD%98%E4%BA%89%E7%94%A8"><span class="nav-text">3.2 失去独占标记引发的唤醒与内存争用</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">75</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">13</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AArch64 同步原语 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AArch64 同步原语
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-05 21:23:06" itemprop="dateCreated datePublished" datetime="2026-08-05T21:23:06+08:00">2026-08-05</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/ARM/" itemprop="url" rel="index"><span itemprop="name">ARM</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>本文介绍AArch64的同步原语。</p>
+<span id="more"></span>
+
+<h2 id="1-AArch64-原子指令"><a href="#1-AArch64-原子指令" class="headerlink" title="1. AArch64 原子指令"></a>1. AArch64 原子指令</h2><h3 id="1-1-原子指令分组（LSE-与-FEAT-LSE128）"><a href="#1-1-原子指令分组（LSE-与-FEAT-LSE128）" class="headerlink" title="1.1 原子指令分组（LSE 与 FEAT_LSE128）"></a>1.1 原子指令分组（LSE 与 FEAT_LSE128）</h3><p>在 Arm 架构中，为了提升多处理器&#x2F;多核系统中同步原语的性能与可扩展性：</p>
+<ul>
+<li><strong>Armv8.1-A（LSE，Large System Extensions）</strong>：引入了全新的原子指令集，能够在<strong>单条指令</strong>中完成不可中断的“读-修改-写”（Read-Modify-Write, RMW）操作，避免了传统独占加载&#x2F;存储（<code>LDREX</code>&#x2F;<code>STREX</code>）重试循环带来的总线竞争。</li>
+<li><strong>Armv9.4-A（FEAT_LSE128）</strong>：进一步扩展 LSE，支持 <strong>128 位数据</strong>的原子操作，主要用于高效管理大尺寸数据结构（如 128 位的页表描述符&#x2F;转换表描述符）。</li>
+</ul>
+<p><strong>A64 原子指令全景表</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>特性扩展</strong></th>
+<th><strong>指令</strong></th>
+<th><strong>语法</strong></th>
+<th><strong>描述 &#x2F; 操作细节</strong></th>
+<th><strong>关键应用场景</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>FEAT_LSE</td>
+<td>CAS</td>
+<td><code>CAS &lt;Xs&gt;, &lt;Xt&gt;, [&lt;Xn&gt;]</code></td>
+<td>原子地比较内存 <code>[Xn]</code> 的值与 <code>Xs</code>（32&#x2F;64位）。若相等，将 <code>Xt</code> 写入 <code>[Xn]</code>，并将原始值返回至 <code>Xs</code>。</td>
+<td>无锁数据结构（Lock-free data structures）</td>
+</tr>
+<tr>
+<td>FEAT_LSE</td>
+<td>CASP</td>
+<td><code>CASP &lt;Xs&gt;, &lt;X(s+1)&gt;, &lt;Xt&gt;, &lt;X(t+1)&gt;, [&lt;Xn&gt;]</code></td>
+<td>比较 <code>[Xn]</code> 处连续的两个 32&#x2F;64 位值与 <code>Xs, X(s+1)</code>。若相等，将 <code>[Xn]</code> 替换为成对的 <code>Xt, X(t+1)</code>，并返回旧值对。</td>
+<td>成对数据（如带元数据的指针）的原子更新</td>
+</tr>
+<tr>
+<td>FEAT_LSE</td>
+<td>LD<OP></td>
+<td><code>LDADD / LDEOR / LDCLR &lt;Xs&gt;, &lt;Xt&gt;, [&lt;Xn&gt;]</code></td>
+<td>原子地从 <code>[Xn]</code> 加载数据，与 <code>Xt</code> 执行指定运算（<code>ADD</code>&#x2F;<code>EOR</code>&#x2F;<code>CLR</code>&#x2F;<code>SET</code>&#x2F;<code>SMAX</code>等），结果存回 <code>[Xn]</code> 并将旧值存入 <code>Xs</code>。</td>
+<td>原子算术与位运算（如计数器、标志位）</td>
+</tr>
+<tr>
+<td>FEAT_LSE</td>
+<td>ST<OP></td>
+<td><code>STADD / STEOR / STCLR &lt;Xs&gt;, [&lt;Xn&gt;]</code></td>
+<td>原子地对 <code>[Xn]</code> 的值与 <code>Xs</code> 执行指定运算（<code>ADD</code>&#x2F;<code>EOR</code>&#x2F;<code>CLR</code>&#x2F;<code>SET</code>等）并写入结果。无返回值。</td>
+<td>无需读取旧值结果的约束原子更新</td>
+</tr>
+<tr>
+<td>FEAT_LSE</td>
+<td>SWP</td>
+<td><code>SWP &lt;Xs&gt;, &lt;Xt&gt;, [&lt;Xn&gt;]</code></td>
+<td>原子地交换 <code>[Xn]</code> 处的值与 <code>Xt</code>，并将原始旧值存入 <code>Xs</code>。</td>
+<td>简单互斥锁或数值交换</td>
+</tr>
+<tr>
+<td>FEAT_LSE128</td>
+<td>LDCLRP</td>
+<td><code>LDCLRP &lt;Xd&gt;, &lt;Xs&gt;, [&lt;Xn&gt;]</code></td>
+<td>原子地加载 <code>[Xn]</code> 的 128 位四字（Quadword），按 <code>Xs</code> 指定掩码进行位清除（AND-NOT），存回结果并返回原始值至 <code>Xd</code>。</td>
+<td>128位页表描述符操作、多核系统中位标志清除（如释放锁）</td>
+</tr>
+<tr>
+<td>FEAT_LSE128</td>
+<td>LDSETP</td>
+<td><code>LDSETP &lt;Xd&gt;, &lt;Xs&gt;, [&lt;Xn&gt;]</code></td>
+<td>原子地加载 <code>[Xn]</code> 的 128 位四字，按 <code>Xs</code> 指定掩码进行位置位（OR），存回结果并返回原始值至 <code>Xd</code>。</td>
+<td>原子地设置状态标志（如任务调度）</td>
+</tr>
+<tr>
+<td>FEAT_LSE128</td>
+<td>SWPP</td>
+<td><code>SWPP &lt;Xt1&gt;, &lt;Xt2&gt;, [&lt;Xn&gt;]</code></td>
+<td>原子地交换 <code>[Xn]</code> 处的 128 位四字与寄存器对 <code>Xt1, Xt2</code> 的值，并将原始旧值存入 <code>Xt1, Xt2</code>。</td>
+<td>无锁数据结构中交换带元数据的指针；对齐 128 位内存的双字原子性</td>
+</tr>
+</tbody></table>
+<p><strong>获取与释放内存语义（Acquire &amp; Release）</strong></p>
+<p>上述原子指令可通过在助记符后缀中添加语义修饰符，来保障多核&#x2F;多线程下的内存可见性与顺序：</p>
+<ul>
+<li><strong>A (Acquire)<strong>：确保程序顺序中</strong>后续</strong>所有的加载&#x2F;存储操作，不会被重排序到该 Acquire 操作之前生效。</li>
+<li><strong>L (Release)<strong>：确保程序顺序中</strong>此前</strong>所有的加载&#x2F;存储操作，在该 Store-Release 操作生效前已全部完成并可见。</li>
+<li>**AL (Acquire-Release)**：同时具备 Acquire 与 Release 双重屏障语义（例如 <code>LDADDAL X0, X1, [X2]</code>）。</li>
+</ul>
+<blockquote>
+<p><strong>注意</strong>：<code>ST&lt;op&gt;</code> 类型指令属于纯写&#x2F;存储操作，因此<strong>不具备</strong> Acquire（获取）语义。</p>
+</blockquote>
+<h3 id="1-2-原子指令示例"><a href="#1-2-原子指令示例" class="headerlink" title="1.2 原子指令示例"></a>1.2 原子指令示例</h3><h4 id="简单-lock-unlock-示例"><a href="#简单-lock-unlock-示例" class="headerlink" title="简单 lock()&#x2F;unlock() 示例"></a>简单 lock()&#x2F;unlock() 示例</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">; ------------------------------------------------------------------------------</span><br><span class="line">; 1. lock() - 抢锁阶段</span><br><span class="line">; ------------------------------------------------------------------------------</span><br><span class="line">    MOV   X1, #0x1          ; X1 = 1（代表加锁状态）</span><br><span class="line"></span><br><span class="line">Spin:</span><br><span class="line">    LDR   X0, [&lt;lock&gt;]      ; 步骤1（优化）：普通 Load 轮询，避免频发总线/缓存竞争</span><br><span class="line">    CBNZ  X0, Spin          ; 若锁已被占用 (X0 != 0)，跳回 Spin 继续等待</span><br><span class="line"></span><br><span class="line">    CASA  X0, X1, [&lt;lock&gt;]  ; 步骤2（抢锁）：原子 Compare-and-Swap（带 Acquire 语义）</span><br><span class="line">                            ;   - 若 [&lt;lock&gt;] == 0：写入 1 并返回 0 到 X0（抢锁成功）</span><br><span class="line">                            ;   - 若 [&lt;lock&gt;] != 0：保持原值并返回最新锁状态到 X0（抢锁失败）</span><br><span class="line"></span><br><span class="line">    CBNZ  X0, Spin          ; 若 X0 != 0 (抢锁失败)，跳回 Spin 重试；否则成功进入临界区</span><br><span class="line"></span><br><span class="line">; ------------------------------------------------------------------------------</span><br><span class="line">; 2. Critical Section - 临界区</span><br><span class="line">; ------------------------------------------------------------------------------</span><br><span class="line">    ...                     ; CASA 的 Acquire 语义保证此处的指令不会被重排序到抢锁成功前执行</span><br><span class="line"></span><br><span class="line">; ------------------------------------------------------------------------------</span><br><span class="line">; 3. unlock() - 释放锁阶段</span><br><span class="line">; ------------------------------------------------------------------------------</span><br><span class="line">    STLR  XZR, [&lt;lock&gt;]     ; 将 [&lt;lock&gt;] 清零（带 Release 语义）</span><br><span class="line">                            ; 确保临界区内的所有写入在此指令生效前全网可见</span><br></pre></td></tr></table></figure>
+
+<h4 id="无锁堆栈示例"><a href="#无锁堆栈示例" class="headerlink" title="无锁堆栈示例"></a>无锁堆栈示例</h4><p>软件通常使用无锁方式更新共享位置，以避免使用锁带来的开销。无锁代码通常先向共享位置加载数据，然后执行一些相关的计算，最后使用比较并交换 (CAS) 原子操作完成更新。最终 CAS 操作的成功取决于加载操作中观察到的位置值是否已被其他线程更改。以下是一个更新无锁链表的示例：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">Loop:</span><br><span class="line">    LDAR   X2, [X0]       ; 读取当前链表/栈的头节点地址（带 Acquire 语义，保证后续读写不乱序）</span><br><span class="line">    STR    X2, [X1]       ; 将旧头节点地址存入新节点的 next 指针位置（即新节点指向旧头节点）</span><br><span class="line">    MOV    X3, X2         ; 备份期望的旧头节点值到 X3（用于后续判断 CAS 操作是否成功）</span><br><span class="line"></span><br><span class="line">    ; 【原子更新头指针】</span><br><span class="line">    ; CASAL 指令（带 Acquire-Release 双重语义）：</span><br><span class="line">    ; 比较 [X0]（内存中的头指针）是否仍等于 X3（刚才读到的旧头节点）</span><br><span class="line">    ; - 若相等：说明没有其他线程修改头节点，将 [X0] 更新为 X1（新节点地址），并在 X3 中返回旧值</span><br><span class="line">    ; - 若不相等：说明头节点已被其他线程修改，不更新内存，并在 X3 中返回被修改后的新头节点地址</span><br><span class="line">    CASAL  X3, X1, [X0]   </span><br><span class="line"></span><br><span class="line">    CMP    X3, X2         ; 比较 CAS 返回的实际旧值 (X3) 与备份的期望旧值 (X2)</span><br><span class="line">    B.ne   Loop           ; 如果 X3 != X2（说明 CAS 失败，头节点被他人改动），跳回 Loop 重试</span><br></pre></td></tr></table></figure>
+
+<p>如果用的是常见的 GCC 或 Clang 编译器，可以直接使用扩展函数，对应的 c code 可能是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">push_gcc</span><span class="params">(Node* new_node)</span> &#123;</span><br><span class="line">    Node* old_head = head;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">do</span> &#123;</span><br><span class="line">        new_node-&gt;next = old_head;</span><br><span class="line">        <span class="comment">// __atomic_compare_exchange_n 会被编译器直接编译为 CASAL 汇编指令</span></span><br><span class="line">    &#125; <span class="keyword">while</span> (!__atomic_compare_exchange_n(</span><br><span class="line">                &amp;head, </span><br><span class="line">                &amp;old_head, </span><br><span class="line">                new_node, </span><br><span class="line">                <span class="literal">true</span>,                    <span class="comment">// weak 模式，性能更高</span></span><br><span class="line">                __ATOMIC_ACQ_REL,        <span class="comment">// 成功时: Acquire-Release 屏障</span></span><br><span class="line">                __ATOMIC_RELAXED));      <span class="comment">// 失败时: Relaxed</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="线程屏障示例"><a href="#线程屏障示例" class="headerlink" title="线程屏障示例"></a>线程屏障示例</h4><p>线程屏障提供了一个同步点，确保所有线程在继续执行之前都已到达该同步点。线程屏障在各种应用程序中的并行代码段之间很常见。典型的线程屏障实现可能包含一个计数变量，用于检测所有线程何时都已到达同步点。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">	MOV       W1, #-1        ; 设置增量值（负数 -1，用于执行减法）</span><br><span class="line">    LDADDAL   W1, W1, [X0]   ; 原子递减计数器（带 Acquire-Release 双重屏障）：</span><br><span class="line">                             ;   - 将内存地址 [X0] 的旧值存入 W1</span><br><span class="line">                             ;   - 将内存地址 [X0] 的新值更新为 (旧值 - 1)</span><br><span class="line"></span><br><span class="line">wait_loop:                   ; 自旋等待其他线程到达屏障点</span><br><span class="line">    LDAR      W1, [X0]       ; 读取当前计数值（带 Acquire 语义，保证后续读写不被重排序）</span><br><span class="line">    CBNZ      W1, wait_loop  ; 如果计数值不为 0（说明还有其他线程未到达），继续自旋等待</span><br><span class="line"></span><br><span class="line">continue:</span><br><span class="line">                             ; 所有线程均已到达同步点，在此处同步恢复并继续向下执行</span><br></pre></td></tr></table></figure>
+
+<p>对应的 c code 可能是：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdatomic.h&gt;</span></span></span><br><span class="line"></span><br><span class="line"><span class="keyword">_Atomic</span> <span class="type">int</span> barrier_count = NUM_THREADS; <span class="comment">// 初始化为线程总数</span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">thread_barrier</span><span class="params">(<span class="type">void</span>)</span> &#123;</span><br><span class="line">    <span class="comment">// 1. 原子减 1，并获取旧值 (对应 LDADDAL)</span></span><br><span class="line">    <span class="type">int</span> old_val = atomic_fetch_sub_explicit(&amp;barrier_count, <span class="number">1</span>, memory_order_acq_rel);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 如果不是最后一个到达的线程，自旋等待 (对应 wait_loop)</span></span><br><span class="line">    <span class="keyword">if</span> (old_val != <span class="number">1</span>) &#123;</span><br><span class="line">        <span class="comment">// 对应 LDAR + CBNZ：不断轮询，直到计数器减到 0</span></span><br><span class="line">        <span class="keyword">while</span> (atomic_load_explicit(&amp;barrier_count, memory_order_acquire) != <span class="number">0</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 3. 所有线程在此会合后继续 (对应 continue)</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="原子位操作示例"><a href="#原子位操作示例" class="headerlink" title="原子位操作示例"></a>原子位操作示例</h4><p>由于多线程访问和抢占式调度，线程安全状态标志的管理需要同步。在访问共享资源（例如 GPU 核心或 DMA 通道等硬件外设）之前，线程会原子性地设置一个状态位，以表明该共享资源已被分配。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">; ==============================================================================</span><br><span class="line">; A64 (Arm64) 原子位操作示例：原子设置状态标志位</span><br><span class="line">; 假设 X2 寄存器指向 64 位状态寄存器的内存地址</span><br><span class="line">; ==============================================================================</span><br><span class="line"></span><br><span class="line">    MOV      X1, #0x4          ; 设置掩码：0b100（即第 2 位）</span><br><span class="line"></span><br><span class="line">1:</span><br><span class="line">    ; LDSETAL 指令（带 Acquire-Release 双重语义）：</span><br><span class="line">    ; 原子地读取 [X2] 中的旧值存入 X0，并将 [X2] 的第 2 位置位（按位或运算 OR 0x4）</span><br><span class="line">    LDSETAL  X1, X0, [X2]      </span><br><span class="line"></span><br><span class="line">    ; TBNZ (Test and Branch if Non-Zero) 测试并跳转：</span><br><span class="line">    ; 检查返回的旧值 X0 的第 2 位。若为 1（说明已经被其他线程占用），跳回 1b 重试（可选逻辑）</span><br><span class="line">    TBNZ     X0, #2, 1b</span><br></pre></td></tr></table></figure>
+
+<h3 id="1-3-原子访问地址的内存属性"><a href="#1-3-原子访问地址的内存属性" class="headerlink" title="1.3 原子访问地址的内存属性"></a>1.3 原子访问地址的内存属性</h3><p>原子指令不是对任何内存都能生效的，<strong>只有在带缓存、支持一致性的普通内存上，硬件才能保证“真原子”</strong>；且硬件会根据情况选择在 <strong>CPU 内部（L1 缓存）</strong> 或 <strong>外部总线（L3&#x2F;互连线）</strong> 完成原子操作。</p>
+<p><strong>哪种内存才支持原子指令？</strong></p>
+<p>不是所有内存地址都可以随便用原子指令（如 <code>CAS</code>、<code>LDADD</code>）：</p>
+<ul>
+<li>支持真原子的内存类型：<ul>
+<li>开启缓存的普通内存（Normal Memory with Inner&#x2F;Outer Write-Back）：这类内存处于 CPU 的硬件缓存一致性协议保护下，多核并发访问时数据绝对安全。</li>
+</ul>
+</li>
+<li>不支持&#x2F;有风险的内存类型：<ul>
+<li>设备内存（Device Memory，如显卡、外设寄存器）或 未开启缓存的内存（Non-cacheable）。</li>
+<li>风险：对这些区域强行用原子指令，硬件可能无法保证原子性，甚至引发硬件异常或不可预测的副作用。</li>
+</ul>
+</li>
+</ul>
+<p><strong>原子操作在哪里执行？（近原子 vs 远原子）</strong></p>
+<p>当 CPU 执行一条原子指令时，硬件有两种不同的处理策略：</p>
+<p><strong>近原子操作（Near Atomic）</strong></p>
+<ul>
+<li>执行路径：在 CPU 核心本地的 <strong>L1 数据缓存</strong> 内部完成“读-修改-写”全过程。</li>
+<li>触发条件：目标地址已命中 L1D 缓存，且对应缓存行在 MESI&#x2F;MOESI 协议中处于<strong>独占&#x2F;唯一状态（Unique State）</strong>。</li>
+<li>核心优势：无需经过外部总线，单次操作<strong>延迟最低</strong>。</li>
+<li>典型应用场景：<ul>
+<li><strong>自旋锁与无锁结构（<code>CAS</code> &#x2F; <code>LDADD</code>）</strong>：例如线程尝试通过 <code>CAS</code> 抢占锁。由于算法依赖返回值判断是否抢锁成功，数据必须拉取到本地 L1 完成比较与更新，以追求最低的反馈延迟。</li>
+</ul>
+</li>
+</ul>
+<p><strong>远原子操作（Far Atomic）</strong></p>
+<ul>
+<li>执行路径：CPU 核心将原子操作指令打包，通过总线（如 Arm CHI 接口）<strong>转发给外部内存系统</strong>（如 L3 缓存、系统互连线 Interconnect 或内存控制器）代为执行。</li>
+<li><strong>触发条件与行为分流</strong>：<ul>
+<li><strong>存储类原子指令（<code>ST&lt;OP&gt;</code>，如 <code>STADD</code>）</strong>：<strong>默认走远原子</strong>。CPU 不需要读取返回值，直接将修改命令发往外部处理。</li>
+<li><strong>加载类原子指令（<code>LD&lt;OP&gt;</code>，如 <code>LDADD</code>）</strong>：由于 CPU 急需返回值，硬件会优先尝试将目标数据拉取（Fetch）到本地 L1D 缓存，转换为“近原子”执行。</li>
+</ul>
+</li>
+<li>核心优势：避免多核争抢同一变量时引发的<strong>缓存行颠簸（Cache Thrashing）</strong>，显著提升高并发下的系统吞吐量。</li>
+<li>典型应用场景：<ul>
+<li><strong>全局多线程性能计数器</strong>：例如 16 个线程并发递增 <code>total_requests_count</code>。线程<strong>只负责写入、不依赖返回值</strong>，直接将 <code>STADD</code> 指令甩给共享 L3 缓存排队执行，CPU 核心无须阻塞等待或争抢 L1 Cache 独占权。</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p>总结：需要返回旧值（如抢锁 <code>CAS</code>&#x2F;<code>LDADD</code>）或数据已在 L1D 独占时走近原子，纯写入且不依赖返回值（如全局计数 <code>STADD</code>）时走远原子。</p>
+</blockquote>
+<h3 id="1-4-Linux-内核中的应用"><a href="#1-4-Linux-内核中的应用" class="headerlink" title="1.4 Linux 内核中的应用"></a>1.4 Linux 内核中的应用</h3><h4 id="典型的原子操作"><a href="#典型的原子操作" class="headerlink" title="典型的原子操作"></a>典型的原子操作</h4><p>Linux 内核中原子指令的定义位于 <code>/arch/arm64/ include /asm/atomic_lse.h</code> 头文件中。例如，以下代码是 FEAT_LSE 原子指令的典型实现。它生成了各种具有不同内存顺序的原子操作函数调用。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> ATOMIC_FETCH_OP(name, mb, op, asm_op, cl...)        \</span></span><br><span class="line"><span class="meta">static __always_inline int                                  \</span></span><br><span class="line"><span class="meta">__lse_atomic_fetch_##op##name(int i, atomic_t *v)           \</span></span><br><span class="line"><span class="meta">&#123;                                                           \</span></span><br><span class="line"><span class="meta">    int old;                                                \</span></span><br><span class="line"><span class="meta">                                                            \</span></span><br><span class="line"><span class="meta">    asm volatile(                                           \</span></span><br><span class="line"><span class="meta">    __LSE_PREAMBLE                                          \  <span class="comment">// #define __LSE_PREAMBLE &quot;.arch_extension lse \n </span></span></span><br><span class="line">    <span class="string">&quot;   &quot;</span> #asm_op <span class="meta">#mb <span class="string">&quot; %w[i], %w[old], %[v]&quot;</span>               \  <span class="comment">// Template for inline assembler </span></span></span><br><span class="line">    : [v] <span class="string">&quot;+Q&quot;</span> (v-&gt;counter),                                \  <span class="comment">// Output: </span></span><br><span class="line">      [old] <span class="string">&quot;=r&quot;</span> (old)                                      \  <span class="comment">// Output: old value</span></span><br><span class="line">    : [i] <span class="string">&quot;r&quot;</span> (i)                                           \</span><br><span class="line">    : cl);                                                  \  <span class="comment">// Input</span></span><br><span class="line">                                                            \  <span class="comment">// Clobber list</span></span><br><span class="line">    <span class="keyword">return</span> old;                                             \  <span class="comment">// The address of old value</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> ATOMIC_FETCH_OPS(op, asm_op)                        \</span></span><br><span class="line"><span class="meta">    ATOMIC_FETCH_OP(_relaxed,   , op, asm_op)               \  <span class="comment">// Relaxed semantic</span></span></span><br><span class="line">    ATOMIC_FETCH_OP(_acquire,  a, op, asm_op, <span class="string">&quot;memory&quot;</span>)     \  <span class="comment">// Acquire semantic</span></span><br><span class="line">    ATOMIC_FETCH_OP(_release,  l, op, asm_op, <span class="string">&quot;memory&quot;</span>)     \  <span class="comment">// Release semantic</span></span><br><span class="line">    ATOMIC_FETCH_OP(        , al, op, asm_op, <span class="string">&quot;memory&quot;</span>)        <span class="comment">// Acquire-Release semantic</span></span><br><span class="line"></span><br><span class="line">ATOMIC_FETCH_OPS(andnot, ldclr)    <span class="comment">// Generate the function atomic_fetch_andnot_*()</span></span><br><span class="line">ATOMIC_FETCH_OPS(or, ldset)        <span class="comment">// Generate the function atomic_fetch_or_*()</span></span><br><span class="line">ATOMIC_FETCH_OPS(xor, ldeor)       <span class="comment">// Generate the function atomic_fetch_xor_*()</span></span><br><span class="line">ATOMIC_FETCH_OPS(add, ldadd)       <span class="comment">// Generate the function atomic_fetch_add_*()</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">undef</span> ATOMIC_FETCH_OP</span></span><br><span class="line"><span class="meta">#<span class="keyword">undef</span> ATOMIC_FETCH_OPS</span></span><br></pre></td></tr></table></figure>
+
+<p>展开宏 <code>ATOMIC_FETCH_OPS( add , ldadd)</code> 后，将生成 4 个函数，其中一个如下所示。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> __always_inline <span class="type">int</span></span><br><span class="line">__lse_atomic_fetch_add_acquire(<span class="type">int</span> i, <span class="type">atomic_t</span> *v) &#123;</span><br><span class="line">    <span class="type">int</span> old;</span><br><span class="line">    <span class="keyword">asm</span> <span class="title function_">volatile</span><span class="params">(</span></span><br><span class="line"><span class="params">        __LSE_PREAMBLE</span></span><br><span class="line"><span class="params">        <span class="string">&quot;ldadda %w[i], %w[old], %[v]&quot;</span>      </span></span><br><span class="line"><span class="params">        : [v] <span class="string">&quot;+Q&quot;</span> (v-&gt;counter), [old] <span class="string">&quot;=r&quot;</span> (old)</span></span><br><span class="line"><span class="params">        : [i] <span class="string">&quot;r&quot;</span> (i)</span></span><br><span class="line"><span class="params">        : <span class="string">&quot;memory&quot;</span> </span></span><br><span class="line"><span class="params">    )</span>;</span><br><span class="line">    <span class="keyword">return</span> old;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这些函数可用于自旋锁&#x2F;互斥锁、引用计数、无锁列表和读-复制-更新。</p>
+<h4 id="Linux-内核中的自旋锁"><a href="#Linux-内核中的自旋锁" class="headerlink" title="Linux 内核中的自旋锁"></a>Linux 内核中的自旋锁</h4><p>以下的 <code>hyp_spin_lock</code> 函数位于 <code>arch /arm64/kvm/hyp/ include /nvhe/spinlock.h</code> 中。它实现了基于 <code>LDADD</code> 原子指令优化的基于票据的自旋锁。该代码专为底层同步而设计，例如在虚拟机管理程序或内核环境中，当多个 CPU 或虚拟机访问共享数据结构时。</p>
+<p>当请求使用票据锁时，票据锁决定了临界区用户的访问顺序。票据锁会在每个线程首次请求锁时分配一个票据号，然后将该票据号与当前锁的票据号进行比较。如果两者相同，则可以进入临界区。否则，线程将等待，直到当前票据号等于该线程的票据号。</p>
+<p>读取当前锁号需要acquire语义。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">hyp_spin_lock</span><span class="params">(<span class="type">hyp_spinlock_t</span> *lock)</span> &#123;</span><br><span class="line">    u32 tmp;</span><br><span class="line">    <span class="type">hyp_spinlock_t</span> lockval, newval;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">asm</span> <span class="title function_">volatile</span><span class="params">(</span></span><br><span class="line"><span class="params">        <span class="comment">/* --- 1. 原子领号 --- */</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   mov     %w2, #(1 &lt;&lt; 16)         \n&quot;</span> <span class="comment">// 准备增量值 65536（代表高 16 位的“分配票号” +1）</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   ldadda  %w2, %w0, %3            \n&quot;</span> <span class="comment">// LSE 原子加（带 Acquire 语义）：将 lock 高 16 位加 1，并把旧的票号存入 %w0</span></span></span><br><span class="line"><span class="params">                                                <span class="comment">// 此时 lock-&gt;next += 1, %w0 高16位就是 my_ticket（next没加的值）</span></span></span><br><span class="line"><span class="params"></span></span><br><span class="line"><span class="params">        <span class="comment">/* --- 2. 检查：我的票号 == 当前服务号？ --- */</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   eor     %w1, %w0, %w0, ror #16  \n&quot;</span> <span class="comment">// 比较高 16 位（我的票号）与低 16 位（当前服务号），也就是比较 next 没加前 和 own</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   cbz     %w1, 3f                 \n&quot;</span> <span class="comment">// 若相等（异或为 0），说明抢锁成功，跳到 3f 进入临界区</span></span></span><br><span class="line"><span class="params"></span></span><br><span class="line"><span class="params">        <span class="comment">/* --- 3. 未抢到锁：低功耗等待 --- */</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   sevl                            \n&quot;</span> <span class="comment">// 发送本地事件（防止错过解锁）</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;2: wfe                             \n&quot;</span> <span class="comment">// CPU 进入低功耗休眠（Wait For Event），等待唤醒</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   ldaxrh  %w2, %4                 \n&quot;</span> <span class="comment">// 被唤醒后，重新读取最新的当前服务号</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   eor     %w1, %w2, %w0, lsr #16  \n&quot;</span> <span class="comment">// 再次比对</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   cbnz    %w1, 2b                 \n&quot;</span> <span class="comment">// 仍未轮到自己，继续休眠</span></span></span><br><span class="line"><span class="params"></span></span><br><span class="line"><span class="params">        <span class="comment">/* --- 4. 成功拿到锁 --- */</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;3:&quot;</span> </span></span><br><span class="line"><span class="params">        : <span class="string">&quot;=&amp;r&quot;</span> (lockval), <span class="string">&quot;=&amp;r&quot;</span> (newval), <span class="string">&quot;=&amp;r&quot;</span> (tmp), <span class="string">&quot;+Q&quot;</span> (*lock)</span></span><br><span class="line"><span class="params">        : <span class="string">&quot;Q&quot;</span> (lock-&gt;owner)</span></span><br><span class="line"><span class="params">        : <span class="string">&quot;memory&quot;</span></span></span><br><span class="line"><span class="params">    )</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>等效 c code ：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> &#123;</span></span><br><span class="line">    <span class="type">uint16_t</span> owner;  <span class="comment">// 当前服务号（当前叫到几号）</span></span><br><span class="line">    <span class="type">uint16_t</span> next;   <span class="comment">// 下一个分配的票号（发到几号了）</span></span><br><span class="line">&#125; <span class="type">spinlock_t</span>;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">hyp_spin_lock</span><span class="params">(<span class="type">spinlock_t</span> *lock)</span> &#123;</span><br><span class="line">    <span class="comment">// 1. 原子领号 (相当于汇编里的 ldadda)</span></span><br><span class="line">    <span class="comment">// 领到属于自己的票号，同时把排号机(next)加 1</span></span><br><span class="line">    <span class="type">uint16_t</span> my_ticket = __atomic_fetch_add(&amp;lock-&gt;next, <span class="number">1</span>, __ATOMIC_ACQUIRE);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 检查：我的票号 == 当前服务号？(相当于汇编里的 eor + cbz)</span></span><br><span class="line">    <span class="comment">// 如果轮到我了，直接跳过循环进入临界区</span></span><br><span class="line">    <span class="keyword">while</span> (my_ticket != lock-&gt;owner) &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">// 3. 没轮到我：进入低功耗等待 (相当于汇编里的 sevl + wfe + ldaxrh)</span></span><br><span class="line">        <span class="comment">// 挂起 CPU 放弃轮询，等待 unlock 叫号唤醒</span></span><br><span class="line">        wait_for_event(); </span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. 拿到锁，进入临界区...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>解除票锁只需将当前票号加一，然后使用store release功能即可。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">hyp_spin_unlock</span><span class="params">(<span class="type">hyp_spinlock_t</span> *lock)</span> &#123;</span><br><span class="line">    u64 tmp;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">asm</span> <span class="title function_">volatile</span><span class="params">(</span></span><br><span class="line"><span class="params">        <span class="comment">/* --- 叫号：给低 16 位（当前服务号）+1 --- */</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   mov      %w1, #1                \n&quot;</span> <span class="comment">// 准备增量 1</span></span></span><br><span class="line"><span class="params">        <span class="string">&quot;   staddlh  %w1, %0                \n&quot;</span> <span class="comment">// 远原子加法（带 Release 语义）：</span></span></span><br><span class="line"><span class="params">                                                <span class="comment">// 叫下一个号，并自动唤醒休眠的 CPU</span></span></span><br><span class="line"><span class="params"></span></span><br><span class="line"><span class="params">        : <span class="string">&quot;=Q&quot;</span> (lock-&gt;owner), <span class="string">&quot;=&amp;r&quot;</span> (tmp)</span></span><br><span class="line"><span class="params">        : </span></span><br><span class="line"><span class="params">        : <span class="string">&quot;memory&quot;</span></span></span><br><span class="line"><span class="params">    )</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>等效 c code ：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">hyp_spin_unlock</span><span class="params">(<span class="type">spinlock_t</span> *lock)</span> &#123;</span><br><span class="line">    <span class="comment">// 叫号 (相当于汇编里的 staddlh)</span></span><br><span class="line">    <span class="comment">// 给当前服务号(owner)加 1，并带 Release 屏障，通知排队的 CPU</span></span><br><span class="line">    <span class="comment">// 在硬件层会自动发送事件唤醒处于 wait_for_event() 的 CPU</span></span><br><span class="line">    __atomic_fetch_add(&amp;lock-&gt;owner, <span class="number">1</span>, __ATOMIC_RELEASE);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="2-独占访问"><a href="#2-独占访问" class="headerlink" title="2. 独占访问"></a>2. 独占访问</h2><h3 id="2-1-概述"><a href="#2-1-概述" class="headerlink" title="2.1 概述"></a>2.1 概述</h3><p>在 ARMv8.1 引入 LSE 单条原子指令（如 <code>LDADD</code>）之前，Arm 架构从 Armv6 开始就通过 <strong>加载独占（Load-Exclusive）</strong> 与 <strong>存储独占（Store-Exclusive）</strong> 指令对，实现了经典的 <strong>LL&#x2F;SC（Load-Link &#x2F; Store-Conditional）</strong> 机制。</p>
+<p><strong>核心指令对 (<code>LDXR</code> &#x2F; <code>STXR</code>)</strong></p>
+<p>Arm64（A64 指令集）通过一对专属指令来实现 LL&#x2F;SC 机制，用于对内存发起独占访问：</p>
+<ul>
+<li>**<code>LDXR</code> (Load Exclusive)**：启动独占操作。<ul>
+<li><strong>作用</strong>：将目标内存地址的数据加载到寄存器，并将该内存位置标记为“被当前 CPU 核心独占访问”。</li>
+</ul>
+</li>
+<li>**<code>STXR</code> (Store Exclusive)**：尝试完成独占操作。<ul>
+<li><strong>作用</strong>：尝试将数据写入目标内存地址。</li>
+<li><strong>返回值</strong>：通过状态寄存器返回成功&#x2F;失败标识。若写入成功返回 <code>0</code>（表示读写期间无其他核心修改过该地址）；若失败返回非 <code>0</code>，需要<strong>配合循环重试</strong>。</li>
+</ul>
+</li>
+</ul>
+<blockquote>
+<p><strong>数据宽度支持</strong>：<code>LDXR</code>&#x2F;<code>STXR</code> 支持 8 &#x2F; 16 &#x2F; 32 &#x2F; 64 位数据操作；<code>LDXP</code>&#x2F;<code>STXP</code> 则支持 128 位原子操作。</p>
+</blockquote>
+<hr>
+<p><strong>典型的原子自增实现（以 <code>atomic_inc</code> 为例）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">atomic_inc:</span><br><span class="line">    LDXR    W1, [W0]        // 1. 独占读取当前内存值，并加独占标记</span><br><span class="line">    ADD     W1, W1, #1      // 2. 将读取到的旧值 +1</span><br><span class="line">    STXR    W2, W1, [X0]    // 3. 尝试写回内存：W2=0 成功，W2!=0 失败</span><br><span class="line">    CBNZ    W2, atomic_inc  // 4. 若 W2 不为 0（写入失败），跳转重试</span><br><span class="line">    RET                     // 5. 成功完成原子自增，返回</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>原子性保障原理</strong>：如果在这两步之间有任何其他线程&#x2F;核心对该内存区域进行了写入操作，硬件会自动清除独占标记，导致 <code>STXR</code> 写入失败并触发重试，从而保证了“读-修改-写”的原子性。</li>
+<li><strong>硬件支持</strong>：每个 CPU 核心内部由 <strong>独占监视器（Exclusive Monitor）</strong> 来维护与跟踪这一独占标记状态。</li>
+</ul>
+<hr>
+<p><strong>结合 Acquire&#x2F;Release 内存语义的扩展指令</strong></p>
+<p>独占访问指令还支持隐式的内存屏障语义，确保多核共享数据时的可见性与顺序性：</p>
+<ul>
+<li>**<code>LDAXR</code> (Load-Acquire Exclusive)**：带 <strong>Acquire（读获取）</strong> 语义。确保该加载指令之后的所有内存访问不会被重排序到它之前（常用于抢锁&#x2F;获取资源）。</li>
+<li>**<code>STLXR</code> (Store-Release Exclusive)**：带 <strong>Release（写释放）</strong> 语义。确保该存储指令之前的所有内存访问不会被重排序到它之后（常用于解锁&#x2F;释放资源）。</li>
+</ul>
+<h3 id="2-2-独占监视器"><a href="#2-2-独占监视器" class="headerlink" title="2.2 独占监视器"></a>2.2 独占监视器</h3><p>独占监视器是一个简单的状态机，只有两种状态：打开和独占。为了支持处理器之间的同步，系统必须实现两组监视器：本地监视器和全局监视器。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/g" alt="1"></p>
+<h4 id="2-2-1-本地监视器"><a href="#2-2-1-本地监视器" class="headerlink" title="2.2.1 本地监视器"></a>2.2.1 本地监视器</h4><p>每个核心都有自己的本地监视器。所有独占访问都会检查该核心的本地监视器。对标记为“不可共享”区域的访问只需检查本地监视器，而对标记为“共享”区域的访问则还需要检查全局监视器。</p>
+<p><strong>本地监视器的定位与路由</strong></p>
+<ul>
+<li>归属：每个 CPU 核心拥有独立的 <strong>Local Monitor</strong>。</li>
+<li>访问路由：<ul>
+<li>非共享内存（Non-shareable）：仅需检查 <strong>Local Monitor</strong>。</li>
+<li>共享内存（Shared）：同时检查 <strong>Local Monitor</strong> 和 <strong>Global Monitor</strong>。</li>
+</ul>
+</li>
+</ul>
+<p><strong>可缓存区域（Cacheable）的同步特性</strong></p>
+<ul>
+<li>无总线开销：若目标内存已在当前核心的 L1 Cache 中命中，同步操作可在 CPU 内部完成，<strong>不产生外部总线事务</strong>。</li>
+<li>延迟可见（Delayed Visibility）：原子操作的结果在 Cache 中生效后，其他 CPU 核心需在<strong>主动发起 Read 操作</strong>读取该内存位置时才会感知到更新。</li>
+</ul>
+<h4 id="2-2-2-全局监视器"><a href="#2-2-2-全局监视器" class="headerlink" title="2.2.2 全局监视器"></a>2.2.2 全局监视器</h4><p><strong>核心作用与运作机制</strong></p>
+<ul>
+<li>作用：专门负责监控标记为 <strong>Shareable（共享）</strong> 的内存区域。</li>
+<li>判定标准：任何针对共享内存的独占存储指令（如 <code>STXR</code>），必须<strong>同时通过 Local Monitor 和 Global Monitor 的联合校验</strong>，才能写入成功。</li>
+<li>应用场景：用于不同 CPU 核心之间（例如 Cortex-A 多核系统），甚至<strong>异构 CPU 之间</strong>（如 Cortex-A 与 Cortex-R 共享内存）通过互斥锁（Mutex）进行同步。</li>
+</ul>
+<p><strong>硬件实现方案（如何做出 Global Monitor？）</strong></p>
+<ul>
+<li>带 Cache 区域（常见 CPU 内存）： 硬件不需要单独建电路，而是<strong>将 CPU 的 Local Monitor 与缓存一致性协议（Cache Coherency）结合</strong>。当一个核心修改了 Cache，硬件会自动使其他核心的 Cache Line 失效，从而间接“清除”其他核心的独占标记。</li>
+<li>不带 Cache &#x2F; 外设区域： 硬件会在 CPU 外部（如 SoC 的 RAM 控制器或系统总线 Interconnect 上）专门嵌入独立的 <strong>Global Monitor 硬件电路</strong>。</li>
+</ul>
+<p><strong>强制支持的内存属性与注意事项</strong></p>
+<ul>
+<li>必须支持独占访问的内存：系统标准的 Normal Memory（如 Inner&#x2F;Outer Write-Back、带读写分配提示的共享内存），硬件承诺百分之百支持。</li>
+<li><strong>警告</strong>：若对<strong>不支持独占访问的区域</strong>（如 Device 寄存器或部分未做硬件监视器的 Non-cacheable 内存）强行执行 <code>STXR</code>：<ol>
+<li><code>STXR</code> 会<strong>永久返回失败（1）</strong>，导致抢锁死循环。</li>
+<li>硬件总线可能直接抛出异常，引发程序崩溃（Data Abort）。</li>
+</ol>
+</li>
+</ul>
+<blockquote>
+<p><strong>总结</strong>：对于软件开发者，独占监视器（Monitors）是一个<strong>“只管结果、不问过程”的硬件黑盒</strong>。我们只需保证在合规的可缓存&#x2F;共享内存（Normal Shareable Memory）上使用 <code>LDXR/STXR</code>，具体的跨核与硬件同步全权交给 Arm 芯片自行处理即可。</p>
+</blockquote>
+<h4 id="2-2-3-独占访问的内存监控范围（ERG）"><a href="#2-2-3-独占访问的内存监控范围（ERG）" class="headerlink" title="2.2.3 独占访问的内存监控范围（ERG）"></a>2.2.3 独占访问的内存监控范围（ERG）</h4><p>独占监视器（Exclusive Monitor）在跟踪内存时并不会精准到每一个字节，而是只记录物理地址的高位比特。这段被硬件“打包监控”的内存区域被称为 <strong>ERG（Exclusive Reservation Granule）</strong>，其大小可通过 <code>CTR_EL0</code> 寄存器查询。在硬件视角下，只要两个不同的内存地址落在同一个 ERG 范围内，就会被直接视为<strong>同一个地址</strong>。</p>
+<p>这种非精确监控会导致多核并发时的伪竞争（误清除）问题：</p>
+<ul>
+<li><strong>理论场景</strong>：线程 0 操作变量 A，线程 1 操作变量 B，两者在逻辑上完全独立。</li>
+<li><strong>硬件后果</strong>：若 A 与 B 恰好处于同一个 ERG 内，线程 0 成功执行 <code>STXR</code> 时会<strong>误伤清空</strong>线程 1 的监视器标记，导致线程 1 的 <code>STXR</code> 写入失败并被迫重试。</li>
+</ul>
+<p>在绝大多数 Arm 芯片中，一个 ERG 的大小通常正好等于 <strong>一条缓存行（One Cache Line，通常为 64 字节）</strong>。</p>
+<h4 id="2-2-4-清除-ERET-和-CLREX-上的本地监视器"><a href="#2-2-4-清除-ERET-和-CLREX-上的本地监视器" class="headerlink" title="2.2.4 清除 ERET 和 CLREX 上的本地监视器"></a>2.2.4 清除 ERET 和 CLREX 上的本地监视器</h4><p>操作系统在上下文切换时必须重置本地监视器（Local Monitor），否则若进程在 <code>Load-Exclusive</code> 后、<code>Store-Exclusive</code> 前被调度切出，残留的独占标记会导致恢复运行后的写入失败或逻辑异常。</p>
+<p>硬件在不同架构下的清理机制如下：</p>
+<ul>
+<li><strong>Armv8+（硬件自动）</strong>：执行 <code>ERET</code>（异常&#x2F;中断返回）指令时，硬件会<strong>自动重置</strong>本地监视器，无需软件介入。</li>
+<li><strong>Armv7 及更早（软件手动）</strong>：操作系统必须在上下文切换时<strong>手动执行 <code>CLREX</code> 指令</strong>，显式清空独占状态以防线程间标记冲突。</li>
+</ul>
+<h3 id="2-3-独占示例"><a href="#2-3-独占示例" class="headerlink" title="2.3 独占示例"></a>2.3 独占示例</h3><p>在多核编程中，独占加载（<code>LDAXR</code>）与独占存储（<code>STXR</code>）常用于实现进入临界区的锁机制。通常用 <code>0</code> 表示锁空闲，用 <code>1</code>（或进程 ID）表示锁已被占用。加锁时需要具备<strong>获取语义（Acquire）</strong>，而解锁时则需要<strong>释放语义（Release）</strong>。</p>
+<p>加锁与解锁的具体实现及汇编示例如下：</p>
+<ul>
+<li><p><strong>加锁操作（Lock）</strong>：必须结合独占指令。使用 <code>LDAXR</code> 读取锁状态并设置独占标记；若锁被占用或后续 <code>STXR</code> 写入失败（期间有其他 CPU 写入了该地址），则循环重试，直至独占写入成功。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">; void lock (lock_t *ptr)</span><br><span class="line">Loop:</span><br><span class="line">    MOV   W2, #1             ; 准备写入的值（1 表示加锁）</span><br><span class="line">    LDAXR W1, [X0]           ; 带获取语义（Acquire）读取锁状态并标记独占</span><br><span class="line">    CBNZ  W1, Loop           ; 若锁已被占用 (W1 != 0)，重新等待</span><br><span class="line">    STXR  W1, W2, [X0]       ; 尝试独占写入 1</span><br><span class="line">    CBNZ  W1, Loop           ; 若写入失败（有竞争），重新重试</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>解锁操作（Unlock）</strong>：<strong>无需使用独占指令</strong>。因为同一时刻仅持有锁的单个线程有权释放锁，直接使用带有释放语义的单条存储指令清除锁标记即可。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">; void unlock (lock_t *ptr)</span><br><span class="line">    STLR  WZR, [X0]          ; 带释放语义（Release）将锁写回 0 (WZR)</span><br></pre></td></tr></table></figure></li>
+</ul>
+<h2 id="3-使用WFE"><a href="#3-使用WFE" class="headerlink" title="3. 使用WFE"></a>3. 使用WFE</h2><p>在多核锁竞争中，当线程获取锁失败时，若不断死循环重试（Busy Polling）会白白消耗大量功耗。为了提高能效，Arm 提供了 <strong>WFE（Wait For Event）</strong> 机制：当加锁失败时，让 CPU 暂时关闭时钟并进入低功耗休眠状态，直至收到“唤醒事件”后再重新尝试抢锁。</p>
+<p>WFE 的主要唤醒事件与扩展包括：</p>
+<ul>
+<li><strong>核心唤醒事件（Wake-up Events）</strong>：<ul>
+<li><strong>显式信号</strong>：多核系统中任意其他 CPU 执行了 <code>SEV</code>（Send Event）指令。</li>
+<li><strong>内存写事件</strong>：其他 CPU 写入了当前监视的共享内存（清除全局监视器标记时触发唤醒）。</li>
+<li><strong>系统中断</strong>：未被屏蔽的硬件中断（Unmasked Interrupt）。</li>
+<li><strong>定时器事件</strong>：通用定时器发出的事件流（Event Stream）。</li>
+</ul>
+</li>
+<li><strong>带超时的休眠（<code>WFET</code> 指令）</strong>：Armv8.7-A 引入了 <code>WFET</code> 指令，允许设置最大等待超时时间，即便没有唤醒事件，达到指定时间后 CPU 也会自动唤醒重试，避免死锁或无限等待。</li>
+</ul>
+<h3 id="3-1-使用WFE的-lock-示例"><a href="#3-1-使用WFE的-lock-示例" class="headerlink" title="3.1 使用WFE的 lock() 示例"></a>3.1 使用WFE的 lock() 示例</h3><p>在实际开发中，WFE 指令可与普通自旋锁或票据锁（Ticket Lock）结合使用。核心逻辑是在尝试获取锁失败时执行 <code>WFE</code> 进入低功耗等待，当其他 CPU 释放锁或监视器状态改变时触发唤醒，再次重试抢锁。</p>
+<p>典型实现及代码逻辑如下：</p>
+<ul>
+<li><p><strong>配合 Load-Exclusive 唤醒</strong>：<code>Load-Exclusive</code> 指令（如 <code>LDAXR</code> &#x2F; <code>LDAXRH</code>）在读取锁状态时会将监视器置于独占标记状态。当其他核心修改该内存时，监视器状态改变会自动触发唤醒事件，将处于低功耗模式的 CPU 唤醒。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">acquire_lock:</span><br><span class="line">    LDAXR W1, [X0]          ; 读取锁并设置独占标记（为 WFE 做准备）</span><br><span class="line">    CBNZ  W1, wait_loop     ; 若锁已被占用 (W1 != 0)，进入休眠等待循环</span><br><span class="line">    MOV   W2, #1            ; 准备写入加锁值 1</span><br><span class="line">    CASA  W1, W2, [X0]      ; 尝试 CAS 写入新值</span><br><span class="line">    CBNZ  W1, wait_loop     ; 若写入失败（存在竞争），重试休眠循环</span><br><span class="line">    RET</span><br><span class="line"></span><br><span class="line">wait_loop:</span><br><span class="line">    WFE                     ; 休眠等待事件唤醒</span><br><span class="line">    B     acquire_lock      ; 被唤醒后重新尝试抢锁</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>票据锁（Ticket Lock）等待场景</strong>：线程获取票据后，先对比自身票据与当前服务票据（Current Ticket）。若不匹配，则在 <code>WFE</code> 循环中低功耗等待，直到持有锁的核心释放锁并更新票据触发唤醒。</p>
+</li>
+</ul>
+<h3 id="3-2-失去独占标记引发的唤醒与内存争用"><a href="#3-2-失去独占标记引发的唤醒与内存争用" class="headerlink" title="3.2 失去独占标记引发的唤醒与内存争用"></a>3.2 失去独占标记引发的唤醒与内存争用</h3><p>在基于 MESI 缓存一致性协议的多核系统中，<code>WFE</code> 机制虽然能够显著降低线程等待锁时的硬件功耗，但同时也可能引发额外的<strong>内存争用（Memory Contention）</strong>。由于监视器（Monitor）的独占状态依赖缓存行（Cache Line）的状态变化，对共享缓存行的任何写操作均会触发事件并唤醒处于休眠的核心。</p>
+<p>引发内存争用与性能开销的主要原因如下：</p>
+<ul>
+<li><strong>误唤醒与重复加载</strong>：当 Core 0 修改共享缓存行中的数据时，硬件会使 Core 1 对应的缓存行失效并清除其独占标记，进而触发事件唤醒 Core 1。即便锁尚未释放（属于误唤醒），被唤醒的 Core 1 也必须重新发起独占加载（<code>LDXR</code>）以重新校验锁状态，产生了不必要的总线开销。</li>
+<li><strong>惊群效应（Thundering Herd）</strong>：当事件流（Event Stream）触发唤醒信号时，所有处于 <code>WFE</code> 休眠状态的 CPU 核心会被<strong>同时唤醒</strong>。这些核心在同一时刻对同一内存地址发起独占访问，会导致内存总线瞬间陷入严重拥堵。</li>
+<li><strong>隐式写引发的失效</strong>：除了显式的写指令外，硬件&#x2F;软件预取（Prefetching）以及缓存维护指令（Cache Maintenance）同样会导致 Cache Line 状态变更，从而产生相同的内存争用副作用。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AArch64/" rel="tag"># AArch64</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/" rel="prev" title="AArch64 指令集架构">
+                  <i class="fa fa-angle-left"></i> AArch64 指令集架构
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
