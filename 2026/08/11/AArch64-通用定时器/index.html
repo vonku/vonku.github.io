@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文介绍 Arm A-profile 的通用定时器架构。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AArch64 通用定时器">
+<meta property="og:url" content="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍 Arm A-profile 的通用定时器架构。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/system-counter.png">
+<meta property="og:image" content="http://yoursite.com/images_02_System-Counter-block-diagram.png">
+<meta property="og:image" content="http://yoursite.com/images_04_bit-integer-part-of-count-image.png">
+<meta property="og:image" content="http://yoursite.com/images_06_Example-additional-external-timer.png">
+<meta property="article:published_time" content="2026-08-11T13:27:21.000Z">
+<meta property="article:modified_time" content="2026-08-11T13:28:42.554Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="AArch64">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/system-counter.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/","path":"2026/08/11/AArch64-通用定时器/","title":"AArch64 通用定时器"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AArch64 通用定时器 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%A4%84%E7%90%86%E5%99%A8%E5%AE%9A%E6%97%B6%E5%99%A8"><span class="nav-text">1. 处理器定时器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E8%AE%A1%E6%95%B0%E5%92%8C%E9%A2%91%E7%8E%87"><span class="nav-text">1.1 计数和频率</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E5%AE%9A%E6%97%B6%E5%99%A8%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">1.2 定时器寄存器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E8%AE%BF%E9%97%AE%E5%AE%9A%E6%97%B6%E5%99%A8"><span class="nav-text">1.3 访问定时器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-%E9%85%8D%E7%BD%AE%E5%AE%9A%E6%97%B6%E5%99%A8"><span class="nav-text">1.4 配置定时器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-5-%E4%B8%AD%E6%96%AD"><span class="nav-text">1.5 中断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-6-%E5%AE%9A%E6%97%B6%E5%99%A8%E8%99%9A%E6%8B%9F%E5%8C%96"><span class="nav-text">1.6 定时器虚拟化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-7-Event-stream%EF%BC%88%E4%BA%8B%E4%BB%B6%E6%B5%81%EF%BC%89"><span class="nav-text">1.7 Event stream（事件流）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-8-%E6%80%BB%E7%BB%93%E8%A1%A8"><span class="nav-text">1.8 总结表</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E7%B3%BB%E7%BB%9F%E8%AE%A1%E6%95%B0%E5%99%A8"><span class="nav-text">2. 系统计数器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E8%AE%A1%E6%95%B0%E5%99%A8%E7%BC%A9%E6%94%BE"><span class="nav-text">2.1 计数器缩放</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%BC%A9%E6%94%BE%E6%9C%BA%E5%88%B6"><span class="nav-text">缩放机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%90%86%E8%A7%A3%E7%BC%A9%E6%94%BE%E6%9C%BA%E5%88%B6"><span class="nav-text">理解缩放机制</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%9F%BA%E7%A1%80%E7%BC%96%E7%A8%8B"><span class="nav-text">2.2 基础编程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%A4%96%E9%83%A8%E5%AE%9A%E6%97%B6%E5%99%A8"><span class="nav-text">3. 外部定时器</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">76</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">15</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">21</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AArch64 通用定时器 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AArch64 通用定时器
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-11 21:27:21" itemprop="dateCreated datePublished" datetime="2026-08-11T21:27:21+08:00">2026-08-11</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/AArch64/" itemprop="url" rel="index"><span itemprop="name">AArch64</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>本文介绍 Arm A-profile 的通用定时器架构。</p>
+<span id="more"></span>
+
+<p>通用定时器为 Arm 内核提供了一个标准化的定时器框架。通用定时器包括一个系统计数器和一组每个内核的定时器，如下图所示：</p>
+<p><img src="/system-counter.png" alt="system-counter"></p>
+<p><strong>核心架构组成</strong></p>
+<ul>
+<li>**系统计数器 (System Counter)**：<ul>
+<li>一个始终运行（Always-on）的全局设备，生成递增的计数值（56 到 64 位宽）。</li>
+<li>将计数值<strong>广播给系统内的所有 CPU 核心</strong>，为多核架构提供统一的时间视角。</li>
+</ul>
+</li>
+<li>**核心独立定时器 (Per-core Timers)**：<ul>
+<li>每个 CPU 核心配有一组独立的定时器（比较器），通过将设定的目标值与广播的系统计数值进行对比，来触发中断或事件。</li>
+</ul>
+</li>
+</ul>
+<p><strong>计数频率演进</strong></p>
+<ul>
+<li><strong>Armv8.6-A &#x2F; Armv9.1-A 之前</strong>：频率由系统设计自行决定，通常在 <strong>1MHz 到 50MHz</strong> 之间。</li>
+<li><strong>Armv8.6-A 与 Armv9.1-A 起</strong>：计数频率统一固定为 <strong>1GHz</strong>（即计数值每递增 1 代表 1 纳秒）。</li>
+</ul>
+<hr>
+<h2 id="1-处理器定时器"><a href="#1-处理器定时器" class="headerlink" title="1. 处理器定时器"></a>1. 处理器定时器</h2><table>
+<thead>
+<tr>
+<th>定时器名称</th>
+<th>何时存在</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EL1 Physical Timer</td>
+<td>Always</td>
+<td>EL1 软件使用的物理定时器，直接基于 Physical Counter，常用于 Linux 内核定时。</td>
+</tr>
+<tr>
+<td>EL1 Virtual Timer</td>
+<td>Always</td>
+<td>EL1 软件使用的虚拟定时器，基于 <code>Physical Counter - CNTVOFF</code>，可供 Host OS 或 Guest OS 使用，实现虚拟时间隔离。</td>
+</tr>
+<tr>
+<td>Non-secure EL2 Physical Timer</td>
+<td>Implements EL2</td>
+<td>非安全 EL2 使用的物理定时器，主要供 Hypervisor 使用。</td>
+</tr>
+<tr>
+<td>Non-secure EL2 Virtual Timer</td>
+<td>Implements EL2</td>
+<td>非安全 EL2 使用的虚拟定时器，开启 VHE 时 Host OS 可直接使用，否则主要由 Hypervisor 使用。</td>
+</tr>
+<tr>
+<td>EL3 Physical Timer</td>
+<td>Implements EL3</td>
+<td>EL3 使用的物理定时器，供 Secure Monitor 或固件使用。</td>
+</tr>
+<tr>
+<td>Secure EL2 Physical Timer</td>
+<td>Implements FEAT_SEL2</td>
+<td>安全 EL2 使用的物理定时器，供 Secure Hypervisor 或 Secure Partition Manager 使用。</td>
+</tr>
+<tr>
+<td>Secure EL2 Virtual Timer</td>
+<td>Implements FEAT_SEL2</td>
+<td>安全 EL2 使用的虚拟定时器，供安全世界中的虚拟化环境（如 Secure Partitions）使用。</td>
+</tr>
+</tbody></table>
+<p><strong>Physical Timer 面向真实硬件时间（Real Time）；Virtual Timer 面向虚拟机时间（Virtual Time）。</strong></p>
+<p>对于普通裸机 Linux，这两者通常几乎没有区别，因为 <code>CNTVOFF = 0</code>，所以很多开发者甚至感觉不到 Virtual Timer 的存在。只有进入 KVM、Xen 等虚拟化环境后，Virtual Timer 的价值才真正体现出来。</p>
+<ul>
+<li><p><strong>没有 VHE</strong>：Host Linux 在 <strong>EL1</strong>，Guest Linux 在 <strong>EL1</strong>，KVM 在 <strong>EL2</strong>；Host Linux 使用 <strong>EL1 Virtual&#x2F;Physical Timer</strong>（Linux 通常使用 Virtual Timer）。</p>
+</li>
+<li><p><strong>开启 VHE</strong>：Host Linux 整体搬到 <strong>EL2</strong>，Guest Linux 仍在 <strong>EL1</strong>；Host Linux 使用 *<em>EL2 Virtual Timer (CNTHV_</em>)**，KVM&#x2F;Hypervisor 使用 *<em>EL2 Physical Timer (CNTHP_</em>)**。没有两个 Host Linux，只是同一个 Host Linux 换了运行级别。</p>
+</li>
+</ul>
+<h3 id="1-1-计数和频率"><a href="#1-1-计数和频率" class="headerlink" title="1.1 计数和频率"></a>1.1 计数和频率</h3><p><strong>计数</strong></p>
+<p>系统通过 <code>CNTPCT_EL0</code> 寄存器向软件暴露当前的物理计数值。</p>
+<p>在实际应用中，由于处理器存在乱序执行（Out-of-order execution）和推测性读取机制，直接读取该寄存器可能会导致读取到的时间戳与指令预期流转顺序不符。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">loop:           // 轮询通信状态，以确定是否需要读取定时器</span><br><span class="line">  LDR X1, [X2]  // 从内存地址 [X2] 加载数据到 X1 寄存器</span><br><span class="line">  CBZ x1, loop  // 如果 X1 为 0（说明未准备好），则继续循环等待</span><br><span class="line">  ISB           // 指令同步屏障。如果没有 ISB，CPU 可能会发生乱序推测读取，</span><br><span class="line">                // 导致在 [X2] 对应的内存写入 0 之前，就已经提前读取了 CNTPCT 的值</span><br><span class="line">  MRS X1, CNTPCT_EL0 // 读取物理计数器（CNTPCT_EL0）的值到 X1 寄存器</span><br></pre></td></tr></table></figure>
+
+<p>为了解决这一指令顺序交错问题，有两种解决思路：</p>
+<ul>
+<li><strong>传统做法</strong>：在执行读取指令前手动插入指令同步屏障 <code>ISB</code>，强行清空流水线，以确保计时动作发生在特定内存或逻辑操作之后；</li>
+<li><strong>新架构优化</strong>：从 Armv8.6-A 与 Armv9.1-A 扩展开始，架构引入了自同步版本的计数寄存器 <code>CNTPCTSS_EL0</code>，在硬件层面实现了读操作的同步，无需再手动添加屏障。</li>
+</ul>
+<p><strong>频率</strong></p>
+<p>系统通过 <code>CNTFRQ_EL0</code> 寄存器来汇报系统计数器的更新频率。</p>
+<p>需要注意的是，该寄存器<strong>并非由硬件自动填入数值</strong>，而是需要软件干预。通常在系统刚启动时，运行在最高特权级（如 EL3）的底层固件（Firmware）负责将芯片实际的频率值写入该寄存器；后续运行的操作系统（OS）或应用软件只需读取 <code>CNTFRQ_EL0</code>，即可将抽象的计数值准确换算为真实的物理时间（如秒、毫秒或纳秒）。</p>
+<h3 id="1-2-定时器寄存器"><a href="#1-2-定时器寄存器" class="headerlink" title="1.2 定时器寄存器"></a>1.2 定时器寄存器</h3><p>在 Arm 架构中，每一个定时器都包含以下 <strong>3 个功能固定的系统寄存器</strong>：</p>
+<table>
+<thead>
+<tr>
+<th><strong>寄存器模板</strong></th>
+<th><strong>目的 &#x2F; 作用</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>&lt;timer&gt;_CTL_EL&lt;x&gt;</code></td>
+<td><strong>控制寄存器</strong>（Control register）：用于使能&#x2F;禁用定时器、屏蔽中断或查看中断状态。</td>
+</tr>
+<tr>
+<td><code>&lt;timer&gt;_CVAL_EL&lt;x&gt;</code></td>
+<td><strong>比较值寄存器</strong>（Comparator value）：存储 64 位的绝对目标计数值，当 System Counter &gt;&#x3D; CVAL 时触发中断。</td>
+</tr>
+<tr>
+<td><code>&lt;timer&gt;_TVAL_EL&lt;x&gt;</code></td>
+<td><strong>定时器值寄存器</strong>（Timer value）：存储 32 位的相对倒计时数值（CVAL &#x3D; SystemCounter + TVAL），写入此寄存器可快速配置倒计时。</td>
+</tr>
+</tbody></table>
+<p>寄存器名称中的 <code>&lt;timer&gt;</code> 代表具体的定时器前缀，<code>EL&lt;x&gt;</code> 代表访问该寄存器所需的最低异常级别（Minimum Exception Level）。硬件为各特权级和安全状态下的定时器提供了独立的寄存器集合：</p>
+<table>
+<thead>
+<tr>
+<th><strong>定时器名称 (Timer)</strong></th>
+<th><strong>寄存器前缀 (Register prefix)</strong></th>
+<th><strong>最低访问级别 (EL)</strong></th>
+<th>访问级别</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>EL1 physical timer</strong> <em>(EL1 物理定时器)</em></td>
+<td><code>CNTP</code></td>
+<td>EL0</td>
+<td>可授权 EL0 访问</td>
+</tr>
+<tr>
+<td><strong>EL1 virtual timer</strong> <em>(EL1 虚拟定时器)</em></td>
+<td><code>CNTV</code></td>
+<td>EL0</td>
+<td>可授权 EL0 访问</td>
+</tr>
+<tr>
+<td><strong>Non-secure EL2 physical timer</strong> <em>(非安全 EL2 物理定时器)</em></td>
+<td><code>CNTHP</code></td>
+<td>EL2</td>
+<td>不开放给 EL1</td>
+</tr>
+<tr>
+<td><strong>Non-secure EL2 virtual timer</strong> <em>(非安全 EL2 虚拟定时器)</em></td>
+<td><code>CNTHV</code></td>
+<td>EL2</td>
+<td>不开放给 EL1</td>
+</tr>
+<tr>
+<td><strong>EL3 physical timer</strong> <em>(EL3 物理定时器)</em></td>
+<td><code>CNTPS</code></td>
+<td>EL1   （注意这个）</td>
+<td>可授权 Secure EL1 访问</td>
+</tr>
+<tr>
+<td><strong>Secure EL2 physical timer</strong> <em>(安全 EL2 物理定时器)</em></td>
+<td><code>CNTHPS</code></td>
+<td>EL2</td>
+<td>不开放给 EL1</td>
+</tr>
+<tr>
+<td><strong>Secure EL2 virtual timer</strong> <em>(安全 EL2 虚拟定时器)</em></td>
+<td><code>CNTHVS</code></td>
+<td>EL2</td>
+<td>不开放给 EL1</td>
+</tr>
+</tbody></table>
+<p>注意：寄存器名后缀 <code>_ELx</code> 表示该系统寄存器<strong>接口定义在哪一级异常级</strong>（lowest architectural access level），<strong>而不是 Timer 属于哪个 EL</strong>。</p>
+<h3 id="1-3-访问定时器"><a href="#1-3-访问定时器" class="headerlink" title="1.3 访问定时器"></a>1.3 访问定时器</h3><p>对于某些计时器，可以配置哪些异常级别可以访问该计时器：</p>
+<ul>
+<li><p>EL1 物理和虚拟定时器权限：</p>
+<ul>
+<li>EL0 对这些定时器的访问由 <code>CNTKCTL_EL1</code> 控制。</li>
+</ul>
+</li>
+<li><p>EL2 物理和虚拟定时器权限：</p>
+<ul>
+<li>当 <code>HCR_EL2.&#123;TGE,E2H&#125;==&#123;1,1&#125;</code> （表示 VHE 开启），EL0 对这些定时器的访问由 <code>CNTKCTL_EL2</code> 控制。这些定时器是作为 Armv8.1-A 虚拟化主机扩展支持的一部分而添加的。</li>
+</ul>
+</li>
+<li><p>EL3 物理定时器权限：</p>
+<ul>
+<li><p><strong>防越权拦截机制</strong>： </p>
+<p>运行在安全操作系统&#x2F;应用（S.EL1）的代码如果尝试访问 EL3 物理定时器，可通过配置控制位 <strong><code>SCR_EL3.ST = 1</code></strong> 将该访问<strong>强制捕获（Trap）并重定向回 EL3 固件</strong>处理，由 EL3 决定是否代为执行。</p>
+</li>
+<li><p><strong>Armv8.4-A 硬隔离强化</strong>： </p>
+<p>从 Armv8.4-A 架构开始，一旦开启安全虚拟化（即 <strong><code>SCR_EL3.EEL2 == 1</code><strong>），硬件将彻底封锁低级别安全软件（S.EL1 &#x2F; S.EL2）对 EL3 物理定时器的访问。此时任何越权访问都会</strong>直接触发“未定义指令异常”（UNDEF）</strong>，从硬件层面禁止访问。</p>
+</li>
+</ul>
+</li>
+</ul>
+<h3 id="1-4-配置定时器"><a href="#1-4-配置定时器" class="headerlink" title="1.4 配置定时器"></a>1.4 配置定时器</h3><p>架构提供了基于“绝对时间”和“相对倒计时”的两种编程模型，两者在底层本质上操作的是同一套定时器硬件：</p>
+<ul>
+<li><p><strong>比较值寄存器模式（<code>CVAL</code>）</strong>：</p>
+<p><code>CVAL</code> 是一个 64 位的绝对比较寄存器。软件向其写入一个目标时刻值，当系统的总计数值等于或超过该值（即 <code>System Count &gt;= CVAL</code>）时，定时器触发中断。这种模式适合“需要在特定系统时刻 Y 触发事件”的场景。</p>
+</li>
+<li><p><strong>定时器值寄存器模式（<code>TVAL</code>）</strong>：</p>
+<p><code>TVAL</code> 是一个 32 位的相对倒计时寄存器。软件向其写入需要等待的 Tick 数 X（即“在 X 个时钟周期后触发”），处理器会在内部自动读取当前系统计数值，将两者相加后填入 <code>CVAL</code>（即计算出 CVAL &#x3D; TVAL + System Counter）。</p>
+</li>
+</ul>
+<p>需要注意的是，<code>TVAL</code> 是一个带符号（Signed）的递减数值。当定时器到达指定时间并触发中断后，<code>TVAL</code> 仍会继续向负数递减，这方便软件在响应中断时，能够精准计算出“定时器已经超时过去了多久”。</p>
+<h3 id="1-5-中断"><a href="#1-5-中断" class="headerlink" title="1.5 中断"></a>1.5 中断</h3><p>通用定时器的中断具有严格的核内私有属性（Private Peripheral Interrupt, PPI），即<strong>某个 CPU 核心的定时器中断只能传递给该核心本身，无法跨核触发</strong>。这意味着每个 CPU 核心在硬件层面都拥有一套独立的定时器中断映射。</p>
+<hr>
+<p><strong>中断控制与触发机制</strong></p>
+<p>定时器中断的生成主要通过控制寄存器 <code>CTL</code> 进行管理。要使能中断，软件必须将 <code>ENABLE</code> 置 1 并清除掩码位 <code>IMASK</code>（设为 0）。当满足条件 <code>CVAL &lt;= System Count</code> 时，<code>ISTATUS</code> 位会被拉高，定时器随即向中断控制器（通常为 GIC）发出中断信号。</p>
+<p>需要注意的是，定时器中断属于<strong>电平触发（Level-sensitive）</strong>。一旦触发条件成立，中断信号会持续拉高，直到软件采取以下三种措施之一来消除中断状态：</p>
+<ul>
+<li>将 <code>IMASK</code> 设为 1（屏蔽中断）</li>
+<li>将 <code>ENABLE</code> 清零（禁用定时器）</li>
+<li>重新写入 <code>TVAL</code> 或 <code>CVAL</code>，使当前不满足超时条件</li>
+</ul>
+<blockquote>
+<p><strong>开发提示</strong>：在编写定时器中断处理程序（Interrupt Handler）时，软件必须<strong>先清除或重新配置定时器的超时状态，然后再去清除 GIC 中断控制器中的中断状态</strong>。如果顺序颠倒，GIC 会因为检测到低端持续拉高的电平信号而再次误触发同个中断。</p>
+</blockquote>
+<hr>
+<p><strong>SBSA 推荐的中断 ID（INTID）映射</strong></p>
+<p>为了保持跨平台架构的兼容性，服务器基本系统架构（SBSA）定义了一套标准的中断编号规范。这些 INTID 全部位属于 PPI 范围，对各个内核私有（例如每个 CPU 核心看到自己的 EL1 物理定时器中断号均为 30）：</p>
+<table>
+<thead>
+<tr>
+<th><strong>定时器类型</strong></th>
+<th><strong>SBSA 推荐 INTID</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>EL1 物理定时器</strong> <em>(EL1 Physical Timer)</em></td>
+<td>30</td>
+</tr>
+<tr>
+<td><strong>EL1 虚拟定时器</strong> <em>(EL1 Virtual Timer)</em></td>
+<td>27</td>
+</tr>
+<tr>
+<td><strong>非安全 EL2 物理定时器</strong> <em>(Non-secure EL2 Physical Timer)</em></td>
+<td>26</td>
+</tr>
+<tr>
+<td><strong>非安全 EL2 虚拟定时器</strong> <em>(Non-secure EL2 Virtual Timer)</em></td>
+<td>28</td>
+</tr>
+<tr>
+<td><strong>EL3 物理定时器</strong> <em>(EL3 Physical Timer)</em></td>
+<td>29</td>
+</tr>
+<tr>
+<td><strong>安全 EL2 物理定时器</strong> <em>(Secure EL2 Physical Timer)</em></td>
+<td>20</td>
+</tr>
+<tr>
+<td><strong>安全 EL2 虚拟定时器</strong> <em>(Secure EL2 Virtual Timer)</em></td>
+<td>19</td>
+</tr>
+</tbody></table>
+<h3 id="1-6-定时器虚拟化"><a href="#1-6-定时器虚拟化" class="headerlink" title="1.6 定时器虚拟化"></a>1.6 定时器虚拟化</h3><p>物理定时器（例如 EL3 物理定时器 <code>CNTPS</code> ）会与系统计数器提供的计数值进行比较。该值称为物理计数，由 <code>CNTPCT_EL0</code> 报告。</p>
+<p>虚拟计时器（例如 EL1 虚拟计时器、 <code>CNTV</code> ）会与虚拟计数进行比较。</p>
+<p><img src="/images_02_System-Counter-block-diagram.png" alt="images_02_System-Counter-block-diagram"></p>
+<table>
+<thead>
+<tr>
+<th><strong>虚拟定时器</strong></th>
+<th><strong>主要使用者</strong></th>
+<th><strong>硬件比较寄存器</strong></th>
+<th><strong>对应的时间偏移寄存器</strong></th>
+<th><strong>控制&#x2F;配置级别</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>EL1 虚拟定时器</strong> <em>(最常用)</em></td>
+<td>普通虚拟机（Guest OS）</td>
+<td><code>CNTV_CVAL_EL0</code> &#x2F; <code>TVAL</code></td>
+<td><strong><code>CNTVOFF_EL2</code></strong></td>
+<td>由 <strong>NS-EL2 (Hypervisor)</strong> 配置</td>
+</tr>
+<tr>
+<td><strong>非安全 EL2 虚拟定时器</strong> <em>(Armv8.1 VHE)</em></td>
+<td>VHE 模式下的宿主机&#x2F;嵌套虚拟机</td>
+<td><code>CNTHV_CVAL_EL2</code> &#x2F; <code>TVAL</code></td>
+<td><strong><code>CNTHVOFF_EL2</code></strong></td>
+<td>由 <strong>NS-EL2</strong> 配置</td>
+</tr>
+<tr>
+<td><strong>安全 EL1 虚拟定时器</strong> <em>(Armv8.4 Secure EL2)</em></td>
+<td>安全虚拟机 &#x2F; Secure Partition</td>
+<td><code>CNTPSV_CVAL_EL1</code> &#x2F; <code>TVAL</code></td>
+<td><strong><code>CNTSOFF_EL2</code></strong></td>
+<td>由 <strong>Secure EL2</strong> 配置</td>
+</tr>
+<tr>
+<td><strong>安全 EL2 虚拟定时器</strong> <em>(Armv8.4 Secure EL2)</em></td>
+<td>Secure Hypervisor</td>
+<td><code>CNTHVS_CVAL_EL2</code> &#x2F; <code>TVAL</code></td>
+<td><strong><code>CNTHS OFF</code></strong> 体系结构定义</td>
+<td>由 <strong>Secure EL2&#x2F;EL3</strong> 配置</td>
+</tr>
+</tbody></table>
+<h3 id="1-7-Event-stream（事件流）"><a href="#1-7-Event-stream（事件流）" class="headerlink" title="1.7 Event stream（事件流）"></a>1.7 Event stream（事件流）</h3><p><strong>事件流（Event Stream）的应用场景</strong></p>
+<p>在 Arm 架构中，当线程需要等待某个短期资源可用时，通常会执行 <code>WFE</code> 指令让 CPU 核心进入低功耗状态，直到接收到“事件”才会被唤醒。生成唤醒事件的方式主要有三种：</p>
+<ul>
+<li>其他 CPU 核心执行 <code>SEV</code>（Send Event）指令</li>
+<li>核心清除自身的全局独占监视器（Global Exclusive Monitor）</li>
+<li><strong>使用通用定时器定期生成的“事件流”</strong></li>
+</ul>
+<blockquote>
+<p><strong>核心作用</strong>：由于资源等待可能是非确定的，定时器产生的事件流可以作为<strong>超时保底机制（Timeout）</strong>，确保 CPU 核心在低功耗状态下的停留时间是有界限的（Bounded），防止因长时间拿不到资源而导致内核永久卡死。</p>
+</blockquote>
+<hr>
+<p><strong>控制寄存器与触发机制</strong></p>
+<p>事件流既可以基于物理计数（<code>CNTPCT_EL0</code>）生成，也可以基于虚拟计数（<code>CNTVCT_EL0</code>）生成。其行为主要由 <code>CNTKCTL_EL1</code>（控制虚拟计数事件流）或 <code>CNTHCTL_EL2</code>（控制物理计数事件流）进行配置，每个控制寄存器包含以下三个关键控制项：</p>
+<ul>
+<li><strong><code>EVNTEN</code>（使能开关）</strong>：控制是否开启定时器的事件流生成功能。</li>
+<li><strong><code>EVNTI</code>（事件触发频率）</strong>：指定计数器的某一位（Bit）。当选定的位发生翻转时，触发一次事件。例如：若 <code>EVNTI</code> 设为 <code>3</code>，则每当计数器的 Bit[3] 发生变化时，硬件就会自动生成一个事件。</li>
+<li><strong><code>EVNTDIR</code>（触发方向）</strong>：控制事件是在选定位从 <code>1 -&gt; 0</code>（下降沿）还是从 <code>0 -&gt; 1</code>（上升沿）变化时产生。</li>
+</ul>
+<h3 id="1-8-总结表"><a href="#1-8-总结表" class="headerlink" title="1.8 总结表"></a>1.8 总结表</h3><table>
+<thead>
+<tr>
+<th align="left">Timer</th>
+<th align="left">Registers</th>
+<th align="left">Typically used by</th>
+<th align="left">Trappable?</th>
+<th align="left">Using counter</th>
+<th align="left">INTID</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">EL1 Physical Timer</td>
+<td align="left"><code>CNTP_&lt;&gt;_EL0</code></td>
+<td align="left">EL0 and EL1</td>
+<td align="left">To EL2</td>
+<td align="left"><code>CNTPCT_EL0</code></td>
+<td align="left">30</td>
+</tr>
+<tr>
+<td align="left">EL2 Non-secure Physical Timer</td>
+<td align="left"><code>CNTHP_&lt;&gt;_EL2</code></td>
+<td align="left">NS.EL2</td>
+<td align="left"></td>
+<td align="left"><code>CNTPCT_EL0</code></td>
+<td align="left">26</td>
+</tr>
+<tr>
+<td align="left">EL2 Secure Physical Timer</td>
+<td align="left"><code>CNTHPS_&lt;&gt;_EL2</code></td>
+<td align="left">S.EL2</td>
+<td align="left"></td>
+<td align="left"><code>CNTPCT_EL0</code></td>
+<td align="left">20</td>
+</tr>
+<tr>
+<td align="left">EL3 Physical Timer</td>
+<td align="left"><code>CNTPS_&lt;&gt;_EL1</code></td>
+<td align="left">S.EL1 and EL3</td>
+<td align="left">To EL3</td>
+<td align="left"><code>CNTPCT_EL0</code></td>
+<td align="left">29</td>
+</tr>
+<tr>
+<td align="left">EL1 Virtual Timer</td>
+<td align="left"><code>CNTV_&lt;&gt;_EL0</code>**</td>
+<td align="left">EL0 and EL1</td>
+<td align="left"></td>
+<td align="left"><code>CNTPCT_EL0</code></td>
+<td align="left">27</td>
+</tr>
+<tr>
+<td align="left">EL2 Non-secure Virtual Timer</td>
+<td align="left"><code>CNTHV_&lt;&gt;_EL2</code></td>
+<td align="left">NS.EL2</td>
+<td align="left"></td>
+<td align="left"><code>CNTPCT_EL0</code></td>
+<td align="left">28</td>
+</tr>
+<tr>
+<td align="left">EL2 Secure Virtual Timer</td>
+<td align="left"><code>CNTHVS_&lt;&gt;_EL2</code></td>
+<td align="left">S.EL2</td>
+<td align="left"></td>
+<td align="left"><code>CNTPCT_EL0</code>*</td>
+<td align="left">19</td>
+</tr>
+</tbody></table>
+<p><strong>安全 EL2 虚拟定时器的计数机制</strong>： 对于安全 EL2 虚拟定时器（<code>CNTHVS</code>），其虚拟偏移量（<code>CNTVOFFSET_EL2</code>）在硬件行为上<strong>恒等于 0</strong>。因此，虽然该定时器逻辑上对比的是虚拟计数，但实际效果等同于使用物理计数（<code>CNTPCT_EL0</code>）。</p>
+<p><strong>VHE 模式下的寄存器重定向（Redirection）</strong>： 在使能 VHE（Virtualization Host Extensions，即 <code>HCR_EL2.E2H == 1</code>）时，访问 <code>CNTP_&lt;&gt;_EL0</code> 或 <code>CNTV_&lt;&gt;_EL0</code> 会被硬件自动重定向到对应的 EL2 寄存器，以便宿主机（Host OS）直接在 EL2 运行。</p>
+<h2 id="2-系统计数器"><a href="#2-系统计数器" class="headerlink" title="2. 系统计数器"></a>2. 系统计数器</h2><p>为了提供稳定一致的时间基准，系统计数器的运行频率是恒定的。架构定义了两个核心概念来描述其频率属性：</p>
+<ul>
+<li><strong>有效频率（Effective Frequency）</strong>：定义了计数器每递增 1 代表的实际物理时间（如 1GHz 代表每单位 1ns）。有效频率由 <strong><code>CNTFRQ_EL0</code></strong> 寄存器报告，且<strong>在系统运行期间不允许改变</strong>。从 Armv8.6&#x2F;Armv9.1-A 开始，有效频率固定为 1GHz（更早版本通常在 1~50MHz）。</li>
+<li><strong>计数器分辨率（Counter Resolution）</strong>：代表计数器硬件实际更新&#x2F;递增的频率。与有效频率不同，分辨率<strong>允许随时间动态调整</strong>（例如系统进入低功耗状态时降低更新频率）。例如有效频率为 1GHz 但实际时钟跑在 100MHz 时，计数器每 10ns 会直接一次性加 10。</li>
+</ul>
+<blockquote>
+<p>简单说，count不一定是每次加1的，也可能一次加10，每次步进的长度叫做计数器分辨率。</p>
+</blockquote>
+<h3 id="2-1-计数器缩放"><a href="#2-1-计数器缩放" class="headerlink" title="2.1 计数器缩放"></a>2.1 计数器缩放</h3><p>在 Armv8.4-A 之前，系统计数器在每个时钟 Tick 只能固定递增 <code>1</code>。引入缩放功能后，每次 Tick 允许递增指定的数值 X，从而实现<strong>动态加快或放慢</strong>计数值增长速率的效果。</p>
+<h4 id="缩放机制"><a href="#缩放机制" class="headerlink" title="缩放机制"></a>缩放机制</h4><p><strong>硬件数据结构（88-bit 内部存储）</strong>： 为了精确支持小数级别的缩放步进，硬件内部将计数器扩展到了 <strong>88 位定点数</strong>：</p>
+<ul>
+<li><strong>高 64 位（整数部分）</strong>：导出给 CPU 核心（如通过 <code>CNTPCT_EL0</code> 寄存器）作为可视计数值。</li>
+<li><strong>低 24 位（小数部分）</strong>：仅由系统计数器内部维护，用于精度累加。</li>
+</ul>
+<p><img src="/images_04_bit-integer-part-of-count-image.png" alt="images_04_bit-integer-part-of-count-image"></p>
+<blockquote>
+<p>这个是内部计数器，不是直接给程序读取的，程序还是读 CNTPCT_EL0。</p>
+</blockquote>
+<p>**配置寄存器 <code>CNTSCR</code>**： 缩放步进值由 32 位的 <strong><code>CNTSCR</code></strong> 寄存器设定（包含 8 位整数部分和 24 位小数部分）。</p>
+<ul>
+<li><em>例如</em>：配置为 <code>0x0180_0000</code> 时，代表每个 Tick 递增 <strong>1.5</strong>（整数 <code>1</code> + 小数 <code>0.5</code>）。经过两次 Tick 后，内部计数值变为 <code>3.0</code>，CPU 读到的整数计数值由 <code>1</code> 阶跃至 <code>3</code>。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th align="left">Tick</th>
+<th align="left">Internal counter value (Integer part &#x2F; Fractional part)</th>
+<th align="left">Exported counter value (Visible via CNTPCT_EL0)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="left">0</td>
+<td align="left">0x0000_0000_0000_0000_0000_00</td>
+<td align="left">0x0000_0000_0000_0000</td>
+</tr>
+<tr>
+<td align="left">1</td>
+<td align="left">0x0000_0000_0000_0001_8000_00</td>
+<td align="left">0x0000_0000_0000_0001</td>
+</tr>
+<tr>
+<td align="left">2</td>
+<td align="left">0x0000_0000_0000_0003_0000_00</td>
+<td align="left">0x0000_0000_0000_0003</td>
+</tr>
+<tr>
+<td align="left">3</td>
+<td align="left">0x0000_0000_0000_0004_8000_00</td>
+<td align="left">0x0000_0000_0000_0004</td>
+</tr>
+<tr>
+<td align="left">4</td>
+<td align="left">0x0000_0000_0000_0006_0000_00</td>
+<td align="left">0x0000_0000_0000_0006</td>
+</tr>
+<tr>
+<td align="left">5</td>
+<td align="left">0x0000_0000_0000_0007_8000_00</td>
+<td align="left">0x0000_0000_0000_0007</td>
+</tr>
+<tr>
+<td align="left">6</td>
+<td align="left">0x0000_0000_0000_0009_0000_00</td>
+<td align="left">0x0000_0000_0000_0009</td>
+</tr>
+</tbody></table>
+<p><strong>安全约束</strong>： 缩放步进<strong>仅允许在系统计数器被禁用（Disabled）时配置</strong>。在运行过程中修改缩放因子会导致读取到未定义的错误数值。</p>
+<blockquote>
+<p>从软件和 CPU 的视角来看，计数器缩放的效果就是“让时间走得更快或更慢”。</p>
+</blockquote>
+<h4 id="理解缩放机制"><a href="#理解缩放机制" class="headerlink" title="理解缩放机制"></a>理解缩放机制</h4><p><strong>软件视角：时间被“缩放”了（Scaling）</strong></p>
+<p>软件（比如操作系统内核）是通过读取 <code>CNTPCT_EL0</code> 等寄存器的计数值，再结合固定频率 <code>CNTFRQ_EL0</code>（比如 1GHz）来计算时间的：</p>
+<p><code>经过的时间 = (当前读到的计数值 - 起始读到的计数值) ÷ 固定的系统频率</code></p>
+<ul>
+<li><strong>正常情况（步进 &#x3D; 1）</strong>：真实物理世界过去了 1 秒，硬件敲了 1,000,000,000 次 Tick，计数值增加了 $1,000,000,000$。软件算出：“过去了 1 秒”。</li>
+<li><strong>开启缩放（比如步进设为 2）</strong>：真实物理世界过去了 1 秒，硬件同样敲了 1,000,000,000 次 Tick，但因为每次加 2，计数值增加了 $2,000,000,000$。软件按公式一算：“居然过去了 <strong>2 秒</strong>！”</li>
+</ul>
+<p>👉 <strong>所以对软件来说，时间被加速了 2 倍。</strong></p>
+<p><strong>硬件与芯片设计的本质视角：消除“时钟频率不匹配”</strong></p>
+<p>在物理实际上，真实的自然时间（物理世界的时间）是不可能被芯片改变的。Arm 设计这个机制的根本目的，<strong>不是为了玩“时光倒流&#x2F;加速”的魔术，而是为了解决现实硬件设计中的“换算”麻烦</strong>：</p>
+<ol>
+<li><p><strong>晶振频率不规则</strong>：</p>
+<p>假设你的板子上接了一个很怪异的物理晶振，实际频率是 <strong>1.333GHz</strong>，但软件规范要求标准的系统时间必须按 <strong>1GHz</strong> 来算。</p>
+<ul>
+<li><strong>以前（没有缩放机制）</strong>： 软件每次读取计数值后，都必须在代码里手动跑一遍乘除法换算（比如：<code>真实时间 = 读到的计数值 × (1.0 ÷ 1.333)</code>）。频繁进行这类小数或大数除法非常消耗 CPU 性能，大幅拉低了系统效率。</li>
+<li><strong>现在（有了缩放机制）</strong>： 硬件直接把步进寄存器 <code>CNTSCR</code> 设置为 <code>0.75</code>（因为 1.0 ÷ 1.333 约为 0.75）。这样硬件在每次 Tick 时只自动累加 <code>0.75</code>，直接在源头就把数值换算好了，对齐到标准的 1GHz 节奏。软件读出来直接用就行，完全不需要再做任何额外计算！</li>
+</ul>
+</li>
+<li><p><strong>仿真与调试（Simulation）</strong>：</p>
+<p>在电脑上用软件（如 QEMU）模拟芯片运行（仿真测试）时，仿真器的速度往往只有真实物理芯片的几十分之一。通过缩放机制，可以把仿真环境里的时间按比例放慢，让跑在里面的操作系统以为时间还在正常流逝，从而顺畅地进行断点调试和性能分析。</p>
+</li>
+</ol>
+<blockquote>
+<p>我的理解：缩放机制是为了解决晶振频率无法被整除的问题。</p>
+</blockquote>
+<h3 id="2-2-基础编程"><a href="#2-2-基础编程" class="headerlink" title="2.2 基础编程"></a>2.2 基础编程</h3><p><strong>两个核心寄存器帧（Register Frames）</strong></p>
+<p>Arm 推荐的 system counter 硬件接口划分为了两个独立的内存映射区（帧）：</p>
+<ol>
+<li><code>CNTControlBase</code>（控制帧）：<ul>
+<li><strong>作用</strong>：用于对系统计数器进行完整配置与控制。</li>
+<li><strong>安全策略</strong>：在支持 TrustZone 的系统上，该帧<strong>仅允许安全访问（Secure Access Only）</strong>。</li>
+</ul>
+</li>
+<li><code>CNTReadBase</code>（只读帧）：<ul>
+<li><strong>作用</strong>：是 <code>CNTControlBase</code> 的简化副本，仅包含 <code>CNTCV</code>（计数值）寄存器。</li>
+<li><strong>安全策略</strong>：<strong>允许非安全访问（Non-secure Access）</strong>。这意味着非安全软件（如普通 Guest OS 或应用程序）可以读取当前的系统时间，但无法更改或破坏系统计数器的配置。</li>
+</ul>
+</li>
+</ol>
+<p><strong>CNTControlBase 中的关键寄存器</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>寄存器</strong></th>
+<th><strong>功能描述</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CNTCR</code></td>
+<td>控制寄存器：用于使能&#x2F;禁用计数器、启用缩放（Scaling）、选择更新频率以及控制调试挂起（Halt-on-debug）。</td>
+</tr>
+<tr>
+<td><code>CNTSCR</code></td>
+<td>缩放步进寄存器：设置开启缩放时每次 Tick 的增加值（Armv8.4-A 或更高版本支持）。</td>
+</tr>
+<tr>
+<td><code>CNTID</code></td>
+<td>ID 寄存器：报告当前硬件实现了哪些定时器特性。</td>
+</tr>
+<tr>
+<td><code>CNTSR</code></td>
+<td>状态寄存器：报告定时器当前处于运行状态还是停止状态。</td>
+</tr>
+<tr>
+<td><code>CNTCV</code></td>
+<td>计数值寄存器：报告当前的系统计数值（仅返回整数部分）。</td>
+</tr>
+<tr>
+<td><code>CNTFID&lt;n&gt;</code></td>
+<td>频率选择寄存器：报告系统支持的各种更新频率。</td>
+</tr>
+</tbody></table>
+<p><strong>系统的启动初始化流程</strong></p>
+<p>要成功启动并运行系统计数器，软件必须依次完成以下两个步骤：</p>
+<ol>
+<li>选择更新频率（通过配置频率相关寄存器）。</li>
+<li>将 <code>CNTCR</code> 中的计数器使能位（Counter Enable）置位。</li>
+</ol>
+<h2 id="3-外部定时器"><a href="#3-外部定时器" class="headerlink" title="3. 外部定时器"></a>3. 外部定时器</h2><p>除了 CPU 核心内部集成的定时器（Processor Timers）外，系统（SoC）还可以包含额外的外部定时器。</p>
+<p>这些外部定时器（Timer）挂载在系统总线&#x2F;互联网络（Interconnect）上，独立于 CPU 核心（PE）。</p>
+<p><img src="/images_06_Example-additional-external-timer.png" alt="images_06_Example-additional-external-timer"></p>
+<p>它们挂载在系统总线上，通过 <strong>MMIO（内存映射）</strong> 方式进行配置访问。</p>
+<p>其控制接口与 CPU 内部定时器类似，发出的超时中断通常作为 <strong>SPI（共享外设中断）</strong> 交由 GIC 分发给各个 CPU 处理。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AArch64/" rel="tag"># AArch64</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/" rel="prev" title="AArch64 同步原语">
+                  <i class="fa fa-angle-left"></i> AArch64 同步原语
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
