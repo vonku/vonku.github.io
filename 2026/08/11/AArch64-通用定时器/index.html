@@ -26,16 +26,16 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍 Arm A-profile 的通用定时器架构。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/system-counter.png">
-<meta property="og:image" content="http://yoursite.com/images_02_System-Counter-block-diagram.png">
-<meta property="og:image" content="http://yoursite.com/images_04_bit-integer-part-of-count-image.png">
-<meta property="og:image" content="http://yoursite.com/images_06_Example-additional-external-timer.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/system-counter.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/images_02_System-Counter-block-diagram.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/images_04_bit-integer-part-of-count-image.jpg">
+<meta property="og:image" content="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/images_06_Example-additional-external-timer.jpg">
 <meta property="article:published_time" content="2026-08-11T13:27:21.000Z">
-<meta property="article:modified_time" content="2026-08-11T13:28:42.554Z">
+<meta property="article:modified_time" content="2026-08-11T13:49:25.721Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="AArch64">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/system-counter.png">
+<meta name="twitter:image" content="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/system-counter.jpg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/">
@@ -251,7 +251,7 @@
 <span id="more"></span>
 
 <p>通用定时器为 Arm 内核提供了一个标准化的定时器框架。通用定时器包括一个系统计数器和一组每个内核的定时器，如下图所示：</p>
-<p><img src="/system-counter.png" alt="system-counter"></p>
+<p><img src="/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/system-counter.jpg" alt="system-counter"></p>
 <p><strong>核心架构组成</strong></p>
 <ul>
 <li>**系统计数器 (System Counter)**：<ul>
@@ -497,7 +497,7 @@
 </tbody></table>
 <h3 id="1-6-定时器虚拟化"><a href="#1-6-定时器虚拟化" class="headerlink" title="1.6 定时器虚拟化"></a>1.6 定时器虚拟化</h3><p>物理定时器（例如 EL3 物理定时器 <code>CNTPS</code> ）会与系统计数器提供的计数值进行比较。该值称为物理计数，由 <code>CNTPCT_EL0</code> 报告。</p>
 <p>虚拟计时器（例如 EL1 虚拟计时器、 <code>CNTV</code> ）会与虚拟计数进行比较。</p>
-<p><img src="/images_02_System-Counter-block-diagram.png" alt="images_02_System-Counter-block-diagram"></p>
+<p><img src="/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/images_02_System-Counter-block-diagram.jpg" alt="images_02_System-Counter-block-diagram"></p>
 <table>
 <thead>
 <tr>
@@ -639,7 +639,7 @@
 <li><strong>高 64 位（整数部分）</strong>：导出给 CPU 核心（如通过 <code>CNTPCT_EL0</code> 寄存器）作为可视计数值。</li>
 <li><strong>低 24 位（小数部分）</strong>：仅由系统计数器内部维护，用于精度累加。</li>
 </ul>
-<p><img src="/images_04_bit-integer-part-of-count-image.png" alt="images_04_bit-integer-part-of-count-image"></p>
+<p><img src="/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/images_04_bit-integer-part-of-count-image.jpg" alt="images_04_bit-integer-part-of-count-image"></p>
 <blockquote>
 <p>这个是内部计数器，不是直接给程序读取的，程序还是读 CNTPCT_EL0。</p>
 </blockquote>
@@ -775,7 +775,7 @@
 </ol>
 <h2 id="3-外部定时器"><a href="#3-外部定时器" class="headerlink" title="3. 外部定时器"></a>3. 外部定时器</h2><p>除了 CPU 核心内部集成的定时器（Processor Timers）外，系统（SoC）还可以包含额外的外部定时器。</p>
 <p>这些外部定时器（Timer）挂载在系统总线&#x2F;互联网络（Interconnect）上，独立于 CPU 核心（PE）。</p>
-<p><img src="/images_06_Example-additional-external-timer.png" alt="images_06_Example-additional-external-timer"></p>
+<p><img src="/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/images_06_Example-additional-external-timer.jpg" alt="images_06_Example-additional-external-timer"></p>
 <p>它们挂载在系统总线上，通过 <strong>MMIO（内存映射）</strong> 方式进行配置访问。</p>
 <p>其控制接口与 CPU 内部定时器类似，发出的超时中断通常作为 <strong>SPI（共享外设中断）</strong> 交由 GIC 分发给各个 CPU 处理。</p>
 

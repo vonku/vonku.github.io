@@ -26,15 +26,15 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍AArch64异常模型的异常处理。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_011.svg">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_006.svg">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_012.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/images_011.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/images_006.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/images_012.svg">
 <meta property="article:published_time" content="2026-08-05T13:07:57.000Z">
 <meta property="article:modified_time" content="2026-08-05T13:48:38.207Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="AArch64">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_011.svg">
+<meta name="twitter:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/images_011.svg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">
@@ -285,9 +285,9 @@
 <li><strong>跳转至处理函数</strong>：状态更新完成后，跳转到向量表中对应的异常入口，开始执行 handler 代码；</li>
 <li><strong>恢复与返回（ERET）</strong>：异常处理完毕后执行 <code>ERET</code>，硬件自动把 <code>SPSR_ELx</code> 的内容还原回 <code>PSTATE</code>，并跳转到 <code>ELR_ELx</code> 记录的返回地址，恢复被中断程序的运行。</li>
 </ol>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_011.svg" alt="images_011"></p>
+<p><img src="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/images_011.svg" alt="images_011"></p>
 <h3 id="1-3-路由和中断控制"><a href="#1-3-路由和中断控制" class="headerlink" title="1.3 路由和中断控制"></a>1.3 路由和中断控制</h3><h4 id="中断路由的基本概念（Target-Exception-Level）"><a href="#中断路由的基本概念（Target-Exception-Level）" class="headerlink" title="中断路由的基本概念（Target Exception Level）"></a>中断路由的基本概念（Target Exception Level）</h4><p>每种异常触发后跳转到哪个 EL，要么由架构隐式固定，要么通过系统寄存器的配置位由软件动态配置。但有一条铁律：异常绝对不能被路由给 EL0——EL0 没有异常向量表，也不允许接收异常。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_006.svg" alt="images_006"></p>
+<p><img src="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/images_006.svg" alt="images_006"></p>
 <hr>
 <h4 id="异常类型的路由规则"><a href="#异常类型的路由规则" class="headerlink" title="异常类型的路由规则"></a>异常类型的路由规则</h4><ul>
 <li><strong>同步异常（Synchronous）</strong>：按照发起指令（如 <code>SVC</code>、<code>HVC</code>、<code>SMC</code>）自带的固定架构规则路由；</li>
@@ -457,7 +457,7 @@
 <td>来自较低 EL，且 lower EL 全部运行在 <strong>AArch32</strong></td>
 </tr>
 </tbody></table>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_012.svg" alt="images_012"></p>
+<p><img src="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/images_012.svg" alt="images_012"></p>
 <h3 id="1-5-栈指针的选择"><a href="#1-5-栈指针的选择" class="headerlink" title="1.5 栈指针的选择"></a>1.5 栈指针的选择</h3><h4 id="栈指针的硬件选择机制"><a href="#栈指针的硬件选择机制" class="headerlink" title="栈指针的硬件选择机制"></a>栈指针的硬件选择机制</h4><p>在 AArch64 中，运行环境有两种栈指针可选：<code>SP_EL0</code> 或当前异常级别专属的 <code>SP_EL&lt;x&gt;</code>（如 <code>SP_EL1</code>、<code>SP_EL2</code>、<code>SP_EL3</code>）。硬件根据当前权限级别和 <code>PSTATE.SP</code> 位自动选择：</p>
 <ul>
 <li>运行在 EL0：强制固定使用 <code>SP_EL0</code>；</li>

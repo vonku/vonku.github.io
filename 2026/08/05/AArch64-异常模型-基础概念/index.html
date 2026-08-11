@@ -26,15 +26,15 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍AArch64异常模型的基础概念。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_001.svg">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_002.svg">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_003.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/images_001.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/images_002.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/images_003.svg">
 <meta property="article:published_time" content="2026-08-05T13:07:46.000Z">
 <meta property="article:modified_time" content="2026-08-05T13:48:35.570Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="AArch64">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_001.svg">
+<meta name="twitter:image" content="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/images_001.svg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/">
@@ -257,7 +257,7 @@
 <li>EL3 权限最高，通常运行安全固件和安全监视器（Firmware &#x2F; Secure Monitor）。</li>
 </ul>
 <p>需要说明的是，Arm 架构本身并不强制规定哪类软件必须运行在哪个 EL 上，但 Linux、Android 等标准软件生态都默认遵循这一模型，绝大多数系统处理工作发生在 EL0 和 EL1。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_001.svg" alt="images_001"></p>
+<p><img src="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/images_001.svg" alt="images_001"></p>
 <h4 id="异常级别的切换条件"><a href="#异常级别的切换条件" class="headerlink" title="异常级别的切换条件"></a>异常级别的切换条件</h4><p>EL 无法被软件随意修改，只有发生以下 5 种特定事件时，异常级别才会发生改变：</p>
 <ol>
 <li>触发异常（Taking an exception）；</li>
@@ -391,7 +391,7 @@
 <li><strong>非安全状态（Non-secure state &#x2F; Normal world）</strong>：只能访问非安全物理地址空间，只能访问允许非安全访问的系统寄存器，典型应用是普通操作系统（如 Android、Linux）和普通应用；</li>
 <li><strong>安全状态（Secure state &#x2F; Secure world）</strong>：可以同时访问安全和非安全物理地址空间，以及分组（Banked）寄存器的安全副本，典型应用包括指纹识别、支付系统、DRM 和可信 OS（TEE）。</li>
 </ul>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_002.svg" alt="images_002"></p>
+<p><img src="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/images_002.svg" alt="images_002"></p>
 <h4 id="安全状态的切换机制"><a href="#安全状态的切换机制" class="headerlink" title="安全状态的切换机制"></a>安全状态的切换机制</h4><p>切换安全状态的钥匙是 EL3 的 <code>SCR_EL3.NS</code> 位。无论从安全切到非安全、还是反向切换，都必须经过最高特权级 EL3 中转——EL3 相当于安全世界与非安全世界之间的守门人，由它决定 EL2、EL1、EL0 各层处于哪种安全状态，并在执行 <code>ERET</code> 返回时让新的 <code>SCR_EL3.NS</code> 配置生效。也正因如此，在 Armv8-A 中 EL3 始终处于安全状态，可以访问所有 Banked 系统寄存器的副本。</p>
 <hr>
 <h4 id="RME-扩展与-Armv9-A-新增安全状态"><a href="#RME-扩展与-Armv9-A-新增安全状态" class="headerlink" title="RME 扩展与 Armv9-A 新增安全状态"></a>RME 扩展与 Armv9-A 新增安全状态</h4><p>Armv9-A 引入了 RME（Realm Management Extension，领域管理扩展），用于实现机密计算（Confidential Computing），额外新增了两个安全状态：</p>
@@ -399,7 +399,7 @@
 <li><strong>Realm 状态（领域状态）</strong>：可访问非安全和 Realm 物理地址空间，用于运行独立的机密虚拟机（Realm VM），防止 Hypervisor 或云厂商偷看数据；</li>
 <li><strong>Root 状态（根状态）</strong>：可访问所有物理地址空间，仅在 EL3 可用。在支持 RME 的系统中，EL3 从 Secure 状态独立出来进入 Root 状态，作为全系统的硬件安全根与内存归属仲裁者。</li>
 </ol>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/images_003.svg" alt="images_003"></p>
+<p><img src="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5/images_003.svg" alt="images_003"></p>
 <h3 id="2-3-硬件实现异常级别的影响"><a href="#2-3-硬件实现异常级别的影响" class="headerlink" title="2.3 硬件实现异常级别的影响"></a>2.3 硬件实现异常级别的影响</h3><h4 id="异常级别（EL）的实现要求"><a href="#异常级别（EL）的实现要求" class="headerlink" title="异常级别（EL）的实现要求"></a>异常级别（EL）的实现要求</h4><p>处理器是否在硬件层面支持某个异常级别，属于实现选项（Implementation choice）：</p>
 <ul>
 <li><strong>必须实现（Mandatory）</strong>：EL0 和 EL1。任何标准的 AArch64 处理器都必须具备，以保障最基本的应用和 OS 运行；</li>
