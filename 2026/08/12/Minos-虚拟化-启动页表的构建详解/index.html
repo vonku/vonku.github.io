@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="源码：arch&#x2F;aarch64&#x2F;core&#x2F;mem_map.S（321 行）触发点：arch&#x2F;aarch64&#x2F;core&#x2F;boot.S:291 bl map_boot_mem所属：Phase 2 启动流程 &#x2F; Phase 4 内存虚拟化的前置章节阅读前提：ARMv8-A 四级页表（PGD&#x2F;PUD&#x2F;PMD&#x2F;PTE）、stage1 descriptor 基本概念">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: 启动页表的构建详解">
+<meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E9%A1%B5%E8%A1%A8%E7%9A%84%E6%9E%84%E5%BB%BA%E8%AF%A6%E8%A7%A3/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="源码：arch&#x2F;aarch64&#x2F;core&#x2F;mem_map.S（321 行）触发点：arch&#x2F;aarch64&#x2F;core&#x2F;boot.S:291 bl map_boot_mem所属：Phase 2 启动流程 &#x2F; Phase 4 内存虚拟化的前置章节阅读前提：ARMv8-A 四级页表（PGD&#x2F;PUD&#x2F;PMD&#x2F;PTE）、stage1 descriptor 基本概念">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-12T14:10:28.000Z">
+<meta property="article:modified_time" content="2026-08-12T14:23:23.926Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E9%A1%B5%E8%A1%A8%E7%9A%84%E6%9E%84%E5%BB%BA%E8%AF%A6%E8%A7%A3/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E9%A1%B5%E8%A1%A8%E7%9A%84%E6%9E%84%E5%BB%BA%E8%AF%A6%E8%A7%A3/","path":"2026/08/12/Minos-虚拟化-启动页表的构建详解/","title":"Minos 虚拟化: 启动页表的构建详解"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: 启动页表的构建详解 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E5%87%BD%E6%95%B0%E5%AE%9A%E4%BD%8D%E4%B8%8E%E5%90%AF%E5%8A%A8%E9%93%BE%E8%B7%AF"><span class="nav-text">1. 函数定位与启动链路</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%AF%84%E5%AD%98%E5%99%A8%E5%88%AB%E5%90%8D"><span class="nav-text">2. 寄存器别名</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%BB%E5%87%BD%E6%95%B0%E7%BB%93%E6%9E%84"><span class="nav-text">3. 主函数结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">4. 初始化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%BB%BA%E7%AB%8B%E9%A1%B5%E8%A1%A8%E9%AA%A8%E6%9E%B6"><span class="nav-text">5. 建立页表骨架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%88%86%E9%85%8D-4-%E5%BC%A0-PMD-%E8%A1%A8"><span class="nav-text">5.1 分配 4 张 PMD 表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%BB%BA%E7%AB%8B-PUD-%E5%88%B0-PMD-%E7%9A%84%E6%98%A0%E5%B0%84"><span class="nav-text">5.2 建立 PUD 到 PMD 的映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E8%AE%A1%E7%AE%97-PTE-%E8%A1%A8%E6%95%B0%E9%87%8F"><span class="nav-text">5.3 计算 PTE 表数量</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-%E5%BB%BA%E7%AB%8B-PMD-%E5%88%B0-PTE-%E7%9A%84%E6%98%A0%E5%B0%84"><span class="nav-text">5.4 建立 PMD 到 PTE 的映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-RAM-%E4%B8%BB%E4%BD%93%E7%9A%84-2M-block-%E6%98%A0%E5%B0%84"><span class="nav-text">5.5 RAM 主体的 2M block 映射</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%86%85%E6%A0%B8%E9%95%9C%E5%83%8F%E5%90%84%E6%AE%B5%E7%9A%84%E7%B2%BE%E7%A1%AE%E6%98%A0%E5%B0%84"><span class="nav-text">6. 内核镜像各段的精确映射</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%90%84%E6%AE%B5%E6%B8%85%E5%8D%95%E4%B8%8E%E5%B1%9E%E6%80%A7"><span class="nav-text">6.1 各段清单与属性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E6%8C%89-4K-%E9%A1%B5%E5%A1%AB%E5%85%85-PTE"><span class="nav-text">6.2 按 4K 页填充 PTE</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-UART-%E8%AE%BE%E5%A4%87%E6%98%A0%E5%B0%84"><span class="nav-text">7. UART 设备映射</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E8%AE%BE%E5%A4%87%E9%A1%B5%E8%A1%A8%E7%9A%84%E5%A1%AB%E5%85%85"><span class="nav-text">7.1 设备页表的填充</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E6%94%B6%E5%B0%BE"><span class="nav-text">8. 收尾</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E6%9C%80%E7%BB%88%E5%86%85%E5%AD%98%E5%B8%83%E5%B1%80"><span class="nav-text">9. 最终内存布局</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">10. 关键知识点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%B8%B8%E8%A7%81%E7%96%91%E9%97%AE"><span class="nav-text">11. 常见疑问</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E9%A1%B5%E8%A1%A8%E7%9A%84%E6%9E%84%E5%BB%BA%E8%AF%A6%E8%A7%A3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: 启动页表的构建详解 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: 启动页表的构建详解
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-12 22:10:28" itemprop="dateCreated datePublished" datetime="2026-08-12T22:10:28+08:00">2026-08-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>源码：<code>arch/aarch64/core/mem_map.S</code>（321 行）<br>触发点：<code>arch/aarch64/core/boot.S:291</code> <code>bl map_boot_mem</code><br>所属：Phase 2 启动流程 &#x2F; Phase 4 内存虚拟化的前置章节<br>阅读前提：ARMv8-A 四级页表（PGD&#x2F;PUD&#x2F;PMD&#x2F;PTE）、stage1 descriptor 基本概念</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-函数定位与启动链路"><a href="#1-函数定位与启动链路" class="headerlink" title="1. 函数定位与启动链路"></a>1. 函数定位与启动链路</h2><p>minos 内核在 EL2 运行，启用 MMU 后所有代码&#x2F;数据都必须有 VA→PA 映射。<code>map_boot_mem</code> 就是<strong>在 MMU 使能之前，用汇编手工把内核自己的 stage1 页表搭起来</strong>的函数。</p>
+<p>启动时序（boot.S）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">_start → minos_os_start</span><br><span class="line">    │</span><br><span class="line">    ├─ ① 计算并保存 minos_start（入口地址 2M 对齐）</span><br><span class="line">    ├─ ② 配置 VBAR/DAIF，清 cache / TLB</span><br><span class="line">    ├─ ③ 写 TTBR0/TTBR1 = __stage1_page_table（此时还是空表）</span><br><span class="line">    ├─ ④ 配 MAIR / TCR</span><br><span class="line">    ├─ ⑤ 计算 minos_bootmem_base / minos_stack_top（bootmem 区起点）</span><br><span class="line">    ├─ ⑥ 清 bss / percpu</span><br><span class="line">    ├─ ⑦ ★ bl map_boot_mem（本函数：把页表真正填满）</span><br><span class="line">    ├─ ⑧ 开 MMU（SCTLR.M/C/I）→ br mmu_on → arch_main</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键点</strong>：函数执行时 MMU 还没开，CPU 直接访问物理地址。所以页表页、内核符号都要当物理地址用（qemu 配置 <code>CONFIG_PTOV_MASK=0</code>，VA&#x3D;&#x3D;PA，<code>asm_vtop</code> 是空操作，符号天然就是物理地址）。</p>
+<hr>
+<h2 id="2-寄存器别名"><a href="#2-寄存器别名" class="headerlink" title="2. 寄存器别名"></a>2. 寄存器别名</h2><p>文件顶部用 <code>.req</code> 给 x 寄存器起了语义化名字，读懂别名才能看懂函数体：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">; ★ 重要：mem_map.S 的命名整体错位一级（历史遗留）！</span><br><span class="line">;   page_table 实为 PUD 表、ttb0_pud 实为 PMD 表、ttb0_pmd 实为 PTE 表</span><br><span class="line">;   真实结构（SL0 使能，从 Level 1 开始，无 PGD 级）：</span><br><span class="line">;   TTBR → [PUD 表] → [PMD 表] → [PTE 表] → 物理地址</span><br><span class="line">page_table	.req	x24   // 实为 PUD 表基址（每项 1G，只填前 4 项覆盖 4GB）</span><br><span class="line">ttb0_pud	.req	x21   // 实为 PMD 表基址（每项 2M，4 张覆盖 4GB）</span><br><span class="line">ttb0_pmd	.req	x22   // 实为 PTE 表基址（每项 4K，按需分配）</span><br><span class="line"></span><br><span class="line">vaddr		.req	x5    // 要映射的虚拟地址</span><br><span class="line">paddr		.req	x6    // 对应的物理地址</span><br><span class="line">size		.req	x7    // 映射字节数</span><br><span class="line">pte_attr	.req	x8    // 页表项属性</span><br><span class="line"></span><br><span class="line">tmp_const	.req	x9    // 临时常量（2M block 起始地址）</span><br><span class="line">pud_tmp		.req	x10</span><br><span class="line">pmd_tmp		.req	x12   // 当前操作的页表指针（build_normal/io_pte_table 里指向 PTE 表）</span><br><span class="line">tmp		.req	x13</span><br><span class="line">pte_value	.req	x14   // 组装好的 descriptor 值</span><br><span class="line">pte_index	.req	x15   // 页表项序号</span><br><span class="line">entry_size	.req	x16</span><br><span class="line">entry_align	.req	x17</span><br><span class="line">entry_mask	.req	x18</span><br><span class="line">pagetable_base	.req	x23   // ★ bootmem 空闲页分配指针</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>两个辅助宏：</p>
+<ul>
+<li><code>asm_get_boot_page</code>（mem_map.S:57-60）：从 <code>pagetable_base</code> 取一页并 <code>+4096</code>。</li>
+<li><code>asm_vtop</code>（asm_marco.S:20-21）：符号 VA→物理地址。qemu 下 <code>PTOV_MASK=0</code> 时为空操作。</li>
+</ul>
+</blockquote>
+<hr>
+<h2 id="3-主函数结构"><a href="#3-主函数结构" class="headerlink" title="3. 主函数结构"></a>3. 主函数结构</h2><p><code>map_boot_mem</code> 的逻辑分 5 步：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">① 初始化：保存 LR、确定空闲页起点、清零页表根（PUD 表）</span><br><span class="line">② 建骨架：build_page_table（PUD→PMD→PTE，RAM 主体 2M block）</span><br><span class="line">③ 精确映射：内核镜像各段按 4K 页填 PTE（build_normal_pte_table × 6）</span><br><span class="line">④ 设备映射：UART 用 Device 属性（build_io_pte_table）</span><br><span class="line">⑤ 收尾：记录 bootmem 分配位置到 minos_end</span><br></pre></td></tr></table></figure>
+
+<p>下面逐段展开。</p>
+<hr>
+<h2 id="4-初始化"><a href="#4-初始化" class="headerlink" title="4. 初始化"></a>4. 初始化</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">map_boot_mem:</span><br><span class="line">	mov	x26, x30                      // ① 保存返回地址到 x26</span><br><span class="line"></span><br><span class="line">	adr	pagetable_base, minos_stack_top // ② 取符号地址</span><br><span class="line">	ldr	pagetable_base, [pagetable_base] // ② 解引用 → 真正的值（bootmem 起点）</span><br><span class="line"></span><br><span class="line">	mov	x1, #0                        // ③ memset: value = 0</span><br><span class="line">	mov	x2, #4096                     // ③ memset: length = 4096</span><br><span class="line">	ldr	page_table, = __stage1_page_table  // ③ 页表根符号（实为 PUD 表）</span><br><span class="line">	asm_vtop page_table                // ③ VA → 物理地址</span><br><span class="line">	mov	x0, page_table                // ③ memset: dest</span><br><span class="line">	bl	memset                        // ③ 页表根 4KB 清零</span><br></pre></td></tr></table></figure>
+
+<p><strong>四个要点</strong>：</p>
+<ol>
+<li><strong>返回地址</strong>：<code>bl</code> 跳进来时 LR（x30）被覆盖，先挪到 x26 保存，函数末尾 <code>ret x26</code> 返回。</li>
+<li><strong>pagetable_base 来源</strong>：<code>minos_stack_top</code> 存的是 bootmem 区的顶部地址（boot.S:264-268 里 &#x3D; <code>__minos_end</code> 4K 对齐 + 所有核栈空间）。<code>adr</code> 取符号地址、<code>ldr</code> 解引用拿到值——这是汇编里”读取全局变量”的标准两连操作。</li>
+<li><strong>页表根为什么清零</strong>：<code>__stage1_page_table</code>（实为 PUD 表）在链接脚本里只占了 4KB 空间（minos.lds.S:89-93），内容是垃圾，必须清零后才能往上填。</li>
+<li><strong>为什么用物理地址</strong>：MMU 未开，指令访问的是物理地址空间。qemu 下 VA&#x3D;&#x3D;PA 所以无感，但代码仍保留 <code>asm_vtop</code> 以便在 PTOV!&#x3D;0 的平台工作。</li>
+</ol>
+<hr>
+<h2 id="5-建立页表骨架"><a href="#5-建立页表骨架" class="headerlink" title="5. 建立页表骨架"></a>5. 建立页表骨架</h2><blockquote>
+<p>⚠️ <strong>mem_map.S 的变量命名整体错位一级</strong>。真实层级是 PUD→PMD→PTE 三级（SL0 使能，从 Level 1 开始，无 PGD 级），但代码把：</p>
+<ul>
+<li><code>__stage1_page_table</code>（page_table，x24）叫”PGD”，实为 <strong>PUD 表</strong>（Level 1，每项 1G）</li>
+<li><code>ttb0_pud</code>（x21）叫”PUD”，实为 <strong>PMD 表</strong>（Level 2，每项 2M）</li>
+<li><code>ttb0_pmd</code>（x22）叫”PMD”，实为 <strong>PTE 表</strong>（Level 3，每项 4K）</li>
+</ul>
+<p>验证依据：索引粒度。<code>loop_pud</code> 用 0..3 索引（每项 1G → PUD）；<code>loop_pmd</code> 用 <code>&gt;&gt;21</code>（每项 2M → PMD）；<code>build_normal_pte_table</code> 用 <code>&gt;&gt;12</code>（每项 4K → PTE）。</p>
+</blockquote>
+<h3 id="5-1-分配-4-张-PMD-表"><a href="#5-1-分配-4-张-PMD-表" class="headerlink" title="5.1 分配 4 张 PMD 表"></a>5.1 分配 4 张 PMD 表</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">mov	x3, #4                 // 需要 4 张 PMD 表</span><br><span class="line">mov	ttb0_pud, pagetable_base   // ttb0_pud 实为 PMD 表基址 = bootmem 分配起点</span><br><span class="line">ldr	x2, =(4096 &lt;&lt; 2)       // 4 页 × 4KB = 16KB</span><br><span class="line">add	pagetable_base, pagetable_base, x2  // 分配指针前进 16KB</span><br><span class="line">bl	memset                 // 4 张 PMD 表清零</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 4 张 PMD 表？</strong> 一张 PMD 表 512 项，每项覆盖 2M → 一张覆盖 1G。启动要映射 4GB，所以 4 张 PMD 表正好覆盖 <code>[0, 4G)</code>。</p>
+<h3 id="5-2-建立-PUD-到-PMD-的映射"><a href="#5-2-建立-PUD-到-PMD-的映射" class="headerlink" title="5.2 建立 PUD 到 PMD 的映射"></a>5.2 建立 PUD 到 PMD 的映射</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">	mov	entry_size, #4          // 要填 4 个 PUD 项</span><br><span class="line">	mov	tmp, ttb0_pud           // tmp = 第一张 PMD 表</span><br><span class="line">	ldr	x1, =HOST_TABLE_DES     // = S1_DES_TABLE (0b11)：指向下一级表的标记</span><br><span class="line">loop_pud:</span><br><span class="line">	orr	pte_value, tmp, x1      // PMD 表物理地址 | TABLE 位</span><br><span class="line">	str	pte_value, [page_table, pte_index, lsl #3]  // 写进 PUD 表项（每项 8 字节）</span><br><span class="line">	add	pte_index, pte_index, #1</span><br><span class="line">	add	tmp, tmp, #0x1000       // 下一张 PMD 表</span><br><span class="line">	sub	entry_size, entry_size, #1</span><br><span class="line">	cbnz	entry_size, loop_pud</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果</strong>：<code>PUD[0] = PMD0 物理地址 | 0b11</code>，<code>PUD[1] = PMD1 | 0b11</code>，… PUD 前 4 项指向 4 张 PMD 表，覆盖 4GB 虚拟空间。<code>page_table</code>（即 <code>__stage1_page_table</code>）就是这张 PUD 表，TTBR 直接指向它。</p>
+<h3 id="5-3-计算-PTE-表数量"><a href="#5-3-计算-PTE-表数量" class="headerlink" title="5.3 计算 PTE 表数量"></a>5.3 计算 PTE 表数量</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">// 计算&quot;需要按 4K 页精确映射的字节数&quot;</span><br><span class="line">adr	vaddr, minos_bootmem_base</span><br><span class="line">ldr	vaddr, [vaddr]              // bootmem 起点（__minos_end 4K 对齐）</span><br><span class="line">mov	tmp, vaddr</span><br><span class="line">ldr	entry_mask, =0x1fffff       // 2M-1</span><br><span class="line">add	tmp, tmp, entry_mask        // 向上 2M 对齐</span><br><span class="line">mvn	entry_align, entry_mask</span><br><span class="line">and	tmp, tmp, entry_align       // tmp = bootmem 起点向上 2M 对齐</span><br><span class="line">adr	pte_value, minos_start</span><br><span class="line">ldr	pte_value, [pte_value]      // minos_start（内核入口）</span><br><span class="line">mov	tmp_const, tmp              // 保存 2M 对齐的 bootmem 起点</span><br><span class="line">sub	size, tmp, pte_value        // size = [minos_start, bootmem_2M) 字节数</span><br><span class="line"></span><br><span class="line">lsr	x3, size, #21               // → 需要几张 PTE 表（每张覆盖 2M）</span><br><span class="line">lsl	x2, x3, #12                 // ×4KB</span><br><span class="line">mov	ttb0_pmd, pagetable_base</span><br><span class="line">add	pagetable_base, pagetable_base, x2   // 分配 PTE 表空间</span><br><span class="line">bl	memset                      // PTE 表清零</span><br></pre></td></tr></table></figure>
+
+<p><strong>这段涉及三个量的区分</strong>，理清如下：</p>
+<table>
+<thead>
+<tr>
+<th>量</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>minos_start</code></td>
+<td>内核镜像入口（链接地址），经 boot.S:156-165 保存</td>
+</tr>
+<tr>
+<td><code>minos_bootmem_base</code></td>
+<td>bootmem 分配区起点（内核镜像之后，<code>__minos_end</code> 4K 对齐）</td>
+</tr>
+<tr>
+<td><code>[minos_start, bootmem_2M对齐)</code></td>
+<td><strong>内核镜像本体区间</strong>，需要按 4K 页精确映射（代码&#x2F;数据&#x2F;RO 属性不同）</td>
+</tr>
+<tr>
+<td><code>[bootmem_2M对齐, CONFIG_MINOS_RAM_SIZE)</code></td>
+<td>minos RAM 主体，统一用 2M block 粗粒度映射</td>
+</tr>
+</tbody></table>
+<p>**<code>x3 = size &gt;&gt; 21</code> 算的是”镜像需要几张 PTE 表”**：</p>
+<ul>
+<li>一张 PTE 表 &#x3D; 512 项 × 每项 4K &#x3D; 覆盖 <strong>2M</strong></li>
+<li><code>size &gt;&gt; 21</code> &#x3D; 镜像字节数 ÷ 2M &#x3D; 需要几张这样的 PTE 表</li>
+<li>例：镜像 2MB → x3 &#x3D; 1 → 分配 4KB，正好一张 PTE 表装下 512 个 4K 页</li>
+</ul>
+<blockquote>
+<p>⚠️ <code>ttb0_pmd</code>（x22）实为 <strong>PTE 表基址</strong>（每项 4K，Level 3），”PMD”是错位的名字。</p>
+</blockquote>
+<h3 id="5-4-建立-PMD-到-PTE-的映射"><a href="#5-4-建立-PMD-到-PTE-的映射" class="headerlink" title="5.4 建立 PMD 到 PTE 的映射"></a>5.4 建立 PMD 到 PTE 的映射</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">	adr	vaddr, minos_start</span><br><span class="line">	ldr	vaddr, [vaddr]           // minos_start 实际地址</span><br><span class="line">	lsr	pte_index, vaddr, #21     // → 从第几个 2M 块开始挂表（PMD 项序号）</span><br><span class="line">	mov	tmp, ttb0_pmd</span><br><span class="line">	ldr	x1, =HOST_TABLE_DES</span><br><span class="line">loop_pmd:</span><br><span class="line">	orr	pte_value, tmp, x1        // PTE 表地址 | TABLE</span><br><span class="line">	str	pte_value, [ttb0_pud, pte_index, lsl #3]  // 写 PMD 表项</span><br><span class="line">	add	pte_index, pte_index, #1</span><br><span class="line">	add	tmp, tmp, #4096           // 下一张 PTE 表</span><br><span class="line">	sub	x3, x3, #1</span><br><span class="line">	cbnz	x3, loop_pmd</span><br></pre></td></tr></table></figure>
+
+<p>即 <code>PMD[minos_start/2M + i] = 第 i 张 PTE 表 | 0b11</code>：把镜像区间对应的 PMD 项指向 5.3 分配的 PTE 表。</p>
+<h3 id="5-5-RAM-主体的-2M-block-映射"><a href="#5-5-RAM-主体的-2M-block-映射" class="headerlink" title="5.5 RAM 主体的 2M block 映射"></a>5.5 RAM 主体的 2M block 映射</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">	ldr	x2, =CONFIG_MINOS_RAM_SIZE     // 0x4000000 = 64MB</span><br><span class="line">	sub	size, x2, size                 // 总 RAM − 已按 4K 映射部分</span><br><span class="line">	lsr	size, size, #21                // → 2M 块数量</span><br><span class="line">	mov	paddr, tmp_const               // 从 2M 对齐的 bootmem 起点开始</span><br><span class="line">	ldr	pte_attr, =BOOTMEM_DATA_BLK_ATTR  // 2M block 属性</span><br><span class="line">loop_pmd_blk:</span><br><span class="line">	orr	pte_value, paddr, pte_attr     // 物理地址 | block 属性</span><br><span class="line">	str	pte_value, [ttb0_pud, pte_index, lsl #3]  // 直接写 PMD 项</span><br><span class="line">	add	pte_index, pte_index, #1</span><br><span class="line">	add	paddr, paddr, #0x200000        // 物理地址 +2M</span><br><span class="line">	sub	size, size, #1</span><br><span class="line">	cbnz	size, loop_pmd_blk</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意</strong>：这里 block descriptor（<code>S1_DES_BLOCK</code>）是<strong>直接填在 PMD 表项</strong>上的（2M block 正确出现在 Level 2 &#x2F; PMD），<strong>不经过 PTE 表</strong>。这样 RAM 主体 walk 到 PMD 就命中 block，省一张 PTE 表 + 省 512 个 PTE，启动性能更好。</p>
+<p><strong>骨架建完后的完整映射</strong>（以地址为主轴，数值来自 minos.elf 实际链接结果）:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">Address               Mapping                          Description</span><br><span class="line">─────────────────────────────────────────────────────────────────</span><br><span class="line">0x0000_0000 ──────────────── PMD entry = 0          Not mapped</span><br><span class="line">  ~ 0x4000_0000</span><br><span class="line">─────────────────────────────────────────────────────────────────</span><br><span class="line">0x4000_0000  minos_start ──┐</span><br><span class="line">  │        reserved (RW)   │  ├─ PTE table ── 4K pages</span><br><span class="line">0x4000_0000  __code_start ─┤  │</span><br><span class="line">  │        code (RX)       │  │</span><br><span class="line">0x4002_9000  __code_end ───┤  │    ← this 2MB built by 5.3/5.4/6:</span><br><span class="line">  │        __init_start    │  │      PMD[512] → PTE table → per-section 4K pages</span><br><span class="line">  │        init (RWX)      │  │</span><br><span class="line">0x4002_b000  __data_start ─┤  │</span><br><span class="line">  │        data (RW)       │  │</span><br><span class="line">0x4003_9000  __data_end ───┤  │</span><br><span class="line">  │        rodata (RO)     │  │</span><br><span class="line">0x4004_e3b9  __minos_end ──┘  │</span><br><span class="line">0x4004_f000  bootmem_4K  ─────┘</span><br><span class="line">0x4020_0000  bootmem_2M ────┐</span><br><span class="line">  │        RAM body (RW)    │  ← this 62MB built by 5.5:</span><br><span class="line">  │        2M blocks        │      PMD[513]..PMD[543] filled directly as 2M blocks</span><br><span class="line">  │        ...              │      (phys 0x4020_0000, 0x4040_0000, ...)</span><br><span class="line">0x4400_0000  RAM end ───────┘   (64MB total)</span><br><span class="line">─────────────────────────────────────────────────────────────────</span><br></pre></td></tr></table></figure>
+
+<p><strong>页表在物理内存中的位置 + PMD 表项内容</strong>（基址 &#x3D; 0x4000_0000 + 偏移）:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">PA:  0x4000_0000       0x4002_b000            0x4004_f000           0x4005_7000     0x4005_b000</span><br><span class="line">     ┌──────────────────┬──────────────────────┬─────────────────────┬────────────────┬───────────┐</span><br><span class="line">     │   kernel image   │  __stage1_page_table │  stacks (4x8K)      │  PMD tables    │ PTE table │</span><br><span class="line">     │   (text/data/ro) │  = PUD table (4KB)   │  [bootmem+32K)      │  4x4KB = 16KB  │ 1x4KB     │</span><br><span class="line">     │                  │  = TTBR base         │  minos_stack_top    │  (ttb0_pud)    │ (ttb0_pmd)│</span><br><span class="line">     └──────────────────┴──────────────────────┴─────────────────────┴────────────────┴───────────┘</span><br><span class="line">                                  PUD[0..3]          stacks grow       PMD tables       PTE[0..511]</span><br><span class="line">                                  points to 4         DOWN from         cover 0~4G      fill the</span><br><span class="line">                                  PMD tables          0x40057000        4 entries used   image 2MB</span><br><span class="line"></span><br><span class="line">4 个被使用的 PMD 表项分别存什么（关键点——一张表，两种用法）：</span><br><span class="line"></span><br><span class="line">  PMD 表项   覆盖范围              内容                       映射到</span><br><span class="line">  ──────────────────────────────────────────────────────────────────────</span><br><span class="line">  [512]       0x4000_0000~     PTE 表地址 | 0b11      ───►   镜像区 2MB，经</span><br><span class="line">              0x4020_0000                                      4K 页映射（5.3/5.4/6 节）</span><br><span class="line">  [513]       0x4020_0000~     物理 0x4020_0000 | 0b01 ───►   RAM 块 1   \</span><br><span class="line">  [514]       0x4040_0000~     物理 0x4040_0000 | 0b01 ───►   RAM 块 2    \</span><br><span class="line">  ...         ...             ...                            RAM 主体 62MB  &#125; 5.5 节</span><br><span class="line">  [543]       0x43e0_0000~     物理 0x43e0_0000 | 0b01 ───►   RAM 块 31  /   直接 2M</span><br><span class="line">              0x4400_0000                                      （无 PTE 表）  block</span><br><span class="line"></span><br><span class="line">- PUD 表    = 0x4002_b000   ← 内核镜像内（链接脚本预留），TTBR 指向这里</span><br><span class="line">- bootmem   = 0x4004_f000   ← __minos_end，4K 对齐</span><br><span class="line">- 栈区       = 0x4004_f000 ~ 0x4005_7000   （4 核 × 8K，sp 向下增长）</span><br><span class="line">- PMD 表    = 0x4005_7000   ← pagetable_base 起点（读取 minos_stack_top 的值！）</span><br><span class="line">- PTE 表    = 0x4005_b000   ← PMD 表之后（只有 1 张，给镜像用）</span><br><span class="line">- 表项地址   = 表基址 + 索引×8   例如 PUD[2] @ 0x4002b000 + 2×8 = 0x4002b010</span><br><span class="line"></span><br><span class="line">  关键点：RAM 主体没有 PTE 表。PMD[513..543] 直接填 `物理地址 | S1_DES_BLOCK(0b01)`</span><br><span class="line">          ——硬件走到 PMD 就停，不查 PTE。</span><br><span class="line">         镜像区的 PMD[512] 填 `PTE 表地址 | 0b11`——会再走深一层。</span><br></pre></td></tr></table></figure>
+
+<p><strong>对应的 PMD 表项</strong>（每个 PMD 表项覆盖 2M，索引 &#x3D; 地址 &gt;&gt; 21）：</p>
+<table>
+<thead>
+<tr>
+<th>PMD 表项</th>
+<th>覆盖范围</th>
+<th>内容</th>
+<th>区域</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0 ~ 511</td>
+<td>0x0 ~ 0x4000_0000</td>
+<td>0（无效）</td>
+<td>未映射</td>
+</tr>
+<tr>
+<td><strong>512</strong></td>
+<td>0x4000_0000 ~ 0x4020_0000</td>
+<td><strong>PTE 表地址 | 0b11</strong></td>
+<td>镜像区（2MB）</td>
+</tr>
+<tr>
+<td><strong>513 ~ 543</strong></td>
+<td>0x4020_0000 ~ 0x4400_0000</td>
+<td><strong>物理地址 | 0b01</strong>（block）</td>
+<td>RAM 主体（62MB，31 块）</td>
+</tr>
+</tbody></table>
+<p><strong>对照代码各步骤</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>代码</th>
+<th>做了什么</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>5.1</td>
+<td>分配 4 张 PMD 表（16KB）</td>
+<td><code>ttb0_pud</code> &#x3D; 4 张 PMD 表基址，覆盖 0~4G</td>
+</tr>
+<tr>
+<td>5.2</td>
+<td>PUD[0..3] &#x3D; 4 张 PMD 表地址</td>
+<td>PUD 前 4 项挂上 PMD 表</td>
+</tr>
+<tr>
+<td>5.3</td>
+<td>分配 PTE 表（镜像 2MB ÷ 2M &#x3D; 1 张）</td>
+<td><code>ttb0_pmd</code> &#x3D; PTE 表基址</td>
+</tr>
+<tr>
+<td>5.4</td>
+<td>PMD[512] &#x3D; PTE 表地址</td>
+<td>镜像区 PMD 项指向 PTE 表</td>
+</tr>
+<tr>
+<td>5.5</td>
+<td>PMD[513..543] 直接填 2M block</td>
+<td>RAM 主体 31 个 2M 块，跳过 PTE</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>关键理解：**PMD 表就是”分诊台”**——镜像区那项指向 PTE 表（精细 4K 页），RAM 主体那些项直接是 block（粗粒度 2M），一表两用。</p>
+</blockquote>
+<hr>
+<h2 id="6-内核镜像各段的精确映射"><a href="#6-内核镜像各段的精确映射" class="headerlink" title="6. 内核镜像各段的精确映射"></a>6. 内核镜像各段的精确映射</h2><p>回到主函数，对 6 个段逐段调用 <code>build_normal_pte_table</code>。以代码段为例（96-103 行）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">__map_code_section:</span><br><span class="line">	ldr	vaddr, =__code_start</span><br><span class="line">	ldr	tmp, =__code_end</span><br><span class="line">	sub	size, tmp, vaddr        // 代码段字节数</span><br><span class="line">	asm_vtop vaddr              // VA → 物理地址</span><br><span class="line">	mov	paddr, vaddr</span><br><span class="line">	ldr	pte_attr, =BOOTMEM_CODE_ATTR   // RX 属性</span><br><span class="line">	bl	build_normal_pte_table</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-1-各段清单与属性"><a href="#6-1-各段清单与属性" class="headerlink" title="6.1 各段清单与属性"></a>6.1 各段清单与属性</h3><table>
+<thead>
+<tr>
+<th>段</th>
+<th>范围（链接符号）</th>
+<th>属性宏</th>
+<th>权限</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>保留内存</td>
+<td><code>minos_start → __code_start</code></td>
+<td><code>BOOTMEM_DATA_ATTR</code></td>
+<td>RW + XN</td>
+</tr>
+<tr>
+<td>代码段</td>
+<td><code>__code_start → __code_end</code></td>
+<td><code>BOOTMEM_CODE_ATTR</code></td>
+<td>RX</td>
+</tr>
+<tr>
+<td>init 段</td>
+<td><code>__init_start → __init_end</code></td>
+<td><code>BOOTMEM_INIT_ATTR</code></td>
+<td>RWX（启动后释放）</td>
+</tr>
+<tr>
+<td>数据段</td>
+<td><code>__data_start → __data_end</code></td>
+<td><code>BOOTMEM_DATA_ATTR</code></td>
+<td>RW + XN</td>
+</tr>
+<tr>
+<td>RO 数据</td>
+<td><code>__rodata_start → minos_bootmem_base</code></td>
+<td><code>BOOTMEM_DATA_RO_ATTR</code></td>
+<td>RO + XN</td>
+</tr>
+<tr>
+<td>剩余 4K 页</td>
+<td><code>bootmem_base → 2M 边界</code></td>
+<td><code>BOOTMEM_DATA_ATTR</code></td>
+<td>RW + XN</td>
+</tr>
+</tbody></table>
+<p><strong>属性宏的实际位</strong>（stage1.h:70-75）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">BOOTMEM_CODE_ATTR     = S1_ATTR_IDX(MT_NORMAL) | S1_DES_PAGE | S1_NS | S1_AP_RO  | S1_SH_INNER | S1_AF</span><br><span class="line">BOOTMEM_DATA_ATTR     = S1_ATTR_IDX(MT_NORMAL) | S1_DES_PAGE | S1_NS | S1_AP_RW  | S1_SH_INNER | S1_AF | S1_XN</span><br><span class="line">BOOTMEM_DATA_RO_ATTR  = S1_ATTR_IDX(MT_NORMAL) | S1_DES_PAGE | S1_NS | S1_AP_RO  | S1_SH_INNER | S1_AF | S1_XN</span><br><span class="line">BOOTMEM_INIT_ATTR     = S1_ATTR_IDX(MT_NORMAL) | S1_DES_PAGE | S1_NS | S1_AP_RW  | S1_SH_INNER | S1_AF</span><br><span class="line">BOOTMEM_IO_ATTR       = S1_ATTR_IDX(MT_DEVICE_nGnRnE) | S1_DES_PAGE | S1_NS | S1_AP_RW | S1_SH_INNER | S1_AF | S1_XN</span><br><span class="line">BOOTMEM_DATA_BLK_ATTR = S1_ATTR_IDX(MT_NORMAL) | S1_DES_BLOCK | S1_NS | S1_AP_RW | S1_SH_INNER | S1_AF | S1_XN | S1_PXN</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>读属性时注意：代码段 RX（可执行、不可写）、数据段 RW+X（不可执行）、RO 段 RO+X、init 段 RWX。硬件强制隔离在此阶段就已埋下。</p>
+</blockquote>
+<h3 id="6-2-按-4K-页填充-PTE"><a href="#6-2-按-4K-页填充-PTE" class="headerlink" title="6.2 按 4K 页填充 PTE"></a>6.2 按 4K 页填充 PTE</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line">build_normal_pte_table:</span><br><span class="line">	and	vaddr, vaddr, entry_align    // 页对齐（清低 12 位）</span><br><span class="line">	and	paddr, paddr, entry_align</span><br><span class="line">	and	size, size, entry_align</span><br><span class="line"></span><br><span class="line">	// ★ 核心 trick：直接用&quot;相对 minos_start 的页偏移&quot;定位 PTE</span><br><span class="line">	adr	x0, minos_start</span><br><span class="line">	ldr	x0, [x0]</span><br><span class="line">	sub	x0, vaddr, x0               // 偏移 = vaddr - minos_start</span><br><span class="line">	ubfx	pte_index, x0, #12, #20     // &gt;&gt;12 = 第几个 4K 页（低 20 位）</span><br><span class="line">	mov	pmd_tmp, ttb0_pmd</span><br><span class="line">	add	pmd_tmp, pmd_tmp, pte_index, lsl #3  // PTE 表基址 + idx×8 = 目标 PTE</span><br><span class="line"></span><br><span class="line">	bic	paddr, paddr, entry_mask    // 物理地址页对齐</span><br><span class="line">	bic	paddr, paddr, #0xffff000000000000  // 清高位（符号位，转物理）</span><br><span class="line">	orr	paddr, paddr, pte_attr      // 拼上属性位</span><br><span class="line"></span><br><span class="line">loop_normal_pte:</span><br><span class="line">	cbz	size, exit_loop</span><br><span class="line">	str	paddr, [pmd_tmp]            // 写一个 PTE</span><br><span class="line">	sub	size, size, entry_size      // −4K</span><br><span class="line">	add	pmd_tmp, pmd_tmp, #8        // 下一个 PTE（8 字节/项）</span><br><span class="line">	add	paddr, paddr, entry_size    // 物理地址 +4K</span><br><span class="line">	b	loop_normal_pte</span><br><span class="line">exit_loop:</span><br><span class="line">	ret</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么能这样定位 PTE？</strong> 因为：</p>
+<ul>
+<li><code>ttb0_pmd</code>（此名有误导，实为）<strong>所有 PTE 表的总基址</strong>（5.3 一次性分配的连续空间）。</li>
+<li><code>minos_start</code> 是第一个按 4K 映射的地址（bootmem 起点之前）。</li>
+<li>那么 <code>(vaddr − minos_start) &gt;&gt; 12</code> 就是<strong>从 ttb0_pmd 起第几个 PTE</strong>——因为是线性累加的，<code>ttb0_pmd + idx*8</code> 直接命中目标 PTE，<strong>不用逐级算 PUD&#x2F;PMD index</strong>。</li>
+</ul>
+<p>这是整个函数最精巧的优化：把”按需逐级定位”简化成”连续线性寻址”。</p>
+<hr>
+<h2 id="7-UART-设备映射"><a href="#7-UART-设备映射" class="headerlink" title="7. UART 设备映射"></a>7. UART 设备映射</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">ldr	vaddr, =CONFIG_UART_BASE</span><br><span class="line">mov	paddr, vaddr</span><br><span class="line">ldr	size, =CONFIG_UART_IO_SIZE</span><br><span class="line">ldr	pte_attr, =BOOTMEM_IO_ATTR    // Device 属性（nGnRnE + XN）</span><br><span class="line">bl	build_io_pte_table</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-1-设备页表的填充"><a href="#7-1-设备页表的填充" class="headerlink" title="7.1 设备页表的填充"></a>7.1 设备页表的填充</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line">build_io_pte_table:</span><br><span class="line">	mov	x25, x30                    // 保存返回地址</span><br><span class="line"></span><br><span class="line">	// 分配一张独立的 4KB 表（PTE 表）</span><br><span class="line">	mov	x0, pagetable_base</span><br><span class="line">	add	pagetable_base, pagetable_base, #4096</span><br><span class="line">	bl	memset</span><br><span class="line"></span><br><span class="line">	// 把 UART 范围向上 2M 对齐</span><br><span class="line">	add	x1, vaddr, size</span><br><span class="line">	add	x1, x1, entry_mask</span><br><span class="line">	and	x1, x1, entry_align</span><br><span class="line">	and	vaddr, vaddr, entry_align</span><br><span class="line">	and	paddr, paddr, entry_align</span><br><span class="line">	sub	size, x1, vaddr</span><br><span class="line"></span><br><span class="line">	// PMD 项 → 指向这张 PTE 表（注意 UART 不在镜像区间，index 单独算）</span><br><span class="line">	ubfx	x0, vaddr, #21, #11        // vaddr&gt;&gt;21 = 2M 块号（PMD 项序号）</span><br><span class="line">	ldr	x1, =HOST_TABLE_DES</span><br><span class="line">	orr	x1, pmd_tmp, x1</span><br><span class="line">	str	x1, [ttb0_pud, x0, lsl #3]  // 写 PMD 表项</span><br><span class="line"></span><br><span class="line">	// 逐 4K 填 PTE</span><br><span class="line">	ldr	entry_align, =0x1fffff</span><br><span class="line">	and	x2, vaddr, entry_align       // 2M 块内偏移</span><br><span class="line">	lsr	x2, x2, #12                  // → PTE 序号</span><br><span class="line">	orr	paddr, paddr, pte_attr       // 拼 Device 属性</span><br><span class="line">loop_io_pte:</span><br><span class="line">	str	paddr, [pmd_tmp, x2, lsl #3]</span><br><span class="line">	sub	size, size, entry_size</span><br><span class="line">	add	paddr, paddr, entry_size</span><br><span class="line">	add	x2, x2, #1</span><br><span class="line">	cbnz	size, loop_io_pte</span><br><span class="line">	ret	x25</span><br></pre></td></tr></table></figure>
+
+<p><strong>与 build_normal_pte_table 的区别</strong>：</p>
+<ul>
+<li>UART 地址（<code>CONFIG_UART_BASE</code>）<strong>不在</strong> <code>[minos_start, bootmem)</code> 区间，所以不能复用”相对 minos_start 定位”的 trick，必须用 <code>vaddr &gt;&gt; 21</code> 单独算 PMD 项的 2M 块号。</li>
+<li>分配<strong>独立的一张 4KB PTE 表</strong>（按 <code>&gt;&gt;12</code> 填 4K 项），专用于 UART 的 4K 页。</li>
+<li>属性用 Device（<code>MT_DEVICE_nGnRnE</code>），硬件禁止对 Device 内存乱缓存。</li>
+</ul>
+<hr>
+<h2 id="8-收尾"><a href="#8-收尾" class="headerlink" title="8. 收尾"></a>8. 收尾</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">adr	x0, minos_end</span><br><span class="line">str	pagetable_base, [x0]    // 把 bootmem 分配器当前位置记下来</span><br><span class="line">ret	x26                     // 返回 boot.S</span><br></pre></td></tr></table></figure>
+
+<p><code>minos_end</code> 记录”bootmem 分配器用到了哪”，后续阶段（如 C 的 <code>mm</code> 子系统）从这里继续分配。<code>ret x26</code> 回到 boot.S:292 继续（<code>dsb ishst; isb</code> 等 MMU 开启动作）。</p>
+<hr>
+<h2 id="9-最终内存布局"><a href="#9-最终内存布局" class="headerlink" title="9. 最终内存布局"></a>9. 最终内存布局</h2><p>映射完成后，stage1 页表覆盖 4GB 地址空间：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">0x0000_0000 ┌────────────────────────────┐</span><br><span class="line">            │     [unmapped, PMD=0]      │</span><br><span class="line">            ├────────────────────────────┤</span><br><span class="line">minos_start │  ┌──────────────────────┐  │</span><br><span class="line">            │  │ reserved (RW) 4K pg  │  │</span><br><span class="line">__code_start│  ├──────────────────────┤  │</span><br><span class="line">            │  │ code (RX) 4K pg      │  │</span><br><span class="line">__code_end  │  ├──────────────────────┤  │</span><br><span class="line">            │  │ init (RWX) 4K pg     │  │</span><br><span class="line">__init_end  │  ├──────────────────────┤  │</span><br><span class="line">            │  │ data (RW) 4K pg      │  │</span><br><span class="line">__data_end  │  ├──────────────────────┤  │</span><br><span class="line">            │  │ rodata (RO) 4K pg    │  │</span><br><span class="line">bootmem_base│  └──────────────────────┘  │  ← 4K page mapping area</span><br><span class="line">            ├────────────────────────────┤</span><br><span class="line">            │  RAM body (2M block)       │  ← BOOTMEM_DATA_BLK_ATTR</span><br><span class="line">            │  ... up to 64MB            │</span><br><span class="line">            ├────────────────────────────┤</span><br><span class="line">            │  UART (Device) PTE table   │  ← CONFIG_UART_BASE</span><br><span class="line">            └────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="10-关键知识点"><a href="#10-关键知识点" class="headerlink" title="10. 关键知识点"></a>10. 关键知识点</h2><ol>
+<li><strong>MMU 使能前手动建表</strong>：此时只能用物理地址，<code>asm_vtop</code>&#x2F;<code>PTOV=0</code> 决定符号是否需转换。</li>
+<li><strong>分两档映射策略</strong>：内核镜像按 4K 页（属性细分），RAM 主体按 2M block（省页表 + 省 TLB 条目）。</li>
+<li><strong>三个分配来源</strong>：<code>pagetable_base</code> 是唯一”分配器”，从 bootmem 区连续取页当页表页。</li>
+<li><strong>线性定位 trick</strong>：镜像区间内 <code>(vaddr − minos_start)&gt;&gt;12</code> 直接定位全局 PTE，是最大优化点。</li>
+<li><strong>属性在启动期就隔离</strong>：代码 RX、数据 RW、RO 段 RO、Device 内存不可缓存——安全设计从第一张页表开始。</li>
+<li><strong>返回值传递</strong>：<code>x26</code> 保存 LR，<code>ret x26</code> 返回；<code>minos_end</code> 是给后续的内存系统”接力棒”。</li>
+</ol>
+<hr>
+<h2 id="11-常见疑问"><a href="#11-常见疑问" class="headerlink" title="11. 常见疑问"></a>11. 常见疑问</h2><p><strong>Q1：为什么分配 4 张 PMD 表就能覆盖 4GB？</strong><br>一张 PMD 表 512 项 × 每项 2M &#x3D; 1G。4 张 → 覆盖 4G。这正是 <code>map first 4GB</code> 的注释含义。</p>
+<p><strong>Q2：<code>build_page_table</code> 里 RAM 的 2M block 为什么不经过 PTE 表？</strong><br>block descriptor 可以出现在 level-1（PUD）或 level-2（PMD）。这里 <strong>PMD 项直接填</strong> <code>物理地址 | BOOTMEM_DATA_BLK_ATTR</code>（<code>S1_DES_BLOCK</code>），硬件 walk 到 PMD 就命中 block，不再下钻 PTE。这是合法的 huge page 用法。</p>
+<p><strong>Q3：镜像区间的 PTE 为什么不按 PUD&#x2F;PMD 逐级定位？</strong><br>因为 5.3 分配的 PTE 表是连续分配的（<code>ttb0_pmd</code> 实为其基址），<code>minos_start</code> 是镜像起点，所以 <code>(vaddr−minos_start)&gt;&gt;12</code> 是从 <code>ttb0_pmd</code> 起的连续 PTE 序号。省去逐级 index 计算，代码更短更快。</p>
+<p><strong>Q4：这段代码执行完，MMU 开了吗？</strong><br>没有。<code>map_boot_mem</code> 只负责”填表”，开 MMU 是返回后 boot.S:302-315 的事（写 SCTLR.M&#x2F;C&#x2F;I + <code>br mmu_on</code>）。</p>
+<p><strong>Q5：为什么函数里有 <code>ldr xN, =符号</code> 和 <code>adr xN, 符号</code> 两种取地址？</strong></p>
+<ul>
+<li><code>adr</code>：取符号的<strong>相对地址</strong>（PC 相对），用于取 bootmem 变量本身的值（<code>minos_start</code> 等是运行时写的全局变量，存的是值）。</li>
+<li><code>ldr xN, =符号</code>：取符号的<strong>链接地址</strong>（绝对地址），用于内核镜像段边界（<code>__code_start</code> 等是链接期常量）。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/" rel="prev" title="Minos 虚拟化: 内存虚拟化">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: 内存虚拟化
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

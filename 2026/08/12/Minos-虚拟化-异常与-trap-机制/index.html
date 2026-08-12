@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="目标：吃透”guest 在 EL1 触发异常 → 陷入 EL2 → 分发处理 → 返回 guest“这条hypervisor 生命线。这是虚拟化最核心的路径——一切虚拟化都靠 trap 发生。 前置知识：Phase 1（异常向量表、SPSR&#x2F;ELR&#x2F;ESR）、Phase 2（向量表装载 VBAR_EL2、异常入口保存寄存器）。精读文件：vector.S、aarch64_syn">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: 异常与 trap 机制">
+<meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%BC%82%E5%B8%B8%E4%B8%8E-trap-%E6%9C%BA%E5%88%B6/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="目标：吃透”guest 在 EL1 触发异常 → 陷入 EL2 → 分发处理 → 返回 guest“这条hypervisor 生命线。这是虚拟化最核心的路径——一切虚拟化都靠 trap 发生。 前置知识：Phase 1（异常向量表、SPSR&#x2F;ELR&#x2F;ESR）、Phase 2（向量表装载 VBAR_EL2、异常入口保存寄存器）。精读文件：vector.S、aarch64_syn">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/images/phase3_flow.svg">
+<meta property="article:published_time" content="2026-08-12T14:09:47.000Z">
+<meta property="article:modified_time" content="2026-08-12T14:28:21.720Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/phase3_flow.svg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%BC%82%E5%B8%B8%E4%B8%8E-trap-%E6%9C%BA%E5%88%B6/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%BC%82%E5%B8%B8%E4%B8%8E-trap-%E6%9C%BA%E5%88%B6/","path":"2026/08/12/Minos-虚拟化-异常与-trap-机制/","title":"Minos 虚拟化: 异常与 trap 机制"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: 异常与 trap 机制 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#0-%E5%85%A8%E6%99%AF%E5%9B%BE"><span class="nav-text">0. 全景图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E8%83%8C%E6%99%AF"><span class="nav-text">1. 背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%BC%82%E5%B8%B8%E5%85%A5%E5%8F%A3"><span class="nav-text">2. 异常入口</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%85%A5%E5%8F%A3%E8%B7%AF%E5%BE%84"><span class="nav-text">2.1 入口路径</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-SAVE-GP-REGS"><span class="nav-text">2.2 SAVE_GP_REGS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-LOAD-GP-REGS"><span class="nav-text">2.3 LOAD_GP_REGS</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">2.4 关键知识点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%90%8C%E6%AD%A5%E5%BC%82%E5%B8%B8%E5%88%86%E5%8F%91"><span class="nav-text">3. 同步异常分发</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E4%BB%8E-lower-EL-%E8%BF%9B%E5%85%A5"><span class="nav-text">3.1 从 lower EL 进入</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-1-1-%E6%B1%87%E7%BC%96%E5%85%A5%E5%8F%A3%EF%BC%9A-sync-exception-from-lower-el"><span class="nav-text">3.1.1 汇编入口：__sync_exception_from_lower_el</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-1-2-C-%E5%88%86%E5%8F%91%E5%87%BD%E6%95%B0%EF%BC%9Async-exception-from-lower-el"><span class="nav-text">3.1.2 C 分发函数：sync_exception_from_lower_el</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E4%BB%8E%E5%BD%93%E5%89%8D-EL-%E8%BF%9B%E5%85%A5"><span class="nav-text">3.2 从当前 EL 进入</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-1-%E6%B1%87%E7%BC%96%E5%85%A5%E5%8F%A3%EF%BC%9A-sync-exception-from-current-el"><span class="nav-text">3.2.1 汇编入口：__sync_exception_from_current_el</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-2-C-%E5%A4%84%E7%90%86%EF%BC%9Async-exception-from-current-el-%E2%86%92-handle-sync-exception"><span class="nav-text">3.2.2 C 处理：sync_exception_from_current_el → handle_sync_exception</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-2-3-%E4%B8%8E-3-1-%E7%9A%84%E5%B7%AE%E5%BC%82%E5%AF%B9%E7%85%A7"><span class="nav-text">3.2.3 与 3.1 的差异对照</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">3.3 关键知识点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-trap-c%EF%BC%9AESR-%E8%A7%A3%E7%A0%81%E4%B8%8E-22-%E4%B8%AA-handler"><span class="nav-text">4. trap.c：ESR 解码与 22 个 handler</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-ESR-EL2-%E7%BB%93%E6%9E%84%EF%BC%9AEC-ISS-%E5%AD%97%E6%AE%B5"><span class="nav-text">4.1 ESR_EL2 结构：EC &#x2F; ISS 字段</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#4-1-1-SYS64%EF%BC%88EC-0x18%EF%BC%89%E7%9A%84-ISS-%E7%BB%86%E5%88%86%EF%BC%9Aesr-sysreg"><span class="nav-text">4.1.1 SYS64（EC&#x3D;0x18）的 ISS 细分：esr_sysreg</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%88%86%E5%8F%91%E8%A1%A8%EF%BC%9Aguest-sync-descs"><span class="nav-text">4.2 分发表：guest_sync_descs[]</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%88%86%E5%8F%91%E5%87%BD%E6%95%B0%EF%BC%9Ahandle-vcpu-sync-exception"><span class="nav-text">4.3 分发函数：handle_vcpu_sync_exception</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-22-%E4%B8%AA-handler-%E7%9A%84%E5%AE%8C%E6%95%B4%E6%98%A0%E5%B0%84"><span class="nav-text">4.4 22 个 handler 的完整映射</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">4.5 关键知识点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E9%87%8D%E7%82%B9-handler-1%EF%BC%9Aaccess-system-reg-handler"><span class="nav-text">5. 重点 handler 1：access_system_reg_handler</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%9C%BA%E6%99%AF"><span class="nav-text">5.1 场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B"><span class="nav-text">5.2 处理流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">5.3 关键知识点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E9%87%8D%E7%82%B9-handler-2%EF%BC%9Adataabort-tfl-handler"><span class="nav-text">6. 重点 handler 2：dataabort_tfl_handler</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%9C%BA%E6%99%AF"><span class="nav-text">6.1 场景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B"><span class="nav-text">6.2 处理流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">6.3 关键知识点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-IRQ-%E8%B7%AF%E5%BE%84"><span class="nav-text">7. IRQ 路径</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E4%B8%AD%E6%96%AD%E6%B1%87%E7%BC%96%E5%85%A5%E5%8F%A3%EF%BC%9A-irq-exception-from-lower-el"><span class="nav-text">7.1 中断汇编入口：__irq_exception_from_lower_el</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E4%B8%AD%E6%96%AD%E8%BF%9B%E5%85%A5"><span class="nav-text">7.2 中断进入</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E4%B8%AD%E6%96%AD%E5%88%86%E5%8F%91"><span class="nav-text">7.3 中断分发</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">7.4 关键知识点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E6%9C%AC%E8%8A%82%E5%B0%8F%E7%BB%93"><span class="nav-text">8. 本节小结</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E6%9C%AF%E8%AF%AD%E9%80%9F%E6%9F%A5"><span class="nav-text">9. 术语速查</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E6%9C%AC%E6%96%87%E5%AF%84%E5%AD%98%E5%99%A8%E9%80%9F%E6%9F%A5"><span class="nav-text">10. 本文寄存器速查</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-%E6%8E%A7%E5%88%B6%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%9A%E9%85%8D%E7%BD%AE%E2%80%9D%E6%8B%A6%E4%BB%80%E4%B9%88%E2%80%9D"><span class="nav-text">10.1 控制寄存器：配置”拦什么”</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-2-%E5%BC%82%E5%B8%B8%E8%AE%B0%E5%BD%95%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%9A%E7%A1%AC%E4%BB%B6-trap-%E6%97%B6%E8%87%AA%E5%8A%A8%E5%86%99%E5%85%A5"><span class="nav-text">10.2 异常记录寄存器：硬件 trap 时自动写入</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-3-%E7%8E%B0%E5%9C%BA%E4%BF%9D%E5%AD%98%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%9A%E5%BC%82%E5%B8%B8%E5%85%A5%E5%8F%A3%E5%8E%8B%E6%A0%88%E7%94%A8"><span class="nav-text">10.3 现场保存寄存器：异常入口压栈用</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-4-guest-%E8%A2%AB%E6%A8%A1%E6%8B%9F%E7%9A%84%E5%AF%84%E5%AD%98%E5%99%A8%EF%BC%88access-system-reg-handler-%E5%9C%BA%E6%99%AF%EF%BC%89"><span class="nav-text">10.4 guest 被模拟的寄存器（access_system_reg_handler 场景）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-5-IRQ-%E8%B7%AF%E5%BE%84%E7%94%A8%E5%88%B0%E7%9A%84%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">10.5 IRQ 路径用到的寄存器</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%BC%82%E5%B8%B8%E4%B8%8E-trap-%E6%9C%BA%E5%88%B6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: 异常与 trap 机制 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: 异常与 trap 机制
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-12 22:09:47" itemprop="dateCreated datePublished" datetime="2026-08-12T22:09:47+08:00">2026-08-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>目标：吃透”<strong>guest 在 EL1 触发异常 → 陷入 EL2 → 分发处理 → 返回 guest</strong>“这条<br>hypervisor 生命线。这是虚拟化最核心的路径——一切虚拟化都靠 trap 发生。</p>
+<p>前置知识：Phase 1（异常向量表、SPSR&#x2F;ELR&#x2F;ESR）、Phase 2（向量表装载 VBAR_EL2、<br>异常入口保存寄存器）。<br>精读文件：<code>vector.S</code>、<code>aarch64_sync.c</code>、<code>trap.c</code>、<code>aarch64_IRQ.c</code>、<code>irq.c</code>、<code>tcb.h</code>。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="0-全景图"><a href="#0-全景图" class="headerlink" title="0. 全景图"></a>0. 全景图</h2><p><img src="/images/phase3_flow.svg" alt="phase3_flow"></p>
+<p><strong>一条铁律</strong>：<strong>一切虚拟化都是 trap 出来的</strong>——guest 想碰敏感资源 → 被 trap 到 EL2 → hypervisor 模拟&#x2F;处理 → 返回。这条路径就是 hypervisor 的”生命线”。</p>
+<hr>
+<h2 id="1-背景"><a href="#1-背景" class="headerlink" title="1. 背景"></a>1. 背景</h2><blockquote>
+<p>源码位置：<code>arch/aarch64/virt/arch_virt.c:187-227</code></p>
+</blockquote>
+<p>在讲异常入口之前，先回答一个根本问题：<strong>guest 好好地跑在 EL1，为什么突然陷入 EL2？</strong></p>
+<p>答案在 <strong>HCR_EL2</strong>（Phase 1 学过）。它是 EL2 控制虚拟化的”总开关”，其中<strong>各种 <code>T*</code> 陷阱位</strong>决定”EL1 执行哪些操作会陷入 EL2”。hypervisor 在创建 vCPU 时配置它（arch_virt.c:187）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">context-&gt;hcr_el2 = value | HCR_EL2_VM | HCR_EL2_TIDCP | HCR_EL2_IMO |</span><br><span class="line">	HCR_EL2_FMO | HCR_EL2_BSU_IS | HCR_EL2_FB | HCR_EL2_PTW |</span><br><span class="line">	HCR_EL2_TSC | HCR_EL2_TACR | HCR_EL2_AMO;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (!(vcpu-&gt;vm-&gt;flags &amp; VM_FLAGS_NATIVE_WFI))</span><br><span class="line">	context-&gt;hcr_el2 |= HCR_EL2_TWI;      <span class="comment">// trap WFI</span></span><br><span class="line"><span class="keyword">if</span> (vcpu-&gt;vm-&gt;os-&gt;type == OS_TYPE_XNU)</span><br><span class="line">	context-&gt;hcr_el2 |= HCR_EL2_TDZ;      <span class="comment">// trap DC ZVA（XNU 特殊）</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>guest 触发 trap 的完整因果链</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">hypervisor 设 HCR_EL2.xxx = 1（&quot;我要拦这个操作&quot;）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">guest 在 EL1 执行敏感操作（WFI / 读写敏感寄存器 / SMC / 访问未映射内存...）</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">硬件检查 HCR_EL2 陷阱位 → 命中 → 自动陷入 EL2</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">硬件写 ESR_EL2（记录异常原因 EC+ISS）→ ELR_EL2（返回地址）→ 跳向量表</span><br><span class="line">        │</span><br><span class="line">        ▼</span><br><span class="line">（本 phase 后面的内容全从这里开始）</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键点</strong>：</p>
+<ol>
+<li>**HCR_EL2 陷阱位 &#x3D; 虚拟化的”拦截清单”**——hypervisor 想拦什么就置哪一位。</li>
+<li><strong>guest 触发陷阱 → 硬件写 ESR_EL2</strong>——ESR 是”为什么 trap”的记录，正是本 phase 第 4 节解密的对象。</li>
+<li><strong>HCR_EL2 是每 vCPU 一份</strong>：<code>context-&gt;hcr_el2</code> 保存在 vCPU 上下文里，由 vmodule 在切换时恢复（Phase 7 详讲）。</li>
+<li><strong>不是所有 guest 操作都会 trap</strong>：只有 HCR_EL2 置位的那几类才陷，其余 guest 正常在 EL1 跑（这就是虚拟化性能的关键——能直通就直通，必要才 trap）。</li>
+</ol>
+<hr>
+<h2 id="2-异常入口"><a href="#2-异常入口" class="headerlink" title="2. 异常入口"></a>2. 异常入口</h2><blockquote>
+<p>源码位置：<code>arch/aarch64/core/vector.S</code></p>
+</blockquote>
+<h3 id="2-1-入口路径"><a href="#2-1-入口路径" class="headerlink" title="2.1 入口路径"></a>2.1 入口路径</h3><p>上一 phase 学过向量表（entry.S）16 个入口。guest 触发的异常走 <strong>Lower EL 组</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">l64sync:  // Lower EL using AArch64，同步异常</span><br><span class="line">	b	__sync_exception_from_lower_el</span><br><span class="line">l64irq:   // Lower EL using AArch64，IRQ</span><br><span class="line">	b	__irq_exception_from_lower_el</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-2-SAVE-GP-REGS"><a href="#2-2-SAVE-GP-REGS" class="headerlink" title="2.2 SAVE_GP_REGS"></a>2.2 SAVE_GP_REGS</h3><p>异常发生时，CPU 硬件只自动做了三件事（写 ELR_EL2&#x2F;SPSR_EL2，跳到向量表），<strong>其余寄存器全部要汇编手动保存</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">.macro __SAVE_GP_REGS</span><br><span class="line">	stp	x27, x28, [sp, #-16]!    // 从 x28 往上逐个压栈</span><br><span class="line">	stp	x25, x26, [sp, #-16]!</span><br><span class="line">	...                           // 一直到 x0</span><br><span class="line">	str	x0, [sp, #-8]!</span><br><span class="line">	mrs	x0, SP_EL0               // 保存 guest 的 SP</span><br><span class="line">	str	x0, [sp, #-8]!</span><br><span class="line">	mrs	x0, SPSR_EL2             // 保存 guest 的 PSTATE</span><br><span class="line">	str	x0, [sp, #-8]!</span><br><span class="line">	mrs	x0, ELR_EL2              // 保存 guest 的返回地址</span><br><span class="line">	str	x0, [sp, #-8]!</span><br><span class="line">	dsb	nsh</span><br><span class="line">.endm</span><br></pre></td></tr></table></figure>
+
+<p><strong>压栈顺序 → gp_regs 结构</strong>。压栈的布局正好对应 <code>tcb.h:6</code> 的 <code>struct aarch64_regs</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">aarch64_regs</span> &#123;</span>   <span class="comment">// gp_regs，就是栈上的布局！</span></span><br><span class="line">	<span class="type">uint64_t</span> pc;        <span class="comment">//  ELR_EL2（guest 返回地址）</span></span><br><span class="line">	<span class="type">uint64_t</span> pstate;    <span class="comment">//  SPSR_EL2（guest 状态）</span></span><br><span class="line">	<span class="type">uint64_t</span> sp;        <span class="comment">//  SP_EL0（guest 栈指针）</span></span><br><span class="line">	<span class="type">uint64_t</span> x0;        <span class="comment">//  然后 x0~x28、lr</span></span><br><span class="line">	...</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>关键理解</strong>：<code>gp_regs</code> 不是”结构体内存”，它就是<strong>异常入口在栈上压出来的那串值</strong>。C 侧的 handler 拿到 <code>gp_regs *regs</code>，就是在读栈顶的这份现场。</p>
+<h3 id="2-3-LOAD-GP-REGS"><a href="#2-3-LOAD-GP-REGS" class="headerlink" title="2.3 LOAD_GP_REGS"></a>2.3 LOAD_GP_REGS</h3><p>顺序与保存相反，最后 <code>eret</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ldr	x0, [sp], #8</span><br><span class="line">msr	ELR_EL2, x0         // 恢复返回地址</span><br><span class="line">ldr	x0, [sp], #8</span><br><span class="line">msr	SPSR_EL2, x0        // 恢复状态</span><br><span class="line">ldp	x0, x1, [sp], #16   // 恢复 x0-x29</span><br><span class="line">...</span><br><span class="line">eret                    // ★ PC=ELR_EL2, PSTATE=SPSR_EL2 → 回到 guest</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-4-关键知识点"><a href="#2-4-关键知识点" class="headerlink" title="2.4 关键知识点"></a>2.4 关键知识点</h3><ol>
+<li><strong>异常 &#x3D; 现场保存 + 分发 + 现场恢复</strong>：硬件只自动保存 ELR&#x2F;SPSR，其余全靠汇编。</li>
+<li><strong><code>gp_regs</code> 就是栈布局</strong>：理解它 &#x3D; 理解异常入口压了什么。</li>
+<li><strong><code>eret</code> 是唯一返回指令</strong>：<code>eret</code> &#x3D; PC←ELR_EL2，PSTATE←SPSR_EL2。</li>
+</ol>
+<hr>
+<h2 id="3-同步异常分发"><a href="#3-同步异常分发" class="headerlink" title="3. 同步异常分发"></a>3. 同步异常分发</h2><blockquote>
+<p>源码位置：<code>arch/aarch64/core/aarch64_sync.c</code></p>
+</blockquote>
+<h3 id="3-1-从-lower-EL-进入"><a href="#3-1-从-lower-EL-进入" class="headerlink" title="3.1 从 lower EL 进入"></a>3.1 从 lower EL 进入</h3><p><strong>完整链路</strong>：向量表 <code>l64sync</code> → 汇编入口 <code>__sync_exception_from_lower_el</code>（vector.S:160）→ C 函数 <code>sync_exception_from_lower_el</code>（aarch64_sync.c:156）。</p>
+<h4 id="3-1-1-汇编入口：-sync-exception-from-lower-el"><a href="#3-1-1-汇编入口：-sync-exception-from-lower-el" class="headerlink" title="3.1.1 汇编入口：__sync_exception_from_lower_el"></a>3.1.1 汇编入口：<code>__sync_exception_from_lower_el</code></h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">vfunc __sync_exception_from_lower_el</span><br><span class="line">	SAVE_GP_REGS                          // ① 现场压栈 → gp_regs</span><br><span class="line">	PCPU_LOAD_CURRENT_TASK                // ② x18 = 当前任务</span><br><span class="line">	bl	task_exit_from_user               // ③ &quot;离开用户态&quot;钩子</span><br><span class="line">	mov	x0, sp                            // ④ 参数：gp_regs 地址</span><br><span class="line">	bl	sync_exception_from_lower_el       // ⑤ ★ 调 C 分发函数</span><br><span class="line">	mov	x0, sp                            // ⑥ 参数：gp_regs 地址</span><br><span class="line">	bl	task_return_to_user               // ⑦ &quot;回到用户态&quot;钩子</span><br><span class="line">	LOAD_GP_REGS                          // ⑧ 恢复现场</span><br><span class="line">	eret                                  // ⑨ 返回 guest</span><br><span class="line">vfunc_end __sync_exception_from_lower_el</span><br></pre></td></tr></table></figure>
+
+<p><strong>每步作用</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>步</th>
+<th>动作</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>①</td>
+<td><code>SAVE_GP_REGS</code></td>
+<td>把 x0-x30 &#x2F; SP_EL0 &#x2F; SPSR &#x2F; ELR 压栈，形成 <code>gp_regs</code>（见 2.2）</td>
+</tr>
+<tr>
+<td>②</td>
+<td><code>PCPU_LOAD_CURRENT_TASK</code></td>
+<td>从本核 pcpu 取出当前任务 → x18（guest 可能破坏 x18，必须重新加载）</td>
+</tr>
+<tr>
+<td>③</td>
+<td><code>task_exit_from_user</code></td>
+<td><strong>退出钩子</strong>：<code>vcpu-&gt;mode: IN_GUEST_MODE → IN_ROOT_MODE</code>，触发 <code>OS_HOOK_EXIT_FROM_GUEST</code></td>
+</tr>
+<tr>
+<td>④⑤</td>
+<td><code>x0=sp; bl sync_exception_from_lower_el</code></td>
+<td><strong>核心</strong>：把 gp_regs 传给 C，C 侧做身份判断与分发（见 3.1.2）</td>
+</tr>
+<tr>
+<td>⑥⑦</td>
+<td><code>x0=sp; bl task_return_to_user</code></td>
+<td><strong>进入钩子</strong>：<code>vcpu-&gt;mode: IN_ROOT_MODE → IN_GUEST_MODE</code>，触发 <code>OS_HOOK_ENTER_TO_GUEST</code>（中断注入落点）</td>
+</tr>
+<tr>
+<td>⑧⑨</td>
+<td><code>LOAD_GP_REGS; eret</code></td>
+<td>恢复现场，跳回 guest 继续执行</td>
+</tr>
+</tbody></table>
+<p><strong>关键</strong>：③⑦ 两个钩子就是虚拟化的”进出开关”——<code>vcpu-&gt;mode</code> 在 <code>IN_GUEST_MODE ↔ IN_ROOT_MODE</code> 间切换，各模块（vGIC&#x2F;vtimer）通过 <code>OS_HOOK_EXIT_FROM_GUEST</code> &#x2F; <code>OS_HOOK_ENTER_TO_GUEST</code> 在进出时干活（Phase 1 学的”进 guest 前注入中断”就发生在 ⑦）。</p>
+<h4 id="3-1-2-C-分发函数：sync-exception-from-lower-el"><a href="#3-1-2-C-分发函数：sync-exception-from-lower-el" class="headerlink" title="3.1.2 C 分发函数：sync_exception_from_lower_el"></a>3.1.2 C 分发函数：<code>sync_exception_from_lower_el</code></h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">sync_exception_from_lower_el</span><span class="params">(gp_regs *regs)</span></span><br><span class="line">&#123;</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_VIRT</span></span><br><span class="line">	<span class="keyword">if</span> ((current-&gt;flags &amp; TASK_FLAGS_VCPU) &amp;&amp; !(read_hcr_el2() &amp; HCR_EL2_TGE))</span><br><span class="line">		handle_vcpu_sync_exception(regs);   <span class="comment">// ★ 是 vCPU 任务 → 走虚拟化分发</span></span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">		handle_sync_exception(regs);        <span class="comment">// 普通任务 → 走内核自身异常</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>判断分叉的两个条件</strong>：</p>
+<ul>
+<li><code>current-&gt;flags &amp; TASK_FLAGS_VCPU</code>：当前任务是不是 vCPU（guest 跑在 EL1 时，当前 task 就是 vCPU）</li>
+<li><code>HCR_EL2.TGE</code>：TGE&#x3D;1 表示”当前在跑 hypervisor 自己的任务”（不用虚拟化），TGE&#x3D;0 表示在跑 guest</li>
+</ul>
+<p><strong>两者都满足 vCPU 条件 → <code>handle_vcpu_sync_exception</code>（trap.c:392）</strong>，这是 Phase 3 的核心分发函数。</p>
+<h3 id="3-2-从当前-EL-进入"><a href="#3-2-从当前-EL-进入" class="headerlink" title="3.2 从当前 EL 进入"></a>3.2 从当前 EL 进入</h3><p><strong>完整链路</strong>：向量表 <code>cxsync</code> → 汇编入口 <code>__sync_exception_from_current_el</code>（vector.S:141）→ C 函数 <code>sync_exception_from_current_el</code>（aarch64_sync.c:151）。</p>
+<blockquote>
+<p>和 3.1（lower EL）相比，这是”当前 EL 自己出异常”，有<strong>三个关键差异</strong>：<br>① 没有进出钩子（不用切 vCPU 状态）；② 有 SVC 调度特判；③ 查的是另一张表 <code>process_sync_descs[]</code>。</p>
+</blockquote>
+<h4 id="3-2-1-汇编入口：-sync-exception-from-current-el"><a href="#3-2-1-汇编入口：-sync-exception-from-current-el" class="headerlink" title="3.2.1 汇编入口：__sync_exception_from_current_el"></a>3.2.1 汇编入口：<code>__sync_exception_from_current_el</code></h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">vfunc __sync_exception_from_current_el</span><br><span class="line">	SAVE_GP_REGS                          // ① 现场压栈 → gp_regs</span><br><span class="line">	mov	x0, sp</span><br><span class="line">	str	x0, [x18, #TASK_STACK_OFFSET]    // ② 把 sp 存进当前任务（调度可能切走）</span><br><span class="line"></span><br><span class="line">	mrs	x1, ESR_EL2                      // ③ 读 ESR</span><br><span class="line">	ubfx	x2, x1, #ESR_ELx_EC_SHIFT, #ESR_ELx_EC_WIDTH  // 取 EC</span><br><span class="line">	cmp	x2, #ESR_ELx_EC_SVC64            // ④ 是不是 SVC（主动系统调用/调度请求）？</span><br><span class="line">	b.eq	__sync_current_out           //    是 → 直接走 exception_return（调度路径）</span><br><span class="line"></span><br><span class="line">	bl	sync_exception_from_current_el   // ⑤ 不是 SVC → C 处理（通常 panic）</span><br><span class="line"></span><br><span class="line">__sync_current_out:</span><br><span class="line">	b	exception_return                 // ⑥ 统一走异常返回（可能发生调度）</span><br><span class="line">vfunc_end __sync_exception_from_current_el</span><br></pre></td></tr></table></figure>
+
+<p><strong>每步作用</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>步</th>
+<th>动作</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>①</td>
+<td><code>SAVE_GP_REGS</code></td>
+<td>压现场（与 3.1 相同）</td>
+</tr>
+<tr>
+<td>②</td>
+<td><code>str x0, [x18, #TASK_STACK_OFFSET]</code></td>
+<td>把栈指针存进当前任务——因为后面可能触发<strong>调度</strong>，任务被切走前要保存栈</td>
+</tr>
+<tr>
+<td>③④</td>
+<td>读 ESR、取 EC、判断 SVC64</td>
+<td><strong>SVC 特判</strong>：SVC 是”主动请求”（调度&#x2F;系统调用），不是错误</td>
+</tr>
+<tr>
+<td>⑤</td>
+<td><code>sync_exception_from_current_el</code></td>
+<td>SVC 以外的异常 → C 处理（多是 panic，见 3.2.2）</td>
+</tr>
+<tr>
+<td>⑥</td>
+<td><code>exception_return</code></td>
+<td><strong>和 3.1 的 <code>LOAD_GP_REGS + eret</code> 不同</strong>：走 <code>exception_return</code>，它会先检查是否需要重新调度（vector.S:120）</td>
+</tr>
+</tbody></table>
+<p><strong>为什么 SVC 要特判？——SVC 是”主动请求”，不是”错误”</strong></p>
+<p>这里容易困惑：既然 EC≠SVC64 才进 C handler（大多 panic），那 SVC 去了哪？答案是<strong>它被当成”合法的主动调用”，直接走调度&#x2F;返回路径</strong>，不进 panic handler。</p>
+<p><code>SVC</code>（Supervisor Call）是 AArch64 的”软中断&#x2F;系统调用”指令，用途远比”调度”多。对照 Linux 就很好理解——<strong>Linux 里 SVC 几乎无处不在</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>SVC 用途</th>
+<th>谁在用</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>系统调用</strong>（syscall）</td>
+<td>用户态进程</td>
+<td>EL0 执行 <code>svc #0</code> 进入内核，Linux 靠它实现 <code>read/write/open</code> 等几百个 syscall</td>
+</tr>
+<tr>
+<td><strong>主动让出 CPU</strong>（schedule）</td>
+<td>内核&#x2F;任务</td>
+<td>内核主动请求调度（minos 里 <code>sched()</code> 就是靠 SVC 触发）</td>
+</tr>
+<tr>
+<td><strong>唤醒&#x2F;睡眠</strong></td>
+<td>内核</td>
+<td>任务主动进入睡眠或唤醒别的任务</td>
+</tr>
+</tbody></table>
+<p>**所以 SVC 的”语义”是”我是来请求的，不是出错了”**——系统调用、调度请求都靠它。</p>
+<p><strong>minos 为什么这里只关心 SVC 而不细分？</strong> 因为 minos 是 micro-kernel，它的”系统调用”机制很简单：</p>
+<ul>
+<li><strong>SVC 进入 current EL 异常后</strong> → minos 判断 EC&#x3D;&#x3D;SVC64 → 不当作错误 → 走 <code>exception_return</code>（它会检查是否该重新调度）</li>
+<li><strong>具体的”请求内容”<strong>（要干什么）</strong>在 <code>exception_return_handler</code> 里处理</strong>，不是在异常 handler 里</li>
+</ul>
+<blockquote>
+<p>换句话说：**<code>__sync_exception_from_current_el</code> 只负责把 SVC 和”真错误”分开**，真正的 SVC 处理（调度等）在 <code>exception_return</code> 路径里。这是 minos 把”异常入口”和”调度入口”合并的巧妙设计——SVC 主动调度请求复用异常返回路径，省了一套专门的调度入口代码。</p>
+</blockquote>
+<p>对比 Linux 理解：Linux 的 <code>el0_svc</code> &#x2F; <code>el1_svc</code> 异常向量专门处理系统调用，有完整的 syscall 表分发（几百个）；**minos 精简到只判断”是 SVC 就放行到返回路径”**，因为它不需要支持那么多系统调用——它的”系统调用”主要就是调度。</p>
+<h4 id="3-2-2-C-处理：sync-exception-from-current-el-→-handle-sync-exception"><a href="#3-2-2-C-处理：sync-exception-from-current-el-→-handle-sync-exception" class="headerlink" title="3.2.2 C 处理：sync_exception_from_current_el → handle_sync_exception"></a>3.2.2 C 处理：<code>sync_exception_from_current_el</code> → <code>handle_sync_exception</code></h4><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">handle_sync_exception</span><span class="params">(gp_regs *regs)</span></span><br><span class="line">&#123;</span><br><span class="line">	esr_value = read_esr();              <span class="comment">// CONFIG_VIRT 下读 ESR_EL2</span></span><br><span class="line">	ec_type = ESR_ELx_EC(esr_value);</span><br><span class="line">	ec = process_sync_descs[ec_type];    <span class="comment">// ★ 查的是 process_sync_descs[]，不是 guest_sync_descs[]</span></span><br><span class="line">	regs-&gt;pc += ec-&gt;ret_addr_adjust;</span><br><span class="line">	ec-&gt;handler(regs, ec_type, esr_value);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>process_sync_descs</code>（aarch64_sync.c:116-120）只有几个条目：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">sync_desc</span> *<span class="title">process_sync_descs</span>[] =</span> &#123;</span><br><span class="line">	[<span class="number">0</span> ... ESR_ELx_EC_MAX] = &amp;sync_desc_trap_unknown,   <span class="comment">// 默认 → panic</span></span><br><span class="line">	[ESR_ELx_EC_IABT_CUR] = &amp;sync_desc_trap_kernel_ia,  <span class="comment">// 取指故障 → panic</span></span><br><span class="line">	[ESR_ELx_EC_DABT_CUR] = &amp;sync_desc_trap_kernel_da,  <span class="comment">// 数据故障 → panic</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><strong>本质</strong>：hypervisor 自己的异常基本全是 bug → <strong>直接 panic</strong>（<code>kernel_mem_fault</code> &#x2F; <code>unknown_trap_handler</code>）。</p>
+<h4 id="3-2-3-与-3-1-的差异对照"><a href="#3-2-3-与-3-1-的差异对照" class="headerlink" title="3.2.3 与 3.1 的差异对照"></a>3.2.3 与 3.1 的差异对照</h4><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>3.1 lower EL（guest）</th>
+<th>3.2 current EL（hypervisor 自己）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>入口</td>
+<td><code>l64sync/l32sync</code></td>
+<td><code>cxsync</code></td>
+</tr>
+<tr>
+<td>汇编入口</td>
+<td><code>__sync_exception_from_lower_el</code></td>
+<td><code>__sync_exception_from_current_el</code></td>
+</tr>
+<tr>
+<td>进出钩子</td>
+<td><strong>有</strong>（task_exit&#x2F;return_to_user）</td>
+<td><strong>无</strong>（不切 vCPU 状态）</td>
+</tr>
+<tr>
+<td>SVC 特判</td>
+<td>无</td>
+<td><strong>有</strong>（SVC → 调度路径）</td>
+</tr>
+<tr>
+<td>返回方式</td>
+<td><code>LOAD_GP_REGS + eret</code></td>
+<td><code>exception_return</code>（会检查重调度）</td>
+</tr>
+<tr>
+<td>C 分发</td>
+<td><code>handle_vcpu_sync_exception</code>（按 vCPU 判断）</td>
+<td><code>handle_sync_exception</code>（直接查表）</td>
+</tr>
+<tr>
+<td>查的表</td>
+<td><code>guest_sync_descs[]</code>（trap.c）</td>
+<td><code>process_sync_descs[]</code>（aarch64_sync.c）</td>
+</tr>
+<tr>
+<td>处理结果</td>
+<td>模拟&#x2F;注入&#x2F;返回</td>
+<td>基本全是 panic</td>
+</tr>
+</tbody></table>
+<h3 id="3-3-关键知识点"><a href="#3-3-关键知识点" class="headerlink" title="3.3 关键知识点"></a>3.3 关键知识点</h3><ol>
+<li><strong>同一个异常入口，两种身份</strong>：vCPU（guest） vs 普通任务（hypervisor 自己），靠 <code>TASK_FLAGS_VCPU</code> + <code>HCR_EL2.TGE</code> 区分。</li>
+<li>**guest 的一切同步异常最终都汇到 <code>handle_vcpu_sync_exception</code>**。</li>
+<li><strong>current EL 异常基本是 bug → panic</strong>：<code>process_sync_descs[]</code> 只有 unknown&#x2F;kernel_ia&#x2F;kernel_da 三个 panic 条目。</li>
+<li><strong>SVC 是”主动请求”不是错误</strong>：current EL 的 SVC 走调度路径（<code>exception_return</code>），不进 panic handler。</li>
+</ol>
+<hr>
+<h2 id="4-trap-c：ESR-解码与-22-个-handler"><a href="#4-trap-c：ESR-解码与-22-个-handler" class="headerlink" title="4. trap.c：ESR 解码与 22 个 handler"></a>4. trap.c：ESR 解码与 22 个 handler</h2><blockquote>
+<p>源码位置：<code>arch/aarch64/virt/trap.c</code></p>
+</blockquote>
+<h3 id="4-1-ESR-EL2-结构：EC-ISS-字段"><a href="#4-1-ESR-EL2-结构：EC-ISS-字段" class="headerlink" title="4.1 ESR_EL2 结构：EC &#x2F; ISS 字段"></a>4.1 ESR_EL2 结构：EC &#x2F; ISS 字段</h3><p><strong>ESR_EL2</strong>（Exception Syndrome Register）描述异常原因，关键两段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">ESR_EL2 (64-bit)</span><br><span class="line">┌──────────┬───────┬───────────────────────────────┐</span><br><span class="line">│ EC[31:26]│ IL[25]│       ISS[24:0]               │</span><br><span class="line">│ 异常类别  │ 指令长 │   异常综合信息（依赖 EC）         │</span><br><span class="line">└──────────┴───────┴───────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>EC（Exception Class）</strong>：6 位，这是<strong>分发的钥匙</strong>。比如 0x18&#x3D;SYS64、0x01&#x3D;WFx、0x24&#x3D;DABT_LOW、0x16&#x3D;HVC64。</li>
+<li><strong>ISS（Instruction Specific Syndrome）</strong>：25 位，内容依赖 EC。比如 SYS64 的 ISS 编码了”是哪个系统寄存器、读还是写”；DABT 的 ISS 编码了”读写方向、目标寄存器、fault 状态码”。</li>
+</ul>
+<p>宏定义（aarch64_common.h）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> ESR_ELx_EC_MASK		(ULONG(0x3F) &lt;&lt; 26)   <span class="comment">// EC 取位</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> ESR_ELx_EC(esr)		(((esr) &amp; ESR_ELx_EC_MASK) &gt;&gt; 26)</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="4-1-1-SYS64（EC-0x18）的-ISS-细分：esr-sysreg"><a href="#4-1-1-SYS64（EC-0x18）的-ISS-细分：esr-sysreg" class="headerlink" title="4.1.1 SYS64（EC&#x3D;0x18）的 ISS 细分：esr_sysreg"></a>4.1.1 SYS64（EC&#x3D;0x18）的 ISS 细分：<code>esr_sysreg</code></h4><p>EC&#x3D;0x18 时，ISS 的 25 位不再是”综合信息”，而是<strong>系统寄存器访问的完整编码</strong>。minos 用一个位域结构体直接解码：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">esr_sysreg</span> &#123;</span>          <span class="comment">// trap.h:104</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> read:<span class="number">1</span>;  <span class="comment">/* bit0   Direction */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> crm:<span class="number">4</span>;   <span class="comment">/* bit1-4 CRm */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> reg:<span class="number">5</span>;   <span class="comment">/* bit5-9 Rt */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> crn:<span class="number">4</span>;   <span class="comment">/* bit10-13 CRn */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> op1:<span class="number">3</span>;   <span class="comment">/* bit14-16 Op1 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> op2:<span class="number">3</span>;   <span class="comment">/* bit17-19 Op2 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> op0:<span class="number">2</span>;   <span class="comment">/* bit20-21 Op0 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> res0:<span class="number">3</span>;  <span class="comment">/* bit22-24 RES0 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> len:<span class="number">1</span>;   <span class="comment">/* bit25   IL */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> ec:<span class="number">6</span>;    <span class="comment">/* bit26-31 EC */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>**核心：<code>(op0, op1, CRn, CRm, op2)</code> 五元组唯一确定”访问了哪个系统寄存器”**，这就是 ARMv8 的系统寄存器地址编码：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">系统寄存器编码 = op0:op1:CRn:CRm:op2</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>位宽</th>
+<th>位</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>read</code></td>
+<td>1</td>
+<td>0</td>
+<td>方向：0&#x3D;写系统寄存器（MSR），1&#x3D;读系统寄存器（MRS）</td>
+</tr>
+<tr>
+<td><code>crm</code></td>
+<td>4</td>
+<td>1-4</td>
+<td>CRm：与 CRn 组合，细分寄存器功能（如定时器组 CRm&#x3D;2 是物理、CRm&#x3D;3 是虚拟）</td>
+</tr>
+<tr>
+<td><code>reg</code></td>
+<td>5</td>
+<td>5-9</td>
+<td>Rt：MSR 的源寄存器 &#x2F; MRS 的目标寄存器（x0-x31）</td>
+</tr>
+<tr>
+<td><code>crn</code></td>
+<td>4</td>
+<td>10-13</td>
+<td>CRn：寄存器功能大类（如 14&#x3D;定时器、12&#x3D;GIC、1&#x3D;控制寄存器）</td>
+</tr>
+<tr>
+<td><code>op1</code></td>
+<td>3</td>
+<td>14-16</td>
+<td>Op1：所属异常级别（0&#x3D;EL1、3&#x3D;EL0、4&#x3D;EL2、6&#x3D;EL3）</td>
+</tr>
+<tr>
+<td><code>op2</code></td>
+<td>3</td>
+<td>17-19</td>
+<td>Op2：最细粒度区分（定时器组 op2&#x3D;1 是 CTL、op2&#x3D;2 是 CVAL）</td>
+</tr>
+<tr>
+<td><code>op0</code></td>
+<td>2</td>
+<td>20-21</td>
+<td>Op0：命名空间索引，标准系统寄存器恒为 3</td>
+</tr>
+<tr>
+<td><code>res0</code></td>
+<td>3</td>
+<td>22-24</td>
+<td>保留，恒为 0</td>
+</tr>
+<tr>
+<td><code>len</code></td>
+<td>1</td>
+<td>25</td>
+<td>IL：指令长度，0&#x3D;32 位指令，1&#x3D;64 位指令</td>
+</tr>
+<tr>
+<td><code>ec</code></td>
+<td>6</td>
+<td>26-31</td>
+<td>EC：固定为 0x18（SYS64）</td>
+</tr>
+</tbody></table>
+<p>五元组 <code>(op0, op1, CRn, CRm, op2)</code> 即系统寄存器地址编码，如 <code>CNTP_CTL_EL0</code> &#x3D; op0:3, op1:3（EL0）, CRn:14（定时器）, CRm:2（物理）, op2:1（CTL）。</p>
+<p><strong>举例</strong>（<code>access_system_reg_handler</code> 里 switch 的常见寄存器编码）：</p>
+<table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>op0</th>
+<th>op1</th>
+<th>CRn</th>
+<th>CRm</th>
+<th>op2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CNTPCT_EL0</code></td>
+<td>3</td>
+<td>3</td>
+<td>14</td>
+<td>0</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>CNTP_CTL_EL0</code></td>
+<td>3</td>
+<td>3</td>
+<td>14</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td><code>CNTP_CVAL_EL0</code></td>
+<td>3</td>
+<td>3</td>
+<td>14</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>ICC_SGI1R_EL1</code></td>
+<td>3</td>
+<td>0</td>
+<td>12</td>
+<td>11</td>
+<td>5</td>
+</tr>
+</tbody></table>
+<p><strong>minos 中的用法</strong>（trap.c:143-190）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">esr_sysreg</span> *<span class="title">sysreg</span> =</span> (<span class="keyword">struct</span> esr_sysreg *)&amp;esr_value;   <span class="comment">// 直接用位域解码</span></span><br><span class="line">reg_name = esr_value &amp; ESR_SYSREG_REGS_MASK;                   <span class="comment">// 取低 24 位做 switch key</span></span><br><span class="line">reg_value = sysreg-&gt;read ? <span class="number">0</span> : get_reg_value(reg, regindex);  <span class="comment">// MSR 则从 Rt 取写入值</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">switch</span> (reg_name) &#123;  <span class="comment">/* CNTP_CTL_EL0 / ICC_SGI1R_EL1 / ... */</span>  &#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (sysreg-&gt;read) set_reg_value(reg, regindex, reg_value);    <span class="comment">// MRS 则把模拟结果写回 Rt</span></span><br></pre></td></tr></table></figure>
+
+<p>即：<strong>读系统寄存器（MRS）时，hypervisor 模拟出值再写回 Rt；写系统寄存器（MSR）时，从 Rt 取出要写的值交给对应的模拟函数</strong>——方向由 <code>read</code> 位区分，目标寄存器由 <code>reg</code>（Rt）指出。</p>
+<h3 id="4-2-分发表：guest-sync-descs"><a href="#4-2-分发表：guest-sync-descs" class="headerlink" title="4.2 分发表：guest_sync_descs[]"></a>4.2 分发表：guest_sync_descs[]</h3><p>**这是虚拟化的”分诊台”**——按 EC 索引，选对应 handler：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">sync_desc</span> *<span class="title">guest_sync_descs</span>[] =</span> &#123;</span><br><span class="line">	[<span class="number">0</span> ... ESR_ELx_EC_MAX] = &amp;sync_desc_guest_ESR_ELx_EC_UNKNOWN,  <span class="comment">// 默认</span></span><br><span class="line">	[ESR_ELx_EC_WFx]    = &amp;sync_desc_guest_ESR_ELx_EC_WFx,     <span class="comment">// WFI/WFE</span></span><br><span class="line">	[ESR_ELx_EC_SYS64]  = &amp;sync_desc_guest_ESR_ELx_EC_SYS64,   <span class="comment">// 系统寄存器</span></span><br><span class="line">	[ESR_ELx_EC_DABT_LOW] = &amp;sync_desc_guest_ESR_ELx_EC_DABT_LOW, <span class="comment">// 数据异常</span></span><br><span class="line">	[ESR_ELx_EC_HVC64]  = &amp;sync_desc_guest_ESR_ELx_EC_HVC64,   <span class="comment">// hypercall</span></span><br><span class="line">	[ESR_ELx_EC_SMC64]  = &amp;sync_desc_guest_ESR_ELx_EC_SMC64,   <span class="comment">// SMC</span></span><br><span class="line">	...</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>每个描述符由宏 <code>DEFINE_SYNC_DESC</code> 生成（trap.c:344-365），含 handler 函数指针和 <code>ret_addr_adjust</code>（返回地址调整量）。</p>
+<h3 id="4-3-分发函数：handle-vcpu-sync-exception"><a href="#4-3-分发函数：handle-vcpu-sync-exception" class="headerlink" title="4.3 分发函数：handle_vcpu_sync_exception"></a>4.3 分发函数：handle_vcpu_sync_exception</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">handle_vcpu_sync_exception</span><span class="params">(gp_regs *regs)</span></span><br><span class="line">&#123;</span><br><span class="line">	esr_value = read_esr_el2();                    <span class="comment">// ① 读 ESR_EL2</span></span><br><span class="line">	ec_type = (esr_value &amp; ESR_ELx_EC_MASK) &gt;&gt; <span class="number">26</span>; <span class="comment">// ② 取 EC</span></span><br><span class="line">	ec = guest_sync_descs[ec_type];                <span class="comment">// ③ 查表拿 handler</span></span><br><span class="line">	regs-&gt;pc += ec-&gt;ret_addr_adjust;               <span class="comment">// ④ 调整返回地址</span></span><br><span class="line">	ec-&gt;handler(regs, ec_type, esr_value);         <span class="comment">// ⑤ 调用 handler</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>④ 为什么 <code>regs-&gt;pc += ret_addr_adjust</code>？</strong> 不同异常下，ELR_EL2 保存的返回地址语义不同，需要按需调整避免死循环&#x2F;重复执行：</p>
+<table>
+<thead>
+<tr>
+<th>EC</th>
+<th><code>ret_addr_adjust</code></th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>HVC &#x2F; SVC &#x2F; SMC</td>
+<td><strong>0</strong></td>
+<td>ARM 硬件规定：HVC&#x2F;SVC&#x2F;SMC 异常时 <strong>ELR 已指向下一条指令</strong>，返回后自然从下一条继续，无需调整</td>
+</tr>
+<tr>
+<td>WFI &#x2F; WFE</td>
+<td><strong>4</strong></td>
+<td>硬件把 ELR 设为 <strong>WFI 指令本身</strong>，若不跳过，<code>eret</code> 后会再次执行 WFI → 死循环</td>
+</tr>
+<tr>
+<td>DABT（数据异常）</td>
+<td><strong>4</strong></td>
+<td>MMIO 模拟完成后，跳过这条导致异常的内存访问指令（不重放）</td>
+</tr>
+</tbody></table>
+<p>对照源码（trap.c:344-365）：<code>DEFINE_SYNC_DESC(..., wfi_wfe_handler, 1, 4)</code> 最后一个参数就是 <code>ret_addr_adjust</code>；<br>HVC64 是 <code>..., aarch64_hypercall_handler, 1, 0)</code>。</p>
+<h3 id="4-4-22-个-handler-的完整映射"><a href="#4-4-22-个-handler-的完整映射" class="headerlink" title="4.4 22 个 handler 的完整映射"></a>4.4 22 个 handler 的完整映射</h3><table>
+<thead>
+<tr>
+<th>EC</th>
+<th>值</th>
+<th>handler</th>
+<th>触发场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>WFx</td>
+<td>0x01</td>
+<td><code>wfi_wfe_handler</code></td>
+<td>guest 执行 WFI&#x2F;WFE</td>
+</tr>
+<tr>
+<td>CP15_32</td>
+<td>0x03</td>
+<td><code>mcr_mrc_cp15_handler</code></td>
+<td>AArch32 协处理器访问</td>
+</tr>
+<tr>
+<td>SYS64</td>
+<td>0x18</td>
+<td><code>access_system_reg_handler</code></td>
+<td><strong>系统寄存器访问</strong>（关键）</td>
+</tr>
+<tr>
+<td>DABT_LOW</td>
+<td>0x24</td>
+<td><code>dataabort_tfl_handler</code></td>
+<td><strong>内存访问故障</strong>（MMIO 入口，关键）</td>
+</tr>
+<tr>
+<td>IABT_LOW</td>
+<td>0x20</td>
+<td><code>insabort_tfl_handler</code></td>
+<td>指令取指故障</td>
+</tr>
+<tr>
+<td>HVC64</td>
+<td>0x16</td>
+<td><code>aarch64_hypercall_handler</code></td>
+<td><strong>hypercall</strong></td>
+</tr>
+<tr>
+<td>SMC64</td>
+<td>0x17</td>
+<td><code>aarch64_smccall_handler</code></td>
+<td>SMC 调用</td>
+</tr>
+<tr>
+<td>SERROR</td>
+<td>0x2F</td>
+<td><code>serror_handler</code></td>
+<td>SError 异步错误</td>
+</tr>
+<tr>
+<td>…</td>
+<td>…</td>
+<td>…</td>
+<td>（其余为 bad_mode&#x2F;panic 类）</td>
+</tr>
+</tbody></table>
+<h3 id="4-5-关键知识点"><a href="#4-5-关键知识点" class="headerlink" title="4.5 关键知识点"></a>4.5 关键知识点</h3><ol>
+<li><strong>ESR_EL2 的 EC 字段是分发的钥匙</strong>，一个 6 位查表搞定 22 类异常。</li>
+<li><strong><code>regs-&gt;pc += ret_addr_adjust</code> 防止重复执行</strong>——这是每个 hypervisor 都要处理的坑。</li>
+<li>本节的”主角”是 <strong>SYS64（系统寄存器模拟）</strong> 和 <strong>DABT_LOW（MMIO 模拟）</strong>，下面两节展开。</li>
+</ol>
+<hr>
+<h2 id="5-重点-handler-1：access-system-reg-handler"><a href="#5-重点-handler-1：access-system-reg-handler" class="headerlink" title="5. 重点 handler 1：access_system_reg_handler"></a>5. 重点 handler 1：access_system_reg_handler</h2><blockquote>
+<p>源码位置：<code>trap.c:143-191</code></p>
+</blockquote>
+<h3 id="5-1-场景"><a href="#5-1-场景" class="headerlink" title="5.1 场景"></a>5.1 场景</h3><p>guest 访问一个被 HCR_EL2 或 CPTR_EL2 设置成”trap”的系统寄存器（比如 CNTP_*、ICC_SGI1R），会以 EC&#x3D;SYS64 陷入。此时 ESR 的 <strong>ISS 字段</strong>编码了是哪个寄存器、读还是写：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">esr_sysreg</span> *<span class="title">sysreg</span> =</span> (<span class="keyword">struct</span> esr_sysreg *)&amp;esr_value;</span><br><span class="line">reg_name = esr_value &amp; ESR_SYSREG_REGS_MASK;  <span class="comment">// 编码了 Op0/Op1/CRn/CRm/Op2</span></span><br><span class="line">reg_value = sysreg-&gt;read ? <span class="number">0</span> : get_reg_value(reg, regindex);  <span class="comment">// 写操作取目标寄存器值</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-处理流程"><a href="#5-2-处理流程" class="headerlink" title="5.2 处理流程"></a>5.2 处理流程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">switch</span> (reg_name) &#123;</span><br><span class="line"><span class="keyword">case</span> ESR_SYSREG_ICC_SGI1R_EL1:   <span class="comment">// guest 发核间中断 → 交给 vGIC</span></span><br><span class="line">	arm_data-&gt;sgi1r_el1_trap(vcpu, reg_value);   <span class="comment">// vgicv3_send_sgi</span></span><br><span class="line">	<span class="keyword">break</span>;</span><br><span class="line"><span class="keyword">case</span> ESR_SYSREG_CNTP_CTL_EL0:    <span class="comment">// guest 访问物理定时器 → 软件模拟</span></span><br><span class="line">	arm_data-&gt;phy_timer_trap(vcpu, reg_name, read, &amp;reg_value);</span><br><span class="line">	<span class="keyword">break</span>;</span><br><span class="line"><span class="keyword">default</span>:</span><br><span class="line">	<span class="keyword">if</span> (arm_data-&gt;sysreg_emulation)    <span class="comment">// 兜底：交给各 VM 自定义模拟</span></span><br><span class="line">		ret = arm_data-&gt;sysreg_emulation(vcpu, reg_name, read, &amp;reg_value);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">if</span> (sysreg-&gt;read)                       <span class="comment">// 读操作要把结果写回 guest 寄存器</span></span><br><span class="line">	set_reg_value(reg, regindex, reg_value);</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-关键知识点"><a href="#5-3-关键知识点" class="headerlink" title="5.3 关键知识点"></a>5.3 关键知识点</h3><ol>
+<li><strong>SYS64 trap 的本质</strong>：guest 想”碰”一个敏感寄存器 → hypervisor 用软件模拟它（这就是你 Phase 1 学的”CNTP 被 trap 软件模拟”的代码实现）。</li>
+<li><strong>ISS 字段解码</strong>：从 esr 里解析出”哪个寄存器、读&#x2F;写”，再分发给对应模拟器。</li>
+<li><strong>后续延伸</strong>：<code>phy_timer_trap</code>（vtimer.c:63）的具体模拟逻辑 → Phase 6 定时器虚拟化；<code>sgi1r_el1_trap</code> → Phase 5 vGIC。本节只讲 trap 与分发。</li>
+</ol>
+<hr>
+<h2 id="6-重点-handler-2：dataabort-tfl-handler"><a href="#6-重点-handler-2：dataabort-tfl-handler" class="headerlink" title="6. 重点 handler 2：dataabort_tfl_handler"></a>6. 重点 handler 2：dataabort_tfl_handler</h2><blockquote>
+<p>源码位置：<code>trap.c:241-294</code></p>
+</blockquote>
+<h3 id="6-1-场景"><a href="#6-1-场景" class="headerlink" title="6.1 场景"></a>6.1 场景</h3><p>guest 访问一段<strong>没有 Stage2 映射</strong>的内存（如 MMIO 设备地址）→ 数据异常陷入。这是<strong>设备虚拟化的总入口</strong>（你 Phase 1 学过 vGIC 的 GICD&#x2F;GICR 模拟、Phase 5 会学 vdev，都从这里进）。</p>
+<h3 id="6-2-处理流程"><a href="#6-2-处理流程" class="headerlink" title="6.2 处理流程"></a>6.2 处理流程</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">dataabort_tfl_handler</span><span class="params">(gp_regs *regs, <span class="type">int</span> ec, <span class="type">uint32_t</span> esr_value)</span></span><br><span class="line">&#123;</span><br><span class="line">	dfsc = esr_value &amp; ESR_ELx_FSC_TYPE;    <span class="comment">// ① fault 状态码</span></span><br><span class="line">	<span class="keyword">if</span> ((dfsc != FSC_FAULT) &amp;&amp; (dfsc != FSC_PERM))  <span class="comment">// 只要 FAULT/PERM</span></span><br><span class="line">		<span class="keyword">goto</span> out_fail;</span><br><span class="line"></span><br><span class="line">	iswrite = dabt_iswrite(esr_value);      <span class="comment">// ② 从 ISS 判断读写</span></span><br><span class="line">	reg = ESR_ELx_SRT(esr_value);           <span class="comment">// ③ 从 ISS 拿目标寄存器号</span></span><br><span class="line">	value = iswrite ? get_reg_value(regs, reg) : <span class="number">0</span>;</span><br><span class="line">	vaddr = read_sysreg(FAR_EL2);           <span class="comment">// ④ 故障虚拟地址</span></span><br><span class="line">	ipa = guest_va_to_ipa(vaddr, <span class="number">1</span>);        <span class="comment">// ⑤ VA → IPA（guest 地址）</span></span><br><span class="line"></span><br><span class="line">	ret = vdev_mmio_emulation(regs, iswrite, ipa, &amp;value);  <span class="comment">// ⑥ ★ 交给设备模拟</span></span><br><span class="line">	<span class="keyword">if</span> (!iswrite)</span><br><span class="line">		set_reg_value(regs, reg, value);    <span class="comment">// ⑦ 读结果写回 guest 寄存器</span></span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>⑤ 地址翻译</strong>：FAR_EL2 给的是 guest 的虚拟地址（VA），但要找设备得转成 IPA。两个途径：</p>
+<ul>
+<li><code>guest_va_to_ipa</code>：走 guest 自己的 Stage1 页表翻译（<code>trap.c:270</code>）</li>
+<li><code>get_faulting_ipa</code>：直接用 HPFAR_EL2（硬件在 trap 时已经算好的 IPA，<code>trap.c:224</code>）</li>
+</ul>
+<p><strong>⑥ 核心</strong>：<code>vdev_mmio_emulation</code>（vdev.c:198）遍历该 VM 的 vdev 列表，按地址匹配设备，调用设备的 read&#x2F;write 回调。这就是你 Phase 1 学的”vGIC 的 GICD_ISENABLER 写入”进入的路径。</p>
+<p><strong>⑧ 失败兜底（out_fail）</strong>：设备模拟不是总能成功。几个失败场景会走到 <code>out_fail</code>（trap.c:247-261, 273-293）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">out_fail:</span><br><span class="line">	vcpu_fault(current_vcpu, regs);   <span class="comment">// 向 guest 注入一个同步错误（类似信号）</span></span><br><span class="line">	<span class="keyword">return</span> -EFAULT;                   <span class="comment">// 表示&quot;这个 vCPU 别返回 guest 了&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>触发 <code>out_fail</code> 的情况：</p>
+<ul>
+<li><strong>external abort</strong>（<code>dabt_isextabt</code>，trap.c:247）——外部总线错误，无法恢复</li>
+<li><strong>不支持的 FSC</strong>（trap.c:252）——不是 FAULT&#x2F;PERM 的异常</li>
+<li><strong>ISS 无有效症状</strong>（<code>!ESR_ELx_ISV</code>，trap.c:258）——硬件没记录读写信息，无法模拟</li>
+<li><strong><code>vdev_mmio_emulation</code> 返回 -EACCES</strong>（trap.c:273）——设备拒绝访问</li>
+</ul>
+<p><code>vcpu_fault</code> 会把异常<strong>转成 guest 的同步异常</strong>注入回去（类似给 guest 一个”segfault”），让 guest 自己的异常处理去处理——而不是 hypervisor 直接崩溃。</p>
+<h3 id="6-3-关键知识点"><a href="#6-3-关键知识点" class="headerlink" title="6.3 关键知识点"></a>6.3 关键知识点</h3><ol>
+<li>**MMIO 模拟 &#x3D; “地址匹配 + 设备回调”**：guest 访问无映射地址 → 找到对应虚拟设备 → 模拟读写。</li>
+<li><strong>ISS 字段解码读写方向 + 目标寄存器</strong>：靠 <code>WNR</code>（写）和 <code>SRT</code>（寄存器号）。</li>
+<li><strong>地址翻译链</strong>：FAR（VA）→ IPA（guest_va_to_ipa 或 HPFAR）→ 匹配 vdev。</li>
+</ol>
+<hr>
+<h2 id="7-IRQ-路径"><a href="#7-IRQ-路径" class="headerlink" title="7. IRQ 路径"></a>7. IRQ 路径</h2><blockquote>
+<p>源码位置：<code>arch/aarch64/core/aarch64_IRQ.c</code>、<code>core/irq.c</code>、<code>vector.S</code></p>
+</blockquote>
+<h3 id="7-1-中断汇编入口：-irq-exception-from-lower-el"><a href="#7-1-中断汇编入口：-irq-exception-from-lower-el" class="headerlink" title="7.1 中断汇编入口：__irq_exception_from_lower_el"></a>7.1 中断汇编入口：<code>__irq_exception_from_lower_el</code></h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">vfunc __irq_exception_from_lower_el</span><br><span class="line">	SAVE_GP_REGS                          // ① 现场压栈 → gp_regs</span><br><span class="line">	PCPU_LOAD_CURRENT_TASK                // ② x18 = 当前任务</span><br><span class="line">	ldr	x1, [x18, #TASK_INFO_FLAGS_OFFSET]</span><br><span class="line">	orr	x1, x1, #__TIF_HARDIRQ_MASK     // ③★ 置&quot;硬中断&quot;标记</span><br><span class="line">	str	x1, [x18, #TASK_INFO_FLAGS_OFFSET]</span><br><span class="line">	dsb	sy</span><br><span class="line">	mov	x0, sp</span><br><span class="line">	str	x0, [x18, #TASK_STACK_OFFSET]   // ④ 存栈（可能被调度切走）</span><br><span class="line">	bl	task_exit_from_user             // ⑤ 退出钩子（同 3.1）</span><br><span class="line">	mov	x0, sp</span><br><span class="line">	bl	irq_from_lower_el               // ⑥ C 中断分发</span><br><span class="line">	ldr	x1, [x18, #TASK_INFO_FLAGS_OFFSET]</span><br><span class="line">	and	x1, x1, #(~__TIF_HARDIRQ_MASK)  // ⑦★ 清&quot;硬中断&quot;标记</span><br><span class="line">	str	x1, [x18, #TASK_INFO_FLAGS_OFFSET]</span><br><span class="line">	dsb	sy</span><br><span class="line">	b	exception_return                // ⑧ 走异常返回（检查重调度）</span><br><span class="line">vfunc_end __irq_exception_from_lower_el</span><br></pre></td></tr></table></figure>
+
+<p><strong>每步作用</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>步</th>
+<th>动作</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>①</td>
+<td><code>SAVE_GP_REGS</code></td>
+<td>压现场（与同步异常相同）</td>
+</tr>
+<tr>
+<td>②</td>
+<td><code>PCPU_LOAD_CURRENT_TASK</code></td>
+<td>x18 &#x3D; 当前任务</td>
+</tr>
+<tr>
+<td>③</td>
+<td>置 <code>__TIF_HARDIRQ_MASK</code></td>
+<td><strong>★ 中断独有</strong>：给当前任务打”正在处理硬中断”标记（task_info.h:22），供调度器&#x2F;软中断判断当前上下文</td>
+</tr>
+<tr>
+<td>④</td>
+<td><code>str sp, [x18, TASK_STACK_OFFSET]</code></td>
+<td>存栈——中断可能触发调度，任务被切走前保存栈</td>
+</tr>
+<tr>
+<td>⑤</td>
+<td><code>task_exit_from_user</code></td>
+<td>退出钩子（与 3.1 相同，vCPU 场景切 <code>vcpu-&gt;mode</code>）</td>
+</tr>
+<tr>
+<td>⑥</td>
+<td><code>irq_from_lower_el</code></td>
+<td>C 中断分发（见 7.2）</td>
+</tr>
+<tr>
+<td>⑦</td>
+<td>清 <code>__TIF_HARDIRQ_MASK</code></td>
+<td>中断处理完，解除硬中断标记</td>
+</tr>
+<tr>
+<td>⑧</td>
+<td><code>exception_return</code></td>
+<td>走异常返回，检查是否需要重调度</td>
+</tr>
+</tbody></table>
+<p><strong>与同步异常入口（3.1）的差异</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th><code>__sync_exception_from_lower_el</code>（3.1）</th>
+<th><code>__irq_exception_from_lower_el</code>（7.1）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>向量表入口</td>
+<td><code>l64sync</code> &#x2F; <code>l32sync</code></td>
+<td><code>l64irq</code></td>
+</tr>
+<tr>
+<td>硬中断标记</td>
+<td><strong>无</strong></td>
+<td><strong>有</strong>（<code>__TIF_HARDIRQ_MASK</code> 置&#x2F;清）</td>
+</tr>
+<tr>
+<td>C 调用</td>
+<td><code>sync_exception_from_lower_el</code></td>
+<td><code>irq_from_lower_el</code></td>
+</tr>
+<tr>
+<td>返回</td>
+<td><code>LOAD_GP_REGS + eret</code></td>
+<td><code>exception_return</code>（会检查重调度）</td>
+</tr>
+</tbody></table>
+<p><strong><code>__TIF_HARDIRQ_MASK</code> 的作用</strong>：置位表示”当前正在处理硬中断”。这样调度器、软中断处理等能区分”我在硬中断上下文”还是”正常上下文”（task_info.h:28 <code>__TIF_IN_INTERRUPT</code> 组合了硬&#x2F;软中断标记）。</p>
+<blockquote>
+<p><strong>和虚拟化的衔接</strong>：中断的完整虚拟化（物理中断 → GIC → 注入 guest 的 LR）属于 <strong>Phase 5 vGIC</strong>，<br>本节只交代”中断从哪里进入 EL2”这条入口路径，与同步异常入口并列。</p>
+</blockquote>
+<h3 id="7-2-中断进入"><a href="#7-2-中断进入" class="headerlink" title="7.2 中断进入"></a>7.2 中断进入</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// aarch64_IRQ.c</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">irq_from_lower_el</span><span class="params">(gp_regs *regs)</span> &#123; irq_handler(regs); &#125;</span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">void</span> <span class="title function_">irq_handler</span><span class="params">(gp_regs *regs)</span> &#123; do_irq_handler(); &#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-中断分发"><a href="#7-3-中断分发" class="headerlink" title="7.3 中断分发"></a>7.3 中断分发</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">do_irq_handler</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">		irq = irq_chip-&gt;get_pending_irq();   <span class="comment">// ① 读 ICC_IAR1 拿中断号</span></span><br><span class="line">		<span class="keyword">if</span> (irq &gt;= BAD_IRQ) <span class="keyword">return</span> <span class="number">0</span>;        <span class="comment">// 没有待处理中断了</span></span><br><span class="line">		irq_desc = get_irq_desc_cpu(cpuid, irq);  <span class="comment">// ② 查中断描述符</span></span><br><span class="line">		do_handle_host_irq(cpuid, irq_desc);      <span class="comment">// ③ 执行 handler</span></span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>和虚拟化的衔接</strong>：如果这个物理中断对应 guest 的虚拟中断（virq），会走到 <code>guest_irq_handler</code>（virq.c:120）→ <code>send_virq</code> → 标 pending → <code>kick_vcpu</code>（你 Phase 1 已学过这条注入路径）。</p>
+<h3 id="7-4-关键知识点"><a href="#7-4-关键知识点" class="headerlink" title="7.4 关键知识点"></a>7.4 关键知识点</h3><ol>
+<li><strong>IRQ 和同步异常走不同的 handler</strong>：同步异常查 <code>guest_sync_descs[]</code>，中断走 <code>do_irq_handler</code>。</li>
+<li><strong>中断也可能是虚拟化的输入</strong>：物理中断到来 → 可能是要注入给 guest 的（send_virq）。</li>
+<li>**中断入口独有的 <code>__TIF_HARDIRQ_MASK</code>**：标记硬中断上下文，供调度&#x2F;软中断判断。</li>
+</ol>
+<hr>
+<h2 id="8-本节小结"><a href="#8-本节小结" class="headerlink" title="8. 本节小结"></a>8. 本节小结</h2><p><strong>本节完成了什么</strong>：吃透了”guest 异常 → EL2 → 分发 → 返回”的完整闭环。核心链路：</p>
+<table>
+<thead>
+<tr>
+<th>步骤</th>
+<th>位置</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1. 向量表入口</td>
+<td>entry.S → vector.S</td>
+<td>按异常类型跳转，SAVE_GP_REGS 压栈</td>
+</tr>
+<tr>
+<td>2. 身份判断</td>
+<td>aarch64_sync.c:156</td>
+<td>区分 vCPU &#x2F; 普通任务</td>
+</tr>
+<tr>
+<td>3. ESR 解码</td>
+<td>trap.c:392</td>
+<td>读 ESR_EL2 → 取 EC</td>
+</tr>
+<tr>
+<td>4. 查表分发</td>
+<td>trap.c:367</td>
+<td>EC → handler</td>
+</tr>
+<tr>
+<td>5. 执行处理</td>
+<td>各 handler</td>
+<td>模拟寄存器 &#x2F; MMIO &#x2F; hypercall &#x2F; WFI</td>
+</tr>
+<tr>
+<td>6. 返回 guest</td>
+<td>vector.S LOAD_GP_REGS + eret</td>
+<td>恢复现场回 EL1</td>
+</tr>
+</tbody></table>
+<p><strong>核心知识点（要记住的 4 件事）</strong>：</p>
+<ol>
+<li><strong>一切虚拟化都是 trap 出来的</strong>——这条路径是 hypervisor 生命线。</li>
+<li><strong>ESR_EL2 的 EC 字段 &#x3D; 分发钥匙</strong>，6 位查表分 22 类。</li>
+<li><strong><code>regs-&gt;pc += ret_addr_adjust</code> 按 EC 调整</strong>（WFI&#x2F;DABT 跳过指令，HVC 因硬件已指向下一条无需调整）。</li>
+<li><strong>两个最重要的 handler</strong>：SYS64（系统寄存器模拟）、DABT_LOW（MMIO 模拟入口）。</li>
+</ol>
+<p><strong>下一步是什么</strong>：Phase 4 内存虚拟化——理解 Stage2 页表怎么建、<code>guest_va_to_ipa</code> 背后怎么工作，以及 <code>vdev_mmio_emulation</code> 依赖的 VM 内存布局。</p>
+<hr>
+<h2 id="9-术语速查"><a href="#9-术语速查" class="headerlink" title="9. 术语速查"></a>9. 术语速查</h2><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>trap</td>
+<td>因 guest 访问敏感资源而陷入 EL2</td>
+</tr>
+<tr>
+<td>EC（Exception Class）</td>
+<td>ESR_EL2 的 [31:26] 位，异常类别，分发钥匙</td>
+</tr>
+<tr>
+<td>ISS</td>
+<td>ESR_EL2 的 [24:0] 位，异常综合信息，内容依赖 EC</td>
+</tr>
+<tr>
+<td>gp_regs</td>
+<td>异常入口压栈形成的现场结构（对应 <code>struct aarch64_regs</code>）</td>
+</tr>
+<tr>
+<td>ret_addr_adjust</td>
+<td>返回地址调整量，跳过已执行的指令避免死循环</td>
+</tr>
+<tr>
+<td>FAR_EL2 &#x2F; HPFAR_EL2</td>
+<td>故障虚拟地址 &#x2F; 故障 IPA（硬件 trap 时自动写入）</td>
+</tr>
+<tr>
+<td>SRT</td>
+<td>ISS 里的目标寄存器号字段</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="10-本文寄存器速查"><a href="#10-本文寄存器速查" class="headerlink" title="10. 本文寄存器速查"></a>10. 本文寄存器速查</h2><blockquote>
+<p>分类：<strong>① 控制寄存器</strong>（hypervisor 配置”拦什么”）、<strong>② 异常记录寄存器</strong>（硬件 trap 时自动写入）、<strong>③ 现场保存寄存器</strong>（异常入口压栈用）、<strong>④ guest 被模拟的寄存器</strong>（access_system_reg_handler 场景）。</p>
+</blockquote>
+<h3 id="10-1-控制寄存器：配置”拦什么”"><a href="#10-1-控制寄存器：配置”拦什么”" class="headerlink" title="10.1 控制寄存器：配置”拦什么”"></a>10.1 控制寄存器：配置”拦什么”</h3><p><strong>HCR_EL2</strong>（Hypervisor Configuration Register，虚拟化配置寄存器）—— 虚拟化总开关，陷阱位全在这（arch_virt.c:187-227 配置，每 vCPU 一份）：</p>
+<table>
+<thead>
+<tr>
+<th>位</th>
+<th>名字</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>VM</td>
+<td>使能 stage2 地址翻译（虚拟化的前提）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>PTW</td>
+<td>页表遍历（stage1）失败时 trap。注意：minos <strong>不补页表内存</strong>，walk fault 走 MMIO 统一路径（S1PTW 强制当”写”，trap.c:238），匹配不到设备就直接关 VM（trap.c:288 → vfault.c:49）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>FMO</td>
+<td>使能 FIQ 虚拟化（trap FIQ 到 EL2）</td>
+</tr>
+<tr>
+<td>4</td>
+<td>IMO</td>
+<td>使能 IRQ 虚拟化（trap IRQ 到 EL2）</td>
+</tr>
+<tr>
+<td>5</td>
+<td>AMO</td>
+<td>使能 SError 虚拟化</td>
+</tr>
+<tr>
+<td>9</td>
+<td>FB</td>
+<td>强制广播 TLB 维护指令（TLBI 等）到所有核，保证映射变更全局生效（arch_virt.c:179）</td>
+</tr>
+<tr>
+<td>10-11</td>
+<td>BSU</td>
+<td>屏障广播级别（IS &#x3D; 内共享）</td>
+</tr>
+<tr>
+<td>13</td>
+<td>TWI</td>
+<td>trap WFI 指令（guest 空闲时陷入，可让出 CPU）</td>
+</tr>
+<tr>
+<td>19</td>
+<td>TSC</td>
+<td>trap SMC 指令（guest 的 PSCI 调用全被拦下）</td>
+</tr>
+<tr>
+<td>20</td>
+<td>TIDCP</td>
+<td>trap 访问 IMPLEMENTATION DEFINED 协处理器</td>
+</tr>
+<tr>
+<td>21</td>
+<td>TACR</td>
+<td>trap 访问 ACTLR_EL1 等辅助控制寄存器</td>
+</tr>
+<tr>
+<td>27</td>
+<td>TGE</td>
+<td>trap 来自 guest 的所有通用异常（”测试模式”）</td>
+</tr>
+<tr>
+<td>28</td>
+<td>TDZ</td>
+<td>trap DC ZVA（清零 VA，XNU 需要）</td>
+</tr>
+</tbody></table>
+<p><strong>CPTR_EL2</strong>（Architectural Feature Trap Register，架构特性陷阱寄存器）—— 协处理器访问控制：控制浮点&#x2F;高级 SIMD 等是否 trap 到 EL2（access_system_reg_handler 的 trap 来源之一，5.1 提及）。</p>
+<p><strong>CNTHCTL_EL2</strong>（Counter-timer Hypervisor Control Register，定时器虚拟化控制寄存器）—— 定时器访问控制：控制 EL1 读写定时器&#x2F;计数寄存器是否 trap（arm_arch_timer.c:171 只放行 CNTPCT 读）。它是 CNTP_* 被 trap 的根源（见 11.4）。</p>
+<h3 id="10-2-异常记录寄存器：硬件-trap-时自动写入"><a href="#10-2-异常记录寄存器：硬件-trap-时自动写入" class="headerlink" title="10.2 异常记录寄存器：硬件 trap 时自动写入"></a>10.2 异常记录寄存器：硬件 trap 时自动写入</h3><p><strong>ESR_EL2</strong>（Exception Syndrome Register，异常综合寄存器）—— <strong>分发的钥匙</strong>。位布局（trap.h:25-29 &#x2F; aarch64_common.h）：</p>
+<table>
+<thead>
+<tr>
+<th>位段</th>
+<th>宽度</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EC [31:26]</td>
+<td>6</td>
+<td>Exception Class，异常类别 → 查 <code>guest_sync_descs[]</code></td>
+</tr>
+<tr>
+<td>IL [25]</td>
+<td>1</td>
+<td>指令长度：0&#x3D;32 位指令，1&#x3D;64 位指令</td>
+</tr>
+<tr>
+<td>ISS [24:0]</td>
+<td>25</td>
+<td>异常综合信息，内容依赖 EC（见下）</td>
+</tr>
+</tbody></table>
+<p>ISS 依赖 EC 的两个关键细分（本章主角）：</p>
+<ul>
+<li><strong>SYS64（EC&#x3D;0x18）</strong>：<code>esr_sysreg</code>（trap.h:104）——<code>read</code>[0]、<code>crm</code>[1-4]、<code>reg</code>&#x2F;Rt[5-9]、<code>crn</code>[10-13]、<code>op1</code>[14-16]、<code>op2</code>[17-19]、<code>op0</code>[20-21]。见 4.1.1。</li>
+<li><strong>DABT（EC&#x3D;0x24）</strong>：<code>WNR</code>[6]（0&#x3D;读 1&#x3D;写）、<code>SRT</code>[16-20]（目标寄存器号）、<code>ISV</code>[24]（ISS 是否有效）、<code>FSC</code>[5:0]（fault 状态码，4&#x3D;Translation fault，0xC&#x3D;Permission fault，0x10&#x3D;外部 abort）。</li>
+</ul>
+<p><strong>ELR_EL2</strong>（Exception Link Register，异常链接寄存器）—— 异常返回地址：guest 从哪个地址陷入，eret 回哪个地址。配合 <code>ret_addr_adjust</code>（4.3）。</p>
+<p><strong>SPSR_EL2</strong>（Saved Program Status Register，保存的程序状态寄存器）—— 异常返回时的 PSTATE：保存 guest 的 NZCV&#x2F;DAIF 等状态，eret 时恢复。</p>
+<p><strong>FAR_EL2</strong>（Fault Address Register，故障地址寄存器）—— 故障虚拟地址：数据&#x2F;指令 abort 时硬件写入 guest 的 VA（6.2 用它转 IPA）。</p>
+<p><strong>HPFAR_EL2</strong>（Hypervisor IPA Fault Address Register，虚拟机 IPA 故障地址寄存器）—— 故障 IPA：stage2 abort 时硬件直接给出翻译后的 IPA（6.2 提到可直接用，省一次软件翻译）。</p>
+<h3 id="10-3-现场保存寄存器：异常入口压栈用"><a href="#10-3-现场保存寄存器：异常入口压栈用" class="headerlink" title="10.3 现场保存寄存器：异常入口压栈用"></a>10.3 现场保存寄存器：异常入口压栈用</h3><table>
+<thead>
+<tr>
+<th>寄存器（全名）</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>VBAR_EL2（Vector Base Address Register，向量表基址寄存器）</td>
+<td>向量表基址，决定异常跳去哪</td>
+</tr>
+<tr>
+<td>SP_EL0（Stack Pointer EL0，EL0 栈指针）</td>
+<td>EL2 栈指针（进入 EL2 后用 SP_EL0 压栈保存 guest 现场）</td>
+</tr>
+</tbody></table>
+<h3 id="10-4-guest-被模拟的寄存器（access-system-reg-handler-场景）"><a href="#10-4-guest-被模拟的寄存器（access-system-reg-handler-场景）" class="headerlink" title="10.4 guest 被模拟的寄存器（access_system_reg_handler 场景）"></a>10.4 guest 被模拟的寄存器（access_system_reg_handler 场景）</h3><table>
+<thead>
+<tr>
+<th>寄存器（全名）</th>
+<th>编码 (op0,op1,CRn,CRm,op2)</th>
+<th>谁 trap 它</th>
+<th>模拟行为</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CNTPCT_EL0（Counter-timer Physical Count，物理计数寄存器）</td>
+<td>(3,3,14,0,0)</td>
+<td>CNTHCTL_EL2</td>
+<td>返回虚拟物理计数（vtimer.c）</td>
+</tr>
+<tr>
+<td>CNTP_TVAL_EL0（Counter-timer Physical Timer TimerValue，物理定时器装载值）</td>
+<td>(3,3,14,2,0)</td>
+<td>同上</td>
+<td>定时器装载值（vtimer.c）</td>
+</tr>
+<tr>
+<td>CNTP_CTL_EL0（Counter-timer Physical Timer Control，物理定时器控制）</td>
+<td>(3,3,14,2,1)</td>
+<td>同上</td>
+<td>使能&#x2F;屏蔽&#x2F;状态（vtimer.c）</td>
+</tr>
+<tr>
+<td>CNTP_CVAL_EL0（Counter-timer Physical Timer CompareValue，物理定时器比较值）</td>
+<td>(3,3,14,2,2)</td>
+<td>同上</td>
+<td>比较值（vtimer.c）</td>
+</tr>
+<tr>
+<td>ICC_SGI1R_EL1（Interrupt Controller Group1 SGI Register，中断控制器组1软件中断寄存器）</td>
+<td>(3,0,12,11,5)</td>
+<td>HCR_EL2</td>
+<td>转发为 vGIC 的 SGI（sgi1r_el1_trap）</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>关于 MMIO 设备寄存器</strong>：第 6 节出现的 <code>GICD_*</code>、<code>GICR_*</code> 属于<strong>外设内存映射寄存器</strong>（走 MMIO 模拟，不是系统寄存器），地址由 vdev 匹配，不属于本节范围。</p>
+</blockquote>
+<h3 id="10-5-IRQ-路径用到的寄存器"><a href="#10-5-IRQ-路径用到的寄存器" class="headerlink" title="10.5 IRQ 路径用到的寄存器"></a>10.5 IRQ 路径用到的寄存器</h3><table>
+<thead>
+<tr>
+<th>寄存器（全名）</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ICC_IAR1（Interrupt Controller Interrupt Acknowledge Register，中断确认寄存器）</td>
+<td>读它拿到当前最高优先级待处理中断号</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/" rel="prev" title="Minos 虚拟化: 启动流程">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: 启动流程
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/" rel="next" title="Minos 虚拟化: 内存虚拟化">
+                  Minos 虚拟化: 内存虚拟化 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

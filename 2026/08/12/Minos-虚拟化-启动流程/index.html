@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="配套学习计划：LEARNING_PLAN.md Phase 2（第 92-111 行）目标：理解”上电 → EL2 → MMU 开启 → C 世界 → 初始化 → 进入 idle”全过程。 前置知识：Phase 1 的异常模型、地址翻译（TTBR&#x2F;TCR&#x2F;MAIR）、异常向量表布局。精读文件：boot.S、minos.lds.S、core&#x2F;minos.c、arch.c、asm">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: 启动流程">
+<meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="配套学习计划：LEARNING_PLAN.md Phase 2（第 92-111 行）目标：理解”上电 → EL2 → MMU 开启 → C 世界 → 初始化 → 进入 idle”全过程。 前置知识：Phase 1 的异常模型、地址翻译（TTBR&#x2F;TCR&#x2F;MAIR）、异常向量表布局。精读文件：boot.S、minos.lds.S、core&#x2F;minos.c、arch.c、asm">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/images/mem_layout.svg">
+<meta property="og:image" content="http://yoursite.com/images/boot_flow.svg">
+<meta property="article:published_time" content="2026-08-12T14:09:26.000Z">
+<meta property="article:modified_time" content="2026-08-12T14:26:08.062Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/mem_layout.svg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/","path":"2026/08/12/Minos-虚拟化-启动流程/","title":"Minos 虚拟化: 启动流程"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: 启动流程 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#0-%E5%85%A8%E6%99%AF%E5%9B%BE"><span class="nav-text">0. 全景图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E9%95%9C%E5%83%8F%E5%B8%83%E5%B1%80"><span class="nav-text">1. 镜像布局</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E5%85%A5%E5%8F%A3%E4%B8%8E%E9%A6%96%E6%AE%B5"><span class="nav-text">1.1 入口与首段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E6%A0%B8%E5%BF%83%E6%AE%B5"><span class="nav-text">1.2 核心段</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E4%B8%89%E4%B8%AA%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E2%80%9D%E8%A1%A8%E6%AE%B5%E2%80%9D%E7%90%86%E8%A7%A3"><span class="nav-text">1.3 三个最重要的”表段”理解</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E6%B1%87%E7%BC%96%E5%90%AF%E5%8A%A8%E6%A0%B8%E5%BF%83"><span class="nav-text">2. 汇编启动核心</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-start"><span class="nav-text">2.1 _start</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-EL2-%E7%8E%AF%E5%A2%83%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">2.2 EL2 环境初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E9%99%8D%E7%BA%A7%E5%88%B0-EL1-%E5%88%86%E6%94%AF"><span class="nav-text">2.3 降级到 EL1 分支</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-minos-os-start"><span class="nav-text">2.4 minos_os_start</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-1-%E5%85%A5%E5%8F%A3%E6%A3%80%E6%9F%A5-%E8%AE%B0%E5%BD%95%E9%95%9C%E5%83%8F%E5%9F%BA%E5%9D%80"><span class="nav-text">2.4.1 入口检查 + 记录镜像基址</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-2-%E6%8B%BF-cpuid%E3%80%81%E9%80%89%E6%A0%88%E3%80%81%E8%A3%85%E5%90%91%E9%87%8F%E8%A1%A8%E3%80%81%E5%BC%80-Abort"><span class="nav-text">2.4.2 拿 cpuid、选栈、装向量表、开 Abort</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-3-%E5%88%B7-dcache-TLB"><span class="nav-text">2.4.3 刷 dcache + TLB</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-4-%E8%AE%BE-SCTLR-%E5%88%9D%E5%80%BC"><span class="nav-text">2.4.4 设 SCTLR 初值</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-5-%E5%BB%BA-Stage1-%E9%A1%B5%E8%A1%A8%E5%9B%9B%E4%BB%B6%E5%A5%97"><span class="nav-text">2.4.5 建 Stage1 页表四件套</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-6-%E8%AE%BE-SPSR-%E5%88%86%E5%8F%89-BSP-secondary"><span class="nav-text">2.4.6 设 SPSR + 分叉 BSP &#x2F; secondary</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-7-%E6%B8%85-bss-percpu%E3%80%81%E6%98%A0%E5%B0%84%E5%90%AF%E5%8A%A8%E5%86%85%E5%AD%98%E3%80%81%E8%AE%BE-idle-percpu"><span class="nav-text">2.4.7 清 bss &#x2F; percpu、映射启动内存、设 idle &amp; percpu</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-8-%E5%BC%80-MMU-%E7%9A%84%E2%80%9D%E7%9E%AC%E9%97%B4%E2%80%9D"><span class="nav-text">2.4.8 开 MMU 的”瞬间”</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-4-9-%E5%A4%9A%E6%A0%B8%E5%90%AF%E5%8A%A8%E8%B7%AF%E5%BE%84%E5%85%A8%E6%99%AF%E5%9B%BE"><span class="nav-text">2.4.9 多核启动路径全景图</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-mmu-on-%E4%B8%8E-secondary-core"><span class="nav-text">2.5 mmu_on 与 secondary core</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-6-%E5%85%B3%E9%94%AE%E5%AE%8F"><span class="nav-text">2.6 关键宏</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-7-%E6%9C%AC%E8%8A%82%E5%B0%8F%E7%BB%93"><span class="nav-text">2.7 本节小结</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-C-%E4%B8%96%E7%95%8C%E5%85%A5%E5%8F%A3%EF%BC%9Aarch-main-%E2%86%92-boot-main"><span class="nav-text">3. C 世界入口：arch_main → boot_main</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-arch-main%EF%BC%9A%E6%B1%87%E7%BC%96-%E2%86%92-C-%E7%9A%84%E6%A1%A5"><span class="nav-text">3.1 arch_main：汇编 → C 的桥</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-boot-main%EF%BC%9AC-%E4%B8%96%E7%95%8C%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%BB%E6%B5%81%E7%A8%8B"><span class="nav-text">3.2 boot_main：C 世界初始化主流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-init-%E7%9A%84%E4%BC%98%E5%85%88%E7%BA%A7%E6%A2%AF%E9%98%9F"><span class="nav-text">3.3 init 的优先级梯队</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E4%B8%8E%E6%9C%AC%E4%B8%BB%E9%A2%98%EF%BC%88%E8%99%9A%E6%8B%9F%E5%8C%96%EF%BC%89%E6%9C%80%E7%9B%B8%E5%85%B3%E7%9A%84%E4%B8%A4%E6%9D%A1"><span class="nav-text">3.4 与本主题（虚拟化）最相关的两条</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-1-%E5%90%AF%E5%8A%A8%E5%88%86%E7%95%8C%E7%BA%BF%EF%BC%9Aguest-%E7%9B%B8%E5%85%B3%E7%9A%84%E5%8A%A8%E4%BD%9C%E5%85%A8%E4%BB%8E-virt-init-%E5%BC%80%E5%A7%8B"><span class="nav-text">3.4.1 启动分界线：guest 相关的动作全从 virt_init() 开始</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-4-2-%E5%90%AF%E5%8A%A8%E6%97%A9%E6%9C%9F%E7%9A%84-3-%E5%A4%84%E2%80%9D%E8%99%9A%E6%8B%9F%E5%8C%96%E7%97%95%E8%BF%B9%E2%80%9D"><span class="nav-text">3.4.2 启动早期的 3 处”虚拟化痕迹”</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-secondary-core"><span class="nav-text">3.5 secondary core</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E6%9E%B6%E6%9E%84%E5%B1%82-init"><span class="nav-text">4. 架构层 init</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-aarch64-init-percpu"><span class="nav-text">4.1 aarch64_init_percpu</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-arch-early-init-arch-init"><span class="nav-text">4.2 arch_early_init &#x2F; __arch_init</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-affinity-%E8%BD%AC%E6%8D%A2"><span class="nav-text">4.3 affinity 转换</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-minos-%E4%B8%8E-Linux-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="nav-text">5. minos 与 Linux 的对比</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B%E5%AF%B9%E6%AF%94"><span class="nav-text">5.1 启动流程对比</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#5-1-1-%E9%AA%A8%E6%9E%B6%E7%9B%B8%E5%90%8C"><span class="nav-text">5.1.1 骨架相同</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-1-2-%E6%9C%AC%E8%B4%A8%E5%8C%BA%E5%88%AB"><span class="nav-text">5.1.2 本质区别</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-1-3-%E4%BB%A3%E7%A0%81%E9%87%8C%E7%9A%84%E5%85%B3%E9%94%AE%E8%AF%81%E6%8D%AE"><span class="nav-text">5.1.3 代码里的关键证据</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-1-4-%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%80%BB%E7%BB%93"><span class="nav-text">5.1.4 一句话总结</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%86%85%E6%A0%B8%E5%AE%9A%E4%BD%8D%E5%AF%B9%E6%AF%94"><span class="nav-text">5.2 内核定位对比</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#5-2-1-%E4%B8%80%E5%8F%A5%E8%AF%9D%E5%AE%9A%E4%BD%8D"><span class="nav-text">5.2.1 一句话定位</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-2-2-%E4%B8%BA%E4%BB%80%E4%B9%88%E5%AE%83%E2%80%9D%E5%83%8F%E2%80%9D%E6%93%8D%E4%BD%9C%E7%B3%BB%E7%BB%9F"><span class="nav-text">5.2.2 为什么它”像”操作系统</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-2-3-%E6%9C%AC%E8%B4%A8%E5%B7%AE%E5%BC%82"><span class="nav-text">5.2.3 本质差异</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-2-4-%E7%B1%BB%E6%AF%94"><span class="nav-text">5.2.4 类比</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#5-2-5-%E5%9B%9E%E5%88%B0%E6%9C%AC%E9%A1%B9%E7%9B%AE%E4%BB%A3%E7%A0%81"><span class="nav-text">5.2.5 回到本项目代码</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E6%9C%AF%E8%AF%AD%E9%80%9F%E6%9F%A5"><span class="nav-text">6. 术语速查</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: 启动流程 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: 启动流程
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-12 22:09:26" itemprop="dateCreated datePublished" datetime="2026-08-12T22:09:26+08:00">2026-08-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>配套学习计划：<code>LEARNING_PLAN.md</code> Phase 2（第 92-111 行）<br>目标：理解”上电 → EL2 → MMU 开启 → C 世界 → 初始化 → 进入 idle”全过程。</p>
+<p>前置知识：Phase 1 的异常模型、地址翻译（TTBR&#x2F;TCR&#x2F;MAIR）、异常向量表布局。<br>精读文件：<code>boot.S</code>、<code>minos.lds.S</code>、<code>core/minos.c</code>、<code>arch.c</code>、<code>asm_marco.S</code>。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="0-全景图"><a href="#0-全景图" class="headerlink" title="0. 全景图"></a>0. 全景图</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">上电 (QEMU 把控制权交给 _start，EL2)</span><br><span class="line">  │</span><br><span class="line">  ▼</span><br><span class="line">boot.S:_start ──► 检查 CurrentEL ──► 初始化 EL2 环境 ──► 建 Stage1 页表 ──► 开 MMU</span><br><span class="line">  │                                                                          │</span><br><span class="line">  │                                          (identity map, 虚拟=物理, 无 PTOV) │</span><br><span class="line">  ▼                                                                          ▼</span><br><span class="line">arch_main(dtb) ◄──────────────────────────────────────────────────── 跳转 mmu_on</span><br><span class="line">  │  → relocate dtb / of_init / console_init</span><br><span class="line">  ▼</span><br><span class="line">boot_main()  ← C 世界入口</span><br><span class="line">  │  按顺序执行各 init 阶段</span><br><span class="line">  ▼</span><br><span class="line">cpu_idle()  ← 启动完成，BSP 进入 idle 等调度</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="1-镜像布局"><a href="#1-镜像布局" class="headerlink" title="1. 镜像布局"></a>1. 镜像布局</h2><p><strong>这是”地图”，先知道镜像长什么样、各段放哪。</strong></p>
+<p>关键点：</p>
+<h3 id="1-1-入口与首段"><a href="#1-1-入口与首段" class="headerlink" title="1.1 入口与首段"></a>1.1 入口与首段</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">ENTRY(_start)                          <span class="comment">// 入口 = _start（boot.S）</span></span><br><span class="line">.vectors CONFIG_MINOS_ENTRY_ADDRESS + CONFIG_PTOV_MASK:</span><br><span class="line">&#123;</span><br><span class="line">    __code_start = .;</span><br><span class="line">    KEEP(*(__start_up))                <span class="comment">// boot.S 的启动代码段</span></span><br><span class="line">    KEEP(*(__elx_vectors ...))         <span class="comment">// 异常向量表等 asm</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>QEMU 平台 <code>CONFIG_MINOS_ENTRY_ADDRESS=0x40000000</code>（qemu_arm64_defconfig:108）。</li>
+<li><strong>首段固定地址</strong>，因为上电时 MMU 还没开，CPU 只能从物理地址执行。</li>
+<li><code>CONFIG_PTOV_MASK=0x0</code>（qemu defconfig:11）→ 虚拟地址 &#x3D; 物理地址（<strong>identity map</strong>，后面 boot.S 里是关键）。</li>
+</ul>
+<h3 id="1-2-核心段"><a href="#1-2-核心段" class="headerlink" title="1.2 核心段"></a>1.2 核心段</h3><table>
+<thead>
+<tr>
+<th>段</th>
+<th>作用</th>
+<th>关键符号</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>.vectors</code></td>
+<td>启动汇编 + 向量表</td>
+<td><code>__code_start</code> &#x2F; <code>__code_end</code></td>
+</tr>
+<tr>
+<td><code>.text</code></td>
+<td>所有 C 函数代码</td>
+<td></td>
+</tr>
+<tr>
+<td><code>.__init_func_0..9</code></td>
+<td><strong>初始化函数表</strong>（按 initcall 优先级分 10 档）</td>
+<td><code>__init_func_*_start/end</code></td>
+</tr>
+<tr>
+<td><code>.__init_data_section</code></td>
+<td>初始化用数据</td>
+<td></td>
+</tr>
+<tr>
+<td><code>.__init_text</code></td>
+<td>初始化完可释放的代码</td>
+<td><code>__init_text_start/end</code></td>
+</tr>
+<tr>
+<td><code>.stage1_page_table</code></td>
+<td><strong>hypervisor 自身页表</strong>（1 页 4K）</td>
+<td><code>__stage1_page_table</code></td>
+</tr>
+<tr>
+<td><code>.data</code></td>
+<td>数据</td>
+<td></td>
+</tr>
+<tr>
+<td><code>.smp_affinity_id</code></td>
+<td>每核 affinity 数组</td>
+<td><code>__smp_affinity_id</code></td>
+</tr>
+<tr>
+<td><code>.__percpu</code></td>
+<td><strong>percpu 变量</strong>，NR_CPUS 份拷贝</td>
+<td><code>__percpu_start/end</code></td>
+</tr>
+<tr>
+<td><code>.bss</code></td>
+<td>零初始化数据</td>
+<td><code>__bss_start/end</code></td>
+</tr>
+<tr>
+<td><code>.__vmodule</code></td>
+<td>vCPU 模块表</td>
+<td><code>__vmodule_start/end</code></td>
+</tr>
+<tr>
+<td><code>.__platform</code> &#x2F; <code>.__irqchip</code> &#x2F; <code>.__virqchip</code> &#x2F; <code>.__vdev</code> &#x2F; <code>.__console</code> &#x2F; <code>.__smc_handler</code> &#x2F; <code>.__hvc_handler</code> &#x2F; <code>.__shell_command</code></td>
+<td>各种<strong>链接器表</strong>（注册机制的数据基础）</td>
+<td>各 <code>__xxx_start/end</code></td>
+</tr>
+</tbody></table>
+<h3 id="1-3-三个最重要的”表段”理解"><a href="#1-3-三个最重要的”表段”理解" class="headerlink" title="1.3 三个最重要的”表段”理解"></a>1.3 三个最重要的”表段”理解</h3><p>minos 大量用”把结构体放进专用 section，启动时遍历”的注册方式：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 例：vmodule（vtimer.c:288 register_vcpu_vmodule）</span></span><br><span class="line">MINOS_MODULE_DECLARE(...)   <span class="comment">// 宏会把结构体塞进 .__vmodule 段</span></span><br><span class="line"><span class="comment">// 启动时 vmodules_init() 遍历 __vmodule_start~__vmodule_end 逐个创建</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>.__init_func_N</code>：初始化函数按优先级分档，对应 <code>core/init.h</code> 的 initcall 宏<br>（<code>early_initcall</code> &#x2F; <code>arch_initcall</code> &#x2F; <code>subsys_initcall</code> &#x2F; <code>module_initcall</code> &#x2F; <code>device_initcall</code>）。</li>
+<li><code>.__irqchip</code>：<code>IRQCHIP_DECLARE</code> 注册的中断控制器驱动。</li>
+<li><code>.__platform</code>：<code>PLATFORM_DECLARE</code> 注册的平台。</li>
+</ul>
+<p><strong>为什么用段不用链表？</strong> 因为很多注册发生在静态数据里，链接器表比运行时数组更省代码、且顺序确定（按链接顺序）。</p>
+<p><strong>一个易混点：</strong></p>
+<ul>
+<li><code>__init_func_N</code>：<strong>初始化函数</strong>（initcall，call 优先级）</li>
+<li><code>__init_text</code>：<strong>初始化代码段</strong>（启动后整个释放）<br>两者是不同概念，别混淆。</li>
+</ul>
+<hr>
+<h2 id="2-汇编启动核心"><a href="#2-汇编启动核心" class="headerlink" title="2. 汇编启动核心"></a>2. 汇编启动核心</h2><p><strong>这是 Phase 2 的重头戏。逐段精读。</strong></p>
+<h3 id="2-1-start"><a href="#2-1-start" class="headerlink" title="2.1 _start"></a>2.1 <code>_start</code></h3><blockquote>
+<p>源码位置：<code>boot.S:55-105</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">_start:</span><br><span class="line">    msr	daifset, #2              // 关中断（DAIF.I）</span><br><span class="line">    b	do_start</span><br><span class="line">    ... (Image header 64字节，符合 ARM64 Linux kernel Image 格式)</span><br><span class="line">do_start:</span><br><span class="line">    mov	x27, x0                 // 保存 dtb 地址到 x27（uboot 传来）</span><br><span class="line">    mrs	x0, CurrentEl           // 当前在哪个 EL</span><br><span class="line">    lsr	x1, x0, #2</span><br><span class="line">    and	x1, x1, #3              // x1 = EL 编号 (2 = EL2)</span><br><span class="line">    cmp	x1, #3</span><br><span class="line">    b.eq	minos_panic         // 不支持 EL3</span><br><span class="line">    mov	x26, #0</span><br><span class="line">    cmp	x1, #2</span><br><span class="line">#ifdef CONFIG_VIRT</span><br><span class="line">    b.ne	minos_panic         // ★ 虚拟化模式：必须从 EL2 启动</span><br><span class="line">    msr	HCR_EL2, x0             // HCR_EL2 = 0（清空陷阱位）</span><br><span class="line">    isb</span><br><span class="line">#else</span><br><span class="line">    b.ne	minos_os_start       // 非虚拟化：跳 EL1 的启动</span><br><span class="line">    ...</span><br><span class="line">#endif</span><br></pre></td></tr></table></figure>
+
+<p><strong>要点</strong>：</p>
+<ul>
+<li>minos 虚拟化模式<strong>强制要求从 EL2 上电</strong>（QEMU <code>virtualization=on</code>，u-boot 直接起在 EL2）。</li>
+<li>一开始就把 <code>HCR_EL2</code> 清零——干净起点，后续各阶段再逐步设。</li>
+</ul>
+<h3 id="2-2-EL2-环境初始化"><a href="#2-2-EL2-环境初始化" class="headerlink" title="2.2 EL2 环境初始化"></a>2.2 EL2 环境初始化</h3><blockquote>
+<p>源码位置：<code>boot.S:108-123</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">mrs	x0, midr_el1            // 把真实 MIDR/MPIDR 存入</span><br><span class="line">mrs	x1, mpidr_el1           // VPIDR/VMPIDR（guest 能看到伪造的 ID）</span><br><span class="line">msr	vpidr_el2, x0</span><br><span class="line">msr	vmpidr_el2, x1</span><br><span class="line">ldr	x0, =0x300000</span><br><span class="line">msr	CPTR_EL2, x0            // 放行 EL1 用 FP/SIMD（CPACR 不 trap）</span><br><span class="line">msr	VTTBR_EL2, xzr          // 清 guest 页表基址</span><br><span class="line">dsb	sy</span><br><span class="line">isb</span><br></pre></td></tr></table></figure>
+
+<p><strong>要点</strong>：</p>
+<ul>
+<li><code>vpidr/vmpidr</code>：EL2 的虚拟化寄存器，guest 读到的是 hypervisor 伪装的 CPU 信息。<br>先填真实值，创建 VM 时（arch_virt.c:216-219）再改伪造值。</li>
+<li><code>CPTR_EL2=0x300000</code>：关键位是 <strong>TFP(bit10)&#x3D;0 → 不 trap</strong> EL1 的 FP&#x2F;SIMD（浮点放行）；<br>bit20(TCPAC)&#x3D;1 trap CPACR_EL1 访问、bit21(TTA)&#x3D;1 trap trace，用于控制 guest 浮点配置。</li>
+<li><code>VTTBR_EL2=0</code>：清空 Stage2 页表基址——尚无 guest 映射，任何 guest 内存访问都 fault（安全起点）。</li>
+<li><code>dsb sy + isb</code>：改完系统寄存器必须等待生效（dsb 等完成，isb 刷流水线）。</li>
+</ul>
+<h3 id="2-3-降级到-EL1-分支"><a href="#2-3-降级到-EL1-分支" class="headerlink" title="2.3 降级到 EL1 分支"></a>2.3 降级到 EL1 分支</h3><p><code>CONFIG_VIRT</code> 下直接 <code>b minos_os_start</code>，这段不执行。知道存在即可。</p>
+<h3 id="2-4-minos-os-start"><a href="#2-4-minos-os-start" class="headerlink" title="2.4 minos_os_start"></a>2.4 <code>minos_os_start</code></h3><blockquote>
+<p>这一段是<strong>开 MMU 前最后、也是最长的汇编段</strong>（约 160 行），它把<br>“栈、异常向量表、cache&#x2F;TLB、Stage1 页表、MAIR、TCR、bss、percpu、idle task”<br>全部手工搭好。<strong>为什么这么长？</strong> 因为还没进 C，没有函数库，一切靠裸汇编。<br>整体分 7 步，下面逐段精读。</p>
+</blockquote>
+<h4 id="2-4-1-入口检查-记录镜像基址"><a href="#2-4-1-入口检查-记录镜像基址" class="headerlink" title="2.4.1 入口检查 + 记录镜像基址"></a>2.4.1 入口检查 + 记录镜像基址</h4><blockquote>
+<p>源码位置：<code>boot.S:155-165</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">minos_os_start:</span><br><span class="line">	adr	x1, _start</span><br><span class="line">	and	x0, x1, #0xfff</span><br><span class="line">	cbnz	x0, minos_panic        // ★ 入口必须 4K 对齐，否则 panic</span><br><span class="line"></span><br><span class="line">	ldr	x3, =0xffffffffffe00000  // ~2M 对齐掩码</span><br><span class="line">	and	x1, x1, x3               // 向下取整到 2M 边界</span><br><span class="line">	adr	x2, minos_start          // 全局变量 minos_start 的地址</span><br><span class="line">	str	x1, [x2]                 // 把镜像基址存进 minos_start（供 C 代码使用）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>为什么要求 4K 对齐？</strong> 后面要把镜像当页表&#x2F;段映射，页表要求 4K 对齐。</li>
+<li><strong>为什么再 2M 对齐存 base？</strong> 镜像起始地址记录成 2M 对齐的值，配合大页映射（Phase 4 学过的 PMD 2M 块）效率最高。注释也说”minos_start 到 __code_start 是保留内存，必须 2M 对齐”。</li>
+</ul>
+<h4 id="2-4-2-拿-cpuid、选栈、装向量表、开-Abort"><a href="#2-4-2-拿-cpuid、选栈、装向量表、开-Abort" class="headerlink" title="2.4.2 拿 cpuid、选栈、装向量表、开 Abort"></a>2.4.2 拿 cpuid、选栈、装向量表、开 Abort</h4><blockquote>
+<p>源码位置：<code>boot.S:167-178</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">bl	arch_raw_smp_processor_id  // 从 MPIDR 算出当前核编号</span><br><span class="line">mov	x19, x0                    // ★ x19 = cpuid，全程保留（后面多次用）</span><br><span class="line"></span><br><span class="line">msr	spsel, #1                  // ★ 用 SP_ELx（当前 EL 栈），不用 SP_EL0</span><br><span class="line">ldr	x1, =elx_vectors</span><br><span class="line">msr	VBAR_EL2, x1               // ★ 装异常向量表基址</span><br><span class="line">msr	daifclr, #4                // 清 DAIF.A → 允许 Abort 异常（开 MMU 失败能报错）</span><br><span class="line">isb</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>spsel #1</code>：AArch64 每个 EL 有两套 SP（SP_EL0&#x2F;SP_ELx），选 SP_ELx 用专用栈。</li>
+<li><code>VBAR_EL2</code>：Phase 1 学过的向量表基址，此处指向 <code>entry.S</code> 的 <code>elx_vectors</code>。</li>
+</ul>
+<h4 id="2-4-3-刷-dcache-TLB"><a href="#2-4-3-刷-dcache-TLB" class="headerlink" title="2.4.3 刷 dcache + TLB"></a>2.4.3 刷 dcache + TLB</h4><blockquote>
+<p>源码位置：<code>boot.S:180-191</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">	bl	inv_dcache_all            // 逐级逐路失效数据缓存（Cache.S:69）</span><br><span class="line">	dsb	sy</span><br><span class="line">	isb</span><br><span class="line">#ifdef CONFIG_VIRT</span><br><span class="line">	tlbi	alle2                   // 失效 EL2 全部 TLB</span><br><span class="line">#else</span><br><span class="line">	tlbi	vmalle1</span><br><span class="line">#endif</span><br><span class="line">	dsb	sy</span><br><span class="line">	isb</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>上电后 cache&#x2F;TLB 内容不可信（可能残留旧数据），先全部失效，建立干净基础。</li>
+<li><code>inv_dcache_all</code> 用 set&#x2F;way 方式（MMU 未开、无法按地址操作）。</li>
+</ul>
+<h4 id="2-4-4-设-SCTLR-初值"><a href="#2-4-4-设-SCTLR-初值" class="headerlink" title="2.4.4 设 SCTLR 初值"></a>2.4.4 设 SCTLR 初值</h4><blockquote>
+<p>源码位置：<code>boot.S:193-196</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ldr	x1, =ARM64_SCTLR_VALUE</span><br><span class="line">msr	SCTLR_EL2, x1            // 0x30c51878（见 aarch64_el2_reg.h:87）</span><br><span class="line">dsb	nsh</span><br><span class="line">isb</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>此时<strong>只设非 MMU 相关位</strong>（对齐检查&#x2F;异常行为等），MMU 的 <code>M</code> 位还没置（最后一步才置）。</li>
+<li><code>nsh</code> &#x3D; non-shareable，单核配置阶段足够。</li>
+</ul>
+<h4 id="2-4-5-建-Stage1-页表四件套"><a href="#2-4-5-建-Stage1-页表四件套" class="headerlink" title="2.4.5 建 Stage1 页表四件套"></a>2.4.5 建 Stage1 页表四件套</h4><blockquote>
+<p>源码位置：<code>boot.S:198-239</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">	// (a) 页表基址</span><br><span class="line">	ldr	x1, = __stage1_page_table</span><br><span class="line">	asm_vtop x1                      // 虚拟→物理（此平台 no-op，因 PTOV_MASK=0）</span><br><span class="line">	msr	TTBR0_EL2, x1            // 低地址空间页表</span><br><span class="line">	msr	TTBR1_EL2, x1            // 高地址空间页表（同一张表）</span><br><span class="line">	dsb	nsh</span><br><span class="line">	isb</span><br><span class="line"></span><br><span class="line">	// (b) MAIR 内存属性表</span><br><span class="line">	ldr	x1, =0xbbff440c0400</span><br><span class="line">	msr	MAIR_EL2, x1             // 8 个 AttrIdx 槽（见下方分解）</span><br><span class="line"></span><br><span class="line">	// (c) TCR 翻译控制</span><br><span class="line">	mrs	x0, ID_AA64MMFR0_EL1</span><br><span class="line">	and	x0, x0, #0xf              // 取 PaRange 字段（硬件支持的 PA 位数）</span><br><span class="line">#ifdef CONFIG_VIRT</span><br><span class="line">	mov	x2, x0, lsl #16           // 填入 TCR.IPS（bit16-19）</span><br><span class="line">	ldr	x3, =0xfffffffffff8ffff    // 清掉 IPS 位</span><br><span class="line">#else</span><br><span class="line">	mov	x2, x0, lsl #32</span><br><span class="line">	ldr	x3, =0xfffffff8ffffffff</span><br><span class="line">#endif</span><br><span class="line">	ldr	x1, =ARM64_TCR_VALUE       // 基础 TCR：T0SZ(39)|4K|WBWA|InnerSH</span><br><span class="line">	and	x1, x1, x3</span><br><span class="line">	orr	x1, x1, x2                 // 合并硬件 PA range</span><br><span class="line">	msr	TCR_EL2, x1</span><br><span class="line">	dsb	nsh</span><br><span class="line">	isb</span><br></pre></td></tr></table></figure>
+
+<p><strong>MAIR 值 <code>0xbbff440c0400</code> 分解</strong>（每 8bit 一个 AttrIdx，对应 stage1.h 的 MT_*）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">AttrIdx0=0x00 Device-nGnRnE   AttrIdx4=0x44 Normal WB, Inner/Outer</span><br><span class="line">AttrIdx1=0x04 Device-nGnRE    AttrIdx5=0xff Normal WB</span><br><span class="line">AttrIdx2=0x0c Device-GRE      AttrIdx6=0xbb Normal WT</span><br><span class="line">AttrIdx3=0x44 Normal-NC</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么要动态读 PaRange？</strong> 不同 CPU 支持的最大物理地址位数不同（36&#x2F;40&#x2F;44&#x2F;48…）。<br>TCR.IPS 必须≤硬件能力，硬编码可能让 MMU 配置非法。从 <code>ID_AA64MMFR0_EL1</code> 读出来动态填。</p>
+<h4 id="2-4-6-设-SPSR-分叉-BSP-secondary"><a href="#2-4-6-设-SPSR-分叉-BSP-secondary" class="headerlink" title="2.4.6 设 SPSR + 分叉 BSP &#x2F; secondary"></a>2.4.6 设 SPSR + 分叉 BSP &#x2F; secondary</h4><blockquote>
+<p>源码位置：<code>boot.S:241-272</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line">mov	x1, #ARM64_SPSR_VALUE    // 0x1c9（EL2h，中断屏蔽）</span><br><span class="line">msr	SPSR_EL2, x1             // 为 idle task 预置返回状态</span><br><span class="line"></span><br><span class="line">cbnz	x19, secondary_start_up  // ★ 非 0 号核 → 跳 secondary 分支</span><br><span class="line"></span><br><span class="line">// ---- 只有 BSP（x19=0）执行以下栈/内存布局 ----</span><br><span class="line">ldr	x0, =__minos_end         // 镜像末尾</span><br><span class="line">asm_vtop x0</span><br><span class="line">adr	x1, minos_stack_top       // 3 个全局变量的地址</span><br><span class="line">adr	x2, minos_bootmem_base</span><br><span class="line">adr	x3, minos_stack_bottom</span><br><span class="line"></span><br><span class="line">add	x0, x0, #4095            // 向上取整到 4K 对齐（bootmem 起始）</span><br><span class="line">mov	x4, #4095</span><br><span class="line">mvn	x5, x4</span><br><span class="line">and	x0, x0, x5               // x0 = 对齐后的 bootmem 基址</span><br><span class="line">str	x0, [x2]                 // minos_bootmem_base = 镜像末尾(对齐)</span><br><span class="line">str	x0, [x3]                 // minos_stack_bottom = 同上</span><br><span class="line"></span><br><span class="line">mov	x4, #CONFIG_TASK_STACK_SIZE</span><br><span class="line">mov	x5, #CONFIG_NR_CPUS</span><br><span class="line">mul	x5, x4, x5               // 全部核的栈总大小</span><br><span class="line">add	x0, x0, x5</span><br><span class="line">str	x0, [x1]                 // minos_stack_top = bottom + NR_CPUS*栈大小</span><br><span class="line"></span><br><span class="line">sub	x0, x0, x19, lsl #CONFIG_TASK_STACK_SHIFT</span><br><span class="line">asm_ptov x0</span><br><span class="line">mov	sp, x0                   // ★ 当前核的栈指针</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>BSP 负责一次性规划内存</strong>：镜像末尾→ bootmem 基址 → 各核栈区（每核一块 <code>CONFIG_TASK_STACK_SIZE</code>）。</li>
+<li><strong>x19（cpuid）在这里二次使用</strong>：给本核挑自己那块栈。</li>
+<li>secondary 分支（boot.S:329）也会设自己的 sp，但<strong>不做</strong> bootmem 规划（那是 BSP 的活）。</li>
+</ul>
+<p><strong>全局内存布局</strong>（真实链接地址，QEMU 平台，镜像入口 0x40000000）：</p>
+<p><img src="/images/mem_layout.svg" alt="mem_layout"></p>
+<p>布局要点：</p>
+<ul>
+<li><strong>镜像区</strong>（0x40000000 ~ 0x4004e3b9）：lds 排定，含代码&#x2F;数据&#x2F;页表&#x2F;注册表。</li>
+<li><strong>对齐边界</strong>（0x4004e3b9 → 0x4004f000）：镜像末尾向上取整到 4K。</li>
+<li><strong>启动规划区</strong>（0x4004f000 ~ 0x40057000）：BSP 现场规划，4 个核各 8K 栈。</li>
+<li>每核栈范围与 sp：<code>sp_cpuN = minos_stack_top - N × CONFIG_TASK_STACK_SIZE</code>，<br>sp 位于各核栈区顶端（栈向下增长），CPU0 在最高处 0x40057000，CPU3 在最低处 0x40051000。</li>
+</ul>
+<p><strong>对齐是如何做的</strong>（boot.S:254-258）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">add	x0, x0, #4095    // 先加 (4K-1)</span><br><span class="line">mov	x4, #4095</span><br><span class="line">mvn	x5, x4           // x5 = ~0xfff（低 12 位清零掩码）</span><br><span class="line">and	x0, x0, x5       // 再抹掉低 12 位</span><br></pre></td></tr></table></figure>
+
+<p>等价于 <code>bootmem_base = (__minos_end + 0xfff) &amp; ~0xfff</code>，即”向上取整到 4K 边界”。<br>例：<code>0x4004e3b9 + 0xfff = 0x4004f3b8</code>，<code>&amp; ~0xfff → 0x4004f000</code>。</p>
+<ul>
+<li>为什么加 <code>4095</code> 再 <code>and ~4095</code>？加满一个 4K 让非对齐部分进位，再清零低 12 位得到下一个 4K 边界（若本身已对齐，加完无进位，值不变）。</li>
+<li>这个”加(2^n-1)再按 ~(2^n-1) 清零”是向上取整的标准位运算技巧。</li>
+</ul>
+<h4 id="2-4-7-清-bss-percpu、映射启动内存、设-idle-percpu"><a href="#2-4-7-清-bss-percpu、映射启动内存、设-idle-percpu" class="headerlink" title="2.4.7 清 bss &#x2F; percpu、映射启动内存、设 idle &amp; percpu"></a>2.4.7 清 bss &#x2F; percpu、映射启动内存、设 idle &amp; percpu</h4><blockquote>
+<p>源码位置：<code>boot.S:274-301</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">// (a) 清 bss</span><br><span class="line">ldr	x0, =__bss_start</span><br><span class="line">asm_vtop x0</span><br><span class="line">ldr	x2, =__bss_end</span><br><span class="line">asm_vtop x2</span><br><span class="line">sub	x2, x2, x0</span><br><span class="line">bl	memset                   // bss 清零（C 语言要求未初始化全局=0）</span><br><span class="line"></span><br><span class="line">// (b) 清 percpu 区</span><br><span class="line">ldr	x0, =__percpu_start</span><br><span class="line">ldr	x2, =__percpu_end</span><br><span class="line">...</span><br><span class="line">bl	memset</span><br><span class="line"></span><br><span class="line">// (c) 映射启动内存</span><br><span class="line">bl	map_boot_mem             // ★ 把镜像/内存按属性映射进 Stage1</span><br><span class="line">dsb	ishst</span><br><span class="line">isb</span><br><span class="line"></span><br><span class="line">// (d) 建立&quot;当前任务 / pcpu&quot;全局指针</span><br><span class="line">set_percpu_idle_task x0, x1, x19   // ★ x18 = 本核 idle task（当前任务约定）</span><br><span class="line">set_percpu_pcpu x0, x1, x19        // ★ TPIDR_EL2 = 本核 pcpu 数据（见宏）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><p>**<code>map_boot_mem</code>**：真正往 <code>__stage1_page_table</code> 里填映射。到这一步页表内容才齐备。</p>
+<blockquote>
+<p>实现细节（分代码段&#x2F;数据段&#x2F;RO段&#x2F;IO段，按属性建立 Stage1 映射）属于 <strong>Phase 4 内存虚拟化</strong>，<br>本阶段只需知道”它在此处被 BSP 调用、一次性把镜像与启动内存映射好”即可。</p>
+</blockquote>
+</li>
+<li><p><strong>x18 &#x2F; TPIDR 是 minos 的两个全局约定</strong>（Phase 2 要掌握）：</p>
+<ul>
+<li><code>x18</code> 永远指向当前任务（task）</li>
+<li><code>TPIDR_EL2</code> 永远指向本核的 percpu 数据（vector.S 里异常入口靠它找当前任务&#x2F;栈）</li>
+</ul>
+</li>
+</ul>
+<h4 id="2-4-8-开-MMU-的”瞬间”"><a href="#2-4-8-开-MMU-的”瞬间”" class="headerlink" title="2.4.8 开 MMU 的”瞬间”"></a>2.4.8 开 MMU 的”瞬间”</h4><blockquote>
+<p>源码位置：<code>boot.S:302-315</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">ldr	x26, =mmu_on            // ★ 提前把目标地址放 x26</span><br><span class="line"></span><br><span class="line">// 使能 MMU 并关对齐检查</span><br><span class="line">mrs	x1, SCTLR_EL2</span><br><span class="line">orr	x1, x1, #SCTLR_ELx_M     // 开 MMU（bit0）</span><br><span class="line">orr	x1, x1, #SCTLR_ELx_C     // 开 D-cache（bit2）</span><br><span class="line">orr	x1, x1, #SCTLR_ELx_I     // 开 I-cache（bit12）</span><br><span class="line">bic	x1, x1, #SCTLR_ELx_SA    // 关栈对齐检查</span><br><span class="line">bic	x1, x1, #SCTLR_ELx_A     // 关对齐检查</span><br><span class="line">msr	SCTLR_EL2, x1</span><br><span class="line">dsb	sy</span><br><span class="line">isb</span><br><span class="line">br	x26                       // ★ 跳到 mmu_on（在已映射的地址上）</span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么 <code>br x26</code> 而不是直接 <code>b mmu_on</code>？</strong> 开 MMU 那一刻起，PC 变成”虚拟地址”执行。<br><code>mmu_on</code> 这个标签在编译时被赋了虚拟地址，直接 <code>b</code> 也是 OK 的——但代码刻意先 <code>ldr x26,=mmu_on</code><br>再用 <code>br</code>，是<strong>把”开关 MMU”和”跳转到新地址空间”两步明确分开</strong>，防止编译器在 <code>msr SCTLR</code><br>和跳转之间插入依赖旧地址空间的指令。</p>
+<p><strong>四个”瞬间”节点</strong>（地址翻译相关的寄存器必须在 MMU 开之前设好）：</p>
+<ol>
+<li><strong>页表</strong>：TTBR0&#x2F;1_EL2 &#x3D; <code>__stage1_page_table</code>（lds 里预留的一页 4K）。</li>
+<li><strong>属性</strong>：MAIR_EL2 &#x3D; 0xbbff440c0400（8 个 memory type 槽）。</li>
+<li><strong>控制</strong>：TCR_EL2 &#x3D; T0SZ(39) | 4K granule | Inner&#x2F;Outer WBWA | Inner Shareable。</li>
+<li><strong>开关</strong>：SCTLR_EL2 置 M&#x2F;C&#x2F;I 位 → MMU 生效 → <code>br x26</code> 跳到已映射的地址继续。</li>
+</ol>
+<p><strong>为什么开 MMU 前必须 identity map？</strong> 开 MMU 的瞬间，PC 还在物理地址执行。页表必须把”当前 PC 所在的物理地址”映射到”相同的虚拟地址”（虚拟&#x3D;物理），<code>br x26</code> 才不跳飞。此平台 <code>PTOV_MASK=0</code>，虚拟&#x3D;物理，天然满足。</p>
+<h4 id="2-4-9-多核启动路径全景图"><a href="#2-4-9-多核启动路径全景图" class="headerlink" title="2.4.9 多核启动路径全景图"></a>2.4.9 多核启动路径全景图</h4><blockquote>
+<p>总结 2.4 节的执行流：<strong>所有核都走同一段公共代码，到 <code>cbnz x19, secondary_start_up</code><br>（boot.S:245）按 cpuid 分叉</strong>。绿色 &#x3D; 每核各做各的，红色 &#x3D; 只有 BSP 做一次。</p>
+</blockquote>
+<p><img src="/images/boot_flow.svg" alt="boot_flow"></p>
+<p><strong>图上要点</strong>：</p>
+<ul>
+<li><strong>红色路径（只有 CPU0 做一次）</strong>：清 bss&#x2F;percpu、<code>map_boot_mem</code> 填共享页表、内存规划。<br>这些是<strong>全局资源</strong>，BSP 干完，其他核直接复用。</li>
+<li><strong>绿色路径（每核各做各的）</strong>：设 SP、设 TTBR&#x2F;MAIR&#x2F;TCR、设 idle&#x2F;percpu、开 MMU。<br>这些是<strong>每核私有的寄存器&#x2F;状态</strong>，谁也替不了谁。</li>
+<li><strong>secondary 进 C 之前必须等 BSP</strong>（<code>boot_secondary</code> 里 <code>while(!is_cpus_all_up()) mb();</code>，<br>minos.c:113），否则可能用 BSP 还没建好的数据结构。</li>
+<li>分叉依据就是 <strong>x19（cpuid）</strong>，所以 <code>_start</code> 开头 <code>bl arch_raw_smp_processor_id</code> 那一步至关重要。</li>
+</ul>
+<h3 id="2-5-mmu-on-与-secondary-core"><a href="#2-5-mmu-on-与-secondary-core" class="headerlink" title="2.5 mmu_on 与 secondary core"></a>2.5 mmu_on 与 secondary core</h3><blockquote>
+<p>源码位置：<code>boot.S:317-381</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">mmu_on:</span><br><span class="line">    ic	ialluis                  // 刷指令缓存</span><br><span class="line">    dsb	sy</span><br><span class="line">    isb</span><br><span class="line">    clear_ttbr0                  // CONFIG_VIRT: tlbi alle2</span><br><span class="line">    mov	x0, x27                  // 恢复 dtb 地址</span><br><span class="line">    bl	arch_main                // ★ 进入 C 世界，永不返回</span><br><span class="line">dead_loop:</span><br><span class="line">    b	dead_loop</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>clear_ttbr0</code>：CONFIG_VIRT 下执行 <code>tlbi alle2</code>（刷全部 EL2 TLB）。</li>
+<li>secondary core 走 <code>secondary_start_up</code>（boot.S:329），各自设栈&#x2F;页表，最后 <code>bl boot_secondary</code>。</li>
+</ul>
+<h3 id="2-6-关键宏"><a href="#2-6-关键宏" class="headerlink" title="2.6 关键宏"></a>2.6 关键宏</h3><blockquote>
+<p>源码位置：<code>asm_marco.S:11-25</code></p>
+</blockquote>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">.macro asm_vtop reg      // 虚拟→物理：and reg, #CONFIG_VTOP_MASK</span><br><span class="line">.macro asm_ptov reg      // 物理→虚拟：orr reg, #CONFIG_PTOV_MASK</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>本平台两个 mask 都是 0 → 均为 no-op（<strong>虚拟地址 &#x3D;&#x3D; 物理地址</strong>）。</li>
+<li>理解：这是为支持”高地址映射”平台预留的（如 FVP，PTOV_MASK 非零时 PT→VT 要 orr 一个偏移）。</li>
+</ul>
+<h3 id="2-7-本节小结"><a href="#2-7-本节小结" class="headerlink" title="2.7 本节小结"></a>2.7 本节小结</h3><p><strong>本节完成了什么</strong>：汇编启动段（boot.S）把 hypervisor 从”裸机上电”带到了”能进 C 世界”。核心成果：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>完成的工作</th>
+<th>关键代码</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>确认运行在 EL2（虚拟化前提）</td>
+<td><code>b.ne minos_panic</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>初始化 EL2 环境（清 HCR、设 vpidr&#x2F;vmpidr&#x2F;CPTR&#x2F;VTTBR）</td>
+<td>boot.S:108-123</td>
+</tr>
+<tr>
+<td>3</td>
+<td>装异常向量表 + 清 cache&#x2F;TLB（干净基础）</td>
+<td><code>msr VBAR_EL2</code> &#x2F; <code>inv_dcache_all</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>搭好 Stage1 地址翻译四件套（TTBR&#x2F;MAIR&#x2F;TCR）</td>
+<td>boot.S:198-239</td>
+</tr>
+<tr>
+<td>5</td>
+<td>规划每核栈区（bootmem 基址 + 4 核各 8K 栈）</td>
+<td>boot.S:247-272</td>
+</tr>
+<tr>
+<td>6</td>
+<td>清 bss&#x2F;percpu + 填页表（map_boot_mem）</td>
+<td>boot.S:274-301</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>开 MMU</strong>，跳转 C 世界</td>
+<td><code>SCTLR.M</code> + <code>br x26</code> → <code>arch_main</code></td>
+</tr>
+</tbody></table>
+<p><strong>核心知识点（要记住的 4 件事）</strong>：</p>
+<ol>
+<li><strong>强制 EL2</strong>：虚拟化版启动绝不停留 EL1，<code>b.ne minos_panic</code> 兜底。</li>
+<li><strong>开 MMU 四件套顺序</strong>：TTBR（页表）→ MAIR（属性）→ TCR（控制）→ 最后 SCTLR.M。地址翻译相关的必须<strong>先设好再点火</strong>。</li>
+<li><strong>identity map（pa&#x3D;va）</strong>：开 MMU 瞬间 PC 不能变，QEMU 因 PTOV_MASK&#x3D;0 天然满足。</li>
+<li><strong>多核分叉</strong>：公共段所有核跑，<code>cbnz x19</code> 后 CPU0 干全局活（清 bss&#x2F;map_boot_mem&#x2F;内存规划），secondary 直接复用并各自设栈&#x2F;开 MMU。</li>
+</ol>
+<p><strong>下一步是什么</strong>：<code>arch_main</code>（第 3 节 3.1）——汇编到 C 的桥，处理 dtb 落地和串口初始化，然后进入 <code>boot_main</code>（第 3 节 3.2）按顺序跑各 init 阶段。</p>
+<hr>
+<h2 id="3-C-世界入口：arch-main-→-boot-main"><a href="#3-C-世界入口：arch-main-→-boot-main" class="headerlink" title="3. C 世界入口：arch_main → boot_main"></a>3. C 世界入口：arch_main → boot_main</h2><blockquote>
+<p>汇编开完 MMU 后进入 C 世界。先由 <code>arch_main</code> 处理 dtb 和串口，再进 <code>boot_main</code><br>按顺序跑各 init 阶段。本节省略为”三步”：<strong>arch_main（桥）→ boot_main（主流程）→ cpu_idle（归宿）</strong>。</p>
+</blockquote>
+<h3 id="3-1-arch-main：汇编-→-C-的桥"><a href="#3-1-arch-main：汇编-→-C-的桥" class="headerlink" title="3.1 arch_main：汇编 → C 的桥"></a>3.1 arch_main：汇编 → C 的桥</h3><blockquote>
+<p>源码位置：<code>arch.c:343-366</code></p>
+</blockquote>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">arch_main</span><span class="params">(<span class="type">void</span> *dtb)</span></span><br><span class="line">&#123;</span><br><span class="line">    pr_notice(<span class="string">&quot;Starting Minos AARCH64\n&quot;</span>);</span><br><span class="line">    dtb = (<span class="type">void</span> *)ptov(dtb);              <span class="comment">// uboot 传来的物理 dtb → 虚拟地址</span></span><br><span class="line">    dtb = relocate_dtb_address(dtb);      <span class="comment">// 若 dtb 与镜像重叠则搬走</span></span><br><span class="line">    of_init(dtb);                         <span class="comment">// 解析 device tree</span></span><br><span class="line">    of_get_console_name(&amp;name);</span><br><span class="line">    console_init(name);                   <span class="comment">// 初始化串口（能打印了）</span></span><br><span class="line">    boot_main();                          <span class="comment">// ★ 真正启动内核</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>要点</strong>：汇编开完 MMU 后，先解决两件事——dtb 落地 + 串口能打印（后续 log 都靠它）。</p>
+<h3 id="3-2-boot-main：C-世界初始化主流程"><a href="#3-2-boot-main：C-世界初始化主流程" class="headerlink" title="3.2 boot_main：C 世界初始化主流程"></a>3.2 boot_main：C 世界初始化主流程</h3><blockquote>
+<p>源码位置：<code>minos.c:45-96</code></p>
+</blockquote>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">boot_main</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    allsymbols_init();        <span class="comment">// 符号表（kgdb/backtrace 用）</span></span><br><span class="line">    percpu_init(<span class="number">0</span>);           <span class="comment">// percpu 区域初始化</span></span><br><span class="line"></span><br><span class="line">    kernel_vspace_init();     <span class="comment">// hypervisor 自身虚拟地址空间</span></span><br><span class="line">    mm_init();                <span class="comment">// 物理内存分配器</span></span><br><span class="line"></span><br><span class="line">    of_init_bootargs();       <span class="comment">// bootargs</span></span><br><span class="line"></span><br><span class="line">    early_init();             <span class="comment">// ① 早期架构初始化</span></span><br><span class="line">    early_init_percpu();</span><br><span class="line"></span><br><span class="line">    arch_init();              <span class="comment">// ② 架构层</span></span><br><span class="line">    arch_init_percpu();</span><br><span class="line"></span><br><span class="line">    platform_init();          <span class="comment">// ③ 平台（QEMU/FVP...）</span></span><br><span class="line">    irq_init();               <span class="comment">// ④ 中断控制器（GIC）</span></span><br><span class="line"></span><br><span class="line">    smp_init();               <span class="comment">// ⑤ 多核</span></span><br><span class="line"></span><br><span class="line">    subsys_init();            <span class="comment">// ⑥ 子系统</span></span><br><span class="line">    subsys_init_percpu();</span><br><span class="line"></span><br><span class="line">    module_init();            <span class="comment">// ⑦ 模块（vmodule 等）</span></span><br><span class="line">    module_init_percpu();</span><br><span class="line"></span><br><span class="line">    sched_init();             <span class="comment">// ⑧ 调度器</span></span><br><span class="line">    local_sched_init();</span><br><span class="line"></span><br><span class="line">    device_init();            <span class="comment">// ⑨ 设备驱动</span></span><br><span class="line">    device_init_percpu();</span><br><span class="line"></span><br><span class="line">    ramdisk_init();           <span class="comment">// ⑩ ramdisk（加载 guest 镜像来源）</span></span><br><span class="line"></span><br><span class="line">    create_idle_task();       <span class="comment">// 创建 idle 任务</span></span><br><span class="line"></span><br><span class="line">    smp_cpus_up();            <span class="comment">// 唤醒其他核</span></span><br><span class="line"></span><br><span class="line">    virt_init();              <span class="comment">// ⑪ ★ 虚拟化初始化（创建 VM）</span></span><br><span class="line">    cpu_idle();               <span class="comment">// ⑫ 进入 idle，等待调度</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-init-的优先级梯队"><a href="#3-3-init-的优先级梯队" class="headerlink" title="3.3 init 的优先级梯队"></a>3.3 init 的优先级梯队</h3><p><code>early_init → arch_init → platform_init → irq_init → ... → device_init</code><br>全部由 <code>core/init.h</code> 的宏声明，编译期进 <code>.init_func_N</code> 段，启动期由 <code>subsys_init()</code> 等统一遍历调用。<strong>这是 minos 扩展性的基础：新组件用对宏，自动进启动序列。</strong></p>
+<h3 id="3-4-与本主题（虚拟化）最相关的两条"><a href="#3-4-与本主题（虚拟化）最相关的两条" class="headerlink" title="3.4 与本主题（虚拟化）最相关的两条"></a>3.4 与本主题（虚拟化）最相关的两条</h3><ul>
+<li><code>module_init()</code> → <strong>vmodule</strong>（vmodule.c:158 <code>subsys_initcall(vmodules_init)</code>）会创建 vcpu 的模块表，为后续 vCPU 上下文切换打基础。</li>
+<li><code>virt_init()</code>（vm.c:1052）→ <code>vmm_init()</code> 建内存池、<code>vm_daemon_init()</code> 建守护线程、<code>parse_and_create_vms()</code> 从 dts 解析 VM → 创建 host VM。<strong>虚拟化从这一步真正开始。</strong></li>
+</ul>
+<h4 id="3-4-1-启动分界线：guest-相关的动作全从-virt-init-开始"><a href="#3-4-1-启动分界线：guest-相关的动作全从-virt-init-开始" class="headerlink" title="3.4.1 启动分界线：guest 相关的动作全从 virt_init() 开始"></a>3.4.1 启动分界线：guest 相关的动作全从 <code>virt_init()</code> 开始</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">boot_main()</span><br><span class="line"> ├─ 第 2~4 节全部：hypervisor 自身初始化（MMU/栈/GIC/timer/sched）</span><br><span class="line"> │    ← 和普通 OS 启动逻辑几乎一样，没有 guest 动作</span><br><span class="line"> ├─ virt_init()   ← ★ 真正的分界线，guest 相关从这里开始</span><br><span class="line"> │    ├─ vmm_init()          为 guest 建内存池</span><br><span class="line"> │    ├─ vm_daemon_init()    建 VM 守护线程</span><br><span class="line"> │    ├─ parse_and_create_vms()  从 dts 解析 VM → 创建 host VM</span><br><span class="line"> │    └─ start_all_vm()      启动 VM：创建 vCPU / 建 Stage2 / 进入 guest</span><br><span class="line"> └─ cpu_idle()</span><br></pre></td></tr></table></figure>
+
+<p><strong>结论</strong>：第 2-4 节是”hypervisor 把自己跑起来”；”让 guest 跑起来”是 <code>virt_init()</code> 及之后的事（Phase 4-9 内容）。</p>
+<h4 id="3-4-2-启动早期的-3-处”虚拟化痕迹”"><a href="#3-4-2-启动早期的-3-处”虚拟化痕迹”" class="headerlink" title="3.4.2 启动早期的 3 处”虚拟化痕迹”"></a>3.4.2 启动早期的 3 处”虚拟化痕迹”</h4><p>不能说完完全全与普通 OS 相同，启动过程有三处虚拟化独有的动作：</p>
+<table>
+<thead>
+<tr>
+<th>位置</th>
+<th>动作</th>
+<th>为什么是虚拟化独有</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>boot.S:90-91</td>
+<td>强制 EL2 启动（<code>b.ne minos_panic</code>）</td>
+<td>普通 OS 会 <code>eret</code> 降级到 EL1，hypervisor 必须留 EL2</td>
+</tr>
+<tr>
+<td>arch.c:227</td>
+<td>&#96;HCR_EL2</td>
+<td>&#x3D; IMO|FMO|AMO&#96;</td>
+</tr>
+<tr>
+<td>minos.c:93</td>
+<td><code>virt_init()</code> 是 boot_main 最后一步</td>
+<td>自身跑完才启动 guest，顺序依赖</td>
+</tr>
+</tbody></table>
+<p>这三处是”为虚拟化铺路”，但真正的 guest 启动动作（建 Stage2、vCPU、注入中断）都不在这一阶段。</p>
+<h3 id="3-5-secondary-core"><a href="#3-5-secondary-core" class="headerlink" title="3.5 secondary core"></a>3.5 secondary core</h3><ul>
+<li>等待所有核起来（<code>is_cpus_all_up</code>）。</li>
+<li>各自执行 <code>early_init_percpu → arch_init_percpu → irq_secondary_init → ... → create_idle_task → cpu_idle</code>。</li>
+<li>只跑 percpu 部分，<strong>全局初始化只做一次（BSP）</strong>。</li>
+</ul>
+<hr>
+<h2 id="4-架构层-init"><a href="#4-架构层-init" class="headerlink" title="4. 架构层 init"></a>4. 架构层 init</h2><h3 id="4-1-aarch64-init-percpu"><a href="#4-1-aarch64-init-percpu" class="headerlink" title="4.1 aarch64_init_percpu"></a>4.1 aarch64_init_percpu</h3><blockquote>
+<p>源码位置：<code>arch.c:213-240</code></p>
+</blockquote>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> __init_text <span class="title function_">aarch64_init_percpu</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    reg = read_CurrentEl();</span><br><span class="line">    pr_notice(<span class="string">&quot;current EL is %d\n&quot;</span>, GET_EL(reg));</span><br><span class="line"><span class="meta">#<span class="keyword">ifdef</span> CONFIG_VIRT</span></span><br><span class="line">    reg = read_sysreg64(HCR_EL2);</span><br><span class="line">    reg |= HCR_EL2_IMO | HCR_EL2_FMO | HCR_EL2_AMO;   <span class="comment">// ★</span></span><br><span class="line">    write_sysreg64(reg, HCR_EL2);</span><br><span class="line">    dsb();</span><br><span class="line">    isb();</span><br><span class="line"><span class="meta">#<span class="keyword">else</span></span></span><br><span class="line">    write_sysreg64(<span class="number">0x3</span> &lt;&lt; <span class="number">20</span>, CPACR_EL1);</span><br><span class="line"><span class="meta">#<span class="keyword">endif</span></span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>要点（虚拟化关键）</strong>：设 <code>HCR_EL2.IMO/FMO/AMO</code> —— 让<strong>物理 IRQ&#x2F;FIQ&#x2F;SError 直接路由到 EL2</strong>。不设的话，物理中断根本送不进 EL2，hypervisor 无法接管（这是虚拟化能工作的前提之一）。</p>
+<h3 id="4-2-arch-early-init-arch-init"><a href="#4-2-arch-early-init-arch-init" class="headerlink" title="4.2 arch_early_init &#x2F; __arch_init"></a>4.2 arch_early_init &#x2F; __arch_init</h3><ul>
+<li><code>arch_early_init</code>：<code>of_setup_platform()</code>，从 dtb 识别平台。</li>
+<li><code>__arch_init</code>：<code>of_parse_host_device_tree()</code>，解析 host dtb。</li>
+</ul>
+<h3 id="4-3-affinity-转换"><a href="#4-3-affinity-转换" class="headerlink" title="4.3 affinity 转换"></a>4.3 affinity 转换</h3><p><code>cpuid_to_affinity / affinity_to_cpuid</code>：逻辑 CPU 号 ↔ MPIDR affinity 值互换。SGI&#x2F;跨核通信会用到（Phase 6 见过 <code>cpuid_to_affinity</code>）。</p>
+<hr>
+<hr>
+<h2 id="5-minos-与-Linux-的对比"><a href="#5-minos-与-Linux-的对比" class="headerlink" title="5. minos 与 Linux 的对比"></a>5. minos 与 Linux 的对比</h2><blockquote>
+<p>为什么 minos 的启动流程看起来和 Linux 多核启动”长得很像”？因为两者都要解决<br>同一组问题（识别核号、搭地址翻译、开 MMU、BSP 干全局活、secondary 等待、进 idle）。<br>但<strong>目标完全不同</strong>——一个是启动一个 OS，一个是启动一个 hypervisor。</p>
+</blockquote>
+<h3 id="5-1-启动流程对比"><a href="#5-1-启动流程对比" class="headerlink" title="5.1 启动流程对比"></a>5.1 启动流程对比</h3><h4 id="5-1-1-骨架相同"><a href="#5-1-1-骨架相同" class="headerlink" title="5.1.1 骨架相同"></a>5.1.1 骨架相同</h4><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>Linux 多核启动</th>
+<th>Minos 多核启动</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>入口检查</td>
+<td><code>_start</code> → 查 EL &#x2F; 对齐</td>
+<td><code>_start</code> → 查 EL、4K 对齐</td>
+</tr>
+<tr>
+<td>每核自识别</td>
+<td><code>mrs MPIDR</code> → cpuid</td>
+<td><code>arch_raw_smp_processor_id</code> → x19</td>
+</tr>
+<tr>
+<td>建页表</td>
+<td><code>__create_page_tables</code> identity map</td>
+<td><code>map_boot_mem</code> identity map</td>
+</tr>
+<tr>
+<td>开 MMU</td>
+<td><code>__enable_mmu</code> + <code>br</code></td>
+<td><code>SCTLR.M</code> + <code>br x26</code></td>
+</tr>
+<tr>
+<td>BSP&#x2F;secondary 分叉</td>
+<td><code>secondary_holding_pen</code> &#x2F; <code>__cpu_up</code></td>
+<td><code>cbnz x19, secondary_start_up</code></td>
+</tr>
+<tr>
+<td>汇合等待</td>
+<td><code>secondary_start_kernel</code> 等 BSP</td>
+<td><code>boot_secondary</code> 等 <code>is_cpus_all_up</code></td>
+</tr>
+<tr>
+<td>最终进 idle</td>
+<td><code>cpu_startup_entry</code> → <code>cpu_idle</code></td>
+<td><code>cpu_idle()</code></td>
+</tr>
+</tbody></table>
+<p><strong>为什么必然像</strong>：任何”多核从裸机上电到 idle”都要解决同一组问题，这是 ARM 多核启动的标准流程。</p>
+<h4 id="5-1-2-本质区别"><a href="#5-1-2-本质区别" class="headerlink" title="5.1.2 本质区别"></a>5.1.2 本质区别</h4><table>
+<thead>
+<tr>
+<th></th>
+<th>Linux（非虚拟化）</th>
+<th>Minos（虚拟化）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>启动后运行层级</td>
+<td><strong>EL1</strong></td>
+<td><strong>EL2</strong></td>
+</tr>
+<tr>
+<td>EL2 的角色</td>
+<td>路过（<code>eret</code> 降级到 EL1）</td>
+<td><strong>就是家</strong>（<code>b.ne minos_panic</code> 强制 EL2）</td>
+</tr>
+<tr>
+<td>给谁启动</td>
+<td>给自己（唯一 OS）</td>
+<td>给自己 + 之后创建 guest VM</td>
+</tr>
+<tr>
+<td>地址翻译</td>
+<td>一套 Stage1（自用）</td>
+<td>Stage1（自用）+ 为 guest 建 <strong>Stage2</strong></td>
+</tr>
+<tr>
+<td>配置的寄存器</td>
+<td>SCTLR&#x2F;TTBR&#x2F;TCR&#x2F;MAIR</td>
+<td>同上 + <strong>HCR_EL2 &#x2F; VTCR_EL2 &#x2F; VTTBR_EL2 &#x2F; vPIDR&#x2F;vMPIDR</strong></td>
+</tr>
+<tr>
+<td>异常处理</td>
+<td>自己处理</td>
+<td>接管 guest 异常（trap.c，Phase 3）</td>
+</tr>
+<tr>
+<td>中断</td>
+<td>自己用物理 GIC</td>
+<td>物理 GIC + <strong>vGIC &#x2F; LR 注入</strong>（Phase 5）</td>
+</tr>
+</tbody></table>
+<h4 id="5-1-3-代码里的关键证据"><a href="#5-1-3-代码里的关键证据" class="headerlink" title="5.1.3 代码里的关键证据"></a>5.1.3 代码里的关键证据</h4><p><strong>Linux 式（降级到 EL1）</strong>——<code>boot.S:125-153</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">drop_to_el1:</span><br><span class="line">	adr	x1, minos_os_start</span><br><span class="line">	msr	ELR_EL2, x1</span><br><span class="line">	mov	x1, #(AARCH64_SPSR_EL1h | ...)   // ★ 返回后 EL1</span><br><span class="line">	msr	SPSR_EL2, x1</span><br><span class="line">	eret                                     // 降到 EL1 继续跑</span><br></pre></td></tr></table></figure>
+
+<p><strong>Minos 式（强制留 EL2）</strong>——<code>boot.S:90-91</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">#ifdef CONFIG_VIRT</span><br><span class="line">	b.ne	minos_panic         // ★ 虚拟化：必须在 EL2 启动，否则 panic</span><br></pre></td></tr></table></figure>
+
+<p>且 <code>arch_vcpu_state_init</code>（arch_virt.c:187）配置 <code>HCR_EL2.VM | TWI | IMO | FMO | ...</code>，<br>为 guest 准备 Stage2 翻译和 trap 机制。</p>
+<h4 id="5-1-4-一句话总结"><a href="#5-1-4-一句话总结" class="headerlink" title="5.1.4 一句话总结"></a>5.1.4 一句话总结</h4><p><strong>启动的”手脚架”一样，但”终点”不同</strong>：Linux 启动完是一个 OS 跑在 EL1；<br>minos 启动完是一个 EL2 hypervisor，它启动自己只是第一步——紧接着 <code>virt_init()</code> 创建 host VM、<br>为 guest 建 Stage2、接管中断与 trap（Phase 3-9 的全部内容）。<br>所以 Linux 启动经验能完全迁移，但虚拟化的新东西全在”启动完成之后”。</p>
+<hr>
+<h3 id="5-2-内核定位对比"><a href="#5-2-内核定位对比" class="headerlink" title="5.2 内核定位对比"></a>5.2 内核定位对比</h3><blockquote>
+<p>minos 到底是什么？一句话：**带微内核骨架的 Type-1 hypervisor，是”操作系统的操作系统”**。<br>它不是通用操作系统，但确实长着操作系统的样子——这是和 Linux 对比理解的钥匙。</p>
+</blockquote>
+<h4 id="5-2-1-一句话定位"><a href="#5-2-1-一句话定位" class="headerlink" title="5.2.1 一句话定位"></a>5.2.1 一句话定位</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">传统 Linux：      硬件 ← 管理 → 应用（进程）</span><br><span class="line">                    │</span><br><span class="line">                   EL1     （为&quot;普通程序&quot;提供环境）</span><br><span class="line"></span><br><span class="line">Minos：           硬件 ← 管理 → guest OS（Linux/Android/RTOS...）</span><br><span class="line">                    │</span><br><span class="line">                   EL2     （为&quot;操作系统&quot;提供环境）</span><br></pre></td></tr></table></figure>
+
+<p>**关键在”服务对象”**：</p>
+<ul>
+<li>Linux 的”用户”是<strong>进程</strong>（EL0）</li>
+<li>Minos 的”用户”是<strong>其他操作系统</strong>（EL1）</li>
+</ul>
+<p>所以 minos 本质是<strong>管理操作系统的操作系统</strong>——它的”应用”不是程序，而是一个个 guest OS。</p>
+<h4 id="5-2-2-为什么它”像”操作系统"><a href="#5-2-2-为什么它”像”操作系统" class="headerlink" title="5.2.2 为什么它”像”操作系统"></a>5.2.2 为什么它”像”操作系统</h4><p>minos 内核里有完整的微内核组件，这也是能和 Linux 类比的基础：</p>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>Linux</th>
+<th>Minos</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>任务&#x2F;调度</td>
+<td><code>task_struct</code> &#x2F; CFS</td>
+<td><code>task</code> &#x2F; <code>sched.c</code></td>
+<td>调度执行单元</td>
+</tr>
+<tr>
+<td>内存管理</td>
+<td><code>mm</code> &#x2F; 伙伴系统</td>
+<td><code>mm.c</code> &#x2F; <code>vmm.c</code></td>
+<td>分配物理内存</td>
+</tr>
+<tr>
+<td>中断</td>
+<td>GIC 驱动</td>
+<td><code>gicv3.c</code></td>
+<td>处理硬件中断</td>
+</tr>
+<tr>
+<td>定时器</td>
+<td>hrtimer</td>
+<td><code>timer.c</code></td>
+<td>定时调度</td>
+</tr>
+<tr>
+<td>异常处理</td>
+<td>向量表 → do_IRQ 等</td>
+<td><code>vector.S</code> → trap.c</td>
+<td>处理异常</td>
+</tr>
+</tbody></table>
+<p><strong>为什么必须有这些？</strong> 因为它要自举（启动流程）、要调度 vCPU（每个 vCPU 是一个 task）、<br>要管理自己的内存和中断。没有内核骨架，hypervisor 自己都跑不起来。</p>
+<h4 id="5-2-3-本质差异"><a href="#5-2-3-本质差异" class="headerlink" title="5.2.3 本质差异"></a>5.2.3 本质差异</h4><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>Linux</th>
+<th>Minos</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>运行层级</td>
+<td>EL1</td>
+<td>EL2</td>
+</tr>
+<tr>
+<td>服务对象</td>
+<td>进程</td>
+<td>guest OS</td>
+</tr>
+<tr>
+<td>虚拟化</td>
+<td>不支持（或作为 KVM 宿主）</td>
+<td><strong>核心功能</strong></td>
+</tr>
+<tr>
+<td>页表</td>
+<td>只管 Stage1</td>
+<td>Stage1 + 为每个 guest 建 <strong>Stage2</strong></td>
+</tr>
+<tr>
+<td>调度对象</td>
+<td>进程&#x2F;线程</td>
+<td><strong>vCPU</strong>（一个 vCPU 就是一个 task）</td>
+</tr>
+<tr>
+<td>中断</td>
+<td>自己处理</td>
+<td>接管 + 用 LR <strong>注入虚拟中断</strong></td>
+</tr>
+<tr>
+<td>上下文切换</td>
+<td>保存&#x2F;恢复寄存器</td>
+<td>保存&#x2F;恢复寄存器 + <strong>vmodule 保存 guest 全套虚拟化状态</strong></td>
+</tr>
+<tr>
+<td>内存隔离</td>
+<td>进程地址空间</td>
+<td>VMID 硬件隔离</td>
+</tr>
+</tbody></table>
+<h4 id="5-2-4-类比"><a href="#5-2-4-类比" class="headerlink" title="5.2.4 类比"></a>5.2.4 类比</h4><ul>
+<li><strong>Linux</strong> &#x3D; 一栋楼的物业（管理水电&#x2F;门禁，服务住客&#x3D;进程）</li>
+<li><strong>Minos</strong> &#x3D; 一栋楼的<strong>房东公司</strong>（自己也要懂物业管理，但真正服务的是”租下整层的公司”&#x3D; guest OS）</li>
+<li>房东公司既要懂物业管理（像内核），又要懂出租整层（虚拟化），所以它两者都沾。</li>
+</ul>
+<h4 id="5-2-5-回到本项目代码"><a href="#5-2-5-回到本项目代码" class="headerlink" title="5.2.5 回到本项目代码"></a>5.2.5 回到本项目代码</h4><p>这正好解释了启动流程的两面性：</p>
+<ul>
+<li><strong>第 2 节 boot.S 建页表&#x2F;开 MMU</strong> → <strong>微内核部分</strong>（像 Linux）</li>
+<li><strong>3.4 节 <code>virt_init()</code></strong> → <strong>hypervisor 部分</strong>（Linux 没有）</li>
+<li><strong>强制 EL2、HCR_EL2 中断路由</strong> → <strong>虚拟化独有</strong>（层级不同导致）</li>
+</ul>
+<p>一句话总结：<strong>minos 是”拥有微内核骨架的 hypervisor”——内核组件是它的”手”，虚拟化是它的”目的”。</strong><br>对比理解时，凡”管硬件、调度、分配内存”的部分和 Linux 同构；凡”为 guest 建 Stage2、注入中断、保存 vCPU 状态”的部分是 Linux 没有的。</p>
+<hr>
+<h2 id="6-术语速查"><a href="#6-术语速查" class="headerlink" title="6. 术语速查"></a>6. 术语速查</h2><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>identity map</td>
+<td>虚拟地址 &#x3D;&#x3D; 物理地址的映射，开 MMU 瞬间必需</td>
+</tr>
+<tr>
+<td>initcall</td>
+<td>编译期注册、启动期按优先级调用的初始化函数</td>
+</tr>
+<tr>
+<td>percpu</td>
+<td>每 CPU 一份的变量（lds 里 NR_CPUS 份拷贝）</td>
+</tr>
+<tr>
+<td>PTOV_MASK &#x2F; VTOP_MASK</td>
+<td>物理↔虚拟地址换算掩码（QEMU 平台为 0）</td>
+</tr>
+<tr>
+<td>Stage1 &#x2F; Stage2</td>
+<td>hypervisor 自身地址翻译(1) &#x2F; guest 地址翻译(2)</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-ARMv8-A-%E8%99%9A%E6%8B%9F%E5%8C%96%E5%9F%BA%E7%A1%80/" rel="prev" title="Minos 虚拟化: ARMv8-A 虚拟化基础">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: ARMv8-A 虚拟化基础
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%BC%82%E5%B8%B8%E4%B8%8E-trap-%E6%9C%BA%E5%88%B6/" rel="next" title="Minos 虚拟化: 异常与 trap 机制">
+                  Minos 虚拟化: 异常与 trap 机制 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

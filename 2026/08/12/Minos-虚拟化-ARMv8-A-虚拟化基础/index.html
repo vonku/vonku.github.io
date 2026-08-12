@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="Phase 1：ARMv8-A 启动与虚拟化精读笔记 对应 LEARNING_PLAN.md Phase 1：ARMv8-A 基础补课。 目的：以 Minos 源码为主线，精读 ARMv8-A 中与虚拟化密切相关的体系结构概念，建立”概念 → 寄存器 → 代码”的对应关系，为后续 Phase 2-9 打基础。 阅读方式：先读每节”概念”，再对照”代码位置”逐行精读，最后看”要点”复盘。   目录">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: ARMv8-A 虚拟化基础">
+<meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-ARMv8-A-%E8%99%9A%E6%8B%9F%E5%8C%96%E5%9F%BA%E7%A1%80/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="Phase 1：ARMv8-A 启动与虚拟化精读笔记 对应 LEARNING_PLAN.md Phase 1：ARMv8-A 基础补课。 目的：以 Minos 源码为主线，精读 ARMv8-A 中与虚拟化密切相关的体系结构概念，建立”概念 → 寄存器 → 代码”的对应关系，为后续 Phase 2-9 打基础。 阅读方式：先读每节”概念”，再对照”代码位置”逐行精读，最后看”要点”复盘。   目录">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-12T14:09:02.000Z">
+<meta property="article:modified_time" content="2026-08-12T14:12:34.637Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-ARMv8-A-%E8%99%9A%E6%8B%9F%E5%8C%96%E5%9F%BA%E7%A1%80/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-ARMv8-A-%E8%99%9A%E6%8B%9F%E5%8C%96%E5%9F%BA%E7%A1%80/","path":"2026/08/12/Minos-虚拟化-ARMv8-A-虚拟化基础/","title":"Minos 虚拟化: ARMv8-A 虚拟化基础"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: ARMv8-A 虚拟化基础 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Phase-1%EF%BC%9AARMv8-A-%E5%90%AF%E5%8A%A8%E4%B8%8E%E8%99%9A%E6%8B%9F%E5%8C%96%E7%B2%BE%E8%AF%BB%E7%AC%94%E8%AE%B0"><span class="nav-text">Phase 1：ARMv8-A 启动与虚拟化精读笔记</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#%E7%9B%AE%E5%BD%95"><span class="nav-text">目录</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-EL-%E5%B1%82%E7%BA%A7%E4%B8%8E%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B"><span class="nav-text">1. EL 层级与异常模型</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">1.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">1.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-%E7%B2%BE%E8%AF%BB-boot-S-76-151%EF%BC%88%E5%BD%93%E5%89%8D-EL-%E6%A3%80%E6%B5%8B%E4%B8%8E%E9%99%8D%E7%BA%A7%EF%BC%89"><span class="nav-text">1.3 精读 boot.S:76-151（当前 EL 检测与降级）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-4-%E8%A6%81%E7%82%B9"><span class="nav-text">1.4 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-HCR-EL2%EF%BC%9A%E8%99%9A%E6%8B%9F%E5%8C%96%E6%8E%A7%E5%88%B6%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">2. HCR_EL2：虚拟化控制寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">2.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">2.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%85%B3%E9%94%AE%E4%BD%8D%E4%BD%9C%E7%94%A8%E9%80%9F%E6%9F%A5%E8%A1%A8"><span class="nav-text">2.3 关键位作用速查表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E8%A6%81%E7%82%B9"><span class="nav-text">2.4 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-Stage1-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91"><span class="nav-text">3. Stage1 地址翻译</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">3.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">3.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E7%B2%BE%E8%AF%BB-boot-S-198-239%EF%BC%88%E9%A1%B5%E8%A1%A8%E5%9F%BA%E5%9D%80-MAIR-TCR%EF%BC%89"><span class="nav-text">3.3 精读 boot.S:198-239（页表基址 + MAIR + TCR）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-stage1-h-%E6%8F%8F%E8%BF%B0%E7%AC%A6%E8%A6%81%E7%82%B9"><span class="nav-text">3.4 stage1.h 描述符要点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E8%A6%81%E7%82%B9"><span class="nav-text">3.5 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Stage2-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91"><span class="nav-text">4. Stage2 地址翻译</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">4.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">4.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E7%B2%BE%E8%AF%BB-arch-virt-c-131-161"><span class="nav-text">4.3 精读 arch_virt.c:131-161</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-stage2-h-%E4%B8%8E-stage1-h-%E7%9A%84%E5%B7%AE%E5%BC%82%EF%BC%88%E6%98%93%E9%94%99%E7%82%B9%EF%BC%89"><span class="nav-text">4.4 stage2.h 与 stage1.h 的差异（易错点）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E5%88%86%E7%BA%A7%E7%B4%A2%E5%BC%95"><span class="nav-text">4.5 分级索引</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-6-%E8%A6%81%E7%82%B9"><span class="nav-text">4.6 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%BC%82%E5%B8%B8%E5%90%91%E9%87%8F%E8%A1%A8%E4%B8%8E%E8%B0%83%E7%94%A8%E5%85%B3%E7%B3%BB%E5%9B%BE"><span class="nav-text">5. 异常向量表与调用关系图</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">5.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">5.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E7%B2%BE%E8%AF%BB-entry-S%EF%BC%88%E5%90%91%E9%87%8F%E8%A1%A8%E5%B8%83%E5%B1%80%EF%BC%89"><span class="nav-text">5.3 精读 entry.S（向量表布局）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-vector-S-%E7%9A%84%E5%85%B3%E9%94%AE%E5%AE%8F"><span class="nav-text">5.4 vector.S 的关键宏</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E2%98%85-%E5%BC%82%E5%B8%B8%E8%B0%83%E7%94%A8%E5%85%B3%E7%B3%BB%E5%9B%BE%EF%BC%88Phase-1-%E9%AA%8C%E8%AF%81%E7%9B%AE%E6%A0%87%EF%BC%89"><span class="nav-text">5.5 ★ 异常调用关系图（Phase 1 验证目标）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-6-%E8%A6%81%E7%82%B9"><span class="nav-text">5.6 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-GICv3-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96"><span class="nav-text">6. GICv3 中断虚拟化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">6.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">6.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E4%B8%A4%E7%A7%8D%E8%99%9A%E6%8B%9F%E5%8C%96%E8%B7%AF%E5%BE%84%EF%BC%88Phase-5-%E7%9A%84%E9%A2%84%E4%B9%A0%EF%BC%89"><span class="nav-text">6.3 两种虚拟化路径（Phase 5 的预习）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E8%A6%81%E7%82%B9"><span class="nav-text">6.4 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-Generic-Timer-%E5%AE%9A%E6%97%B6%E5%99%A8%E8%99%9A%E6%8B%9F%E5%8C%96"><span class="nav-text">7. Generic Timer 定时器虚拟化</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">7.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">7.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E7%B2%BE%E8%AF%BB-vtimer-c-97-120"><span class="nav-text">7.3 精读 vtimer.c:97-120</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E8%A6%81%E7%82%B9"><span class="nav-text">7.4 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-Barrier-TLB-Cache"><span class="nav-text">8. Barrier &#x2F; TLB &#x2F; Cache</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E6%A6%82%E5%BF%B5"><span class="nav-text">8.1 概念</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-2-Minos-%E4%BB%A3%E7%A0%81%E4%BD%8D%E7%BD%AE"><span class="nav-text">8.2 Minos 代码位置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-3-barrier-h-%E7%B2%BE%E8%AF%BB"><span class="nav-text">8.3 barrier.h 精读</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#8-4-%E8%A6%81%E7%82%B9"><span class="nav-text">8.4 要点</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-Phase-1-%E9%AA%8C%E8%AF%81%E6%B8%85%E5%8D%95"><span class="nav-text">9. Phase 1 验证清单</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8A%A8%E6%89%8B%E5%BB%BA%E8%AE%AE%EF%BC%88%E5%8F%AF%E5%8A%A0%E6%B7%B1%E7%90%86%E8%A7%A3%EF%BC%89"><span class="nav-text">动手建议（可加深理解）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#%E9%99%84%EF%BC%9A%E6%A0%B8%E5%BF%83%E5%AF%84%E5%AD%98%E5%99%A8%E9%80%9F%E6%9F%A5%E8%A1%A8"><span class="nav-text">附：核心寄存器速查表</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-ARMv8-A-%E8%99%9A%E6%8B%9F%E5%8C%96%E5%9F%BA%E7%A1%80/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: ARMv8-A 虚拟化基础 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: ARMv8-A 虚拟化基础
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-12 22:09:02" itemprop="dateCreated datePublished" datetime="2026-08-12T22:09:02+08:00">2026-08-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><h1 id="Phase-1：ARMv8-A-启动与虚拟化精读笔记"><a href="#Phase-1：ARMv8-A-启动与虚拟化精读笔记" class="headerlink" title="Phase 1：ARMv8-A 启动与虚拟化精读笔记"></a>Phase 1：ARMv8-A 启动与虚拟化精读笔记</h1><blockquote>
+<p>对应 <code>LEARNING_PLAN.md</code> Phase 1：ARMv8-A 基础补课。</p>
+<p>目的：以 Minos 源码为主线，精读 ARMv8-A 中与虚拟化密切相关的体系结构概念，<br>建立”概念 → 寄存器 → 代码”的对应关系，为后续 Phase 2-9 打基础。</p>
+<p>阅读方式：先读每节”概念”，再对照”代码位置”逐行精读，最后看”要点”复盘。</p>
+</blockquote>
+<hr>
+<h2 id="目录"><a href="#目录" class="headerlink" title="目录"></a>目录</h2><ol>
+<li><a href="#1-el-%E5%B1%82%E7%BA%A7%E4%B8%8E%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B">EL 层级与异常模型（SPSR &#x2F; ELR &#x2F; ESR）</a></li>
+<li><a href="#2-hcr_el2%E8%99%9A%E6%8B%9F%E5%8C%96%E6%8E%A7%E5%88%B6%E5%AF%84%E5%AD%98%E5%99%A8">HCR_EL2：虚拟化控制寄存器</a></li>
+<li><a href="#3-stage1-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91">Stage1 地址翻译（TTBR &#x2F; TCR &#x2F; MAIR）</a></li>
+<li><a href="#4-stage2-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91">Stage2 地址翻译（VTTBR &#x2F; VTCR &#x2F; VMID &#x2F; IPA）</a></li>
+<li><a href="#5-%E5%BC%82%E5%B8%B8%E5%90%91%E9%87%8F%E8%A1%A8%E4%B8%8E%E8%B0%83%E7%94%A8%E5%85%B3%E7%B3%BB%E5%9B%BE">异常向量表（4 组 × 4 类型）与调用关系图</a></li>
+<li><a href="#6-gicv3-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96">GICv3 中断虚拟化（GICD &#x2F; GICR &#x2F; LR）</a></li>
+<li><a href="#7-generic-timer-%E5%AE%9A%E6%97%B6%E5%99%A8%E8%99%9A%E6%8B%9F%E5%8C%96">Generic Timer 定时器虚拟化（CNTVOFF &#x2F; CVAL）</a></li>
+<li><a href="#8-barrier--tlb--cache">Barrier &#x2F; TLB &#x2F; Cache</a></li>
+<li><a href="#9-phase-1-%E9%AA%8C%E8%AF%81%E6%B8%85%E5%8D%95">Phase 1 验证清单</a></li>
+</ol>
+<hr>
+<h2 id="1-EL-层级与异常模型"><a href="#1-EL-层级与异常模型" class="headerlink" title="1. EL 层级与异常模型"></a>1. EL 层级与异常模型</h2><h3 id="1-1-概念"><a href="#1-1-概念" class="headerlink" title="1.1 概念"></a>1.1 概念</h3><p>ARMv8-A 定义 4 个异常等级（Exception Level）：</p>
+<table>
+<thead>
+<tr>
+<th>EL</th>
+<th>典型用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EL0</td>
+<td>用户态（Apps）</td>
+</tr>
+<tr>
+<td>EL1</td>
+<td>操作系统内核（Guest Linux &#x2F; Minos OS）</td>
+</tr>
+<tr>
+<td>EL2</td>
+<td><strong>Hypervisor（Minos 运行于此）</strong></td>
+</tr>
+<tr>
+<td>EL3</td>
+<td>Secure Monitor（固件&#x2F;安全世界，本项目中不用）</td>
+</tr>
+</tbody></table>
+<p>异常（Exception）发生的本质：<strong>处理器因事件暂停当前执行，切到更高或同级 EL，<br>从异常向量表取指执行</strong>。三个关键寄存器：</p>
+<ul>
+<li><strong>SPSR_ELx</strong>：保存被中断时 PSTATE（含返回的 EL 编码、DAIF 中断屏蔽位、执行状态）</li>
+<li><strong>ELR_ELx</strong>：保存被中断指令的返回地址（<code>eret</code> 时回到这里）</li>
+<li><strong>ESR_ELx</strong>：异常综合寄存器（Exception Syndrome Register），描述异常原因，<br>最关键的是 <strong>EC 字段（Exception Class）</strong>，标识这是哪种异常（HVC&#x2F;SVC&#x2F;DABT&#x2F;WFx…）</li>
+</ul>
+<p>异常返回用 <strong><code>eret</code></strong> 指令：把 ELR_ELx → PC，把 SPSR_ELx → PSTATE。</p>
+<h3 id="1-2-Minos-代码位置"><a href="#1-2-Minos-代码位置" class="headerlink" title="1.2 Minos 代码位置"></a>1.2 Minos 代码位置</h3><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>arch/aarch64/core/boot.S:76-91</code></td>
+<td><code>CurrentEl</code> 检测当前 EL；EL3 → panic；<code>CONFIG_VIRT</code> 下非 EL2 → panic</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/boot.S:146-151</code></td>
+<td>构造 SPSR_EL2 值 + ELR_EL2 后 <code>eret</code> 降级到 EL1</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/vector.S:71-76</code></td>
+<td>异常入口把 <code>SP_EL0</code> &#x2F; <code>SPSR_EL2</code> &#x2F; <code>ELR_EL2</code> 压栈</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/aarch64_sync.c:87-92</code></td>
+<td><code>bad_mode()</code>：未知模式 panic 出口</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/aarch64_sync.c:46-85</code></td>
+<td><code>esr_class_str[]</code>：ESR EC 字段 → 字符串的全表</td>
+</tr>
+</tbody></table>
+<h3 id="1-3-精读-boot-S-76-151（当前-EL-检测与降级）"><a href="#1-3-精读-boot-S-76-151（当前-EL-检测与降级）" class="headerlink" title="1.3 精读 boot.S:76-151（当前 EL 检测与降级）"></a>1.3 精读 boot.S:76-151（当前 EL 检测与降级）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">mrs	x0, CurrentEl        // 读当前异常等级</span><br><span class="line">mov	x1, x0, lsr #2       // EL 编码在 [3:2] 位</span><br><span class="line">and	x1, x1, #3</span><br><span class="line">cmp	x1, #3</span><br><span class="line">b.eq	minos_panic          // 不能在 EL3 运行</span><br><span class="line"></span><br><span class="line">#ifdef CONFIG_VIRT</span><br><span class="line">cmp	x1, #2</span><br><span class="line">b.ne	minos_panic          // 虚拟化模式下必须从 EL2 启动</span><br></pre></td></tr></table></figure>
+
+<p>要点：</p>
+<ul>
+<li>启动时 Minos 已经由 U-Boot（跑在 EL3 或 EL2 上层）通过 PSCI 带到了 EL2</li>
+<li>虚拟化必须从 EL2 开始，因为只有 EL2 才有 <code>HCR_EL2.VM</code>、Stage2 MMU 等能力</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">drop_to_el1:</span><br><span class="line">	adr	x1, minos_os_start</span><br><span class="line">	msr	ELR_EL2, x1        // 返回地址 = minos_os_start</span><br><span class="line">	mov	x1, #(AARCH64_SPSR_EL1h | AARCH64_SPSR_F | AARCH64_SPSR_I | AARCH64_SPSR_A)</span><br><span class="line">	msr	SPSR_EL2, x1       // 返回后的 PSTATE = EL1h，且屏蔽 F/I/A</span><br><span class="line">	eret                     // eret：PC=ELR_EL2，PSTATE=SPSR_EL2</span><br></pre></td></tr></table></figure>
+
+<p>要点：</p>
+<ul>
+<li>非 <code>CONFIG_VIRT</code> 构建（纯 OS 模式）时 Minos 会主动从 EL2 降级到 EL1 运行</li>
+<li><code>AARCH64_SPSR_EL1h</code> 表示返回后处于 EL1 + SP_EL1（不是 SP_EL0）</li>
+<li>F&#x2F;I&#x2F;A &#x3D; 屏蔽 FIQ&#x2F;IRQ&#x2F;SError，确保进入 C 世界前中断全关</li>
+<li>这是<strong>软件主动用 <code>eret</code> 完成降级</strong>的经典写法</li>
+</ul>
+<h3 id="1-4-要点"><a href="#1-4-要点" class="headerlink" title="1.4 要点"></a>1.4 要点</h3><ol>
+<li><strong>异常 &#x3D; 控制流切换</strong>，由硬件自动完成保存（写 SPSR&#x2F;ELR），由软件决定处理</li>
+<li>Minos 必须运行在 <strong>EL2</strong>（虚拟化需要），这是 Type-1 Hypervisor 的基石</li>
+<li>ESR 的 <strong>EC 字段</strong>是异常分发的钥匙，贯穿整个 Phase 3（trap 机制）</li>
+<li><code>eret</code> 是唯一从异常返回的指令，SPSR+ELR 配对使用</li>
+</ol>
+<hr>
+<h2 id="2-HCR-EL2：虚拟化控制寄存器"><a href="#2-HCR-EL2：虚拟化控制寄存器" class="headerlink" title="2. HCR_EL2：虚拟化控制寄存器"></a>2. HCR_EL2：虚拟化控制寄存器</h2><h3 id="2-1-概念"><a href="#2-1-概念" class="headerlink" title="2.1 概念"></a>2.1 概念</h3><p><code>HCR_EL2</code>（Hypervisor Configuration Register）是 EL2 控制虚拟化的<strong>总开关</strong>。<br>它决定：哪些来自 EL1&#x2F;EL0 的操作会被 <strong>trap（陷入）</strong> 到 EL2 由 Hypervisor 处理，<br>以及虚拟化的基本行为（VM 使能、中断路由等）。</p>
+<h3 id="2-2-Minos-代码位置"><a href="#2-2-Minos-代码位置" class="headerlink" title="2.2 Minos 代码位置"></a>2.2 Minos 代码位置</h3><p><code>arch/aarch64/virt/arch_virt.c:187</code> <code>arch_vcpu_state_init()</code>，代码自带<strong>逐位中文注释</strong>，<br>是学习 HCR_EL2 最好的入门材料：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/*</span></span><br><span class="line"><span class="comment"> * HVC : enable hyper call function</span></span><br><span class="line"><span class="comment"> * TWI : trap wfi - default enable, disable by dts</span></span><br><span class="line"><span class="comment"> * TWE : trap wfe - default disable</span></span><br><span class="line"><span class="comment"> * TIDCP : Trap implementation defined functionality</span></span><br><span class="line"><span class="comment"> * IMP : physical irq routing</span></span><br><span class="line"><span class="comment"> * FMO : physical firq routing</span></span><br><span class="line"><span class="comment"> * BSU_IS : Barrier Shareability upgrade</span></span><br><span class="line"><span class="comment"> * FB : force broadcast when do some tlb ins</span></span><br><span class="line"><span class="comment"> * PTW : protect table walk</span></span><br><span class="line"><span class="comment"> * TSC : trap smc ins</span></span><br><span class="line"><span class="comment"> * TACR : Trap Auxiliary Control Registers</span></span><br><span class="line"><span class="comment"> * AMO : Physical SError interrupt routing.</span></span><br><span class="line"><span class="comment"> * RW : low level is 64bit, when 0 is 32 bit</span></span><br><span class="line"><span class="comment"> * VM : enable virtualzation</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line">value = read_sysreg64(HCR_EL2);</span><br><span class="line">context-&gt;hcr_el2 = value | HCR_EL2_VM |</span><br><span class="line">	     HCR_EL2_TIDCP | HCR_EL2_IMO | HCR_EL2_FMO |</span><br><span class="line">	     HCR_EL2_BSU_IS | HCR_EL2_FB | HCR_EL2_PTW |</span><br><span class="line">	     HCR_EL2_TSC | HCR_EL2_TACR | HCR_EL2_AMO;</span><br><span class="line"></span><br><span class="line"><span class="comment">/* 通常 guest 会有很多 WFI，关掉 WFI trap 避免大量陷入 */</span></span><br><span class="line"><span class="keyword">if</span> (!(vcpu-&gt;vm-&gt;flags &amp; VM_FLAGS_NATIVE_WFI))</span><br><span class="line">	context-&gt;hcr_el2 |= HCR_EL2_TWI;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-关键位作用速查表"><a href="#2-3-关键位作用速查表" class="headerlink" title="2.3 关键位作用速查表"></a>2.3 关键位作用速查表</h3><table>
+<thead>
+<tr>
+<th>位</th>
+<th>置位含义</th>
+<th>Minos 用法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>VM</strong></td>
+<td>使能 Stage2 地址翻译（虚拟化核心开关）</td>
+<td>必置</td>
+</tr>
+<tr>
+<td><strong>RW</strong></td>
+<td>EL1 使用 AArch64（0&#x3D;AArch32）</td>
+<td>64 位 guest 必置</td>
+</tr>
+<tr>
+<td><strong>TWI</strong></td>
+<td>trap 所有 WFI&#x2F;WFE 指令</td>
+<td>默认置位；NATIVE_WFI 的 VM 关闭</td>
+</tr>
+<tr>
+<td><strong>TSC</strong></td>
+<td>trap SMC 指令</td>
+<td>置位，SMC → EL2 处理</td>
+</tr>
+<tr>
+<td><strong>IMO&#x2F;FMO</strong></td>
+<td>物理 IRQ&#x2F;FIQ 路由到 EL2</td>
+<td>置位（虚拟化中断的前提）</td>
+</tr>
+<tr>
+<td><strong>AMO</strong></td>
+<td>物理 SError 路由到 EL2</td>
+<td>置位</td>
+</tr>
+<tr>
+<td><strong>TIDCP</strong></td>
+<td>trap IMPLEMENTATION DEFINED 功能</td>
+<td>置位</td>
+</tr>
+<tr>
+<td><strong>BSU_IS</strong></td>
+<td>barrier 指令共享属性升级</td>
+<td>置位</td>
+</tr>
+<tr>
+<td><strong>FB</strong></td>
+<td>TLB 维护指令强制广播</td>
+<td>置位</td>
+</tr>
+<tr>
+<td><strong>PTW</strong></td>
+<td>Stage1 页表访问被 trap（保护表遍历）</td>
+<td>置位</td>
+</tr>
+<tr>
+<td><strong>TACR</strong></td>
+<td>trap 辅助控制寄存器</td>
+<td>置位</td>
+</tr>
+</tbody></table>
+<h3 id="2-4-要点"><a href="#2-4-要点" class="headerlink" title="2.4 要点"></a>2.4 要点</h3><ol>
+<li>HCR_EL2 是 <strong>per-VM</strong> 的——每个 vCPU 的 <code>context-&gt;hcr_el2</code> 独立保存，<br>由 vmodule 机制在上下文切换时恢复（Phase 7）</li>
+<li>这些 trap 位决定了哪些指令会”掉进” <code>handle_vcpu_sync_exception()</code>（Phase 3 精读）</li>
+<li><strong>trap 是虚拟化的根本手段</strong>：guest 想访问敏感资源 → 被 HCR trap 到 EL2 →<br>Hypervisor 模拟 → 返回 guest。HCR_EL2 就是这份”trap 清单”</li>
+</ol>
+<hr>
+<h2 id="3-Stage1-地址翻译"><a href="#3-Stage1-地址翻译" class="headerlink" title="3. Stage1 地址翻译"></a>3. Stage1 地址翻译</h2><h3 id="3-1-概念"><a href="#3-1-概念" class="headerlink" title="3.1 概念"></a>3.1 概念</h3><p>地址翻译是把 CPU 看到的<strong>虚拟地址（VA）</strong>变成<strong>物理地址（PA）</strong>的过程。<br>ARMv8-A 支持两级：</p>
+<ul>
+<li><strong>Stage1</strong>：VA → IPA（Intermediate Physical Address，中间物理地址）。<br>由 OS 自身管理（页表基址 TTBR0&#x2F;TTBR1）。</li>
+<li><strong>Stage2</strong>：IPA → PA。由 Hypervisor 管理（VTTBR_EL2）。</li>
+</ul>
+<p>Stage1 需要 4 个控制寄存器配合：</p>
+<table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>TTBR0&#x2F;TTBR1</strong></td>
+<td>两级页表基址（TTBR0&#x3D;低位 VA 空间，TTBR1&#x3D;高位）</td>
+</tr>
+<tr>
+<td><strong>TCR</strong></td>
+<td>翻译控制：T0SZ&#x2F;T1SZ（VA 大小）、TGn（粒度）、PS（物理大小）等</td>
+</tr>
+<tr>
+<td><strong>MAIR</strong></td>
+<td>内存属性索引表：把页表描述符里的 AttrIdx 翻译成实际内存属性（Normal&#x2F;Device&#x2F;缓存策略）</td>
+</tr>
+<tr>
+<td>SCTLR</td>
+<td>总开关（<code>M</code>&#x3D;MMU 使能，<code>C</code>&#x3D;dcache，<code>I</code>&#x3D;icache）</td>
+</tr>
+</tbody></table>
+<h3 id="3-2-Minos-代码位置"><a href="#3-2-Minos-代码位置" class="headerlink" title="3.2 Minos 代码位置"></a>3.2 Minos 代码位置</h3><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>arch/aarch64/core/boot.S:198-204</code></td>
+<td>设置 TTBR0&#x2F;TTBR1 指向 <code>__stage1_page_table</code></td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/boot.S:206-221</code></td>
+<td>设置 MAIR &#x3D; <code>0xbbff440c0400</code>（附注释：MT_* 属性表）</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/boot.S:223-239</code></td>
+<td>从 <code>ID_AA64MMFR0_EL1</code> 取 PA range，动态调整 TCR 的 IPS&#x2F;PS 位</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/boot.S:302-315</code></td>
+<td><code>SCTLR</code> 置 M&#x2F;C&#x2F;I 位 → <strong>开 MMU</strong> → <code>br x26</code> 跳到 <code>mmu_on</code></td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/stage1.h</code></td>
+<td>全部 Stage1 描述符布局宏</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/stage1.c</code></td>
+<td>Stage1 页表建立&#x2F;映射函数</td>
+</tr>
+</tbody></table>
+<h3 id="3-3-精读-boot-S-198-239（页表基址-MAIR-TCR）"><a href="#3-3-精读-boot-S-198-239（页表基址-MAIR-TCR）" class="headerlink" title="3.3 精读 boot.S:198-239（页表基址 + MAIR + TCR）"></a>3.3 精读 boot.S:198-239（页表基址 + MAIR + TCR）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">ldr	x1, = __stage1_page_table</span><br><span class="line">asm_vtop x1                  // 物理地址（MMU 还没开，必须用物理地址写寄存器）</span><br><span class="line">msr     ARM64_TTBR0, x1      // TTBR0 = 低地址空间页表基址</span><br><span class="line">msr     ARM64_TTBR1, x1      // TTBR1 = 高地址空间页表基址（映射到同一张表）</span><br><span class="line"></span><br><span class="line">ldr	x1, =0xbbff440c0400</span><br><span class="line">msr	ARM64_MAIR, x1       // 内存属性表（见下）</span><br><span class="line"></span><br><span class="line">mrs	x0, ID_AA64MMFR0_EL1 // 查询硬件支持的最大 PA 位数</span><br><span class="line">and	x0, x0, #0xf         // PaRange 字段</span><br><span class="line">mov	x2, x0, lsl #16      // 填入 TCR.IPS 位</span><br><span class="line">ldr	x1, =ARM64_TCR_VALUE  // 基础 TCR 值</span><br><span class="line">and	x1, x1, x3           // 清掉旧 IPS</span><br><span class="line">orr	x1, x1, x2</span><br><span class="line">msr     ARM64_TCR, x1        // 写 TCR</span><br></pre></td></tr></table></figure>
+
+<p>MAIR 值 <code>0xbbff440c0400</code> 分解（每 8bit 一个 AttrIdx）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">AttrIdx0=0x00  Device-nGnRnE    AttrIdx4=0x44  Normal, WB, Inner/Outer</span><br><span class="line">AttrIdx1=0x04  Device-nGnRE      AttrIdx5=0xff  Normal, WB (write-through 无效时)</span><br><span class="line">AttrIdx2=0x0c  Device-GRE</span><br><span class="line">AttrIdx3=0x44  Normal-NC</span><br></pre></td></tr></table></figure>
+
+<p>这与 <code>stage1.h:51-56</code> 的 <code>MT_*</code> 宏一一对应。</p>
+<h3 id="3-4-stage1-h-描述符要点"><a href="#3-4-stage1-h-描述符要点" class="headerlink" title="3.4 stage1.h 描述符要点"></a>3.4 stage1.h 描述符要点</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> S1_DES_FAULT	(0b00 &lt;&lt; 0)   <span class="comment">/* 无效描述符 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_DES_BLOCK	(0b01 &lt;&lt; 0)   <span class="comment">/* Block 描述符（L1/L2，覆盖大块） */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_DES_TABLE	(0b11 &lt;&lt; 0)   <span class="comment">/* Table 描述符（指向下一级表） */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_DES_PAGE	(0b11 &lt;&lt; 0)   <span class="comment">/* Page 描述符（L3，4K 页） */</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_AP_RW	(0b00 &lt;&lt; 6)   <span class="comment">/* EL2 视角：可读写 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_AP_RO	(0b10 &lt;&lt; 6)   <span class="comment">/* 只读 */</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_SH_INNER	(0b11 &lt;&lt; 8)   <span class="comment">/* 内层共享（多核缓存一致性） */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_AF		(1 &lt;&lt; 10)      <span class="comment">/* Access Flag：访问标志位 */</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S1_ATTR_IDX(n)	((n &amp; 0xf) &lt;&lt; 2)  <span class="comment">/* AttrIdx → 查 MAIR */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>属性宏如 <code>S1_PAGE_NORMAL</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> S1_PAGE_NORMAL	(S1_DES_PAGE | S1_AF | S1_NS | S1_SH_INNER | S1_ATTR_IDX(MT_NORMAL))</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-5-要点"><a href="#3-5-要点" class="headerlink" title="3.5 要点"></a>3.5 要点</h3><ol>
+<li><strong>MMU 开启前的关键动作</strong>：所有写系统寄存器必须用<strong>物理地址</strong>（<code>asm_vtop</code>），<br>因为此时还没走翻译</li>
+<li><strong>identity map 开 MMU</strong>：开 MMU 后 PC 不能变，必须保证当前 PC 在翻译前后<br>指向同一个物理地址，所以先 identity map，再跳到 <code>mmu_on</code></li>
+<li>MAIR 是”属性字典”，页表描述符只存索引（AttrIdx），实际属性查 MAIR</li>
+<li>TCR 的 IPS 由硬件 <code>ID_AA64MMFR0_EL1</code> 动态决定，保证跟 CPU 能力匹配</li>
+</ol>
+<hr>
+<h2 id="4-Stage2-地址翻译"><a href="#4-Stage2-地址翻译" class="headerlink" title="4. Stage2 地址翻译"></a>4. Stage2 地址翻译</h2><h3 id="4-1-概念"><a href="#4-1-概念" class="headerlink" title="4.1 概念"></a>4.1 概念</h3><p>Stage2 是 Hypervisor 给 guest 用的<strong>第二层翻译</strong>：guest 的虚拟地址先过 Stage1<br>（guest 自己管）得 IPA，再过 Stage2（Hypervisor 管）得 PA。每个 VM 有独立的<br>Stage2 页表，通过 <strong>VMID</strong> 隔离。</p>
+<table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>VTTBR_EL2</strong></td>
+<td>Stage2 页表基址 + VMID（VMID 在 [63:48]）</td>
+</tr>
+<tr>
+<td><strong>VTCR_EL2</strong></td>
+<td>Stage2 翻译控制（T0SZ&#x3D;IPA 大小、SL0、TG0&#x3D;粒度、PS&#x3D;物理大小）</td>
+</tr>
+<tr>
+<td>HCR_EL2.VM</td>
+<td>Stage2 翻译的总开关（前面已讲）</td>
+</tr>
+</tbody></table>
+<h3 id="4-2-Minos-代码位置"><a href="#4-2-Minos-代码位置" class="headerlink" title="4.2 Minos 代码位置"></a>4.2 Minos 代码位置</h3><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>arch/aarch64/virt/arch_virt.c:131-149</code></td>
+<td><code>generate_vtcr_el2()</code>：40bit IPA、4K 粒度、1TB PA</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/virt/arch_virt.c:151-155</code></td>
+<td><code>generate_vttbr_el2()</code>：&#96;base</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/virt/stage2.h</code></td>
+<td>全部 Stage2 描述符&#x2F;索引宏</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/virt/stage2.c</code>（500 行）</td>
+<td>Stage2 映射&#x2F;解映射&#x2F;huge page&#x2F;<code>stage2_ipa_to_pa</code></td>
+</tr>
+</tbody></table>
+<h3 id="4-3-精读-arch-virt-c-131-161"><a href="#4-3-精读-arch-virt-c-131-161" class="headerlink" title="4.3 精读 arch_virt.c:131-161"></a>4.3 精读 arch_virt.c:131-161</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">uint64_t</span> <span class="title function_">generate_vtcr_el2</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	value |= (<span class="number">24</span> &lt;&lt; <span class="number">0</span>);   <span class="comment">// T0SZ = 24 → IPA 宽度 = 64-24 = 40 bit</span></span><br><span class="line">	value |= (<span class="number">0x01</span> &lt;&lt; <span class="number">6</span>); <span class="comment">// SL0 = 1 → 4KB 粒度时从 Level1 开始</span></span><br><span class="line">	value |= (<span class="number">0x1</span> &lt;&lt; <span class="number">8</span>);  <span class="comment">// 内存属性 Inner WBWA</span></span><br><span class="line">	value |= (<span class="number">0x1</span> &lt;&lt; <span class="number">10</span>); <span class="comment">// 内存属性 Outer WBWA</span></span><br><span class="line">	value |= (<span class="number">0x3</span> &lt;&lt; <span class="number">12</span>); <span class="comment">// Inner Shareable</span></span><br><span class="line">	value |= (<span class="number">0x0</span> &lt;&lt; <span class="number">14</span>); <span class="comment">// TG0 = 4K</span></span><br><span class="line">	value |= (<span class="number">2</span> &lt;&lt; <span class="number">16</span>);   <span class="comment">// PS = 1TB 物理地址空间</span></span><br><span class="line">	value |= (<span class="number">0x0</span> &lt;&lt; <span class="number">19</span>); <span class="comment">// VMID 宽度 8bit</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">uint64_t</span> <span class="title function_">generate_vttbr_el2</span><span class="params">(<span class="type">uint32_t</span> vmid, <span class="type">unsigned</span> <span class="type">long</span> base)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> (base | ((<span class="type">uint64_t</span>)vmid &lt;&lt; <span class="number">48</span>));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>要点：</p>
+<ul>
+<li><strong>T0SZ&#x3D;24 → 40bit IPA</strong>：guest 最多映射 1TB 的中间物理地址</li>
+<li><strong>VMID &lt;&lt; 48</strong>：VTTBR 高 16 位是 VMID，用于 TLB 中不同 VM 条目的隔离</li>
+<li>PS&#x3D;1TB 表示物理地址空间是 1TB（对应 stage2.h 的 <code>S2_PHYSICAL_SIZE</code>）</li>
+</ul>
+<h3 id="4-4-stage2-h-与-stage1-h-的差异（易错点）"><a href="#4-4-stage2-h-与-stage1-h-的差异（易错点）" class="headerlink" title="4.4 stage2.h 与 stage1.h 的差异（易错点）"></a>4.4 stage2.h 与 stage1.h 的差异（易错点）</h3><table>
+<thead>
+<tr>
+<th>项</th>
+<th>Stage1</th>
+<th>Stage2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>AP 编码</td>
+<td><code>S1_AP_RW=0b00&lt;&lt;6</code>（EL2 只用 AP[2]）</td>
+<td><code>S2_AP_RW=0b11&lt;&lt;6</code>（两 bit 都要）</td>
+</tr>
+<tr>
+<td>共享属性</td>
+<td>在描述符里（SH 字段）</td>
+<td>同样有 SH 字段</td>
+</tr>
+<tr>
+<td>内存属性</td>
+<td>AttrIdx → 查 MAIR</td>
+<td>直接在描述符里写 MemAttr（<code>S2_MEMATTR_*</code>），<strong>不查 MAIR</strong></td>
+</tr>
+<tr>
+<td>权限含义</td>
+<td>AP[2:1] 分 EL1&#x2F;EL0</td>
+<td>S2_AP[1:0]：<code>01</code>&#x3D;RO <code>10</code>&#x3D;WO <code>11</code>&#x3D;RW <code>00</code>&#x3D;无权限</td>
+</tr>
+</tbody></table>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_NON	(0b00 &lt;&lt; 6)  <span class="comment">/* 无权限 */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_RO	(0b01 &lt;&lt; 6)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_WO	(0b10 &lt;&lt; 6)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_RW	(0b11 &lt;&lt; 6)</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_PAGE_NORMAL	(S2_DES_PAGE | S2_AF | S2_SH_INNER | S2_MEMATTR_NORMAL_WB)</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>注意：这就是之前踩过的坑（<code>LEARNING_PLAN.md</code> 中 Stage2 permission fault 修复）——<br>Stage2 缺 RW 权限时 default 分支给 <code>S2_AP_NON</code>（无权限），guest 访问直接 fault。</p>
+</blockquote>
+<h3 id="4-5-分级索引"><a href="#4-5-分级索引" class="headerlink" title="4.5 分级索引"></a>4.5 分级索引</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> S2_PGD_SHIFT	39   <span class="comment">/* Level0 → 512G */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_PUD_SHIFT	30   <span class="comment">/* Level1 → 1G  */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_PMD_SHIFT	21   <span class="comment">/* Level2 → 2M  */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_PTE_SHIFT	12   <span class="comment">/* Level3 → 4K  */</span></span></span><br></pre></td></tr></table></figure>
+
+<p>40bit IPA 用 4 级表（<code>STAGE2_PGTABLE_LEVELS=3</code> 表示从 PUD 开始，实际 walk 3 级）。</p>
+<h3 id="4-6-要点"><a href="#4-6-要点" class="headerlink" title="4.6 要点"></a>4.6 要点</h3><ol>
+<li><strong>两套翻译串行</strong>：guest VA –Stage1–&gt; IPA –Stage2–&gt; PA，都由硬件自动完成</li>
+<li>VMID 隔离是<strong>硬件级</strong>的：不同 VM 的同地址不会互相串扰（TLB 按 VMID 区分）</li>
+<li>Stage2 用 S2 自己的描述符格式，<strong>内存属性直接内嵌</strong>（不查 MAIR），AP 编码与 Stage1 不同</li>
+<li><code>generate_vtcr_el2</code> 由 hypervisor 统一生成，所有 VM 用相同的 IPA 布局</li>
+</ol>
+<hr>
+<h2 id="5-异常向量表与调用关系图"><a href="#5-异常向量表与调用关系图" class="headerlink" title="5. 异常向量表与调用关系图"></a>5. 异常向量表与调用关系图</h2><h3 id="5-1-概念"><a href="#5-1-概念" class="headerlink" title="5.1 概念"></a>5.1 概念</h3><p>ARMv8-A 的异常向量表是<strong>固定布局</strong>：基址（<code>VBAR_EL2</code>）+ 偏移。共 <strong>4 组 × 4 类型 &#x3D; 16 入口</strong>，每个入口间隔 0x80 字节（128B）。</p>
+<p>分组依据两个条件：</p>
+<ol>
+<li><strong>异常来自哪个 EL</strong>：当前 EL 还是更低 EL</li>
+<li><strong>使用的栈</strong>（仅当前 EL 相关）：SP0（执行状态与当前 EL 不同的栈）还是 SPx</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>组</th>
+<th>偏移</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>0x000</td>
+<td>Current EL, SP0</td>
+</tr>
+<tr>
+<td>1</td>
+<td>0x200</td>
+<td>Current EL, SPx</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0x400</td>
+<td>Lower EL, AArch64</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0x600</td>
+<td>Lower EL, AArch32</td>
+</tr>
+</tbody></table>
+<p>每组内再按异常类型分 4 个：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>偏移</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Synchronous（同步异常：DABT&#x2F;IABT&#x2F;HVC&#x2F;SVC…）</td>
+<td>+0x000</td>
+</tr>
+<tr>
+<td>IRQ（普通中断）</td>
+<td>+0x080</td>
+</tr>
+<tr>
+<td>FIQ（快速中断）</td>
+<td>+0x100</td>
+</tr>
+<tr>
+<td>SError（异步系统错误）</td>
+<td>+0x180</td>
+</tr>
+</tbody></table>
+<h3 id="5-2-Minos-代码位置"><a href="#5-2-Minos-代码位置" class="headerlink" title="5.2 Minos 代码位置"></a>5.2 Minos 代码位置</h3><ul>
+<li><code>arch/aarch64/core/entry.S:36-84</code>：16 入口布局（<code>elx_vectors</code>）</li>
+<li><code>arch/aarch64/core/vector.S</code>：各入口的具体处理（寄存器保存&#x2F;跳 C handler）</li>
+<li><code>arch/aarch64/core/boot.S:173-174</code>：<code>msr VBAR_EL2, elx_vectors</code> 设置向量表基址</li>
+</ul>
+<h3 id="5-3-精读-entry-S（向量表布局）"><a href="#5-3-精读-entry-S（向量表布局）" class="headerlink" title="5.3 精读 entry.S（向量表布局）"></a>5.3 精读 entry.S（向量表布局）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line">	.global elx_vectors</span><br><span class="line">	.section __el2_vectors, &quot;ax&quot;</span><br><span class="line">	.align 12            /* 2^12 = 4096 = 0x1000 字节对齐 */</span><br><span class="line"></span><br><span class="line">elx_vectors:</span><br><span class="line">c0sync:			// Current EL with SP0</span><br><span class="line">	BAD_MODE VECTOR_C0_SYNC     /* 当前EL+SP0 同步异常 → bad_mode */</span><br><span class="line">	.balign 0x80</span><br><span class="line">c0irq:</span><br><span class="line">	BAD_MODE VECTOR_C0_IRQ</span><br><span class="line">	.balign 0x80</span><br><span class="line">...</span><br><span class="line">cxsync:</span><br><span class="line">	b __sync_exception_from_current_el    /* 当前EL+SPx 同步异常 */</span><br><span class="line">	.balign 0x80</span><br><span class="line">cxirq:</span><br><span class="line">	b __irq_exception_from_current_el     /* 当前EL+SPx IRQ */</span><br><span class="line">	.balign 0x80</span><br><span class="line">...</span><br><span class="line">l64sync:</span><br><span class="line">	b __sync_exception_from_lower_el      /* 更低EL(AArch64) 同步异常 */</span><br><span class="line">	.balign 0x80</span><br><span class="line">l64irq:</span><br><span class="line">	b __irq_exception_from_lower_el</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>要点：</p>
+<ul>
+<li><code>BAD_MODE</code> 宏（entry.S:30-34）把 mode 号放 x29 后跳 <code>__bad_mode</code> → <code>bad_mode()</code> panic</li>
+<li>虚拟化相关的真正处理在：cxsync&#x2F;cxirq&#x2F;l64sync&#x2F;l64irq&#x2F;l32sync&#x2F;l32irq</li>
+</ul>
+<h3 id="5-4-vector-S-的关键宏"><a href="#5-4-vector-S-的关键宏" class="headerlink" title="5.4 vector.S 的关键宏"></a>5.4 vector.S 的关键宏</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">.macro __SAVE_GP_REGS          /* 异常入口：把 31 个通用寄存器 + SP0/SPSR/ELR 压栈 */</span><br><span class="line">	stp	x27, x28, [sp, #-16]!</span><br><span class="line">	...                        /* 逐个压栈，共 33 个 64bit 值 */</span><br><span class="line">	mrs	x0, SP_EL0</span><br><span class="line">	str	x0, [sp, #-8]!</span><br><span class="line">	mrs	x0, ARM64_SPSR</span><br><span class="line">	str	x0, [sp, #-8]!</span><br><span class="line">	mrs	x0, ARM64_ELR</span><br><span class="line">	str	x0, [sp, #-8]!</span><br><span class="line">	dsb	nsh</span><br><span class="line">.endm</span><br><span class="line"></span><br><span class="line">.macro LOAD_GP_REGS            /* 返回前恢复（顺序与保存相反） */</span><br><span class="line">	ldr	x0, [sp], #8</span><br><span class="line">	msr	ARM64_ELR, x0</span><br><span class="line">	ldr	x0, [sp], #8</span><br><span class="line">	msr	ARM64_SPSR, x0</span><br><span class="line">	ldr	x0, [sp], #8</span><br><span class="line">	msr	SP_EL0, x0</span><br><span class="line">	...</span><br><span class="line">.endm</span><br></pre></td></tr></table></figure>
+
+<p>这个压栈布局就是 <strong><code>gp_regs</code> 结构</strong>（<code>include/minos/gp_regs.h</code>），C 侧 handler 拿到的参数。</p>
+<h3 id="5-5-★-异常调用关系图（Phase-1-验证目标）"><a href="#5-5-★-异常调用关系图（Phase-1-验证目标）" class="headerlink" title="5.5 ★ 异常调用关系图（Phase 1 验证目标）"></a>5.5 ★ 异常调用关系图（Phase 1 验证目标）</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line">                     guest EL1 / minos EL1 发生异常</span><br><span class="line">                                    │</span><br><span class="line">                                    ▼</span><br><span class="line">                  VBAR_EL2 → entry.S elx_vectors（16 入口）</span><br><span class="line">                                    │</span><br><span class="line">     ┌──────────────┬──────────────┼──────────────┬──────────────┐</span><br><span class="line">     │              │              │              │              │</span><br><span class="line">C0 组(SP0)      CX 组(SPx)      L64 组(lower64)  L32 组(lower32)   (FIQ/SERR → bad_mode)</span><br><span class="line">sync/irq        sync/irq        sync/irq          sync/irq</span><br><span class="line">     │              │              │              │</span><br><span class="line">     ▼              ▼              ▼              ▼</span><br><span class="line">BAD_MODE     __sync_exception   __sync_exception   __sync_exception</span><br><span class="line">(→panic)     _from_current_el   _from_lower_el     _from_lower_el</span><br><span class="line">     │              │              │                    │</span><br><span class="line">     │              │      ┌───────┼────────┐           │</span><br><span class="line">     │              │      │       │        │           │</span><br><span class="line">     │         SVC64?    task_exit_from_user      task_exit_from_user</span><br><span class="line">     │        /       \        │                     │</span><br><span class="line">     │    调度路径   sync_exception_           sync_exception_</span><br><span class="line">     │              from_current_el()         from_lower_el()</span><br><span class="line">     │                   │                        │</span><br><span class="line">     │                   ▼                     ┌──┴────────────┐</span><br><span class="line">     │            handle_sync_exception()      │ vCPU 任务?     │</span><br><span class="line">     │                   │                     │               │</span><br><span class="line">     │            process_sync_descs[EC]       ▼               ▼</span><br><span class="line">     │                   │              handle_vcpu_    handle_sync_</span><br><span class="line">     │                   ▼              sync_exception()  exception()</span><br><span class="line">     │            handler(regs,ec,esr)       │</span><br><span class="line">     │                   │               guest_sync_descs[EC]</span><br><span class="line">     │                   ▼                     │</span><br><span class="line">     │              （当前EL异常，            ▼</span><br><span class="line">     │              内核自己的异常）    handler(regs,ec,esr)</span><br><span class="line">     │                                    │</span><br><span class="line">     │              ┌─────────────────────┤</span><br><span class="line">     │              │                     │</span><br><span class="line">     ▼              ▼                     ▼</span><br><span class="line">  __bad_mode    irq_from_current_el   irq_from_lower_el</span><br><span class="line">     │              │                     │</span><br><span class="line">     ▼              ▼                     ▼</span><br><span class="line">  bad_mode()    exception_return ←────────┴───────┐</span><br><span class="line">     │              │                             │</span><br><span class="line">     ▼              ▼                             ▼</span><br><span class="line">  panic()       exception_return_handler()   LOAD_GP_REGS + eret</span><br><span class="line">                     │                     （回到 guest 继续执行）</span><br><span class="line">                     ▼</span><br><span class="line">            调度 / 返回 guest</span><br></pre></td></tr></table></figure>
+
+<p><strong>C 侧 handler 对照表（trap.c &#x2F; aarch64_sync.c）</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>EC（异常类）</th>
+<th>handler（guest 路径，trap.c:344-365）</th>
+<th>handler（当前EL路径，aarch64_sync.c:112-114）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>WFx (WFI&#x2F;WFE)</td>
+<td><code>wfi_wfe_handler</code> → <code>vcpu_idle</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>HVC64&#x2F;HVC32</td>
+<td><code>aarch64_hypercall_handler</code></td>
+<td>SVC64 → 调度</td>
+</tr>
+<tr>
+<td>SMC64&#x2F;SMC32</td>
+<td><code>aarch64_smccall_handler</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>SYS64 (MSR&#x2F;MRS)</td>
+<td><code>access_system_reg_handler</code>（模拟系统寄存器）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>DABT_LOW</td>
+<td><code>dataabort_tfl_handler</code>（MMIO 模拟入口）</td>
+<td><code>kernel_mem_fault</code></td>
+</tr>
+<tr>
+<td>IABT_LOW</td>
+<td><code>insabort_tfl_handler</code></td>
+<td><code>kernel_mem_fault</code></td>
+</tr>
+<tr>
+<td>其他</td>
+<td><code>unknown_handler</code> 等</td>
+<td><code>unknown_trap_handler</code></td>
+</tr>
+</tbody></table>
+<h3 id="5-6-要点"><a href="#5-6-要点" class="headerlink" title="5.6 要点"></a>5.6 要点</h3><ol>
+<li>向量表<strong>布局是硬性规定</strong>：必须 0x1000 对齐，16 入口各 0x80 间隔，不能错位</li>
+<li>异常进入时<strong>由汇编负责保存全部寄存器</strong>（gp_regs），C 只负责处理，返回时汇编恢复</li>
+<li>guest 的同步异常走 <code>handle_vcpu_sync_exception()</code>（trap.c:392），<br><strong>按 EC 查表分发给 22 个 handler</strong>——这就是 Phase 3 的主角</li>
+<li><code>dataabort_tfl_handler</code>（trap.c:241）是<strong>设备模拟（MMIO）的唯一入口</strong>，<br>guest 访问模拟设备地址 → Stage2 fault → 这里 → <code>vdev_mmio_emulation</code></li>
+</ol>
+<hr>
+<h2 id="6-GICv3-中断虚拟化"><a href="#6-GICv3-中断虚拟化" class="headerlink" title="6. GICv3 中断虚拟化"></a>6. GICv3 中断虚拟化</h2><h3 id="6-1-概念"><a href="#6-1-概念" class="headerlink" title="6.1 概念"></a>6.1 概念</h3><p>GIC（Generic Interrupt Controller）v3 是 ARM 标准中断控制器。核心概念：</p>
+<table>
+<thead>
+<tr>
+<th>概念</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>GICD</strong></td>
+<td>Distributor（分发器），全局控制 SPI 等</td>
+</tr>
+<tr>
+<td><strong>GICR</strong></td>
+<td>Redistributor（重分发器），per-CPU，控制 PPI&#x2F;SGI，含 GICR_SGI（SGI 触发）</td>
+</tr>
+<tr>
+<td>*<em>ICC_<em>（CPU 接口）</em></em></td>
+<td>系统寄存器（ICC_IAR1&#x2F;EOIR1&#x2F;SGI1R…），per-CPU</td>
+</tr>
+<tr>
+<td><strong>IRQ 类型</strong></td>
+<td>SGI(0-15) 核间中断 &#x2F; PPI(16-31) 私有外设中断 &#x2F; SPI(32+) 共享外设中断</td>
+</tr>
+<tr>
+<td><strong>LR（List Register）</strong></td>
+<td>ICH_LR0-15：硬件把”要注入给 guest 的中断”放这里，guest 直接响应</td>
+</tr>
+<tr>
+<td><strong>优先级</strong></td>
+<td>数值越小优先级越高，GICD&#x2F;GICR_IPRIORITYR 配置</td>
+</tr>
+</tbody></table>
+<h3 id="6-2-Minos-代码位置"><a href="#6-2-Minos-代码位置" class="headerlink" title="6.2 Minos 代码位置"></a>6.2 Minos 代码位置</h3><p>物理 GIC（hypervisor 自己用的）：</p>
+<ul>
+<li><code>drivers/irq-chips/gicv3.c</code>（548 行）<ul>
+<li><code>gicv3_init</code>：GICD&#x2F;GICR 初始化</li>
+<li><code>gicv3_read_irq</code>(70)：<code>ICC_IAR1_EL1</code> 读中断号</li>
+<li><code>gicv3_eoi_irq</code>(58)：<code>ICC_EOIR1_EL1</code> 结束中断</li>
+<li><code>gicv3_set_irq_priority</code>(129)：GICD&#x2F;GICR_IPRIORITYR</li>
+<li><code>gicv3_set_irq_affinity</code>(143)：GICD_IROUTER</li>
+<li><code>__gicv3_send_sgi_list</code>(157)：ICC_SGI1R 发 SGI</li>
+</ul>
+</li>
+</ul>
+<p>虚拟 GIC（给 guest 的）：</p>
+<ul>
+<li><code>virt/virq_chips/vgicv3.c</code>（1075 行）<ul>
+<li><code>gicv3_send_virq</code>：把 virq 写入 <strong>ICH_LR</strong>（硬件注入路径）</li>
+<li><code>vgic_mmio_handler</code>(416)：GICD&#x2F;GICR 的 MMIO 读写模拟（软件路径）</li>
+<li><code>gicv3_state_save/restore</code>：切换时保存&#x2F;恢复 LRs + APR + VMCR</li>
+</ul>
+</li>
+</ul>
+<h3 id="6-3-两种虚拟化路径（Phase-5-的预习）"><a href="#6-3-两种虚拟化路径（Phase-5-的预习）" class="headerlink" title="6.3 两种虚拟化路径（Phase 5 的预习）"></a>6.3 两种虚拟化路径（Phase 5 的预习）</h3><p><strong>路径 A：硬件注入（快）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">host 收到物理 IRQ → gicv3_send_virq() 把 vINTID 写入 ICH_LR</span><br><span class="line">→ guest 进入时硬件自动把 LR 中断呈现给 guest → guest 的 GIC 驱动直接响应</span><br></pre></td></tr></table></figure>
+
+<p><strong>路径 B：软件模拟（MMIO trap）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">guest 访问 GICD_* / GICR_* 地址 → Stage2 fault → dataabort_tfl_handler</span><br><span class="line">→ vdev_mmio_emulation → vgic_mmio_handler() 模拟寄存器读写</span><br></pre></td></tr></table></figure>
+
+<p><code>vgicv3.c:221-283</code> 里能看到 <code>GICD_ISENABLER/ICENABLER/IPRIORITYR/ICFGR</code> 等的模拟。</p>
+<h3 id="6-4-要点"><a href="#6-4-要点" class="headerlink" title="6.4 要点"></a>6.4 要点</h3><ol>
+<li><strong>LR 是硬件虚拟化的核心</strong>：Hypervisor 把中断”排队”进 LR，硬件替它注入给 guest</li>
+<li>GIC 虚拟化 &#x3D; <strong>物理中断转发（LR）+ 控制寄存器模拟（MMIO）</strong>两条腿</li>
+<li>vGIC 是 vmodule 之一：进出 guest 时 <code>state_save/restore</code> 保存 LR&#x2F;APR&#x2F;VMCR（Phase 7）</li>
+<li>物理 GIC（hypervisor 自己用）和虚拟 GIC（guest 用）是<strong>两套独立实现</strong></li>
+</ol>
+<hr>
+<h2 id="7-Generic-Timer-定时器虚拟化"><a href="#7-Generic-Timer-定时器虚拟化" class="headerlink" title="7. Generic Timer 定时器虚拟化"></a>7. Generic Timer 定时器虚拟化</h2><h3 id="7-1-概念"><a href="#7-1-概念" class="headerlink" title="7.1 概念"></a>7.1 概念</h3><p>ARM generic timer 提供：</p>
+<ul>
+<li><strong>CNTP</strong>：物理计数器&#x2F;定时器（EL1 可见，hypervisor 自己的时间基准）</li>
+<li><strong>CNTV</strong>：虚拟计数器&#x2F;定时器（guest 用的”虚拟时间”）</li>
+</ul>
+<p>虚拟化关键机制：</p>
+<ul>
+<li><strong>CNTVOFF_EL2</strong>：虚拟时间偏移。<code>CNTVCT = 物理时间 - CNTVOFF</code>。<br>Hypervisor 可通过改 CNTVOFF 给每个 guest 制造不同的虚拟时间</li>
+<li><strong>CNTV_CVAL_EL0</strong>：比较值。<code>CNTVCT &gt;= CNTV_CVAL</code> 时触发虚拟定时器中断</li>
+<li><strong>CNTV_CTL_EL0</strong>：控制（ENABLE &#x2F; IMASK &#x2F; ISTATUS）</li>
+<li><strong>trap</strong>：guest 访问 CNTP 系列寄存器被 trap 到 EL2，由 hypervisor 用软件 timer 模拟</li>
+</ul>
+<h3 id="7-2-Minos-代码位置"><a href="#7-2-Minos-代码位置" class="headerlink" title="7.2 Minos 代码位置"></a>7.2 Minos 代码位置</h3><p><code>arch/aarch64/virt/vtimer.c</code>（341 行）：</p>
+<ul>
+<li><code>vtimer_state_restore</code>(97)：写 <code>CNTVOFF_EL2</code>(104) + <code>CNTV_CVAL_EL0</code>(105) + <code>CNTV_CTL_EL0</code>(106)</li>
+<li><code>vtimer_state_save</code>(110)：读 CNTV_CVAL&#x2F;CTL 存到 context，然后清零 CNTV_CTL</li>
+<li><code>phys_timer_expire_function</code>(73)：物理定时器到期 → <code>send_virq_to_vcpu</code></li>
+<li><code>virt_timer_expire_function</code>(84)：虚拟定时器到期 → <code>wake()</code> 唤醒 vCPU</li>
+<li>虚拟定时器通过 <code>core/timer.c</code> 的软件定时器机制模拟</li>
+</ul>
+<h3 id="7-3-精读-vtimer-c-97-120"><a href="#7-3-精读-vtimer-c-97-120" class="headerlink" title="7.3 精读 vtimer.c:97-120"></a>7.3 精读 vtimer.c:97-120</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">vtimer_state_restore</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vtimer_context</span> *<span class="title">c</span> =</span> (<span class="keyword">struct</span> vtimer_context *)context;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vtimer</span> *<span class="title">vtimer</span> =</span> &amp;c-&gt;virt_timer;</span><br><span class="line"></span><br><span class="line">	stop_timer(&amp;vtimer-&gt;timer);</span><br><span class="line"></span><br><span class="line">	write_sysreg64(c-&gt;offset, ARM64_CNTVOFF_EL2);   <span class="comment">// 设置虚拟时间偏移</span></span><br><span class="line">	write_sysreg64(vtimer-&gt;cnt_cval, ARM64_CNTV_CVAL_EL0);  <span class="comment">// 恢复比较值</span></span><br><span class="line">	write_sysreg32(vtimer-&gt;cnt_ctl, ARM64_CNTV_CTL_EL0);    <span class="comment">// 恢复控制</span></span><br><span class="line">	isb();</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">vtimer_state_save</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context)</span></span><br><span class="line">&#123;</span><br><span class="line">	vtimer-&gt;cnt_cval = read_sysreg64(ARM64_CNTV_CVAL_EL0);</span><br><span class="line">	vtimer-&gt;cnt_ctl = read_sysreg32(ARM64_CNTV_CTL_EL0);</span><br><span class="line">	write_sysreg32(<span class="number">0</span>, CNTV_CTL_EL0);   <span class="comment">// 关掉定时器，防止切走后被误触发</span></span><br><span class="line">	isb();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-4-要点"><a href="#7-4-要点" class="headerlink" title="7.4 要点"></a>7.4 要点</h3><ol>
+<li>**CNTVOFF 实现”虚拟时间”**：给 guest 一个可偏移的时间视图（可以加速&#x2F;倒流）</li>
+<li>vtimer 是 vmodule：<strong>进出 guest 时保存&#x2F;恢复</strong> CNTV_CVAL&#x2F;CTL&#x2F;CNTVOFF</li>
+<li>物理定时器（CNTP）被 hypervisor 自己占用；guest 的虚拟定时器用软件 timer 模拟</li>
+<li>虚拟定时器到期走 <code>virt_timer_expire_function</code> → <code>wake()</code>，等 vCPU 被调度回来<br>再通过硬件 CNTV 重新触发，避免在 EL2 里直接注入</li>
+</ol>
+<hr>
+<h2 id="8-Barrier-TLB-Cache"><a href="#8-Barrier-TLB-Cache" class="headerlink" title="8. Barrier &#x2F; TLB &#x2F; Cache"></a>8. Barrier &#x2F; TLB &#x2F; Cache</h2><h3 id="8-1-概念"><a href="#8-1-概念" class="headerlink" title="8.1 概念"></a>8.1 概念</h3><p><strong>内存屏障</strong>（Memory Barrier）解决多核&#x2F;内存系统的顺序问题：</p>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>全称</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>DSB</strong></td>
+<td>Data Synchronization Barrier</td>
+<td>等所有之前的访存&#x2F;维护指令<strong>完成</strong>（最严格）</td>
+</tr>
+<tr>
+<td><strong>DMB</strong></td>
+<td>Data Memory Barrier</td>
+<td>保证之前访存<strong>按序</strong>，但不等待完成</td>
+</tr>
+<tr>
+<td><strong>ISB</strong></td>
+<td>Instruction Synchronization Barrier</td>
+<td>刷流水线，保证之后指令能看到之前的系统寄存器&#x2F;页表修改</td>
+</tr>
+</tbody></table>
+<p><strong>TLB</strong>（Translation Lookaside Buffer）：地址翻译缓存。修改页表后必须失效对应 TLB，<br>否则旧映射残留。</p>
+<p><strong>Cache</strong> 维护指令：<code>ic</code>（指令缓存）、<code>dc</code>（数据缓存），配合 set&#x2F;way 或 by-VA 操作。</p>
+<h3 id="8-2-Minos-代码位置"><a href="#8-2-Minos-代码位置" class="headerlink" title="8.2 Minos 代码位置"></a>8.2 Minos 代码位置</h3><table>
+<thead>
+<tr>
+<th>位置</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>arch/aarch64/include/asm/barrier.h</code></td>
+<td>isb&#x2F;dmb&#x2F;dsb 及全套 mb&#x2F;rmb&#x2F;wmb&#x2F;smp_* 变体</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/boot.S:181-191</code></td>
+<td><code>inv_dcache_all</code> + <code>tlbi alle2/vmalle1</code></td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/cache.S</code></td>
+<td><code>flush_dcache_range</code> &#x2F; <code>inv_dcache_range</code> &#x2F; cache 维护宏</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/boot.S:318-320</code></td>
+<td><code>ic ialluis</code>（开 MMU 后失效 icache）</td>
+</tr>
+</tbody></table>
+<h3 id="8-3-barrier-h-精读"><a href="#8-3-barrier-h-精读" class="headerlink" title="8.3 barrier.h 精读"></a>8.3 barrier.h 精读</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> __isb()	asm volatile(<span class="string">&quot;isb&quot;</span> : : : <span class="string">&quot;memory&quot;</span>)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> __dmb(opt) asm volatile(<span class="string">&quot;dmb &quot;</span> #opt : : : <span class="string">&quot;memory&quot;</span>)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> __dsb(opt) asm volatile(<span class="string">&quot;dsb &quot;</span> #opt : : : <span class="string">&quot;memory&quot;</span>)</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> mb()	__dsb(sy)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> rmb()	__dsb(ld)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> wmb()	__dsb(st)</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> smp_mb()	__dmb(ish)      <span class="comment">/* inner-shareable */</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> smp_rmb()	__dmb(ishld)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> smp_wmb()	__dmb(ishst)</span></span><br></pre></td></tr></table></figure>
+
+<p>选项说明：</p>
+<ul>
+<li><code>sy</code>：全系统（full system）</li>
+<li><code>ld</code>&#x2F;<code>st</code>：只等读&#x2F;只等写</li>
+<li><code>ish</code>&#x2F;<code>ishld</code>&#x2F;<code>ishst</code>：inner-shareable（多核一致域内）</li>
+</ul>
+<h3 id="8-4-要点"><a href="#8-4-要点" class="headerlink" title="8.4 要点"></a>8.4 要点</h3><ol>
+<li><strong>修改系统寄存器&#x2F;页表后必须 isb&#x2F;dsb</strong>：boot.S 里几乎每个 <code>msr</code> 后面都跟 <code>dsb + isb</code></li>
+<li>TLB 失效范围：<code>tlbi alle2</code>（EL2 全部）&#x2F; <code>vmalle1</code>（EL1 全部）&#x2F; 按 VMID 失效</li>
+<li>guest 修改自己的 Stage1 页表，由 guest 自己管 TLB；Hypervisor 改 Stage2 才需要刷</li>
+<li>共享内存通信（vmbox ring）依赖 <code>mb()</code>&#x2F;<code>wmb()</code>&#x2F;<code>rmb()</code> 保证双端可见性</li>
+</ol>
+<hr>
+<h2 id="9-Phase-1-验证清单"><a href="#9-Phase-1-验证清单" class="headerlink" title="9. Phase 1 验证清单"></a>9. Phase 1 验证清单</h2><blockquote>
+<p>对应 <code>LEARNING_PLAN.md</code> Phase 1 checklist。</p>
+</blockquote>
+<ul>
+<li><input checked="" disabled="" type="checkbox"> EL0-EL3、异常模型、SPSR&#x2F;ELR&#x2F;ESR —— 见本笔记第 1 节</li>
+<li><input checked="" disabled="" type="checkbox"> HCR_EL2 各位作用 —— 见第 2 节（<code>arch_virt.c:187</code> 注释）</li>
+<li><input checked="" disabled="" type="checkbox"> 地址翻译：TTBR&#x2F;TCR&#x2F;MAIR、Stage1 4 级 —— 见第 3 节</li>
+<li><input checked="" disabled="" type="checkbox"> Stage2：VTTBR_EL2、VTCR_EL2、VMID、IPA —— 见第 4 节</li>
+<li><input checked="" disabled="" type="checkbox"> 异常向量表布局（4 组 × 4 类型）—— 见第 5 节</li>
+<li><input checked="" disabled="" type="checkbox"> <strong>画出”异常向量表 → 处理函数”调用关系图</strong> —— 见第 5.5 节</li>
+<li><input checked="" disabled="" type="checkbox"> GICv3：GICD&#x2F;GICR&#x2F;LR&#x2F;优先级 —— 见第 6 节</li>
+<li><input checked="" disabled="" type="checkbox"> ARM generic timer：CNTVOFF&#x2F;CNTV_CTL&#x2F;CVAL —— 见第 7 节</li>
+<li><input checked="" disabled="" type="checkbox"> barrier&#x2F;TLB&#x2F;cache 指令 —— 见第 8 节</li>
+</ul>
+<h3 id="动手建议（可加深理解）"><a href="#动手建议（可加深理解）" class="headerlink" title="动手建议（可加深理解）"></a>动手建议（可加深理解）</h3><ol>
+<li>用 gdb 连 QEMU，在 <code>handle_vcpu_sync_exception()</code>（trap.c:392）打断点，<br>观察 guest 触发一个 HVC 后栈上的 <code>gp_regs</code></li>
+<li>在 guest 里跑 <code>sleep 1</code>，在 <code>vtimer_state_restore</code>（vtimer.c:97）打断点，<br>观察 CNTVOFF 的值</li>
+<li>阅读 <code>boot.S</code> 时对照 <code>asm-offset.c</code> 理解 <code>PCPU_*</code> 偏移量来源</li>
+</ol>
+<hr>
+<h2 id="附：核心寄存器速查表"><a href="#附：核心寄存器速查表" class="headerlink" title="附：核心寄存器速查表"></a>附：核心寄存器速查表</h2><table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>一句话作用</th>
+<th>精读位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SPSR_EL2</code></td>
+<td>保存被中断的 PSTATE</td>
+<td>boot.S:149, vector.S:73</td>
+</tr>
+<tr>
+<td><code>ELR_EL2</code></td>
+<td>异常返回地址</td>
+<td>boot.S:148, vector.S:75</td>
+</tr>
+<tr>
+<td><code>ESR_EL2</code></td>
+<td>异常原因（EC 字段&#x3D;分发钥匙）</td>
+<td>aarch64_sync.c:137, trap.c:403</td>
+</tr>
+<tr>
+<td><code>VBAR_EL2</code></td>
+<td>异常向量表基址</td>
+<td>boot.S:174, entry.S</td>
+</tr>
+<tr>
+<td><code>HCR_EL2</code></td>
+<td>虚拟化总开关（trap 清单）</td>
+<td>arch_virt.c:187</td>
+</tr>
+<tr>
+<td><code>TTBR0/1_EL2</code></td>
+<td>Stage1 页表基址</td>
+<td>boot.S:201-202</td>
+</tr>
+<tr>
+<td><code>MAIR_EL2</code></td>
+<td>内存属性表</td>
+<td>boot.S:221</td>
+</tr>
+<tr>
+<td><code>TCR_EL2</code></td>
+<td>Stage1 翻译控制</td>
+<td>boot.S:237</td>
+</tr>
+<tr>
+<td><code>VTTBR_EL2</code></td>
+<td>Stage2 页表基址 + VMID</td>
+<td>arch_virt.c:151</td>
+</tr>
+<tr>
+<td><code>VTCR_EL2</code></td>
+<td>Stage2 翻译控制（IPA 宽度&#x2F;粒度）</td>
+<td>arch_virt.c:131</td>
+</tr>
+<tr>
+<td><code>CNTVOFF_EL2</code></td>
+<td>虚拟时间偏移</td>
+<td>vtimer.c:104</td>
+</tr>
+<tr>
+<td><code>ICH_LR0-15</code></td>
+<td>注入给 guest 的中断</td>
+<td>vgicv3.c:583</td>
+</tr>
+<tr>
+<td><code>ICC_IAR1/EOIR1</code></td>
+<td>CPU 接口：ack&#x2F;eoi</td>
+<td>gicv3.c:58,70</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%BB%8E%E9%9B%B6%E5%A4%8D%E7%8E%B0-Mino-Hypervisor/" rel="prev" title="Minos 虚拟化: 从零复现 Mino Hypervisor">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: 从零复现 Mino Hypervisor
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E6%B5%81%E7%A8%8B/" rel="next" title="Minos 虚拟化: 启动流程">
+                  Minos 虚拟化: 启动流程 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

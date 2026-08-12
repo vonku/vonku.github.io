@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文档记录了一次完全从零的 Minos Hypervisor 复现过程：在 WSL2 + Docker 容器内，从 git clone 原始源码开始，自行打补丁、编译，最终在 QEMU 上完整启动 Minos (EL2) + Guest Linux 4.19.238 (EL1)，并进入可交互 shell。 区别于 010-Phase0_Environment_Setup.md（记录首次调试过程）">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: 从零复现 Mino Hypervisor">
+<meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%BB%8E%E9%9B%B6%E5%A4%8D%E7%8E%B0-Mino-Hypervisor/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文档记录了一次完全从零的 Minos Hypervisor 复现过程：在 WSL2 + Docker 容器内，从 git clone 原始源码开始，自行打补丁、编译，最终在 QEMU 上完整启动 Minos (EL2) + Guest Linux 4.19.238 (EL1)，并进入可交互 shell。 区别于 010-Phase0_Environment_Setup.md（记录首次调试过程）">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-12T14:07:55.000Z">
+<meta property="article:modified_time" content="2026-08-12T14:24:32.087Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%BB%8E%E9%9B%B6%E5%A4%8D%E7%8E%B0-Mino-Hypervisor/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%BB%8E%E9%9B%B6%E5%A4%8D%E7%8E%B0-Mino-Hypervisor/","path":"2026/08/12/Minos-虚拟化-从零复现-Mino-Hypervisor/","title":"Minos 虚拟化: 从零复现 Mino Hypervisor"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: 从零复现 Mino Hypervisor | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E6%80%BB%E4%BD%93%E6%B5%81%E7%A8%8B"><span class="nav-text">1. 总体流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E5%AE%89%E8%A3%85-Docker"><span class="nav-text">2. 安装 Docker</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E5%AE%89%E8%A3%85-Docker-Engine"><span class="nav-text">2.1 安装 Docker Engine</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E9%AA%8C%E8%AF%81%E5%AE%89%E8%A3%85"><span class="nav-text">2.2 验证安装</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%8A%A0%E5%85%A5-docker-%E7%BB%84"><span class="nav-text">2.3 加入 docker 组</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E9%85%8D%E7%BD%AE%E9%95%9C%E5%83%8F%E5%8A%A0%E9%80%9F%E5%99%A8"><span class="nav-text">3. 配置镜像加速器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E8%83%8C%E6%99%AF"><span class="nav-text">3.1 背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E6%8E%92%E6%9F%A5%E5%90%84%E9%95%9C%E5%83%8F%E6%BA%90%E5%8F%AF%E8%BE%BE%E6%80%A7"><span class="nav-text">3.2 排查各镜像源可达性</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E9%85%8D%E7%BD%AE-daemon-json"><span class="nav-text">3.3 配置 daemon.json</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E9%87%8D%E5%90%AF-%E9%AA%8C%E8%AF%81"><span class="nav-text">3.4 重启 + 验证</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E5%88%9B%E5%BB%BA-Dockerfile-%E5%B9%B6-build-%E5%AE%B9%E5%99%A8"><span class="nav-text">4. 创建 Dockerfile 并 build 容器</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84"><span class="nav-text">4.1 项目结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-Dockerfile-%E6%9C%80%E7%BB%88%E5%86%85%E5%AE%B9"><span class="nav-text">4.2 Dockerfile 最终内容</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-Dockerfile-%E7%9A%84%E8%B8%A9%E5%9D%91%E4%BF%AE%E5%A4%8D%E5%8F%B2"><span class="nav-text">4.3  Dockerfile 的踩坑修复史</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-build-%E5%AE%B9%E5%99%A8"><span class="nav-text">4.4 build 容器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E9%AA%8C%E8%AF%81%E5%AE%B9%E5%99%A8%E8%BA%AB%E4%BB%BD"><span class="nav-text">4.5 验证容器身份</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E8%BF%9B%E5%85%A5%E5%AE%B9%E5%99%A8%EF%BC%8C%E4%BB%8E%E9%9B%B6-clone-%E6%BA%90%E7%A0%81"><span class="nav-text">5. 进入容器，从零 clone 源码</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E5%88%9B%E5%BB%BA%E5%B9%B6%E8%BF%9B%E5%85%A5%E5%AE%B9%E5%99%A8"><span class="nav-text">5.1 创建并进入容器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%AE%B9%E5%99%A8%E5%86%85%E4%BB%8E%E9%9B%B6-clone-%E5%8E%9F%E5%A7%8B-minos"><span class="nav-text">5.2 容器内从零 clone 原始 minos</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E9%AA%8C%E8%AF%81%E6%8B%BF%E5%88%B0%E7%9A%84%E6%98%AF%E5%B9%B2%E5%87%80%E6%BA%90%E7%A0%81"><span class="nav-text">5.3 验证拿到的是干净源码</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E8%A1%A5%E8%A3%85%E6%9E%84%E5%BB%BA%E5%B7%A5%E5%85%B7"><span class="nav-text">6. 补装构建工具</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E5%8F%91%E7%8E%B0%E7%BC%BA-make-gcc"><span class="nav-text">6.1 发现缺 make&#x2F;gcc</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E4%BB%A5-root-%E8%BF%9B%E5%85%A5%E5%AE%B9%E5%99%A8%E5%AE%89%E8%A3%85"><span class="nav-text">6.2 以 root 进入容器安装</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E9%AA%8C%E8%AF%81"><span class="nav-text">6.3 验证</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%A4%8D%E7%8E%B0%E7%BC%96%E8%AF%91%E9%94%99%E8%AF%AF"><span class="nav-text">7. 复现编译错误</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E5%A4%8D%E7%8E%B0%E7%BC%96%E8%AF%91%E9%94%99%E8%AF%AF"><span class="nav-text">7.1 复现编译错误</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-%E6%A0%B9%E5%9B%A0%E5%88%86%E6%9E%90"><span class="nav-text">7.2 根因分析</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E8%A1%A5%E4%B8%81-1%EF%BC%9AMakefile-GCC15-%E5%85%BC%E5%AE%B9"><span class="nav-text">7.3 补丁 1：Makefile &#x2F; GCC15 兼容</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-%E5%BA%94%E7%94%A8%E8%A1%A5%E4%B8%81"><span class="nav-text">7.4 应用补丁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-%E5%B9%B6%E8%A1%8C%E7%BC%96%E8%AF%91-bug"><span class="nav-text">7.5 并行编译 bug</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-%E7%BC%96%E8%AF%91%E6%88%90%E5%8A%9F"><span class="nav-text">7.6 编译成功</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-7-%E7%BC%96%E8%AF%91-mkrmd"><span class="nav-text">7.7 编译 mkrmd</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E6%9E%84%E5%BB%BA-U-Boot"><span class="nav-text">8. 构建 U-Boot</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E8%B8%A9%E5%9D%91%EF%BC%9Abc-%E7%BC%BA%E5%A4%B1"><span class="nav-text">8.1 踩坑：bc 缺失</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E6%9E%84%E5%BB%BA-Linux-%E5%86%85%E6%A0%B8"><span class="nav-text">9. 构建 Linux 内核</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E6%89%93%E5%8C%85-ramdisk"><span class="nav-text">10. 打包 ramdisk</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#10-1-%E8%8E%B7%E5%8F%96%E5%AE%98%E6%96%B9-host-dtb"><span class="nav-text">10.1 获取官方 host dtb</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#10-2-%E6%89%93%E5%8C%85"><span class="nav-text">10.2 打包</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E6%9E%84%E5%BB%BA%E5%8F%AF%E5%90%AF%E5%8A%A8%E9%95%9C%E5%83%8F"><span class="nav-text">11. 构建可启动镜像</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#11-1-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C"><span class="nav-text">11.1 准备工作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11-2-%E6%8C%82%E8%BD%BD%E6%96%B9%E5%BC%8F%E8%AF%B4%E6%98%8E"><span class="nav-text">11.2 挂载方式说明</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11-3-%E5%91%BD%E4%BB%A4%EF%BC%88%E5%AE%BF%E4%B8%BB%E6%9C%BA%E6%89%A7%E8%A1%8C%EF%BC%89"><span class="nav-text">11.3 命令（宿主机执行）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#12-QEMU-%E5%90%AF%E5%8A%A8"><span class="nav-text">12. QEMU 启动</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#12-1-%E5%90%AF%E5%8A%A8%E5%91%BD%E4%BB%A4"><span class="nav-text">12.1 启动命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#12-2-%E9%A2%84%E6%9C%9F%E6%88%90%E5%8A%9F%E8%BE%93%E5%87%BA"><span class="nav-text">12.2 预期成功输出</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#13-%E6%9C%80%E7%BB%88%E9%AA%8C%E8%AF%81"><span class="nav-text">13. 最终验证</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#13-1-%E7%A1%AE%E8%AE%A4%E5%86%85%E6%A0%B8%E7%89%88%E6%9C%AC"><span class="nav-text">13.1 确认内核版本</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#13-2-%E7%A1%AE%E8%AE%A4-minos-%E9%A9%B1%E5%8A%A8%E5%8A%A0%E8%BD%BD"><span class="nav-text">13.2 确认 minos 驱动加载</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#14-%E8%AE%B0%E5%BD%95%E4%B8%AD%E8%B8%A9%E5%88%B0%E7%9A%84%E5%9D%91%E6%B1%87%E6%80%BB"><span class="nav-text">14. 记录中踩到的坑汇总</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#15-%E5%85%B3%E9%94%AE%E4%BA%A7%E7%89%A9%E4%BD%8D%E7%BD%AE"><span class="nav-text">15. 关键产物位置</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%BB%8E%E9%9B%B6%E5%A4%8D%E7%8E%B0-Mino-Hypervisor/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: 从零复现 Mino Hypervisor | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: 从零复现 Mino Hypervisor
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-12 22:07:55" itemprop="dateCreated datePublished" datetime="2026-08-12T22:07:55+08:00">2026-08-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文档记录了一次<strong>完全从零</strong>的 Minos Hypervisor 复现过程：<br>在 WSL2 + Docker 容器内，从 <code>git clone</code> 原始源码开始，自行打补丁、编译，<br>最终在 QEMU 上完整启动 Minos (EL2) + Guest Linux 4.19.238 (EL1)，并进入可交互 shell。</p>
+<p>区别于 <code>010-Phase0_Environment_Setup.md</code>（记录首次调试过程），本文档聚焦<br><strong>Docker 容器化、从零复现、逐步踩坑</strong>的完整路径。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-总体流程"><a href="#1-总体流程" class="headerlink" title="1. 总体流程"></a>1. 总体流程</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">WSL2 (Ubuntu 26.04, x86_64)</span><br><span class="line">  └─ Docker 容器 (ubuntu:26.04)</span><br><span class="line">       ├─ git clone 原始 minos 源码（未打补丁）</span><br><span class="line">       ├─ 打补丁 1（Makefile / GCC15 兼容）</span><br><span class="line">       ├─ 编译 minos → minos.bin</span><br><span class="line">       ├─ 编译 u-boot → u-boot.bin</span><br><span class="line">       ├─ 编译 Linux 4.19.238 → Image（集成 minos 驱动）</span><br><span class="line">       └─ 打包 ramdisk（官方 qemu-virt.dtb + Image）</span><br><span class="line">  └─ 宿主机</span><br><span class="line">       ├─ 改造官方 virtio-sd.img（写入 boot 分区）</span><br><span class="line">       └─ QEMU 启动 → guest shell</span><br></pre></td></tr></table></figure>
+
+<p><strong>产物目录</strong>：容器 <code>/home/minos/work</code> &#x3D; 宿主机 <code>~/minos-work</code>（挂载共享）</p>
+<hr>
+<h2 id="2-安装-Docker"><a href="#2-安装-Docker" class="headerlink" title="2. 安装 Docker"></a>2. 安装 Docker</h2><h3 id="2-1-安装-Docker-Engine"><a href="#2-1-安装-Docker-Engine" class="headerlink" title="2.1 安装 Docker Engine"></a>2.1 安装 Docker Engine</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -fsSL https://get.docker.com | sh</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意</strong>：WSL 环境下脚本会打印提示：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">WSL DETECTED: We recommend using Docker Desktop for Windows.</span><br><span class="line">You may press Ctrl+C now to abort this script.</span><br><span class="line">+ sleep 20</span><br></pre></td></tr></table></figure>
+
+<p>这是<strong>正常提示，不是错误</strong>。不要按 Ctrl+C，脚本 sleep 20 秒后仍会继续安装 Docker Engine。</p>
+<p><strong>中间可能出现的无害输出</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo: preserving the entire environment is not supported, &#x27;-E&#x27; is ignored</span><br></pre></td></tr></table></figure>
+
+<p>这只是 sudo 忽略 <code>-E</code> 参数的 warning，不影响安装。</p>
+<h3 id="2-2-验证安装"><a href="#2-2-验证安装" class="headerlink" title="2.2 验证安装"></a>2.2 验证安装</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">docker --version</span><br><span class="line"><span class="comment"># Docker version 29.7.2, build a7dcaa6</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-3-加入-docker-组"><a href="#2-3-加入-docker-组" class="headerlink" title="2.3 加入 docker 组"></a>2.3 加入 docker 组</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> usermod -aG docker <span class="variable">$USER</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>必须让组生效</strong>：关掉当前终端，重新开一个新终端（最可靠），或 <code>newgrp docker</code>。<br>验证：<code>groups</code> 输出里应看到 <code>docker</code>。</p>
+</blockquote>
+<hr>
+<h2 id="3-配置镜像加速器"><a href="#3-配置镜像加速器" class="headerlink" title="3. 配置镜像加速器"></a>3. 配置镜像加速器</h2><h3 id="3-1-背景"><a href="#3-1-背景" class="headerlink" title="3.1 背景"></a>3.1 背景</h3><p>第一次 <code>docker build</code> &#x2F; <code>docker pull</code> 报错：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">failed to do request: Head &quot;https://registry-1.docker.io/v2/library/ubuntu/manifests/26.04&quot;:</span><br><span class="line">dial tcp 173.252.108.3:443: i/o timeout</span><br></pre></td></tr></table></figure>
+
+<p><strong>原因</strong>：Docker Hub（<code>registry-1.docker.io</code>）在本地网络不可达。</p>
+<h3 id="3-2-排查各镜像源可达性"><a href="#3-2-排查各镜像源可达性" class="headerlink" title="3.2 排查各镜像源可达性"></a>3.2 排查各镜像源可达性</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">timeout</span> 10 curl -sI https://registry-1.docker.io/v2/ | <span class="built_in">head</span> -1      <span class="comment"># 超时（不可达）</span></span><br><span class="line"><span class="built_in">timeout</span> 10 curl -sI https://docker.mirrors.ustc.edu.cn/v2/ | <span class="built_in">head</span> -1  <span class="comment"># 超时</span></span><br><span class="line"><span class="built_in">timeout</span> 10 curl -sI https://registry.cn-hangzhou.aliyuncs.com | <span class="built_in">head</span> -1  <span class="comment"># HTTP/2 200</span></span><br><span class="line"><span class="built_in">timeout</span> 10 curl -sI https://docker.m.daocloud.io/v2/ | <span class="built_in">head</span> -1       <span class="comment"># HTTP/2 401（可达）</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>结果</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>源</th>
+<th>结果</th>
+<th>判断</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Docker Hub</td>
+<td>超时</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>中科大</td>
+<td>超时</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>阿里云</td>
+<td>200</td>
+<td>⚠️ 可达但它是 ACR 端点，不一定代理 docker.io</td>
+</tr>
+<tr>
+<td><strong>DaoCloud</strong></td>
+<td><strong>HTTP&#x2F;2 401</strong></td>
+<td>✅ <strong>可达</strong>（401 是 registry 未带 token 访问 <code>/v2/</code> 的正常响应）</td>
+</tr>
+</tbody></table>
+<h3 id="3-3-配置-daemon-json"><a href="#3-3-配置-daemon-json" class="headerlink" title="3.3 配置 daemon.json"></a>3.3 配置 daemon.json</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> vim /etc/docker/daemon.json</span><br></pre></td></tr></table></figure>
+
+<p>写入：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;registry-mirrors&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span></span><br><span class="line">    <span class="string">&quot;https://docker.m.daocloud.io&quot;</span></span><br><span class="line">  <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p>保存退出：vim 里 <code>i</code> 编辑 → 粘贴 → <code>Esc</code> → <code>:wq</code> 回车。</p>
+<h3 id="3-4-重启-验证"><a href="#3-4-重启-验证" class="headerlink" title="3.4 重启 + 验证"></a>3.4 重启 + 验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> systemctl restart docker</span><br><span class="line">docker pull hello-world</span><br><span class="line"><span class="comment"># Status: Downloaded newer image for hello-world:latest</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="4-创建-Dockerfile-并-build-容器"><a href="#4-创建-Dockerfile-并-build-容器" class="headerlink" title="4. 创建 Dockerfile 并 build 容器"></a>4. 创建 Dockerfile 并 build 容器</h2><h3 id="4-1-项目结构"><a href="#4-1-项目结构" class="headerlink" title="4.1 项目结构"></a>4.1 项目结构</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">~/workspace/docker-minos/</span><br><span class="line">├── Dockerfile</span><br><span class="line">├── build.sh            # 分步构建辅助脚本</span><br><span class="line">├── qemu-virt-minimal.dts  # 精简 host dtb（备用，官方 dtb 不可用时）</span><br><span class="line">├── boot.cmd            # U-Boot 启动脚本源（备用）</span><br><span class="line">├── patches/            # 补丁文件</span><br><span class="line">└── minos/              # （早期 COPY 用的源码，后改为容器内 clone）</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-Dockerfile-最终内容"><a href="#4-2-Dockerfile-最终内容" class="headerlink" title="4.2 Dockerfile 最终内容"></a>4.2 Dockerfile 最终内容</h3><figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">FROM</span> ubuntu:<span class="number">26.04</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">ENV</span> DEBIAN_FRONTEND=noninteractive</span><br><span class="line"></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> apt-get update &amp;&amp; apt-get install -y --no-install-recommends \</span></span><br><span class="line"><span class="language-bash">        gcc-aarch64-linux-gnu \</span></span><br><span class="line"><span class="language-bash">        device-tree-compiler \</span></span><br><span class="line"><span class="language-bash">        bison flex libssl-dev swig python3-dev \</span></span><br><span class="line"><span class="language-bash">        python3-setuptools python3-pyelftools \</span></span><br><span class="line"><span class="language-bash">        git wget curl ca-certificates xz-utils file patch vim <span class="built_in">sudo</span> \</span></span><br><span class="line"><span class="language-bash">        &amp;&amp; <span class="built_in">rm</span> -rf /var/lib/apt/lists/*</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 创建 minos 用户（uid=1000 与宿主机对齐）</span></span><br><span class="line"><span class="comment"># ubuntu:26.04 自带 uid=1000 的 ubuntu 用户，先删除避免冲突</span></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> userdel -r ubuntu \</span></span><br><span class="line"><span class="language-bash">    &amp;&amp; groupadd -g 1000 minos \</span></span><br><span class="line"><span class="language-bash">    &amp;&amp; useradd -m -s /bin/bash -u 1000 -g 1000 minos</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> --<span class="built_in">chown</span>=minos:minos build.sh /home/minos/work/build.sh</span></span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> --<span class="built_in">chown</span>=minos:minos qemu-virt-minimal.dts /home/minos/work/qemu-virt-minimal.dts</span></span><br><span class="line"><span class="keyword">COPY</span><span class="language-bash"> --<span class="built_in">chown</span>=minos:minos boot.cmd /home/minos/work/boot.cmd</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">RUN</span><span class="language-bash"> <span class="built_in">chmod</span> +x /home/minos/work/build.sh</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">VOLUME</span><span class="language-bash"> [<span class="string">&quot;/home/minos/output&quot;</span>]</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">USER</span> minos</span><br><span class="line"><span class="keyword">WORKDIR</span><span class="language-bash"> /home/minos/work</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-3-Dockerfile-的踩坑修复史"><a href="#4-3-Dockerfile-的踩坑修复史" class="headerlink" title="4.3  Dockerfile 的踩坑修复史"></a>4.3  Dockerfile 的踩坑修复史</h3><p><strong>坑 1：<code>UID 1000 is not unique</code></strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">useradd: UID 1000 is not unique</span><br></pre></td></tr></table></figure>
+
+<p>ubuntu:26.04 基础镜像自带 <code>ubuntu</code> 用户（uid&#x3D;1000）。需先删它：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">RUN</span><span class="language-bash"> userdel -r ubuntu &amp;&amp; useradd -m -s /bin/bash -u 1000 -g 1000 minos</span></span><br></pre></td></tr></table></figure>
+
+<p>但 <code>userdel -r ubuntu</code> 会连主组一起删 → 下一步报 <code>group &#39;1000&#39; does not exist</code>。</p>
+<p><strong>坑 2：<code>group &#39;1000&#39; does not exist</code></strong><br>需先重建 gid&#x3D;1000 的组，再建用户：</p>
+<figure class="highlight dockerfile"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">RUN</span><span class="language-bash"> userdel -r ubuntu \</span></span><br><span class="line"><span class="language-bash">    &amp;&amp; groupadd -g 1000 minos \</span></span><br><span class="line"><span class="language-bash">    &amp;&amp; useradd -m -s /bin/bash -u 1000 -g 1000 minos</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>坑 3：<code>git clone</code> SSL 证书错误</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">fatal: unable to access &#x27;https://github.com/...&#x27;: Problem with the SSL CA cert</span><br></pre></td></tr></table></figure>
+
+<p>容器缺 <code>ca-certificates</code> 包 → Dockerfile 补装 <code>ca-certificates</code>（连同 <code>curl</code>）。</p>
+<h3 id="4-4-build-容器"><a href="#4-4-build-容器" class="headerlink" title="4.4 build 容器"></a>4.4 build 容器</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> ~/workspace/docker-minos</span><br><span class="line">docker build --network host -t minos-build .</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><code>--network host</code> 加速 apt&#x2F;下载。首次会拉 ubuntu:26.04（走 DaoCloud 加速器）。</p>
+</blockquote>
+<h3 id="4-5-验证容器身份"><a href="#4-5-验证容器身份" class="headerlink" title="4.5 验证容器身份"></a>4.5 验证容器身份</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">docker run --<span class="built_in">rm</span> \</span><br><span class="line">  -v ~/minos-output:/home/minos/output \</span><br><span class="line">  -v ~/workspace/docker-minos:/home/minos/host \</span><br><span class="line">  minos-build bash -c <span class="string">&#x27;whoami; pwd; id&#x27;</span></span><br><span class="line"><span class="comment"># 预期: minos / /home/minos/work / uid=1000(minos) gid=1000(minos)</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="5-进入容器，从零-clone-源码"><a href="#5-进入容器，从零-clone-源码" class="headerlink" title="5. 进入容器，从零 clone 源码"></a>5. 进入容器，从零 clone 源码</h2><h3 id="5-1-创建并进入容器"><a href="#5-1-创建并进入容器" class="headerlink" title="5.1 创建并进入容器"></a>5.1 创建并进入容器</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mkdir</span> -p ~/minos-work ~/minos-output</span><br><span class="line">docker run -it --name minos-dev \</span><br><span class="line">  -v ~/minos-work:/home/minos/work \</span><br><span class="line">  -v ~/minos-output:/home/minos/output \</span><br><span class="line">  -v ~/workspace/docker-minos:/home/minos/host \</span><br><span class="line">  minos-build</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>A+B 结合</strong>：<code>--name minos-dev</code>（命名容器）+ <code>-v ~/minos-work:/home/minos/work</code>（源码挂载宿主机，永久保留）。</p>
+</blockquote>
+<p><strong>之后重新进入</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">docker start -i minos-dev        <span class="comment"># 恢复原会话</span></span><br><span class="line">docker <span class="built_in">exec</span> -it minos-dev bash   <span class="comment"># 新开 shell</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-容器内从零-clone-原始-minos"><a href="#5-2-容器内从零-clone-原始-minos" class="headerlink" title="5.2 容器内从零 clone 原始 minos"></a>5.2 容器内从零 clone 原始 minos</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /home/minos/work</span><br><span class="line">git <span class="built_in">clone</span> https://github.com/minosproject/minos.git</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-验证拿到的是干净源码"><a href="#5-3-验证拿到的是干净源码" class="headerlink" title="5.3 验证拿到的是干净源码"></a>5.3 验证拿到的是干净源码</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /home/minos/work/minos</span><br><span class="line">grep -c <span class="string">&#x27;fno-PIE&#x27;</span> Makefile                                <span class="comment"># 预期 0</span></span><br><span class="line">grep -n <span class="string">&#x27;default:&#x27;</span> <span class="built_in">arch</span>/aarch64/virt/stage2.c             <span class="comment"># 看 default 分支是否 S2_AP_NON</span></span><br><span class="line"><span class="comment"># 第 158/207 行 default: → S2_AP_NON（原始），第 152/201 行 S2_AP_RW（case 分支，本来就有）</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="6-补装构建工具"><a href="#6-补装构建工具" class="headerlink" title="6. 补装构建工具"></a>6. 补装构建工具</h2><h3 id="6-1-发现缺-make-gcc"><a href="#6-1-发现缺-make-gcc" class="headerlink" title="6.1 发现缺 make&#x2F;gcc"></a>6.1 发现缺 make&#x2F;gcc</h3><p>clone 后执行 <code>make</code> 报 <code>make: command not found</code>。检查确认容器缺 make&#x2F;gcc&#x2F;g++。</p>
+<h3 id="6-2-以-root-进入容器安装"><a href="#6-2-以-root-进入容器安装" class="headerlink" title="6.2 以 root 进入容器安装"></a>6.2 以 root 进入容器安装</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> -it -u root minos-dev bash</span><br><span class="line">apt-get update</span><br><span class="line">apt-get install -y make gcc g++</span><br><span class="line"><span class="built_in">exit</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>minos 用户无 sudo 权限（Dockerfile 没配置），所以用 <code>-u root</code> 进容器安装。<br><strong>装完 exit 回 minos 用户</strong>再构建，保证源码文件属主正确。</p>
+</blockquote>
+<h3 id="6-3-验证"><a href="#6-3-验证" class="headerlink" title="6.3 验证"></a>6.3 验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">which</span> make gcc g++</span><br><span class="line"><span class="comment"># /usr/bin/make /usr/bin/gcc /usr/bin/g++</span></span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="7-复现编译错误"><a href="#7-复现编译错误" class="headerlink" title="7. 复现编译错误"></a>7. 复现编译错误</h2><h3 id="7-1-复现编译错误"><a href="#7-1-复现编译错误" class="headerlink" title="7.1 复现编译错误"></a>7.1 复现编译错误</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /home/minos/work/minos</span><br><span class="line">make qemu_arm64_defconfig</span><br><span class="line">make -j$(<span class="built_in">nproc</span>) CROSS_COMPILE=aarch64-linux-gnu-</span><br></pre></td></tr></table></figure>
+
+<p><strong>复现的报错</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">cc1: sorry, unimplemented: code model &#x27;large&#x27; with &#x27;-fPIC&#x27;</span><br><span class="line">fatal error: config/config.h: No such file or directory</span><br></pre></td></tr></table></figure>
+
+<h3 id="7-2-根因分析"><a href="#7-2-根因分析" class="headerlink" title="7.2 根因分析"></a>7.2 根因分析</h3><table>
+<thead>
+<tr>
+<th>错误</th>
+<th>根因</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>code model &#39;large&#39; with &#39;-fPIC&#39;</code></td>
+<td>Ubuntu 26.04 GCC 15 默认启用 PIE（<code>--enable-default-pie</code>），而 minos 的 <code>-mcmodel=large</code> 与 PIE 冲突</td>
+</tr>
+<tr>
+<td><code>config/config.h</code> 缺失</td>
+<td>连锁反应：<code>asm-offset.s</code> 因上一个错误编译失败，依赖它的头文件没生成</td>
+</tr>
+</tbody></table>
+<p><strong>验证根因</strong>（可选加深理解）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /tmp</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;int x;&#x27;</span> &gt; t.c</span><br><span class="line">aarch64-linux-gnu-gcc -mcmodel=large -c t.c -o t.o            <span class="comment"># 失败</span></span><br><span class="line">aarch64-linux-gnu-gcc -mcmodel=large -fno-PIE -c t.c -o t.o    <span class="comment"># 成功</span></span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;typedef int bool;&#x27;</span> &gt; t2.c</span><br><span class="line">gcc -std=c23 -c t2.c -o t2.o      <span class="comment"># 失败（&#x27;bool&#x27; 是 c23 关键字）</span></span><br><span class="line">gcc -std=gnu89 -c t2.c -o t2.o    <span class="comment"># 成功</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-3-补丁-1：Makefile-GCC15-兼容"><a href="#7-3-补丁-1：Makefile-GCC15-兼容" class="headerlink" title="7.3 补丁 1：Makefile &#x2F; GCC15 兼容"></a>7.3 补丁 1：Makefile &#x2F; GCC15 兼容</h3><p><strong>补丁内容</strong>（<code>patches/01-makefile-gcc15.patch</code>）：</p>
+<figure class="highlight diff"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">--- a/Makefile</span></span><br><span class="line"><span class="comment">+++ b/Makefile</span></span><br><span class="line"><span class="meta">@@ -145,7 +145,8 @@</span> MBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \</span><br><span class="line"> 		   -fno-strict-aliasing -fno-common -fshort-wchar \</span><br><span class="line"> 		   -Werror-implicit-function-declaration \</span><br><span class="line"> 		   -Wno-format-security -O$(O_LEVEL) -DBUILD_HYPERVISOR \</span><br><span class="line"><span class="deletion">-		   -std=gnu89 --static -nostdlib -fno-builtin -g $(MINOSINCLUDE)</span></span><br><span class="line"><span class="addition">+		   -std=gnu89 --static -nostdlib -fno-builtin -g \</span></span><br><span class="line"><span class="addition">+		   -fno-PIE -fno-pic $(MINOSINCLUDE)</span></span><br><span class="line"><span class="meta">@@ -293,7 +294,7 @@</span> endif</span><br><span class="line"> $(offset_s): $(offset_c)</span><br><span class="line"> 	$(Q) echo &quot;  CC      $(offset_s)&quot;</span><br><span class="line"><span class="deletion">-	$(Q) gcc $(MINOSINCLUDE) -S $&lt; -o $@</span></span><br><span class="line"><span class="addition">+	$(Q) gcc $(MINOSINCLUDE) -std=gnu89 -fno-PIE -S $&lt; -o $@</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>为什么这两处</strong>：</p>
+<ol>
+<li><code>-fno-PIE -fno-pic</code>：解决 <code>-mcmodel=large</code> 与 PIE 冲突（所有 aarch64 编译）</li>
+<li><code>asm-offset</code> 规则加 <code>-std=gnu89</code>：该规则用<strong>宿主 gcc</strong> 编译，没走 MBUILD_CFLAGS，需单独指定（避免 c23 的 <code>bool</code> 关键字问题）</li>
+</ol>
+<h3 id="7-4-应用补丁"><a href="#7-4-应用补丁" class="headerlink" title="7.4 应用补丁"></a>7.4 应用补丁</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /home/minos/work/minos</span><br><span class="line">patch -p1 &lt; /home/minos/host/patches/01-makefile-gcc15.patch</span><br><span class="line"><span class="comment"># patching file Makefile</span></span><br></pre></td></tr></table></figure>
+
+<p>验证：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">grep -n <span class="string">&#x27;fno-PIE&#x27;</span> Makefile    <span class="comment"># 两处</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-5-并行编译-bug"><a href="#7-5-并行编译-bug" class="headerlink" title="7.5 并行编译 bug"></a>7.5 并行编译 bug</h3><p>直接 <code>make -j$(nproc)</code> 会报：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make[1]: *** No rule to make target &#x27;apps/esh/built-in.o&#x27;, needed by &#x27;apps/built-in.o&#x27;.  Stop.</span><br></pre></td></tr></table></figure>
+
+<p><strong>根因</strong>：Minos 的构建脚本（<code>scripts/Minos.build.mk</code>）用递归 make 生成子目录 built-in.o，并行时父目录依赖检查和子目录生成规则竞态。</p>
+<p><strong>解决</strong>：用 <code>-j1</code> 单线程构建。</p>
+<h3 id="7-6-编译成功"><a href="#7-6-编译成功" class="headerlink" title="7.6 编译成功"></a>7.6 编译成功</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">make -j1 CROSS_COMPILE=aarch64-linux-gnu-</span><br><span class="line"><span class="built_in">ls</span> -la minos.bin    <span class="comment"># 320441 字节</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-7-编译-mkrmd"><a href="#7-7-编译-mkrmd" class="headerlink" title="7.7 编译 mkrmd"></a>7.7 编译 mkrmd</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">make mkrmd</span><br><span class="line"><span class="built_in">ls</span> -la tools/mkrmd/mkrmd    <span class="comment"># 22336 字节, ELF x86-64</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>mkrmd 用宿主 gcc 编译，验证了补丁 1 的 asm-offset 规则（<code>-std=gnu89</code>）生效。</p>
+</blockquote>
+<hr>
+<h2 id="8-构建-U-Boot"><a href="#8-构建-U-Boot" class="headerlink" title="8. 构建 U-Boot"></a>8. 构建 U-Boot</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /home/minos/work</span><br><span class="line">git <span class="built_in">clone</span> --depth 1 https://github.com/minosproject/u-boot.git</span><br><span class="line"><span class="built_in">cd</span> u-boot</span><br><span class="line">make qemu_arm64_defconfig</span><br><span class="line">make -j1 CROSS_COMPILE=aarch64-linux-gnu-</span><br></pre></td></tr></table></figure>
+
+<h3 id="8-1-踩坑：bc-缺失"><a href="#8-1-踩坑：bc-缺失" class="headerlink" title="8.1 踩坑：bc 缺失"></a>8.1 踩坑：bc 缺失</h3><p>末尾报错：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">/bin/sh: 1: bc: not found</span><br><span class="line">CFGCHK u-boot.cfg</span><br></pre></td></tr></table></figure>
+
+<p><strong>原因</strong>：u-boot 的 CFGCHK 步骤需要 <code>bc</code>（命令行计算器）。不影响 u-boot.bin 生成，但 make 返回非零。</p>
+<p><strong>解决</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> -it -u root minos-dev bash</span><br><span class="line">apt-get install -y bc</span><br><span class="line"><span class="built_in">exit</span></span><br><span class="line"><span class="built_in">cd</span> /home/minos/work/u-boot</span><br><span class="line">make -j1 CROSS_COMPILE=aarch64-linux-gnu-</span><br></pre></td></tr></table></figure>
+
+<p><strong>产物</strong>：<code>u-boot.bin</code>（591400 字节）、<code>u-boot/tools/mkimage</code>（226400 字节）。</p>
+<hr>
+<h2 id="9-构建-Linux-内核"><a href="#9-构建-Linux-内核" class="headerlink" title="9. 构建 Linux 内核"></a>9. 构建 Linux 内核</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /home/minos/work</span><br><span class="line">wget -c https://cdn.kernel.org/pub/linux/kernel/v4.x/linux-4.19.238.tar.xz</span><br><span class="line">tar xf linux-4.19.238.tar.xz</span><br><span class="line"></span><br><span class="line"><span class="built_in">cd</span> linux-4.19.238</span><br><span class="line"><span class="built_in">cp</span> -r /home/minos/work/minos/generic/minos-linux-driver drivers/minos</span><br><span class="line"><span class="built_in">echo</span> <span class="string">&#x27;obj-y += minos/&#x27;</span> &gt;&gt; drivers/Makefile</span><br><span class="line"></span><br><span class="line">make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- defconfig</span><br><span class="line">make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(<span class="built_in">nproc</span>) Image</span><br></pre></td></tr></table></figure>
+
+<p><strong>要点</strong>：</p>
+<ul>
+<li>下载用 <code>cdn.kernel.org</code>（文档的 <code>mirrors.edge.kernel.org</code> 慢&#x2F;超时）</li>
+<li>集成 minos 驱动：<code>obj-y</code> 强制内置（不是模块），guest 启动后驱动自动加载</li>
+<li>产物：<code>arch/arm64/boot/Image</code>（19173888 字节，约 19MB）</li>
+</ul>
+<p><strong>为什么需要自编译内核</strong>（rootfs 用官方但内核必须自己编）：<br>官方镜像 boot 分区虽有个 <code>Image</code>，但那是 <strong>4.2.0 通用内核（无 minos 驱动）</strong>。我们编译的 4.19.238 <strong>内置 minos-linux-driver</strong>（guest↔hypervisor 通信的桥梁：console&#x2F;vmbox&#x2F;hypercall），是虚拟化栈核心。</p>
+<hr>
+<h2 id="10-打包-ramdisk"><a href="#10-打包-ramdisk" class="headerlink" title="10. 打包 ramdisk"></a>10. 打包 ramdisk</h2><h3 id="10-1-获取官方-host-dtb"><a href="#10-1-获取官方-host-dtb" class="headerlink" title="10.1 获取官方 host dtb"></a>10.1 获取官方 host dtb</h3><p>官方文档 005 提供网盘下载：<code>qemu-virt.dtb</code>（6899 字节，与文档日志一致）。<br>下载后放到 <code>~/minos-work/downloads/</code>（容器内可见为 <code>/home/minos/work/downloads/</code>）。</p>
+<h3 id="10-2-打包"><a href="#10-2-打包" class="headerlink" title="10.2 打包"></a>10.2 打包</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> /home/minos/work</span><br><span class="line">/home/minos/work/minos/tools/mkrmd/mkrmd \</span><br><span class="line">  -f /home/minos/work/ramdisk.bin \</span><br><span class="line">  /home/minos/work/linux-4.19.238/arch/arm64/boot/Image \</span><br><span class="line">  /home/minos/work/downloads/qemu-virt.dtb</span><br></pre></td></tr></table></figure>
+
+<p><strong>预期输出</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Image f_offset 0x0 0x19173888</span><br><span class="line">qemu-virt.dtb f_offset 0x19177472 0x6899</span><br><span class="line">generate ramdisk done</span><br><span class="line">ramdisk size 0x124d000</span><br></pre></td></tr></table></figure>
+
+<p><strong>产物</strong>：<code>ramdisk.bin</code>（19189760 字节）。</p>
+<hr>
+<h2 id="11-构建可启动镜像"><a href="#11-构建可启动镜像" class="headerlink" title="11. 构建可启动镜像"></a>11. 构建可启动镜像</h2><h3 id="11-1-准备工作"><a href="#11-1-准备工作" class="headerlink" title="11.1 准备工作"></a>11.1 准备工作</h3><p>官方镜像 <code>virtio-sd.img</code>（512MB）含：</p>
+<ul>
+<li>分区 1（boot，76MB FAT16）：放启动文件</li>
+<li>分区 2（rootfs，436MB ext4）：Linux 用户态系统</li>
+</ul>
+<p>需要把 minos 的 3 个启动文件写入 boot 分区（分区 1），rootfs 分区（分区 2）保留官方内容。</p>
+<h3 id="11-2-挂载方式说明"><a href="#11-2-挂载方式说明" class="headerlink" title="11.2 挂载方式说明"></a>11.2 挂载方式说明</h3><p>文档 005 用 <code>mount -o loop,offset=32256</code>（offset&#x3D;63扇区×512&#x3D;32256 手动指定），本记录用 <code>losetup -P</code>（自动解析分区表，更通用）：</p>
+<h3 id="11-3-命令（宿主机执行）"><a href="#11-3-命令（宿主机执行）" class="headerlink" title="11.3 命令（宿主机执行）"></a>11.3 命令（宿主机执行）</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># E0. 建固定挂载目录</span></span><br><span class="line"><span class="built_in">mkdir</span> -p ~/minos-work/mnt/boot</span><br><span class="line"></span><br><span class="line"><span class="comment"># E1. 备份官方镜像</span></span><br><span class="line"><span class="built_in">ls</span> -la ~/minos-work/virtio-sd-run.img 2&gt;/dev/null || <span class="built_in">cp</span> ~/minos-work/downloads/virtio-sd.img ~/minos-work/virtio-sd-run.img</span><br><span class="line"></span><br><span class="line"><span class="comment"># E2. 写入 boot 分区（3 个文件，不写 boot.scr）</span></span><br><span class="line"><span class="built_in">sudo</span> losetup -fP ~/minos-work/virtio-sd-run.img</span><br><span class="line"><span class="built_in">sudo</span> losetup -l | grep virtio-sd-run</span><br><span class="line">DEV=$(<span class="built_in">sudo</span> losetup -l | grep virtio-sd-run | awk <span class="string">&#x27;&#123;print $1&#125;&#x27;</span> | <span class="built_in">head</span> -1)</span><br><span class="line"><span class="built_in">sudo</span> mount <span class="variable">$&#123;DEV&#125;</span>p1 ~/minos-work/mnt/boot</span><br><span class="line"></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cp</span> ~/minos-work/minos/minos.bin ~/minos-work/mnt/boot/kernel.bin</span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cp</span> ~/minos-work/minos/dtbs/qemu-arm64.dtb ~/minos-work/mnt/boot/</span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cp</span> ~/minos-work/ramdisk.bin ~/minos-work/mnt/boot/</span><br><span class="line"></span><br><span class="line"><span class="built_in">ls</span> -la ~/minos-work/mnt/boot/</span><br><span class="line"></span><br><span class="line"><span class="built_in">sudo</span> umount ~/minos-work/mnt/boot</span><br><span class="line"><span class="built_in">sudo</span> losetup -d <span class="variable">$DEV</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>写入的文件</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>内容</th>
+<th>谁加载</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>kernel.bin</code></td>
+<td>minos.bin（hypervisor）</td>
+<td>U-Boot</td>
+</tr>
+<tr>
+<td><code>qemu-arm64.dtb</code></td>
+<td>hypervisor 设备树</td>
+<td>U-Boot</td>
+</tr>
+<tr>
+<td><code>ramdisk.bin</code></td>
+<td>guest 内核+dtb 打包</td>
+<td>minos（guest 启动时）</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="12-QEMU-启动"><a href="#12-QEMU-启动" class="headerlink" title="12. QEMU 启动"></a>12. QEMU 启动</h2><h3 id="12-1-启动命令"><a href="#12-1-启动命令" class="headerlink" title="12.1 启动命令"></a>12.1 启动命令</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">qemu-system-aarch64 -nographic -bios /home/finfen01/minos-work/u-boot/u-boot.bin \</span><br><span class="line">  -M virtualization=on,gic-version=3 \</span><br><span class="line">  -cpu cortex-a53 -machine <span class="built_in">type</span>=virt -smp 4 -m 2G \</span><br><span class="line">  -drive <span class="keyword">if</span>=none,file=/home/finfen01/minos-work/virtio-sd-run.img,format=raw,<span class="built_in">id</span>=hd0 \</span><br><span class="line">  -device virtio-blk-device,drive=hd0</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>踩坑</strong>：用 <code>~/minos-work/...</code> 时 QEMU 可能报 <code>Could not open ...: No such file or directory</code><br>（波浪号未被展开）。改用<strong>绝对路径</strong>解决。</p>
+</blockquote>
+<h3 id="12-2-预期成功输出"><a href="#12-2-预期成功输出" class="headerlink" title="12.2 预期成功输出"></a>12.2 预期成功输出</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">U-Boot 2019.07-rc4 ...</span><br><span class="line">Starting kernel ...</span><br><span class="line">[ 0.000000] Starting Minos AARCH64</span><br><span class="line">[ 0.000000] Minos v0.4.00</span><br><span class="line">[ 0.000000] current EL is 2          ← hypervisor 在 EL2</span><br><span class="line">[ 0.000000] vgicv3: nr_lrs 4 nr_prs 5</span><br><span class="line">...</span><br><span class="line">[ 0.000000] Booting Linux on physical CPU ...</span><br><span class="line">[ 0.000000] Linux version 4.19.238 ...   ← 我们编译的内核</span><br><span class="line">[ 0.000000] Memory: 963728K/1048576K available</span><br><span class="line">[ 0.123662] CPU: All CPU(s) started at EL1</span><br><span class="line">[ 0.651527] VFS: Mounted root (ext4 filesystem) on device 254:2.</span><br><span class="line">root@genericarmv8:~#                       ← 进入 shell！</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="13-最终验证"><a href="#13-最终验证" class="headerlink" title="13. 最终验证"></a>13. 最终验证</h2><h3 id="13-1-确认内核版本"><a href="#13-1-确认内核版本" class="headerlink" title="13.1 确认内核版本"></a>13.1 确认内核版本</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">root@genericarmv8:~# <span class="built_in">uname</span> -a</span><br><span class="line">Linux genericarmv8 4.19.238 <span class="comment">#1 SMP PREEMPT Mon Aug 10 05:44:36 UTC 2026 aarch64 GNU/Linux</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="13-2-确认-minos-驱动加载"><a href="#13-2-确认-minos-驱动加载" class="headerlink" title="13.2 确认 minos 驱动加载"></a>13.2 确认 minos 驱动加载</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">root@genericarmv8:~# dmesg | grep -i minos</span><br><span class="line">[ 0.000000] Linux version 4.19.238 (minos@c38964958dc3) (gcc version 15.2.0...)</span><br><span class="line">[ 0.550523] Minos Hyperviosr Driver Init ...</span><br><span class="line">[ 0.551254] Minos Hyperviosr Driver Init Done</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>Minos Hyperviosr Driver Init Done</code> 是最终确认</strong>：guest 内核里的 minos 驱动成功与 EL2 的 hypervisor 建立通信（HVC hypercall &#x2F; vmbox），完整 Type-1 虚拟化栈工作正常。</p>
+<blockquote>
+<p><strong>注意</strong>：官方 rootfs 是精简 BusyBox，<code>head -5</code> 不支持，用 <code>head -n 5</code> 或直接 <code>head</code>。</p>
+</blockquote>
+<hr>
+<h2 id="14-记录中踩到的坑汇总"><a href="#14-记录中踩到的坑汇总" class="headerlink" title="14. 记录中踩到的坑汇总"></a>14. 记录中踩到的坑汇总</h2><table>
+<thead>
+<tr>
+<th>#</th>
+<th>现象</th>
+<th>根因</th>
+<th>解决</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Docker Hub 拉镜像超时</td>
+<td><code>registry-1.docker.io</code> 网络不可达</td>
+<td>配置 DaoCloud 镜像加速器</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Dockerfile <code>UID 1000 is not unique</code></td>
+<td>ubuntu:26.04 自带 ubuntu 用户</td>
+<td><code>userdel -r ubuntu</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>group &#39;1000&#39; does not exist</code></td>
+<td>userdel 连主组一起删</td>
+<td>先 <code>groupadd -g 1000 minos</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>git clone</code> SSL 证书错误</td>
+<td>容器缺 ca-certificates</td>
+<td>Dockerfile 补装 <code>ca-certificates</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>make: command not found</code></td>
+<td>Dockerfile 漏装 make&#x2F;gcc</td>
+<td>容器内 <code>apt install make gcc g++</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>code model &#39;large&#39; with &#39;-fPIC&#39;</code></td>
+<td>GCC 15 默认 PIE</td>
+<td>补丁 1：<code>-fno-PIE -fno-pic</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>No rule to make target .../built-in.o</code></td>
+<td>Minos 构建脚本并行竞态</td>
+<td><code>make -j1</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td>u-boot <code>bc: not found</code></td>
+<td>CFGCHK 需要 bc</td>
+<td><code>apt install bc</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>QEMU <code>Could not open &#39;~/...&#39;</code></td>
+<td>波浪号未展开</td>
+<td>用绝对路径</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="15-关键产物位置"><a href="#15-关键产物位置" class="headerlink" title="15. 关键产物位置"></a>15. 关键产物位置</h2><table>
+<thead>
+<tr>
+<th>产物</th>
+<th>容器路径</th>
+<th>宿主机路径</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>minos.bin</td>
+<td><code>/home/minos/work/minos/minos.bin</code></td>
+<td><code>~/minos-work/minos/minos.bin</code></td>
+</tr>
+<tr>
+<td>qemu-arm64.dtb</td>
+<td><code>/home/minos/work/minos/dtbs/qemu-arm64.dtb</code></td>
+<td><code>~/minos-work/minos/dtbs/qemu-arm64.dtb</code></td>
+</tr>
+<tr>
+<td>mkrmd</td>
+<td><code>/home/minos/work/minos/tools/mkrmd/mkrmd</code></td>
+<td><code>~/minos-work/minos/tools/mkrmd/mkrmd</code></td>
+</tr>
+<tr>
+<td>u-boot.bin</td>
+<td><code>/home/minos/work/u-boot/u-boot.bin</code></td>
+<td><code>~/minos-work/u-boot/u-boot.bin</code></td>
+</tr>
+<tr>
+<td>Image</td>
+<td><code>/home/minos/work/linux-4.19.238/arch/arm64/boot/Image</code></td>
+<td><code>~/minos-work/linux-4.19.238/arch/arm64/boot/Image</code></td>
+</tr>
+<tr>
+<td>ramdisk.bin</td>
+<td><code>/home/minos/work/ramdisk.bin</code></td>
+<td><code>~/minos-work/ramdisk.bin</code></td>
+</tr>
+<tr>
+<td>官方 dtb</td>
+<td><code>/home/minos/work/downloads/qemu-virt.dtb</code></td>
+<td><code>~/minos-work/downloads/qemu-virt.dtb</code></td>
+</tr>
+<tr>
+<td>官方镜像</td>
+<td><code>/home/minos/work/downloads/virtio-sd.img</code></td>
+<td><code>~/minos-work/downloads/virtio-sd.img</code></td>
+</tr>
+<tr>
+<td>可启动镜像</td>
+<td>-</td>
+<td><code>~/minos-work/virtio-sd-run.img</code></td>
+</tr>
+</tbody></table>
+<p><strong>容器</strong>：<code>minos-dev</code>（挂载 <code>~/minos-work</code>，源码永久保留）</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/" rel="prev" title="AArch64 通用定时器">
+                  <i class="fa fa-angle-left"></i> AArch64 通用定时器
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-ARMv8-A-%E8%99%9A%E6%8B%9F%E5%8C%96%E5%9F%BA%E7%A1%80/" rel="next" title="Minos 虚拟化: ARMv8-A 虚拟化基础">
+                  Minos 虚拟化: ARMv8-A 虚拟化基础 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

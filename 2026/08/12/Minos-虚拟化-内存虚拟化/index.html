@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="目标：理解两套地址翻译（Hypervisor 自身 Stage1 + Guest Stage2）和 guest 内存分配。前置：Phase 3（trap 机制）、Phase 1（ARMv8 虚拟化基础）。学习主线：本文按”为什么 → 结构 → 代码 → 总结“组织，带你走通”VA→IPA→PA”的完整链路。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: 内存虚拟化">
+<meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="目标：理解两套地址翻译（Hypervisor 自身 Stage1 + Guest Stage2）和 guest 内存分配。前置：Phase 3（trap 机制）、Phase 1（ARMv8 虚拟化基础）。学习主线：本文按”为什么 → 结构 → 代码 → 总结“组织，带你走通”VA→IPA→PA”的完整链路。">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2026-08-12T14:09:59.000Z">
+<meta property="article:modified_time" content="2026-08-12T14:28:45.807Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/","path":"2026/08/12/Minos-虚拟化-内存虚拟化/","title":"Minos 虚拟化: 内存虚拟化"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: 内存虚拟化 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#0-%E5%9C%B0%E5%9D%80%E7%BF%BB%E8%AF%91%E5%85%A8%E6%99%AF%EF%BC%9A%E4%B8%A4%E7%BA%A7%E7%BF%BB%E8%AF%91%E6%9E%B6%E6%9E%84"><span class="nav-text">0. 地址翻译全景：两级翻译架构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#1-Stage2-%E7%9A%84%E9%9C%80%E6%B1%82%E8%83%8C%E6%99%AF"><span class="nav-text">1. Stage2 的需求背景</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E7%9B%B4%E6%8E%A5%E7%89%A9%E7%90%86%E8%AE%BF%E9%97%AE%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-text">1.1 直接物理访问的问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-Stage2-%E7%9A%84%E6%9C%BA%E5%88%B6%EF%BC%9A%E9%87%8D%E6%98%A0%E5%B0%84%E4%B8%8E%E6%9D%83%E9%99%90%E6%8E%A7%E5%88%B6"><span class="nav-text">1.2 Stage2 的机制：重映射与权限控制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-3-Stage2-%E7%9A%84%E5%90%AF%E7%94%A8%E6%97%B6%E6%9C%BA"><span class="nav-text">1.3 Stage2 的启用时机</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-Hypervisor-%E8%87%AA%E8%BA%AB%E7%9A%84-Stage1-%E9%A1%B5%E8%A1%A8"><span class="nav-text">2. Hypervisor 自身的 Stage1 页表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E8%81%8C%E8%B4%A3%E6%A6%82%E8%BF%B0"><span class="nav-text">2.1 职责概述</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E5%90%AF%E5%8A%A8%E5%BB%BA%E8%A1%A8"><span class="nav-text">2.2 启动建表</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%8A%A8%E6%80%81%E6%98%A0%E5%B0%84-API%EF%BC%9Astage1-c"><span class="nav-text">2.3 动态映射 API：stage1.c</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-1-%E5%AE%9A%E4%BD%8D%E4%B8%8E%E4%B8%89%E4%B8%AA%E6%A0%B8%E5%BF%83-API"><span class="nav-text">2.3.1 定位与三个核心 API</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-2-%E9%A1%B5%E8%A1%A8%E7%BB%93%E6%9E%84%E4%B8%8E%E6%98%A0%E5%B0%84%E6%B5%81%E7%A8%8B"><span class="nav-text">2.3.2 页表结构与映射流程</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-3-3-%E5%B1%9E%E6%80%A7%E7%94%9F%E6%88%90%E3%80%81huge-page-%E4%B8%8E%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF"><span class="nav-text">2.3.3 属性生成、huge page 与使用场景</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E5%90%AF%E5%8A%A8%E5%BB%BA%E8%A1%A8-vs-%E5%8A%A8%E6%80%81%E6%98%A0%E5%B0%84%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-text">2.4 启动建表 vs 动态映射的区别</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-Guest-%E7%9A%84-Stage2-%E9%A1%B5%E8%A1%A8"><span class="nav-text">3. Guest 的 Stage2 页表</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%EF%BC%9Amm-struct"><span class="nav-text">3.1 数据结构：mm_struct</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E9%A1%B5%E8%A1%A8%E7%BB%93%E6%9E%84%EF%BC%9A40-bit-IPA-4K-granule-3-%E7%BA%A7"><span class="nav-text">3.2 页表结构：40-bit IPA &#x2F; 4K granule &#x2F; 3 级</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E5%B1%9E%E6%80%A7%E6%98%A0%E5%B0%84%EF%BC%9AVM-flags-%E2%86%92-Stage2-descriptor"><span class="nav-text">3.3 属性映射：VM flags → Stage2 descriptor</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-%E6%98%A0%E5%B0%84%E6%B5%81%E7%A8%8B"><span class="nav-text">3.4 映射流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-5-%E8%A7%A3%E6%98%A0%E5%B0%84%E6%B5%81%E7%A8%8B"><span class="nav-text">3.5 解映射流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-6-%E8%BD%AF%E4%BB%B6%E7%BF%BB%E8%AF%91%EF%BC%9AIPA-%E5%88%B0-PA"><span class="nav-text">3.6 软件翻译：IPA 到 PA</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E7%A1%AC%E4%BB%B6%E4%BE%A7%E7%9A%84-Stage2-%E9%85%8D%E7%BD%AE%EF%BC%9AVTCR-EL2-%E4%B8%8E-VTTBR-EL2"><span class="nav-text">4. 硬件侧的 Stage2 配置：VTCR_EL2 与 VTTBR_EL2</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-0-%E6%9C%AC%E7%AB%A0%E8%A6%81%E8%A7%A3%E5%86%B3%E4%BB%80%E4%B9%88%E9%97%AE%E9%A2%98"><span class="nav-text">4.0 本章要解决什么问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-VTCR-EL2%EF%BC%9A%E7%BF%BB%E8%AF%91%E6%8E%A7%E5%88%B6%E5%AF%84%E5%AD%98%E5%99%A8"><span class="nav-text">4.1 VTCR_EL2：翻译控制寄存器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-VTTBR-EL2%EF%BC%9A%E9%A1%B5%E8%A1%A8%E5%9F%BA%E5%9D%80%E4%B8%8E-VMID"><span class="nav-text">4.2 VTTBR_EL2：页表基址与 VMID</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2"><span class="nav-text">4.3 上下文切换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-TLB-%E7%BB%B4%E6%8A%A4"><span class="nav-text">4.4 TLB 维护</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-Guest-%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E4%B8%8E-VM-%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86"><span class="nav-text">5. Guest 内存分配与 VM 内存管理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E4%B8%89%E4%B8%AA%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">5.1 三个数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E7%89%A9%E7%90%86%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%EF%BC%9A%E6%8C%89-2M-%E5%9D%97%E5%88%86%E9%85%8D"><span class="nav-text">5.2 物理内存管理：按 2M 块分配</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-VM-%E5%9C%B0%E5%9D%80%E7%A9%BA%E9%97%B4%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">5.3 VM 地址空间初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-VM-%E5%88%9B%E5%BB%BA%E6%97%B6%E7%9A%84%E5%86%85%E5%AD%98%E5%88%86%E9%85%8D%E4%B8%8E%E6%98%A0%E5%B0%84"><span class="nav-text">5.4 VM 创建时的内存分配与映射</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%B3%E9%94%AE%E7%90%86%E8%A7%A3%EF%BC%9AIPA-%E8%BF%9E%E7%BB%AD-%E2%89%A0-%E7%89%A9%E7%90%86%E8%BF%9E%E7%BB%AD"><span class="nav-text">关键理解：IPA 连续 ≠ 物理连续</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E8%BF%90%E8%A1%8C%E6%9C%9F%E7%9A%84%E5%85%B6%E4%BB%96%E5%86%85%E5%AD%98-API"><span class="nav-text">5.5 运行期的其他内存 API</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E5%85%B3%E9%94%AE%E9%93%BE%E8%B7%AF%EF%BC%9A%E4%B8%80%E6%AC%A1-guest-%E5%86%85%E5%AD%98%E8%AE%BF%E9%97%AE%E7%9A%84%E5%AE%8C%E6%95%B4%E6%B5%81%E7%A8%8B"><span class="nav-text">6. 关键链路：一次 guest 内存访问的完整流程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">7. 关键知识点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E9%AA%8C%E8%AF%81%E4%B8%8E%E5%AE%9E%E9%AA%8C"><span class="nav-text">8. 验证与实验</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-%E6%9C%AF%E8%AF%AD%E9%80%9F%E6%9F%A5"><span class="nav-text">9. 术语速查</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%AF%84%E5%AD%98%E5%99%A8%E9%80%9F%E6%9F%A5"><span class="nav-text">10. 寄存器速查</span></a></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: 内存虚拟化 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: 内存虚拟化
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-12 22:09:59" itemprop="dateCreated datePublished" datetime="2026-08-12T22:09:59+08:00">2026-08-12</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>目标：理解两套地址翻译（Hypervisor 自身 Stage1 + Guest Stage2）和 guest 内存分配。<br>前置：Phase 3（trap 机制）、Phase 1（ARMv8 虚拟化基础）。<br>学习主线：本文按”<strong>为什么 → 结构 → 代码 → 总结</strong>“组织，带你走通”VA→IPA→PA”的完整链路。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="0-地址翻译全景：两级翻译架构"><a href="#0-地址翻译全景：两级翻译架构" class="headerlink" title="0. 地址翻译全景：两级翻译架构"></a>0. 地址翻译全景：两级翻译架构</h2><p>一个 guest 进程访问内存，地址要过 <strong>两层翻译</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">guest 进程 VA ──(guest 自己的页表, Stage1)──&gt; guest IPA</span><br><span class="line">                                                │</span><br><span class="line">                                ┌───────────────┴──────────────────┐</span><br><span class="line">                                │   ↓ Stage2 (hypervisor controls) │</span><br><span class="line">                                │       IPA ──&gt; real physical PA   │</span><br><span class="line">                                └──────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>Stage1</strong>：由 guest 自己管理（Linux 的页表），VA→IPA。</li>
+<li><strong>Stage2</strong>：由 hypervisor（minos）管理，IPA→PA。<strong>guest 看不见也改不了 Stage2 页表</strong>——这是内存虚拟化的隔离基础。</li>
+</ul>
+<p>minos 里对应的两套页表代码：</p>
+<table>
+<thead>
+<tr>
+<th>页表</th>
+<th>文件</th>
+<th>作用</th>
+<th>对应寄存器</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Hypervisor 自身页表</td>
+<td><code>arch/aarch64/core/stage1.c</code> + <code>mem_map.S</code></td>
+<td>映射 minos 内核自身（VA→PA）</td>
+<td><code>TTBR1_EL2</code>（boot.S 同写入 TTBR0_EL2）</td>
+</tr>
+<tr>
+<td>Guest Stage2 页表</td>
+<td><code>arch/aarch64/virt/stage2.c</code></td>
+<td>每 VM 一份，IPA→PA</td>
+<td><code>VTTBR_EL2</code> + <code>VTCR_EL2</code></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>注意区别</strong>：<code>stage1.c</code> 的”stage1”是 minos <strong>自己</strong>的 EL2 stage1 翻译，<strong>不是</strong> guest 的 stage1。guest 的 stage1 是 guest 内核自己维护的，minos 不碰。minos 只维护 guest 的 <strong>stage2</strong>。</p>
+</blockquote>
+<hr>
+<h2 id="1-Stage2-的需求背景"><a href="#1-Stage2-的需求背景" class="headerlink" title="1. Stage2 的需求背景"></a>1. Stage2 的需求背景</h2><h3 id="1-1-直接物理访问的问题"><a href="#1-1-直接物理访问的问题" class="headerlink" title="1.1 直接物理访问的问题"></a>1.1 直接物理访问的问题</h3><p>如果 guest 直接访问物理内存（像裸机一样），会产生两个问题：</p>
+<ol>
+<li><strong>无法隔离</strong>：guest 可以访问&#x2F;破坏其他 guest 或 hypervisor 的内存。</li>
+<li><strong>地址空间冲突</strong>：每个 guest 都认为自己”从 0 地址开始”，但它们不能共用物理 0 地址。</li>
+</ol>
+<h3 id="1-2-Stage2-的机制：重映射与权限控制"><a href="#1-2-Stage2-的机制：重映射与权限控制" class="headerlink" title="1.2 Stage2 的机制：重映射与权限控制"></a>1.2 Stage2 的机制：重映射与权限控制</h3><p>Stage2 翻译让每个 guest 看到<strong>自己的假物理地址空间（IPA）</strong>，hypervisor 在背后把 IPA 映射到<strong>真实物理地址（PA）</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">guest 看到的内存布局（IPA）         真实的物理内存（PA）</span><br><span class="line">┌──────────────────┐</span><br><span class="line">│ 0x8000_0000      │  ← IPA      实际可能映射到任意物理地址</span><br><span class="line">│   guest RAM      │  ──────▶     0x1000_0000, 0x2000_0000...</span><br><span class="line">└──────────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>隔离</strong>：guest 只被映射到分配给它的物理页，其余地址 → fault（trap 到 EL2）。</li>
+<li><strong>欺骗</strong>：每个 guest 都能从 0x8000_0000 开始放 RAM（<code>GVM_NORMAL_MEM_START</code>），互不冲突。</li>
+<li><strong>Stage2 的权限属性</strong>（读&#x2F;写&#x2F;执行、Device&#x2F;Normal）可被 hypervisor 强制，guest 无法绕过。</li>
+</ul>
+<h3 id="1-3-Stage2-的启用时机"><a href="#1-3-Stage2-的启用时机" class="headerlink" title="1.3 Stage2 的启用时机"></a>1.3 Stage2 的启用时机</h3><p>只有 <strong>HCR_EL2.VM&#x3D;1</strong> 才使能 Stage2 翻译（Phase 3 学过，arch_virt.c:188）。每个 vCPU 切换进 guest 前，<code>arch_vcpu_state_init</code> 里设置 <code>HCR_EL2.VM</code>。</p>
+<hr>
+<h2 id="2-Hypervisor-自身的-Stage1-页表"><a href="#2-Hypervisor-自身的-Stage1-页表" class="headerlink" title="2. Hypervisor 自身的 Stage1 页表"></a>2. Hypervisor 自身的 Stage1 页表</h2><blockquote>
+<p>源码：<code>arch/aarch64/core/stage1.c</code>（538 行）+ <code>arch/aarch64/core/mem_map.S</code></p>
+</blockquote>
+<h3 id="2-1-职责概述"><a href="#2-1-职责概述" class="headerlink" title="2.1 职责概述"></a>2.1 职责概述</h3><p>minos 内核自己跑在 EL2，也需要分页映射自己的代码&#x2F;数据。这套页表由 <code>stage1.c</code> 动态管理（映射&#x2F;解映射&#x2F;属性修改），<code>mem_map.S</code> 在启动早期用汇编建初始映射。</p>
+<p><strong>为什么需要它</strong>：minos 内核启用 MMU 后，所有代码都要有 VA→PA 映射才能执行。早期汇编 <code>mem_map.S</code> 把内核镜像各段映射好，之后 <code>stage1.c</code> 提供动态 API。</p>
+<h3 id="2-2-启动建表"><a href="#2-2-启动建表" class="headerlink" title="2.2 启动建表"></a>2.2 启动建表</h3><p>在 <code>map_boot_mem</code>（mem_map.S:64）中，汇编逐段建立映射：</p>
+<table>
+<thead>
+<tr>
+<th>段</th>
+<th>起始符号</th>
+<th>属性</th>
+<th>对应宏</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>保留内存</td>
+<td><code>minos_start</code> → <code>__code_start</code></td>
+<td>RW</td>
+<td><code>BOOTMEM_DATA_ATTR</code></td>
+</tr>
+<tr>
+<td>代码段</td>
+<td><code>__code_start</code> → <code>__code_end</code></td>
+<td>RX</td>
+<td><code>BOOTMEM_CODE_ATTR</code></td>
+</tr>
+<tr>
+<td>init 段</td>
+<td><code>__init_start</code> → <code>__init_end</code></td>
+<td>RWX（启动后释放）</td>
+<td><code>BOOTMEM_INIT_ATTR</code></td>
+</tr>
+<tr>
+<td>数据段</td>
+<td><code>__data_start</code> → <code>__data_end</code></td>
+<td>RW</td>
+<td><code>BOOTMEM_DATA_ATTR</code></td>
+</tr>
+<tr>
+<td>RO 数据</td>
+<td><code>__rodata_start</code> → <code>minos_bootmem_base</code></td>
+<td>RO</td>
+<td><code>BOOTMEM_DATA_RO_ATTR</code></td>
+</tr>
+<tr>
+<td>UART</td>
+<td><code>CONFIG_UART_BASE</code></td>
+<td>Device</td>
+<td><code>BOOTMEM_IO_ATTR</code></td>
+</tr>
+<tr>
+<td>剩余 4K 页</td>
+<td><code>minos_bootmem_base</code> → 2M 边界</td>
+<td>RW</td>
+<td><code>BOOTMEM_DATA_ATTR</code></td>
+</tr>
+<tr>
+<td><strong>RAM 主体（2M block）</strong></td>
+<td><code>minos_bootmem_base</code>(2M 对齐) → <code>CONFIG_MINOS_RAM_SIZE</code>(64MB)</td>
+<td>RW</td>
+<td><code>BOOTMEM_DATA_BLK_ATTR</code>（<code>loop_pmd_blk</code>，mem_map.S:306-319）</td>
+</tr>
+</tbody></table>
+<p><strong>关键机制</strong>：</p>
+<ul>
+<li><code>build_page_table</code>（mem_map.S:237）：建 PGD&#x2F;PUD&#x2F;PMD <strong>骨架</strong>，并把 <code>[minos_bootmem_base, CONFIG_MINOS_RAM_SIZE)</code> 整段用 <strong>2M block</strong> 映射（<code>loop_pmd_blk</code>）——这是 minos RAM 的主体，一页 PMD 覆盖 512 个 2M 块。</li>
+<li><code>build_normal_pte_table</code>：对内核镜像各段<strong>逐 4K 页</strong>填 PTE。</li>
+<li><code>build_io_pte_table</code>：UART 等设备映射成 Device 内存。</li>
+<li>页表页从 <code>pagetable_base</code>（bootmem 区域）依次分配。</li>
+</ul>
+<h3 id="2-3-动态映射-API：stage1-c"><a href="#2-3-动态映射-API：stage1-c" class="headerlink" title="2.3 动态映射 API：stage1.c"></a>2.3 动态映射 API：stage1.c</h3><h4 id="2-3-1-定位与三个核心-API"><a href="#2-3-1-定位与三个核心-API" class="headerlink" title="2.3.1 定位与三个核心 API"></a>2.3.1 定位与三个核心 API</h4><p>2.2 的 <code>map_boot_mem</code>（mem_map.S）只在<strong>启动早期</strong>一次性建好初始页表，MMU 一开就再也不用它了。但 hypervisor 运行期仍需要<strong>临时映射&#x2F;解除映射</strong>内存，例如 <code>copy_from_guest</code>（把 guest 内存临时映射进 host 拷完就拆）、IOMMU&#x2F;设备配置。这就需要运行期动态改页表的 API 层，即 <code>arch/aarch64/core/stage1.c</code>。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">arch_host_map</span><span class="params">(<span class="keyword">struct</span> vspace *vs, <span class="type">unsigned</span> <span class="type">long</span> start, <span class="type">unsigned</span> <span class="type">long</span> end,</span></span><br><span class="line"><span class="params">		<span class="type">unsigned</span> <span class="type">long</span> physical, <span class="type">unsigned</span> <span class="type">long</span> flags)</span>;    <span class="comment">// 建映射</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">arch_host_unmap</span><span class="params">(<span class="keyword">struct</span> vspace *vs, <span class="type">unsigned</span> <span class="type">long</span> start, <span class="type">unsigned</span> <span class="type">long</span> end)</span>; <span class="comment">// 删映射</span></span><br><span class="line"><span class="type">phy_addr_t</span> <span class="title function_">arch_translate_va_to_pa</span><span class="params">(<span class="keyword">struct</span> vspace *vs, <span class="type">unsigned</span> <span class="type">long</span> va)</span>;        <span class="comment">// VA→PA</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>arch_host_map</code>：把 <code>[start, end)</code> 映射到 <code>physical</code>，带属性 <code>flags</code>。</li>
+<li><code>arch_host_unmap</code>：解除映射（并释放页表页）。</li>
+<li><code>arch_translate_va_to_pa</code>：软件翻译 VA→PA（和 Stage2 的 <code>arch_translate_guest_ipa</code> 同一套路，只是查自己的表）。</li>
+</ul>
+<blockquote>
+<p><strong>注意</strong>：<code>start/end/physical</code> 都是 <strong>host 地址</strong>（hypervisor 自己的 VA&#x2F;PA），不是 guest 地址。</p>
+</blockquote>
+<h4 id="2-3-2-页表结构与映射流程"><a href="#2-3-2-页表结构与映射流程" class="headerlink" title="2.3.2 页表结构与映射流程"></a>2.3.2 页表结构与映射流程</h4><p><strong>页表结构</strong>（标准命名，勿与 mem_map.S 混淆）：</p>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>级数</td>
+<td><code>S1_PGTABLE_LEVELS=3</code></td>
+<td>PUD→PMD→PTE</td>
+</tr>
+<tr>
+<td>地址空间</td>
+<td><code>S1_VIRT_MAX=1&lt;&lt;39</code> &#x3D; <strong>512G</strong></td>
+<td>只映射 512G</td>
+</tr>
+<tr>
+<td>PUD 表</td>
+<td>512 项（<code>PTRS_PER_S1_PUD=512</code>）<strong>1 页 4KB</strong></td>
+<td>每项覆盖 1G</td>
+</tr>
+<tr>
+<td>PMD 表</td>
+<td>512 项</td>
+<td>每项覆盖 2M</td>
+</tr>
+<tr>
+<td>PTE 表</td>
+<td>512 项</td>
+<td>每项覆盖 4K</td>
+</tr>
+</tbody></table>
+<p><strong>命名注意</strong>：<code>stage1.c</code> 是<strong>标准层级命名</strong>（PUD&#x2F;PMD&#x2F;PTE 各就各位），跟 <code>mem_map.S</code> 的错位命名（<code>page_table</code> 实为 PUD、<code>ttb0_pud</code> 实为 PMD、<code>ttb0_pmd</code> 实为 PTE）<strong>不同</strong>，读代码时勿混淆。</p>
+<blockquote>
+<p>为什么 PUD 只要 1 页？因为只映射 512G，PUD 索引只需 9 位（512 项）。对照 stage2（40-bit IPA 1TB）需 1024 项 &#x3D; 2 页。⚠️ stage1.c:24-27 顶部注释”40bit…need 2 pages”是抄 stage2.h 的过时注释。</p>
+</blockquote>
+<p><strong>映射流程</strong>（<code>stage1_map_pud_range</code>，stage1.c:396）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">pud = stage1_pud_offset(vs-&gt;pgdp, start);   <span class="comment">// ① 根表（PUD）→ 定位 PUD 项</span></span><br><span class="line"><span class="keyword">do</span> &#123;</span><br><span class="line">	next = stage1_pud_addr_end(start, end);  <span class="comment">// ② 本 PUD 项覆盖范围的终点</span></span><br><span class="line">	<span class="keyword">if</span> (stage1_pud_none(*pud)) &#123;</span><br><span class="line">		pmdp = stage1_get_free_page(flags);   <span class="comment">// ③ 分配一张 PMD 表</span></span><br><span class="line">		stage1_pud_populate(pud, pmdp, flags); <span class="comment">// ④ PUD 项 → 指向这张 PMD 表</span></span><br><span class="line">	&#125;</span><br><span class="line">	ret = stage1_map_pmd_range(vs, pmdp, start, next, physical, flags); <span class="comment">// ⑤ 递归下一级</span></span><br><span class="line">&#125; <span class="keyword">while</span> (pud++, physical += size, start = next, start != end);          <span class="comment">// ⑥ 下个 PUD 项</span></span><br></pre></td></tr></table></figure>
+
+<p>和 2.2 的 <code>build_page_table</code> 逻辑同构（按需分配下一级表 + 递归填），差别只在：<code>build_page_table</code> 用寄存器传参一次性铺 6 段；<code>stage1.c</code> 用 C 函数按 <code>start/end/physical/flags</code> 动态处理任意区间。</p>
+<h4 id="2-3-3-属性生成、huge-page-与使用场景"><a href="#2-3-3-属性生成、huge-page-与使用场景" class="headerlink" title="2.3.3 属性生成、huge page 与使用场景"></a>2.3.3 属性生成、huge page 与使用场景</h4><p><strong>属性</strong>由 <code>stage1_pmd_attr</code> &#x2F; <code>stage1_pte_attr</code>（stage1.c:188, 227）根据 <code>flags</code> 组合：</p>
+<table>
+<thead>
+<tr>
+<th>flags（<code>VM_TYPE_MASK</code>）</th>
+<th>→ 页表类型</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>__VM_NORMAL</code></td>
+<td>Normal</td>
+</tr>
+<tr>
+<td><code>__VM_NORMAL_NC</code></td>
+<td>Normal 不可缓存</td>
+</tr>
+<tr>
+<td><code>__VM_IO</code></td>
+<td>Device</td>
+</tr>
+<tr>
+<td><code>__VM_WT</code></td>
+<td>Write-through</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>flags（<code>VM_RW_MASK</code>）</th>
+<th>→ AP 权限</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>__VM_RO</code></td>
+<td><code>S1_AP_RO</code></td>
+</tr>
+<tr>
+<td>其他</td>
+<td><code>S1_AP_RW</code></td>
+</tr>
+</tbody></table>
+<p>附加规则：<code>!(flags &amp; __VM_EXEC)</code> → 加 <code>S1_XN | S1_PXN</code>（不可执行）。</p>
+<p><strong>huge page</strong>（stage1.c:341）：若区间 2M 对齐且 <code>flags &amp; __VM_HUGE_2M</code>，直接填 PMD 为 <strong>block</strong>（2M 大页），省一张 PTE 表 + 512 个 PTE，TLB 命中率更高。</p>
+<p><strong>与 Phase 3 的联系</strong>：<code>arch_host_map</code> 在 Phase 3 里见过——<code>copy_from_guest</code>（vmm.c:500，内部 <code>create_host_mapping</code> → <code>arch_host_map</code>）临时映射 guest 内存到 host 空间，拷完就拆。这就是为什么 minos 要能动态改自己页表。</p>
+<h3 id="2-4-启动建表-vs-动态映射的区别"><a href="#2-4-启动建表-vs-动态映射的区别" class="headerlink" title="2.4 启动建表 vs 动态映射的区别"></a>2.4 启动建表 vs 动态映射的区别</h3><p>2.2（mem_map.S 静态建表）和 2.3（stage1.c 动态映射）操作的是<strong>同一张页表</strong>（<code>__stage1_page_table</code>），但两者在时机、方式、用途上差别很大：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>2.2 启动建表（mem_map.S）</th>
+<th>2.3 动态映射（stage1.c）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>时机</strong></td>
+<td>启动早期，MMU 未开</td>
+<td>运行期，MMU 已开</td>
+</tr>
+<tr>
+<td><strong>次数</strong></td>
+<td>一次性（只跑一次）</td>
+<td>反复（按需增删）</td>
+</tr>
+<tr>
+<td><strong>语言</strong></td>
+<td>汇编</td>
+<td>C 函数</td>
+</tr>
+<tr>
+<td><strong>传参方式</strong></td>
+<td>寄存器（vaddr&#x2F;size&#x2F;pte_attr）</td>
+<td>函数参数（start&#x2F;end&#x2F;physical&#x2F;flags）</td>
+</tr>
+<tr>
+<td><strong>映射对象</strong></td>
+<td>minos 自身内核各段 + RAM 主体 + UART</td>
+<td>guest 相关地址（ramdisk&#x2F;内核&#x2F;DTB）等临时区域</td>
+</tr>
+<tr>
+<td><strong>性质</strong></td>
+<td>永久映射（铺底）</td>
+<td>临时映射（用完即拆）</td>
+</tr>
+<tr>
+<td><strong>页表根</strong></td>
+<td><code>__stage1_page_table</code></td>
+<td><code>__stage1_page_table</code>（同一个）</td>
+</tr>
+<tr>
+<td><strong>页表级数</strong></td>
+<td>3 级（PUD→PMD→PTE）</td>
+<td>3 级（PUD→PMD→PTE）</td>
+</tr>
+<tr>
+<td><strong>页表页来源</strong></td>
+<td>bootmem（pagetable_base，镜像尾）</td>
+<td>memory.c 页池（page_base，RAM 顶向下切）</td>
+</tr>
+</tbody></table>
+<p><strong>最核心的区别一句话</strong>：静态建表是<strong>一次性把基础铺好</strong>（MMU 一开就能跑），动态映射是<strong>运行期临时加映射、用完拆掉</strong>（比如拷 guest 内核、DTB）。</p>
+<p><strong>为什么要分两套？</strong></p>
+<ol>
+<li>启动时 C 环境还没就绪（栈&#x2F;堆&#x2F;锁都没初始化），只能用汇编硬铺。</li>
+<li>运行期基础页表已固定，只需在<strong>临时要访问 guest 内存</strong>时动态加映射。</li>
+<li>静态的 64MB 内核区域<strong>永不动</strong>，动态只碰 64MB 之外的 guest 相关地址。</li>
+</ol>
+<p><strong>各级页表：在哪分配、复用还是新建、管多大空间</strong></p>
+<table>
+<thead>
+<tr>
+<th>页表</th>
+<th>静态分配位置</th>
+<th>动态时</th>
+<th>覆盖空间</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>PUD 表</strong></td>
+<td>内核镜像内 <code>0x4002_b000</code>（链接脚本预留 4KB，TTBR 指向）</td>
+<td><strong>复用</strong>同一张，永不新建</td>
+<td>512G（每项 1G，512 项）</td>
+</tr>
+<tr>
+<td><strong>PMD 表</strong></td>
+<td>4 张 <code>0x4005_7000 ~ 0x4005_b000</code>（bootmem 分配，PUD[0..3] 已挂好）</td>
+<td><strong>复用</strong>这 4 张，不新建</td>
+<td>每张 1G（每项 2M，512 项），4 张共 4G</td>
+</tr>
+<tr>
+<td><strong>PTE 表</strong></td>
+<td>1 张 <code>0x4005_b000</code>（镜像区，给内核 4K 页用）</td>
+<td><strong>新建</strong>（从页池切，RAM 顶向下）</td>
+<td>每张 2M（每项 4K，512 项）</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>PUD 表</strong>：只有一张，<code>__stage1_page_table</code>，静态铺好后动态只往里面<strong>填项</strong>（不会也不该新建——TTBR 只认这一个根）。</li>
+<li><strong>PMD 表</strong>：静态 4 张已挂满 PUD[0..3]，动态地址都在 4G 内，<strong>直接复用</strong>（往空的 PMD 项里填 PTE 表地址或 block）。位置始终 <code>0x4005_7000</code>。</li>
+<li><strong>PTE 表</strong>：是<strong>唯一会被动态新建</strong>的一级。每个需要 4K 映射的动态区间（如拷 guest 内核&#x2F;DTB）分配一张，从 memory.c 页池 <code>page_base</code>（0x44000000）向下切页。</li>
+</ul>
+<p><strong>页表页的两种来源</strong>：静态从 bootmem 的 <code>pagetable_base</code>（镜像尾 0x4005_7000 起，向上分配）；动态从 memory.c 页池 <code>page_base</code>（RAM 顶 0x44000000，向下分配）。两者都在 minos 的 64MB RAM 内，只是从两头切、互不冲突。</p>
+<blockquote>
+<p><strong>为什么静态不新建 PMD 表、动态却能复用？</strong> 因为 PUD[0..3] 只覆盖 4G，而动态映射的 guest 地址（0x44000000 之后）也在这个范围内——PUD 项早已挂好 PMD 表，动态只需复用并填充。</p>
+</blockquote>
+<hr>
+<h2 id="3-Guest-的-Stage2-页表"><a href="#3-Guest-的-Stage2-页表" class="headerlink" title="3. Guest 的 Stage2 页表"></a>3. Guest 的 Stage2 页表</h2><blockquote>
+<p>源码：<code>arch/aarch64/virt/stage2.c</code>（500 行）+ <code>stage2.h</code></p>
+</blockquote>
+<h3 id="3-1-数据结构：mm-struct"><a href="#3-1-数据结构：mm-struct" class="headerlink" title="3.1 数据结构：mm_struct"></a>3.1 数据结构：mm_struct</h3><p>每个 VM 一个 <code>mm_struct</code>（内含 <code>pgdp</code> 指向 Stage2 页表根）。Stage2 翻译把 guest 的 <strong>IPA → PA</strong>，是内存虚拟化的核心。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mm_struct</span> &#123;</span>      <span class="comment">// include/virt/vmm.h:45</span></span><br><span class="line">	<span class="type">void</span> *pgdp;        <span class="comment">// Stage2 页表根（L1/PUD 表，无 PGD 级，见 3.2）</span></span><br><span class="line">	<span class="type">spinlock_t</span> lock;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">vmm_area_free</span>;</span>   <span class="comment">// 空闲地址区间</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">vmm_area_used</span>;</span>   <span class="comment">// 已用地址区间</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-页表结构：40-bit-IPA-4K-granule-3-级"><a href="#3-2-页表结构：40-bit-IPA-4K-granule-3-级" class="headerlink" title="3.2 页表结构：40-bit IPA &#x2F; 4K granule &#x2F; 3 级"></a>3.2 页表结构：40-bit IPA &#x2F; 4K granule &#x2F; 3 级</h3><p>minos 的 Stage2 用 <strong>3 级页表</strong>（stage2.h:65 <code>STAGE2_PGTABLE_LEVELS=3</code>）：<strong>PUD → PMD → PTE</strong>。VTCR_EL2.SL0&#x3D;01 让硬件 <strong>从 Level 1 开始 walk，根本不存在 Level 0 表</strong>，VTTBR 直接指向 Level 1（即 PUD）表，所以 <code>mm-&gt;pgdp</code> 就是 PUD 表：</p>
+<table>
+<thead>
+<tr>
+<th>级别</th>
+<th>名称</th>
+<th>shift</th>
+<th>每项覆盖</th>
+<th>表内项数</th>
+<th>覆盖地址范围</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>L1（初始）</td>
+<td>PUD</td>
+<td>30</td>
+<td>1G</td>
+<td><strong>1024</strong></td>
+<td>1TB（&#x3D;40bit IPA）</td>
+</tr>
+<tr>
+<td>L2</td>
+<td>PMD</td>
+<td>21</td>
+<td>2M</td>
+<td>512</td>
+<td>1G</td>
+</tr>
+<tr>
+<td>L3</td>
+<td>PTE</td>
+<td>12</td>
+<td>4K</td>
+<td>512</td>
+<td>2M</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>重要</strong>：PUD 表需要 1024 项 × 8 字节 &#x3D; <strong>8192 字节 &#x3D; 2 页</strong>，所以 <code>stage2.h:66 S2_PAGETABLE_SIZE=8192</code>，<code>arch_alloc_guest_pgd</code>（stage2.c:25）分配 2 页并清零。这就是 <code>STAGE2_PGTABLE_LEVELS=3</code> 且注释说”need 2 pages”的原因。</p>
+<p><code>arch_alloc_guest_pgd</code> 用 <code>__get_free_pages(2, 2)</code>：第二参数 <code>align=2</code> 表示<strong>按 2 页（8KB）对齐</strong>分配（memory.c:318-332 只接受 1&#x2F;2&#x2F;4&#x2F;8）——这个 8KB 对齐正是 VTTBR_EL2.BADDR 对”2 页拼接 L1 表”的对齐要求（BADDR 必须按拼接表总大小对齐）。</p>
+<p>stage2.h:73-74 定义的 <code>GUEST_PGD_PAGES=2</code>&#x2F;<code>GUEST_PGD_PAGE_ALIGN=2</code> 并未被 <code>arch_alloc_guest_pgd</code> 使用（它硬编码 <code>__get_free_pages(2,2)</code>），属于冗余宏。</p>
+<p><code>PTRS_PER_S2_PGD=512</code>、<code>S2_PGD_SHIFT=39</code> 这些宏是”为 40-bit 之上更大的 IPA 保留”，40-bit IPA 下映射代码实际从 <code>stage2_pud_offset(vs-&gt;pgdp, ...)</code> 起（即把 pgdp 当 PUD 表用）。</p>
+</blockquote>
+<p><strong>descriptor 位定义</strong>（stage2.h:6-60）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">Stage2 Table Descriptor（L0/L1/L2 指向下一级表）:</span><br><span class="line">┌──────────┬────────────┬─────┬─────┬──────┬───────────────┬──────────┐</span><br><span class="line">│ [51:12]  │ [11:10]    │[9:8]│[7:6]│[5:2] │               │          │</span><br><span class="line">│ next lvl │ RES0(no AF)│RES0 │RES0 │RES0  │               │          │</span><br><span class="line">└──────────┴────────────┴─────┴─────┴──────┴───────────────┴──────────┘</span><br><span class="line">   [1:0] = 0b11 (Table)  ← 只有地址 + 类型位有意义，其余 RES0</span><br><span class="line"></span><br><span class="line">Stage2 Page/Block Descriptor（L1/L2 block 或 L3 page）:</span><br><span class="line">┌─────────────────┬────┬─────┬─────┬────────┬────────────┬───────────┬─────────┐</span><br><span class="line">│ [51:12] addr    │[10]│[9:8]│[7:6]│[5:2]   │[54] XN     │[55-58] sw │[1:0]    │</span><br><span class="line">│                 │ AF │ SH  │ AP  │ MemAttr│ exec denied│ use       │ 01 block│</span><br><span class="line">└─────────────────┴────┴─────┴─────┴────────┴────────────┴───────────┴─────────┘</span><br><span class="line">   L1/L2 block 的 [1:0] = 0b01；L3 page 的 [1:0] = 0b11</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>位段对应 stage2.h 宏：AP&#x3D;<code>S2_AP_*&lt;&lt;6</code>（bit 7:6）、MemAttr&#x3D;<code>S2_MEMATTR_*&lt;&lt;2</code>（bit 5:2）、SH&#x3D;<code>S2_SH_*&lt;&lt;8</code>（bit 9:8）、AF&#x3D;<code>S2_AF&lt;&lt;10</code>（bit 10，<strong>仅叶描述符有</strong>）、XN&#x3D;<code>S2_XN&lt;&lt;54</code>（bit 54）。Table 描述符没有 AF&#x2F;SH&#x2F;MemAttr，只有地址位和 [1:0]&#x3D;0b11。</p>
+</blockquote>
+<p>关键宏：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> S2_DES_FAULT   (0b00 &lt;&lt; 0)   <span class="comment">// 无效项</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_DES_BLOCK   (0b01 &lt;&lt; 0)   <span class="comment">// L1/L2 块（2M/1G huge page）</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_DES_TABLE   (0b11 &lt;&lt; 0)   <span class="comment">// 指向下一级表</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_DES_PAGE    (0b11 &lt;&lt; 0)   <span class="comment">// L3 页</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_XN          (1UL &lt;&lt; 54)   <span class="comment">// 不可执行</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AF          (1UL &lt;&lt; 10)   <span class="comment">// Access Flag</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_NON      (0b00 &lt;&lt; 6)   <span class="comment">// 无访问权限</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_RO       (0b01 &lt;&lt; 6)   <span class="comment">// 只读</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_WO       (0b10 &lt;&lt; 6)   <span class="comment">// 只写</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_AP_RW       (0b11 &lt;&lt; 6)   <span class="comment">// 读写</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_SH_INNER    (0b11 &lt;&lt; 8)   <span class="comment">// Inner Shareable</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_MEMATTR_NORMAL_WB   (0b1111 &lt;&lt; 2)  <span class="comment">// Normal WB</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_MEMATTR_NORMAL_NC   (0b0101 &lt;&lt; 2)  <span class="comment">// Normal NC</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_MEMATTR_DEV_nGnRE   (0b0001 &lt;&lt; 2)  <span class="comment">// Device</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// bit 55-58 是软件自定义（非 ARM 规范位）</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_PFNMAP      (1UL &lt;&lt; 55)   <span class="comment">// 直接映射物理内存</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_DEVMAP      (1UL &lt;&lt; 56)   <span class="comment">// 设备直通映射</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> S2_SHARED      (1UL &lt;&lt; 57)   <span class="comment">// 共享内存（不释放）</span></span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-属性映射：VM-flags-→-Stage2-descriptor"><a href="#3-3-属性映射：VM-flags-→-Stage2-descriptor" class="headerlink" title="3.3 属性映射：VM flags → Stage2 descriptor"></a>3.3 属性映射：VM flags → Stage2 descriptor</h3><p>这是学习计划点名要掌握的映射关系（stage2.c:128, 177）。VM 的 <code>flags</code>（memattr.h 定义）在映射时翻译成 Stage2 descriptor：</p>
+<table>
+<thead>
+<tr>
+<th>VM flags</th>
+<th>→ Stage2 属性</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>__VM_NORMAL</code></td>
+<td><code>S2_BLOCK_NORMAL</code> &#x2F; <code>S2_PAGE_NORMAL</code></td>
+<td>普通内存（Normal WB）</td>
+</tr>
+<tr>
+<td><code>__VM_NORMAL_NC</code></td>
+<td><code>S2_BLOCK_NORMAL_NC</code> &#x2F; <code>S2_PAGE_NORMAL_NC</code></td>
+<td>普通不可缓存</td>
+</tr>
+<tr>
+<td><code>__VM_IO</code></td>
+<td><code>S2_BLOCK_DEVICE</code> &#x2F; <code>S2_PAGE_DEVICE</code></td>
+<td>Device 内存</td>
+</tr>
+<tr>
+<td><code>__VM_WT</code></td>
+<td><code>S2_BLOCK_WT</code> &#x2F; <code>S2_PAGE_WT</code></td>
+<td>写穿通</td>
+</tr>
+<tr>
+<td><code>__VM_RO</code></td>
+<td><code>S2_AP_RO</code></td>
+<td>只读</td>
+</tr>
+<tr>
+<td><code>__VM_RW</code></td>
+<td><code>S2_AP_RW</code></td>
+<td>读写</td>
+</tr>
+<tr>
+<td><code>__VM_WO</code></td>
+<td><code>S2_AP_WO</code></td>
+<td>只写</td>
+</tr>
+<tr>
+<td>无 EXEC</td>
+<td><code>S2_XN</code></td>
+<td>不可执行（注意 <code>S2_BLOCK_DEVICE</code>&#x2F;<code>S2_PAGE_DEVICE</code> 宏本身已含 XN，IO 天然不可执行）</td>
+</tr>
+<tr>
+<td><code>__VM_PFNMAP</code></td>
+<td><code>S2_PFNMAP</code></td>
+<td>软件位：物理直通</td>
+</tr>
+<tr>
+<td><code>__VM_DEVMAP</code></td>
+<td><code>S2_DEVMAP</code></td>
+<td>软件位：设备直通</td>
+</tr>
+<tr>
+<td><code>__VM_SHARED</code></td>
+<td><code>S2_SHARED</code></td>
+<td>软件位：共享</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>关于 <strong>MemAttr 编码</strong>：Stage2 页表没有 MAIR 间接索引，MemAttr 直接编码在 descriptor 的 bits[5:2]（<code>S2_MEMATTR_*&lt;&lt;2</code>）。minos 用的 <code>0b1111</code>(WB)&#x2F;<code>0b0001</code>(Device nGnRE) 都是<strong>合法的 Stage2 编码</strong>（DDI 0487 stage2 MemAttr 表）；但 <code>S2_MEMATTR_NORMAL_NC=0b0101</code> 实际是”Outer NC + Inner WB”而非全 NC，读它表示的是混合属性，需留意。</p>
+</blockquote>
+<h3 id="3-4-映射流程"><a href="#3-4-映射流程" class="headerlink" title="3.4 映射流程"></a>3.4 映射流程</h3><p>入口 <code>arch_guest_map</code>（stage2.c:480）→ <code>stage2_map_pud_range</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">arch_guest_map</span><span class="params">(<span class="keyword">struct</span> mm_struct *vs, <span class="type">unsigned</span> <span class="type">long</span> start, <span class="type">unsigned</span> <span class="type">long</span> end,</span></span><br><span class="line"><span class="params">		<span class="type">unsigned</span> <span class="type">long</span> physical, <span class="type">unsigned</span> <span class="type">long</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">	ASSERT((start &lt; VMM_VIRT_MAX) &amp;&amp; (end &lt;= VMM_VIRT_MAX));</span><br><span class="line">	ASSERT(physical &lt; S2_PHYSICAL_MAX);</span><br><span class="line">	<span class="keyword">return</span> stage2_map_pud_range(vs, start, end, physical, flags);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>stage2_map_pud_range</code>（stage2.c:397）逐级下钻：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">stage2_map_pud_range</span><span class="params">(<span class="keyword">struct</span> mm_struct *vs, <span class="type">unsigned</span> <span class="type">long</span> start,</span></span><br><span class="line"><span class="params">		<span class="type">unsigned</span> <span class="type">long</span> end, <span class="type">unsigned</span> <span class="type">long</span> physical, <span class="type">unsigned</span> <span class="type">long</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">	pud = stage2_pud_offset(vs-&gt;pgdp, start);   <span class="comment">// ① 根表（L1/PUD）→ 定位 PUD 项</span></span><br><span class="line">	<span class="keyword">do</span> &#123;</span><br><span class="line">		next = stage2_pud_addr_end(start, end); <span class="comment">// ② 本 PUD 覆盖范围的终点</span></span><br><span class="line">		size = next - start;</span><br><span class="line">		old_pud = *pud;</span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> (stage2_pud_huge_page(...)) &#123;        <span class="comment">// ③ 1G huge page 条件满足?</span></span><br><span class="line">			stage2_set_pud(pud, attr | (physical &amp; S2_PUD_MASK));  <span class="comment">// 直接填 block</span></span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			<span class="keyword">if</span> (stage2_pud_none(*pud)) &#123;</span><br><span class="line">				pmdp = stage2_get_free_page(flags);   <span class="comment">// ④ 分配 PMD 表页</span></span><br><span class="line">				stage2_pud_populate(pud, pmdp, flags);<span class="comment">// ⑤ PUD 指向 PMD 表</span></span><br><span class="line">			&#125;</span><br><span class="line">			ret = stage2_map_pmd_range(vs, pmdp, start, next, physical, flags); <span class="comment">// ⑥ 递归</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125; <span class="keyword">while</span> (pud++, physical += size, start = next, start != end);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>huge page 优化</strong>（<code>stage2_pmd_huge_page</code> stage2.c:325，<code>stage2_pud_huge_page</code> stage2.c:385）：</p>
+<ul>
+<li>条件：PMD 级 2M block 由 flags 带 <code>__VM_HUGE_2M</code> <strong>或</strong> <code>__VM_HUGE_1G</code> 触发（stage2.c:328 的 <code>flags &amp; (__VM_HUGE_2M | __VM_HUGE_1G)</code>）；PUD 级 1G block 仅 <code>__VM_HUGE_1G</code> 触发。且 <strong>start&#x2F;phy&#x2F;size 都对应对齐</strong>。</li>
+<li>满足则直接填 block descriptor（<code>S2_DES_BLOCK</code>），<strong>省去一级表 + 512 个 PTE</strong>，TLB 命中率更高。</li>
+</ul>
+<h3 id="3-5-解映射流程"><a href="#3-5-解映射流程" class="headerlink" title="3.5 解映射流程"></a>3.5 解映射流程</h3><p>与映射对称（stage2.c:279-301），并会<strong>释放页表页</strong>：</p>
+<ul>
+<li>若是 <strong>PMD 级</strong> huge page：直接 <code>stage2_pmd_clear</code>（stage2.c:265-266）。</li>
+<li>若是页表：递归清 PTE，<code>is_pud_range</code>&#x2F;<code>is_pmd_range</code> 判断整段解完后释放页表页 <code>free_pages</code>。</li>
+<li>结束 <code>flush_all_tlb_mm(vs)</code> 刷 TLB（用该 VM 的 VMID）。</li>
+</ul>
+<blockquote>
+<p>⚠️ <strong>1G（PUD）huge page 的 caveat</strong>：<code>stage2_unmap_pud_range</code> 与 <code>stage2_ipa_to_pa</code> <strong>都不识别 PUD 级 block</strong>——会把 block descriptor 的地址位误当下一级表指针（stage2.c:289 的 <code>stage2_pmd_table_addr(*pud)</code>）。1G 在 qemu 平台其实<strong>有实际使用</strong>：platform&#x2F;qemu&#x2F;qemu.c:49,55 用 <code>__VM_HUGE_1G</code> 映射 HVM 的 0x8000_0000_00 PCIE 窗口（512G 起、1G 对齐），因此启动即会构造 1G block。只是该区域（vm0）不走 unmap&#x2F;ipa_to_pa，所以 bug 潜伏而未爆。</p>
+</blockquote>
+<h3 id="3-6-软件翻译：IPA-到-PA"><a href="#3-6-软件翻译：IPA-到-PA" class="headerlink" title="3.6 软件翻译：IPA 到 PA"></a>3.6 软件翻译：IPA 到 PA</h3><p><code>arch_translate_guest_ipa</code>（stage2.c:474）→ <code>stage2_ipa_to_pa</code>（stage2.c:441），<strong>纯软件遍历页表</strong>把 IPA 翻译成 PA：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">int</span> <span class="title function_">stage2_ipa_to_pa</span><span class="params">(<span class="keyword">struct</span> mm_struct *vs, <span class="type">unsigned</span> <span class="type">long</span> va, <span class="type">phy_addr_t</span> *pa)</span></span><br><span class="line">&#123;</span><br><span class="line">	pudp = stage2_pud_offset(vs-&gt;pgdp, va);          <span class="comment">// ① 根表（L1/PUD）→ 定位 PUD 项</span></span><br><span class="line">	<span class="keyword">if</span> (stage2_pud_none(*pudp)) <span class="keyword">return</span> -EFAULT;</span><br><span class="line">	pmdp = stage2_pmd_offset(ptov(stage2_pmd_table_addr(*pudp)), va); <span class="comment">// ② PUD → PMD</span></span><br><span class="line">	<span class="keyword">if</span> (stage2_pmd_none(*pmdp)) <span class="keyword">return</span> -EFAULT;</span><br><span class="line">	<span class="keyword">if</span> (stage2_pmd_huge(*pmdp)) &#123;                    <span class="comment">// ③ 若是 huge page</span></span><br><span class="line">		*pa = ((*pmdp) &amp; S2_PHYSICAL_MASK) + pmd_offset;   <span class="comment">// block 地址 + 页内偏移</span></span><br><span class="line">		<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	ptep = stage2_pte_offset(ptov(stage2_pte_table_addr(*pmdp)), va); <span class="comment">// ④ PMD → PTE</span></span><br><span class="line">	phy = *ptep &amp; S2_PHYSICAL_MASK;</span><br><span class="line">	<span class="keyword">if</span> (phy == <span class="number">0</span>) <span class="keyword">return</span> -EFAULT;</span><br><span class="line">	*pa = phy + pte_offset;</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>与硬件 walk 的区别</strong>：这个函数是<strong>软件手动走页表</strong>，用于 hypervisor 自己需要知道”某 IPA 实际在哪”的场景（如 <code>vm_mmap</code>、调试、IOMMU 配置）。guest 正常访问时<strong>不经过它</strong>——硬件 MMU 用 VTTBR&#x2F;VTCR 自动 walk。</p>
+</blockquote>
+<hr>
+<h2 id="4-硬件侧的-Stage2-配置：VTCR-EL2-与-VTTBR-EL2"><a href="#4-硬件侧的-Stage2-配置：VTCR-EL2-与-VTTBR-EL2" class="headerlink" title="4. 硬件侧的 Stage2 配置：VTCR_EL2 与 VTTBR_EL2"></a>4. 硬件侧的 Stage2 配置：VTCR_EL2 与 VTTBR_EL2</h2><blockquote>
+<p>源码：<code>arch/aarch64/virt/arch_virt.c:131, 158</code></p>
+</blockquote>
+<h3 id="4-0-本章要解决什么问题"><a href="#4-0-本章要解决什么问题" class="headerlink" title="4.0 本章要解决什么问题"></a>4.0 本章要解决什么问题</h3><p><strong>前情回顾</strong>：第 3 章讲了 Stage2 页表怎么在软件侧建立（<code>arch_guest_map</code> 把 IPA 映射到 PA），页表的内容已经准备好了。但还有一个根本问题没讲：<strong>页表建好了，硬件（MMU）怎么知道这张表在哪、怎么用它做翻译？</strong></p>
+<p>第 3 章是”造表”，本章是”<strong>告诉硬件怎么用这张表</strong>“。硬件要正确 walk Stage2 页表，需要两个寄存器的配置：</p>
+<ol>
+<li><strong>VTTBR_EL2</strong>（Virtualization Translation Table Base Register）：告诉硬件<strong>页表根在哪</strong>（物理地址）<strong>、是哪个 VM 的</strong>（VMID）。</li>
+<li><strong>VTCR_EL2</strong>（Virtualization Translation Control Register）：告诉硬件<strong>怎么翻译</strong>（IPA 多大、几级、granule 大小、内存属性）。</li>
+</ol>
+<p>打个比方：第 3 章造好了”地址翻译字典”（Stage2 页表），本章是**告诉翻译官（硬件 MMU）”字典放哪、怎么查”**——VTTBR 说”字典在书架这格”，VTCR 说”用中文查、每页索引规则”。</p>
+<p><strong>本章还回答一个关键问题：为什么切 VM 只要换 VTTBR 就行？</strong> 因为每个 VM 有独立的 Stage2 页表和独立的 VMID，切 VM 时写进新的 VTTBR（新页表根 + 新 VMID），硬件就用新表翻译、旧 TLB 条目被 VMID 隔离——这就是 VM 内存隔离的硬件基础。</p>
+<p><strong>章节脉络</strong>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">4.1 VTCR_EL2：翻译规则（IPA 大小/级数/granule）</span><br><span class="line">4.2 VTTBR_EL2：页表根 + VMID（每 VM 一套）</span><br><span class="line">4.3 上下文切换：切 VM 时换这两个寄存器</span><br><span class="line">4.4 TLB 维护：映射改了怎么刷缓存</span><br></pre></td></tr></table></figure>
+
+<p>记住主线：<strong>第 3 章造表（软件侧）→ 本章告诉硬件表在哪、怎么查（寄存器配置）→ 第 5 章填表的内容（内存分配）</strong>。三章合起来才是完整的 Stage2 虚拟化。</p>
+<h3 id="4-1-VTCR-EL2：翻译控制寄存器"><a href="#4-1-VTCR-EL2：翻译控制寄存器" class="headerlink" title="4.1 VTCR_EL2：翻译控制寄存器"></a>4.1 VTCR_EL2：翻译控制寄存器</h3><p><code>generate_vtcr_el2</code>（arch_virt.c:131）为每个 vCPU 生成 VTCR_EL2 值：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">uint64_t</span> <span class="title function_">generate_vtcr_el2</span><span class="params">(<span class="type">void</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">uint64_t</span> value = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">	value |= (<span class="number">24</span> &lt;&lt; <span class="number">0</span>);   <span class="comment">// T0SZ=24 → 40-bit IPA（64-24=40）</span></span><br><span class="line">	value |= (<span class="number">0x01</span> &lt;&lt; <span class="number">6</span>); <span class="comment">// SL0=01 → 从 Level 1 开始（4KB）</span></span><br><span class="line">	value |= (<span class="number">0x1</span> &lt;&lt; <span class="number">8</span>);  <span class="comment">// IRGN0: Normal, Inner WBWA</span></span><br><span class="line">	value |= (<span class="number">0x1</span> &lt;&lt; <span class="number">10</span>); <span class="comment">// ORGN0: Normal, Outer WBWA</span></span><br><span class="line">	value |= (<span class="number">0x3</span> &lt;&lt; <span class="number">12</span>); <span class="comment">// SH0: Inner Shareable</span></span><br><span class="line">	value |= (<span class="number">0x0</span> &lt;&lt; <span class="number">14</span>); <span class="comment">// TG0=00 → 4KB granule</span></span><br><span class="line">	value |= (<span class="number">2</span> &lt;&lt; <span class="number">16</span>);   <span class="comment">// PS=010 → 物理地址 1TB</span></span><br><span class="line">	value |= (<span class="number">0x0</span> &lt;&lt; <span class="number">19</span>); <span class="comment">// VMID=8bit</span></span><br><span class="line">	<span class="keyword">return</span> value;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>VTCR_EL2 各字段</strong>（ARM DDI 0487 VTCR_EL2 布局）：</p>
+<table>
+<thead>
+<tr>
+<th>位</th>
+<th>名字</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>[5:0]</td>
+<td>T0SZ</td>
+<td>24</td>
+<td>IPA 大小 &#x3D; 64-24 &#x3D; <strong>40-bit</strong>（1TB）</td>
+</tr>
+<tr>
+<td>[7:6]</td>
+<td>SL0</td>
+<td>01</td>
+<td>初始翻译级别 Level 1（4KB granule）</td>
+</tr>
+<tr>
+<td>[9:8]</td>
+<td>IRGN0</td>
+<td>01</td>
+<td>内层缓存属性 WBWA</td>
+</tr>
+<tr>
+<td>[11:10]</td>
+<td>ORGN0</td>
+<td>01</td>
+<td>外层缓存属性 WBWA</td>
+</tr>
+<tr>
+<td>[13:12]</td>
+<td>SH0</td>
+<td>11</td>
+<td>Inner Shareable</td>
+</tr>
+<tr>
+<td>[15:14]</td>
+<td>TG0</td>
+<td>00</td>
+<td>Translation Granule &#x3D; 4KB</td>
+</tr>
+<tr>
+<td>[18:16]</td>
+<td>PS</td>
+<td>010</td>
+<td>物理地址大小 &#x3D; 1TB（40-bit PA）</td>
+</tr>
+<tr>
+<td>[19]</td>
+<td>VS</td>
+<td>0</td>
+<td>VMID 宽度：0&#x3D;8bit，1&#x3D;16bit</td>
+</tr>
+<tr>
+<td>[31:20]</td>
+<td>RES0</td>
+<td>0</td>
+<td>保留（ARM 规范 bit31 实际为 RES1，KVM 会置 1；minos 写 0 且 QEMU 容忍）</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><code>value |= (0x0 &lt;&lt; 19)</code> 正是把 <strong>VS 位（bit 19）置 0 → 8-bit VMID</strong>，源码注释”vmid – 8bit”准确无误。</p>
+</blockquote>
+<h3 id="4-2-VTTBR-EL2：页表基址与-VMID"><a href="#4-2-VTTBR-EL2：页表基址与-VMID" class="headerlink" title="4.2 VTTBR_EL2：页表基址与 VMID"></a>4.2 VTTBR_EL2：页表基址与 VMID</h3><p><code>generate_vttbr_el2</code>（arch_virt.c:158）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">return</span> (base | ((<span class="type">uint64_t</span>)vmid &lt;&lt; <span class="number">48</span>));   <span class="comment">// BADDR[47:1] + VMID[63:48]</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>BADDR[47:1]<strong>：Stage2 页表</strong>物理地址</strong>（<code>mm-&gt;pgdp</code> 是 VA，写入 VTTBR 前要 <code>vtop(mm-&gt;pgdp)</code> 转成 PA，见 arch_virt.c:230）。</li>
+<li>**VMID[63:48]**：8-bit VMID，用于 TLB 区分不同 VM 的条目，避免切 VM 时全刷 TLB。</li>
+</ul>
+<blockquote>
+<p><strong>为什么 VTTBR 切 VM 就能隔离</strong>：每次切到某 VM，写它的 VTTBR（arch_virt.c:318 切入时写入），硬件 walk Stage2 时用这个基址 + 这个 VMID。不同 VM 即使 IPA 相同，物理映射完全不同。</p>
+</blockquote>
+<h3 id="4-3-上下文切换"><a href="#4-3-上下文切换" class="headerlink" title="4.3 上下文切换"></a>4.3 上下文切换</h3><p>arch_virt.c 的 vmodule 在 vCPU 切入时：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">write_sysreg(context-&gt;vtcr_el2, VTCR_EL2);   <span class="comment">// arch_virt.c:317</span></span><br><span class="line">write_sysreg(context-&gt;vttbr_el2, VTTBR_EL2); <span class="comment">// arch_virt.c:318</span></span><br></pre></td></tr></table></figure>
+
+<p>切出时保存回去（arch_virt.c:272-273）。</p>
+<h3 id="4-4-TLB-维护"><a href="#4-4-TLB-维护" class="headerlink" title="4.4 TLB 维护"></a>4.4 TLB 维护</h3><p><code>flush_all_tlb_mm</code>（arch_virt.c:38-65）用 <strong>VTTBR 切换 + 当前 VMID 全刷</strong> 实现：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">flush_all_tlb_mm</span><span class="params">(<span class="keyword">struct</span> mm_struct *mm)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vm</span> *<span class="title">vm</span> =</span> container_of(mm, <span class="keyword">struct</span> vm, mm);</span><br><span class="line">	<span class="type">uint64_t</span> vttbr = vtop(mm-&gt;pgdp) | ((<span class="type">uint64_t</span>)vm-&gt;vmid &lt;&lt; <span class="number">48</span>);</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> flags;</span><br><span class="line">	<span class="type">uint64_t</span> old_vttbr;</span><br><span class="line"></span><br><span class="line">	local_irq_save(flags);                <span class="comment">// ① 关中断（防止被抢占/被切走）</span></span><br><span class="line">	old_vttbr = read_sysreg(VTTBR_EL2);</span><br><span class="line">	write_sysreg(vttbr, VTTBR_EL2);       <span class="comment">// ② 切到目标 VM 的 VTTBR（拿它的 VMID）</span></span><br><span class="line">	flush_all_tlb_guest();                <span class="comment">// ③ tlbi vmalls12e1is：按当前 VMID 全刷</span></span><br><span class="line">	write_sysreg(old_vttbr, VTTBR_EL2);   <span class="comment">// ④ 恢复原 VTTBR</span></span><br><span class="line">	local_irq_restore(flags);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>原理</strong>：TLB 条目带 VMID 标签。<code>flush_all_tlb_guest</code> 执行 <code>tlbi vmalls12e1is</code>，只刷”当前 VTTBR 的 VMID”对应的 Stage1+Stage2 条目——所以要先切 VTTBR 再刷，才能精准刷掉目标 VM 的 TLB 而不影响其他 VM。关中断是因为这期间 VTTBR 指向别的 VM，不能被中断打断。</p>
+<hr>
+<h2 id="5-Guest-内存分配与-VM-内存管理"><a href="#5-Guest-内存分配与-VM-内存管理" class="headerlink" title="5. Guest 内存分配与 VM 内存管理"></a>5. Guest 内存分配与 VM 内存管理</h2><blockquote>
+<p>源码：<code>virt/vmm.c</code>（980 行）、<code>virt/vm.c</code>、<code>include/virt/vmm.h</code>、<code>include/minos/memattr.h</code></p>
+</blockquote>
+<p>到这里，我们已经把 Stage2 页表的”骨架”讲完了：第 3 章知道怎么把 IPA 映射到 PA，第 4 章知道硬件靠 VTTBR&#x2F;VTCR 来查这张表。但是：<strong>页表里那些 IPA 到底指向哪块真实的物理内存？这些物理内存是从哪来的？</strong></p>
+<p>这正是本章要解决的事。前两章讲了 Stage2 页表怎么建立（映射）和硬件怎么查表（VTTBR&#x2F;VTCR），本章补上”物理内存从哪来、怎么分给 guest、怎么登记进 Stage2”这一环：先由块分配器管理物理内存，再在 guest 的 IPA 空间里划分区间（vmm_area），最后用 Stage2 页表把两者绑定。</p>
+<p>先记住一个核心思路：**”IPA 空间的划分”和”物理内存的分配”是两件独立的事**，guest 创建时分别做，最后在 <code>map_vmm_area</code> 里才绑定到一起。本章就围绕这条主线展开。</p>
+<h3 id="5-1-三个数据结构"><a href="#5-1-三个数据结构" class="headerlink" title="5.1 三个数据结构"></a>5.1 三个数据结构</h3><p>在动手分配之前，得先认识 minos 用来记账的三个数据结构——它们分别是”物理块”、”IPA 区间”、”块分配器”三张表：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">mem_block</span> &#123;</span>          <span class="comment">// 一块 2M 物理内存</span></span><br><span class="line">	<span class="type">uint32_t</span> bfn;          <span class="comment">// 物理块号（Block Frame Number）</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">mem_block</span> *<span class="title">next</span>;</span> <span class="comment">// 链表</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">vmm_area</span> &#123;</span>           <span class="comment">// 一个地址区间</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> start;   <span class="comment">// 起始 IPA</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> end;     <span class="comment">// 结束 IPA</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> pstart;  <span class="comment">// 物理起始地址（连续映射时用）</span></span><br><span class="line">	<span class="type">int</span> flags;             <span class="comment">// 属性 flags</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">mem_block</span> *<span class="title">b_head</span>;</span>  <span class="comment">// 该区间占用的 mem_block 链表（BK 映射）</span></span><br><span class="line">&#125;;</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">block_section</span> &#123;</span>      <span class="comment">// 一段物理内存的块分配器</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> start, size, end;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> free_blocks, total_blocks, current_index;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> *bitmap;  <span class="comment">// 位图：哪些块被占用</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">block_section</span> *<span class="title">next</span>;</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>三个结构各司其职：</p>
+<table>
+<thead>
+<tr>
+<th>结构</th>
+<th>记录什么</th>
+<th>对应</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mem_block</code></td>
+<td>一块 2M 物理内存（bfn）</td>
+<td>物理块</td>
+</tr>
+<tr>
+<td><code>vmm_area</code></td>
+<td>IPA 空间里一段区间</td>
+<td>IPA 区间</td>
+</tr>
+<tr>
+<td><code>block_section</code></td>
+<td>一段物理内存里哪些块空闲&#x2F;已用（bitmap）</td>
+<td>物理内存分区</td>
+</tr>
+</tbody></table>
+<p>其中 <code>vmm_area</code> 是关键——每个 VM 维护两个链表：<code>vmm_area_free</code>（空闲 IPA 区间）和 <code>vmm_area_used</code>（已占用的）。分配内存就是在这两个链表间”搬运” vmm_area。</p>
+<p><strong>重点讲一下 block_section</strong></p>
+<p>它管的是<strong>物理内存本身</strong>（和 IPA 空间无关）。把”一整段物理内存”按 2M 切成很多块，然后用一个<strong>位图</strong>记录每块是否已分配：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">一段物理内存 [0x40000000, 0x44000000)   （举例，64MB）</span><br><span class="line">   │ 按 2M 切成 32 块</span><br><span class="line">   ▼</span><br><span class="line">块号 bfn:  0     1     2     3   ...  31</span><br><span class="line">           [2M]  [2M]  [2M]  [2M]      [2M]</span><br><span class="line">bitmap:    0     1     0     0   ...   0</span><br><span class="line">           ↑                            ↑</span><br><span class="line">           空闲                        已分配</span><br></pre></td></tr></table></figure>
+
+<p>字段含义：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>start</code> &#x2F; <code>end</code> &#x2F; <code>size</code></td>
+<td>这段物理内存的边界（已 2M 对齐）</td>
+</tr>
+<tr>
+<td><code>total_blocks</code></td>
+<td>一共切了几块（&#x3D; size ÷ 2M）</td>
+</tr>
+<tr>
+<td><code>free_blocks</code></td>
+<td>还剩几块空闲</td>
+</tr>
+<tr>
+<td><code>current_index</code></td>
+<td>上次分配到哪了（下一个从这开始找）</td>
+</tr>
+<tr>
+<td><code>bitmap</code></td>
+<td>位图：第 n 位 &#x3D; 1 表示第 n 块已占用</td>
+</tr>
+<tr>
+<td><code>next</code></td>
+<td>下一段物理内存（可能有多个 block_section 连成链表 <code>bs_head</code>）</td>
+</tr>
+</tbody></table>
+<p><strong>为什么叫 “section”（段）？</strong> 因为物理内存可能不止一段（device tree 里可以有多个 memory region），每段一个 <code>block_section</code>，用 <code>next</code> 串成链表。</p>
+<p><strong>分配动作</strong>（<code>vmm_alloc_memblock</code>，vmm.c:890）：</p>
+<ol>
+<li>从 <code>bs_head</code> 找到一个 <code>free_blocks != 0</code> 的 section。</li>
+<li><code>find_next_zero_bit_loop</code> 在位图里找一个空闲位。</li>
+<li><code>set_bit</code> 占用它，<code>free_blocks--</code>。</li>
+<li>返回 <code>mem_block&#123;bfn&#125;</code>——bfn 就是”第几块”。</li>
+</ol>
+<blockquote>
+<p><strong>一句话区分三个结构</strong>：<code>block_section</code> 管理物理内存的分配状态（谁空闲谁占用）；<code>mem_block</code> 代表分配出去的一块物理内存（bfn &#x3D; 物理块号）；<code>vmm_area</code> 划分 guest IPA 空间的用途（这段地址干吗用）。<code>block_section</code> 管的是<strong>物理侧</strong>，<code>vmm_area</code> 管的是<strong>虚拟（IPA）侧</strong>，两者在 5.4 的 <code>map_vmm_area</code> 才相遇。</p>
+</blockquote>
+<p><strong>VM 的地址空间布局</strong>（vm_mmap.h）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">|-------------------------| -- 0x0000_0000</span><br><span class="line">|  2G IO MEM              |</span><br><span class="line">|-------------------------| -- 0x8000_0000  ← GVM_NORMAL_MEM_START</span><br><span class="line">|                         |</span><br><span class="line">|  126G DRAM/NORMAL MEM   |</span><br><span class="line">|-------------------------| -- 0x2000_0000_00</span><br><span class="line">|  2G HVM_IO_MMAP         |  ← vm0（host VM）专用 IO mmap</span><br><span class="line">|-------------------------| -- 0x2080_0000_00</span><br><span class="line">|  HVM_NORMAL_MMAP        |  ← vm0 专用 normal mmap</span><br><span class="line">|-------------------------| -- 0x1_0000_0000_00 (1TB)</span><br></pre></td></tr></table></figure>
+
+<p>低 2G 的 IO、126G normal 是 <strong>guest VM</strong> 的 IPA 布局（guest 从 0x8000_0000 开始放 RAM）；<code>HVM_IO_MMAP</code>&#x2F;<code>HVM_NORMAL_MMAP</code> 是 <strong>vm0（host VM）</strong> 把 guest 内存映射到自己地址空间用（vm_mmap 的落点）。</p>
+<p>记完数据结构，接下来看看<strong>物理内存是怎么被切成一块块的</strong>——这是整个分配的起点。</p>
+<h3 id="5-2-物理内存管理：按-2M-块分配"><a href="#5-2-物理内存管理：按-2M-块分配" class="headerlink" title="5.2 物理内存管理：按 2M 块分配"></a>5.2 物理内存管理：按 2M 块分配</h3><p><strong>先明确物理内存有多大</strong>：物理内存总量由 device tree 的 <code>memory</code> 节点决定（qemu 配置，qemu-arm64.dts:25-27）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">memory@<span class="number">40000000</span> &#123;</span><br><span class="line">	reg = &lt; <span class="number">0x00</span> <span class="number">0x40000000</span> <span class="number">0x01</span> <span class="number">0x00</span> &gt;;   <span class="comment">// base=0x40000000, size=1GB</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>of_mm.c:70</code> 把它登记为 <code>MEMORY_REGION_TYPE_NORMAL</code> 进 <code>mem_list</code>。所以：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">物理内存 = 1GB（0x4000_0000 ~ 0x1400_0000）</span><br><span class="line">块大小   = 2M（MEM_BLOCK_SIZE）</span><br><span class="line">总块数   = 1GB ÷ 2M = 512 块</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>⚠️ **注意区分两个”空间”**：</p>
+<ul>
+<li><strong>IPA 空间</strong>（每 VM 1TB）&#x3D; Stage2 页表的<strong>编址能力</strong>（见 5.3）；</li>
+<li><strong>物理内存</strong>（共 1GB）&#x3D; 真实 RAM。<br>1TB 的 IPA 空间里只有映射过的一小段才真正连着物理内存。另外 minos 自己占开头 64MB（<code>CONFIG_MINOS_RAM_SIZE</code>），实际可分配给 guest 的约 960MB。</li>
+</ul>
+</blockquote>
+<p>guest 用的物理内存不是随便给的，得有一个”分配器”统一管理。minos 在启动时用 <code>vmm_init</code>（vmm.c:930）把上面这 1GB 物理内存按 <strong>2M block</strong> 切成块，用位图记录哪些块空闲：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bs-&gt;total_blocks = bs-&gt;free_blocks = bs-&gt;size &gt;&gt; BLOCK_SHIFT;  <span class="comment">// BLOCK_SHIFT=21</span></span><br></pre></td></tr></table></figure>
+
+<p>之后 guest 申请内存时，<code>vmm_alloc_memblock</code>（vmm.c:890）从 <code>bs_head</code> 链表的 block_section 里找空闲块：<code>find_next_zero_bit_loop</code> 查位图 → <code>set_bit</code> 占用 → 返回 <code>struct mem_block&#123;bfn&#125;</code>。</p>
+<blockquote>
+<p>到这里物理内存有了分配入口：<strong>每块 2M 物理内存由一个 <code>mem_block</code>（带 bfn 物理块号）代表，分配器保证同一块不会给两个 guest</strong>。</p>
+</blockquote>
+<p>物理内存分配器就绪后，guest 还得知道”我该把内存放在我地址空间的哪里”——这就轮到 <strong>VM 自己的地址空间初始化</strong>了。</p>
+<h3 id="5-3-VM-地址空间初始化"><a href="#5-3-VM-地址空间初始化" class="headerlink" title="5.3 VM 地址空间初始化"></a>5.3 VM 地址空间初始化</h3><p>每个 VM 都有一个自己的 <code>mm_struct</code>（含 Stage2 页表根 + vmm_area 链表），<code>vm_mm_struct_init</code>（vmm.c:756）负责初始化：</p>
+<ol>
+<li><code>arch_alloc_guest_pgd()</code> 分配 Stage2 页表根（2 页）。</li>
+<li><code>vmm_area_init</code>：整段 <strong>1TB IPA 空间</strong>作为一个大 free vmm_area——此时整个地址空间都是”空闲待划分”的。</li>
+<li><code>vm_memory_init</code>：native VM 时把 device tree 的 memory_region 按 VMID 分给对应 VM。</li>
+</ol>
+<p>这里有个重要区分——<strong>不同 VM 的内存来源不一样</strong>：</p>
+<blockquote>
+<p><strong>native vs guest 的内存来源差异</strong>：</p>
+<ul>
+<li><strong>native VM</strong>（vm0，跑主 Linux）：物理内存来自 device tree 的 memory_region，映射入口是 <code>vm_mm_init</code>（vmm.c:779）——对每个 <code>VM_NORMAL</code> vmm_area 直接 <strong>identity 映射</strong>（<code>map_vmm_area(mm, va, va-&gt;start)</code>，IPA&#x3D;PA），不经过块分配器。</li>
+<li><strong>guest VM</strong>（mvm 创建）：通过 <code>guest_mm_init</code> → <code>alloc_vm_memory</code> 从<strong>块分配器</strong>分配 mem_block 再映射（见 5.4）。</li>
+</ul>
+</blockquote>
+<blockquote>
+<p>一句话理解：<strong>vm0 直接用 device tree 声明内存做 identity 映射，guest 则通过块分配器按块申请</strong>。我们关注的是 guest 这条路径。</p>
+</blockquote>
+<p>接下来是核心——<strong>创建 guest 时，IPA 区间划分和物理块分配是怎么绑定到一起的</strong>。</p>
+<h3 id="5-4-VM-创建时的内存分配与映射"><a href="#5-4-VM-创建时的内存分配与映射" class="headerlink" title="5.4 VM 创建时的内存分配与映射"></a>5.4 VM 创建时的内存分配与映射</h3><p>guest 创建时，<code>guest_mm_init</code>（vm.c:563）把”切 IPA 区间”和”分物理块”两步串起来：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">guest_mm_init</span><span class="params">(<span class="keyword">struct</span> vm *vm, <span class="type">uint64_t</span> base, <span class="type">uint64_t</span> size)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="comment">// ① 从 1TB free 空间切出 [base, base+size) 给 guest（mem_base 默认 0x8000_0000）</span></span><br><span class="line">	split_vmm_area(&amp;vm-&gt;mm, base, size, VM_GUEST_NORMAL);</span><br><span class="line">	<span class="comment">// ② 分配物理内存块并映射到 Stage2</span></span><br><span class="line">	alloc_vm_memory(vm);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>第一步</strong> <code>split_vmm_area</code>：在 VM 的 IPA 空间里划分区间——从 <code>vmm_area_free</code> 里切出一段 <code>[base, base+size)</code> 移到 <code>vmm_area_used</code>，标记 <code>VM_GUEST_NORMAL</code>。这时只是登记地址区间，还没有真实物理内存。</p>
+<p><strong>第二步</strong> <code>alloc_vm_memory</code>（vmm.c:653）才是分配物理内存：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">list_for_each_entry(va, &amp;mm-&gt;vmm_area_used, <span class="built_in">list</span>) &#123;</span><br><span class="line">	<span class="keyword">if</span> (!(va-&gt;flags &amp; VM_NORMAL)) <span class="keyword">continue</span>;</span><br><span class="line">	__alloc_vm_memory(mm, va);   <span class="comment">// ① 给每个 normal vmm_area 分配 2M mem_block 链表</span></span><br><span class="line">	map_vmm_area(mm, va, <span class="number">0</span>);     <span class="comment">// ② 把 mem_block 映射进 Stage2</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>__alloc_vm_memory</code> 用 5.2 的块分配器给这段 IPA 申请一串 2M <code>mem_block</code>（挂在 <code>va-&gt;b_head</code> 链表上）；<code>map_vmm_area</code> 则把每个物理块填进 Stage2 页表，完成 IPA 与物理地址的绑定。绑定靠 <code>vmm_area_map_bk</code>（vmm.c:228）—— <strong>BK（Block）映射</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (block) &#123;</span><br><span class="line">	ret = __create_guest_mapping(mm, base, BFN2PHY(block-&gt;bfn),</span><br><span class="line">			MEM_BLOCK_SIZE, va-&gt;flags | VM_HUGE | VM_GUEST);</span><br><span class="line">	base += MEM_BLOCK_SIZE; block = block-&gt;next;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>每个 mem_block（2M，bfn）→ 一次 Stage2 映射（<code>BFN2PHY(bfn)</code> 把物理块号转成物理地址）。</li>
+<li>flags 带 <code>VM_HUGE</code> → 2M huge page 映射。</li>
+</ul>
+<p>而 <code>__create_guest_mapping</code>（vmm.c:42）→ <code>arch_guest_map</code>（stage2.c:480）→ 走第 3.4 节的映射流程，最终在 Stage2 页表里写下 <code>IPA ←→ PA</code>。</p>
+<blockquote>
+<p><strong>到这一步，IPA 区间划分（vmm_area）和物理块分配（mem_block）在 <code>map_vmm_area</code> 里绑定到一起</strong>：IPA 区间保持不变，但每个 2M 的 IPA 现在都有了对应的物理内存。</p>
+</blockquote>
+<h4 id="关键理解：IPA-连续-≠-物理连续"><a href="#关键理解：IPA-连续-≠-物理连续" class="headerlink" title="关键理解：IPA 连续 ≠ 物理连续"></a>关键理解：IPA 连续 ≠ 物理连续</h4><p>guest 申请几 MB 内存时，<code>__alloc_vm_memory</code> 会<strong>逐个</strong>调用 <code>vmm_alloc_memblock</code> 申请很多个 2M block（vmm.c:635-648，注释原文 <code>TBD: get contiguous memory or not contiguous ?</code>）——<strong>这些 block 的物理地址可能互不相邻</strong>。但这完全没问题，因为：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">guest 看到的（IPA 侧）                真实物理（PA 侧）</span><br><span class="line">[0x80000000 ... +size)              bfn=3    bfn=17   bfn=8</span><br><span class="line">       连续的一段                       不连续！</span><br><span class="line">       │  Stage2 分别映射</span><br><span class="line">       ▼</span><br><span class="line">       ┌────────┐  ┌────────┐  ┌────────┐</span><br><span class="line">       │ block3 │  │ block17│  │ block8 │</span><br><span class="line">       └────────┘  └────────┘  └────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>IPA 连续</strong>：<code>split_vmm_area</code> 切的一段 + 映射时 <code>base += MEM_BLOCK_SIZE</code> 步进——guest 以为自己有连续内存。</li>
+<li><strong>物理不连续</strong>：Stage2 把连续 IPA 映射到离散 PA，guest 完全无感知。</li>
+</ul>
+<p><strong>这就是虚拟化内存管理和裸机 buddy 分配器最大的不同</strong>：裸机必须真找一段连续物理内存；虚拟化只需”一堆块”，<strong>连续性由 Stage2 页表伪装</strong>。</p>
+<blockquote>
+<p>⚠️ <strong>唯一例外是 DMA</strong>：如果 guest 有设备做 DMA，设备引擎可不懂”伪装”，它要的物理地址必须真连续。此时靠 <strong>IOMMU</strong> 兜底——把离散 PA 对设备也伪装成连续（vmm.c:58 <code>iommu_iotlb_flush_all</code>）。</p>
+</blockquote>
+<p>到此，guest 的内存就”有地有证”了。不过运行期还会用到一些辅助 API，我们快速过一遍，它们都是在这套机制上的延伸。</p>
+<h3 id="5-5-运行期的其他内存-API"><a href="#5-5-运行期的其他内存-API" class="headerlink" title="5.5 运行期的其他内存 API"></a>5.5 运行期的其他内存 API</h3><table>
+<thead>
+<tr>
+<th>API</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>create_guest_mapping</code> &#x2F; <code>destroy_guest_mapping</code></td>
+<td>动态映射&#x2F;解映射 guest 某段 IPA（运行期临时加&#x2F;删）</td>
+</tr>
+<tr>
+<td><code>translate_guest_ipa</code></td>
+<td>软件翻译 IPA→PA（调 stage2_ipa_to_pa）</td>
+</tr>
+<tr>
+<td><code>copy_from_guest</code></td>
+<td>从 guest 内存拷数据到 hypervisor（临时映射 + memcpy）</td>
+</tr>
+<tr>
+<td><code>vm_mmap</code></td>
+<td>把 guest 内存映射到 vm0（host VM）地址空间，供共享</td>
+</tr>
+<tr>
+<td><code>release_vm_memory</code></td>
+<td>VM 销毁时全释放（解映射 + 释放块 + 释放页表）</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>这些 API 本质都是在”同一套 vmm_area + mem_block 机制”上做增删改查——理解了 5.1~5.4 的分配主线，它们的用途就一目了然了。</p>
+</blockquote>
+<hr>
+<h2 id="6-关键链路：一次-guest-内存访问的完整流程"><a href="#6-关键链路：一次-guest-内存访问的完整流程" class="headerlink" title="6. 关键链路：一次 guest 内存访问的完整流程"></a>6. 关键链路：一次 guest 内存访问的完整流程</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">guest 进程访问 VA</span><br><span class="line">   │</span><br><span class="line">   ├─ Stage1（guest 自己的页表，guest 管）</span><br><span class="line">   │     VA ──▶ IPA</span><br><span class="line">   │</span><br><span class="line">   ├─ Stage2（minos 管，VTTBR_EL2 + VTCR_EL2）</span><br><span class="line">   │     IPA ──▶ PA（硬件自动 walk，命中则直接访问）</span><br><span class="line">   │</span><br><span class="line">   └─ 未命中（IPA 没映射）→ Stage2 fault → trap 到 EL2</span><br><span class="line">         └─ dataabort_tfl_handler（Phase 3）→ FAR/HPFAR → MMIO 模拟或关 VM</span><br></pre></td></tr></table></figure>
+
+<p><strong>minos 侧完整代码路径</strong>：</p>
+<ol>
+<li>VM 创建：<code>create_guest_vm</code> → <code>guest_mm_init</code> → <code>alloc_vm_memory</code> → <code>map_vmm_area</code> → <code>arch_guest_map</code> → <code>stage2_map_pud_range</code> 建好 Stage2。</li>
+<li>vCPU 运行：<code>arch_vcpu_state_init</code> 生成 <code>VTCR_EL2</code> + <code>VTTBR_EL2</code>，切入 guest 时写入。</li>
+<li>guest 正常访问：硬件用 Stage2 自动翻译，<strong>零 hypervisor 开销</strong>（性能关键！）。</li>
+<li>guest 访问未映射&#x2F;无权限地址：Stage2 fault → trap → hypervisor 处理。</li>
+</ol>
+<hr>
+<h2 id="7-关键知识点"><a href="#7-关键知识点" class="headerlink" title="7. 关键知识点"></a>7. 关键知识点</h2><ol>
+<li><strong>两套翻译职责不同</strong>：guest Stage1（guest 管，VA→IPA）+ Stage2（hypervisor 管，IPA→PA）。minos 只建&#x2F;管 Stage2，<strong>不碰 guest 自己的页表</strong>。</li>
+<li>**VTTBR_EL2 &#x3D; BADDR[47:1] + VMID[63:48]**：一个 VM 一份页表，VMID 隔离 TLB。</li>
+<li><strong>VTCR_EL2 定义 IPA 大小</strong>：T0SZ&#x3D;24 → 40-bit IPA（1TB），4K granule，Level 1 起始。</li>
+<li><strong>VM flags → S2 descriptor</strong>：<code>stage2_block_attr</code>&#x2F;<code>stage2_page_attr</code> 把 <code>__VM_NORMAL/IO/RO/RW</code> 等翻译成 S2 的 MemAttr&#x2F;AP&#x2F;XN 位（stage2.c:128）。</li>
+<li><strong>huge page 优化</strong>：2M&#x2F;1G 对齐时用 block descriptor，省页表 + 提高 TLB 命中（stage2.c:325）。</li>
+<li><strong>软件翻译 IPA→PA</strong>：<code>stage2_ipa_to_pa</code> 供 hypervisor 查询用；guest 正常访问走硬件 walk，不走它。</li>
+</ol>
+<hr>
+<h2 id="8-验证与实验"><a href="#8-验证与实验" class="headerlink" title="8. 验证与实验"></a>8. 验证与实验</h2><ol>
+<li><strong>软件翻译验证</strong>：在 QEMU guest Linux 里申请一块内存，调用 minos 的 <code>translate_guest_ipa</code> &#x2F; <code>arch_translate_guest_ipa</code> 路径，验证 IPA→PA 结果正确（对照 <code>vm_mm_struct_init</code> 分配的物理块）。</li>
+<li><strong>给 guest 加 RAM</strong>：修改 VM 的 <code>vmtag</code>（mem_base &#x2F; mem_size）或 device tree，观察 <code>guest_mm_init</code> → <code>alloc_vm_memory</code> 多分配了块，用 gdb 看 <code>vmm_area_used</code> 链表。</li>
+<li><strong>读 Stage2 页表</strong>：写个调试函数遍历某个 VM 的 <code>mm-&gt;pgdp</code>，打印已映射区间，和 <code>mem_map.S</code> 的 host 页表对照。</li>
+<li><strong>验证 VMID 隔离</strong>：两个 VM 相同 IPA，看 VTTBR 的 VMID 不同；guest 写一个地址，另一个 guest 同 IPA 读不到（验证 Stage2 隔离）。</li>
+</ol>
+<hr>
+<h2 id="9-术语速查"><a href="#9-术语速查" class="headerlink" title="9. 术语速查"></a>9. 术语速查</h2><table>
+<thead>
+<tr>
+<th>术语</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IPA</td>
+<td>Intermediate Physical Address，guest 看到的”物理地址”</td>
+</tr>
+<tr>
+<td>Stage1</td>
+<td>VA→IPA，guest 自己管理（guest 内核页表）</td>
+</tr>
+<tr>
+<td>Stage2</td>
+<td>IPA→PA，hypervisor 管理（minos 的 stage2.c）</td>
+</tr>
+<tr>
+<td>PGD&#x2F;PUD&#x2F;PMD&#x2F;PTE</td>
+<td>页表四级：页全局&#x2F;上级&#x2F;中间&#x2F;页表项</td>
+</tr>
+<tr>
+<td>huge page</td>
+<td>2M&#x2F;1G 大页，用 block descriptor 一次映射整块</td>
+</tr>
+<tr>
+<td>VMID</td>
+<td>VM Identifier，VTTBR[63:48]，隔离不同 VM 的 TLB</td>
+</tr>
+<tr>
+<td>mem_block</td>
+<td>2M 物理内存块，块分配器基本单位</td>
+</tr>
+<tr>
+<td>bfn</td>
+<td>Block Frame Number，物理块号</td>
+</tr>
+<tr>
+<td>VTTBR &#x2F; VTCR</td>
+<td>Stage2 页表基址+VMID &#x2F; Stage2 翻译配置</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="10-寄存器速查"><a href="#10-寄存器速查" class="headerlink" title="10. 寄存器速查"></a>10. 寄存器速查</h2><table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>全名</th>
+<th>作用</th>
+<th>关键位段</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>VTCR_EL2</td>
+<td>Virtualization Translation Control Register</td>
+<td>Stage2 翻译配置（IPA 大小、granule、属性）</td>
+<td>T0SZ[5:0]&#x3D;24(40bit)、SL0[7:6]&#x3D;01、TG0[15:14]&#x3D;00(4K)、PS[18:16]&#x3D;010(1TB)、VS[19]&#x3D;0(8bit VMID)</td>
+</tr>
+<tr>
+<td>VTTBR_EL2</td>
+<td>Virtualization Translation Table Base Register</td>
+<td>Stage2 页表基址 + VMID</td>
+<td>BADDR[47:1]、VMID[63:48]</td>
+</tr>
+<tr>
+<td>HCR_EL2</td>
+<td>Hypervisor Configuration Register</td>
+<td>总开关（VM&#x3D;1 使能 Stage2）</td>
+<td>VM[0]</td>
+</tr>
+<tr>
+<td>TTBR1_EL2</td>
+<td>Translation Table Base Register 1 (EL2)</td>
+<td>minos 自身 Stage1 页表基址（boot.S 把同一张 <code>__stage1_page_table</code> 同时写入 TTBR0&#x2F;1_EL2；qemu 配置 <code>CONFIG_PTOV_MASK=0x0</code> 时 VA&#x3D;&#x3D;PA，两表相同）</td>
+<td>BADDR</td>
+</tr>
+<tr>
+<td>FAR_EL2</td>
+<td>Fault Address Register</td>
+<td>同步 abort 时记录故障地址（VA 或 IPA，依场景）；<strong>Stage2 fault 的 IPA 权威来源是 HPFAR_EL2</strong>，minos 里 FAR 仅作辅助（trap.c:266 读 FAR，IPA 用 get_faulting_ipa 从 HPFAR 重建，trap.c:224-233）</td>
+<td>故障地址</td>
+</tr>
+<tr>
+<td>HPFAR_EL2</td>
+<td>Hypervisor IPA Fault Address Register</td>
+<td><strong>Stage2 fault 的 IPA</strong>（可靠来源，trap.c:226）</td>
+<td>故障 IPA</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%BC%82%E5%B8%B8%E4%B8%8E-trap-%E6%9C%BA%E5%88%B6/" rel="prev" title="Minos 虚拟化: 异常与 trap 机制">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: 异常与 trap 机制
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E9%A1%B5%E8%A1%A8%E7%9A%84%E6%9E%84%E5%BB%BA%E8%AF%A6%E8%A7%A3/" rel="next" title="Minos 虚拟化: 启动页表的构建详解">
+                  Minos 虚拟化: 启动页表的构建详解 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
