@@ -19,15 +19,15 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
 
-    <meta name="description" content="本文介绍 Minos Hypervisor 启动页表的构建方法。">
+    <meta name="description" content="本文是内存虚拟化一文的补充，详细介绍 map_boot_mem 启动页表的构建细节。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Minos 虚拟化: 启动页表的构建详解">
 <meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E9%A1%B5%E8%A1%A8%E7%9A%84%E6%9E%84%E5%BB%BA%E8%AF%A6%E8%A7%A3/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="本文介绍 Minos Hypervisor 启动页表的构建方法。">
+<meta property="og:description" content="本文是内存虚拟化一文的补充，详细介绍 map_boot_mem 启动页表的构建细节。">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-08-12T14:10:28.000Z">
-<meta property="article:modified_time" content="2026-08-12T14:35:20.017Z">
+<meta property="article:modified_time" content="2026-08-12T14:40:22.202Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARMv8-a">
 <meta property="article:tag" content="Hypervisor">
@@ -245,7 +245,7 @@
     
     
     <div class="post-body" itemprop="articleBody"><blockquote>
-<p>本文介绍 Minos Hypervisor 启动页表的构建方法。</p>
+<p>本文是内存虚拟化一文的补充，详细介绍 map_boot_mem 启动页表的构建细节。</p>
 </blockquote>
 <span id="more"></span>
 
