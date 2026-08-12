@@ -19,16 +19,16 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
 
-    <meta name="description" content="目标：吃透”guest 在 EL1 触发异常 → 陷入 EL2 → 分发处理 → 返回 guest“这条hypervisor 生命线。这是虚拟化最核心的路径——一切虚拟化都靠 trap 发生。 前置知识：Phase 1（异常向量表、SPSR&#x2F;ELR&#x2F;ESR）、Phase 2（向量表装载 VBAR_EL2、异常入口保存寄存器）。精读文件：vector.S、aarch64_syn">
+    <meta name="description" content="本文介绍 Minos Hypervisor 的 trap 机制。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Minos 虚拟化: 异常与 trap 机制">
 <meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%BC%82%E5%B8%B8%E4%B8%8E-trap-%E6%9C%BA%E5%88%B6/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="目标：吃透”guest 在 EL1 触发异常 → 陷入 EL2 → 分发处理 → 返回 guest“这条hypervisor 生命线。这是虚拟化最核心的路径——一切虚拟化都靠 trap 发生。 前置知识：Phase 1（异常向量表、SPSR&#x2F;ELR&#x2F;ESR）、Phase 2（向量表装载 VBAR_EL2、异常入口保存寄存器）。精读文件：vector.S、aarch64_syn">
+<meta property="og:description" content="本文介绍 Minos Hypervisor 的 trap 机制。">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://yoursite.com/images/phase3_flow.svg">
 <meta property="article:published_time" content="2026-08-12T14:09:47.000Z">
-<meta property="article:modified_time" content="2026-08-12T14:28:21.720Z">
+<meta property="article:modified_time" content="2026-08-12T14:34:17.223Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARMv8-a">
 <meta property="article:tag" content="Hypervisor">
@@ -247,8 +247,7 @@
     
     
     <div class="post-body" itemprop="articleBody"><blockquote>
-<p>目标：吃透”<strong>guest 在 EL1 触发异常 → 陷入 EL2 → 分发处理 → 返回 guest</strong>“这条<br>hypervisor 生命线。这是虚拟化最核心的路径——一切虚拟化都靠 trap 发生。</p>
-<p>前置知识：Phase 1（异常向量表、SPSR&#x2F;ELR&#x2F;ESR）、Phase 2（向量表装载 VBAR_EL2、<br>异常入口保存寄存器）。<br>精读文件：<code>vector.S</code>、<code>aarch64_sync.c</code>、<code>trap.c</code>、<code>aarch64_IRQ.c</code>、<code>irq.c</code>、<code>tcb.h</code>。</p>
+<p>本文介绍 Minos Hypervisor 的 trap 机制。</p>
 </blockquote>
 <span id="more"></span>
 

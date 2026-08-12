@@ -19,15 +19,15 @@
 
 <script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
 
-    <meta name="description" content="目标：理解两套地址翻译（Hypervisor 自身 Stage1 + Guest Stage2）和 guest 内存分配。前置：Phase 3（trap 机制）、Phase 1（ARMv8 虚拟化基础）。学习主线：本文按”为什么 → 结构 → 代码 → 总结“组织，带你走通”VA→IPA→PA”的完整链路。">
+    <meta name="description" content="本文介绍 Minos Hypervisor 的内存虚拟化机制。">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Minos 虚拟化: 内存虚拟化">
 <meta property="og:url" content="http://yoursite.com/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%86%85%E5%AD%98%E8%99%9A%E6%8B%9F%E5%8C%96/index.html">
 <meta property="og:site_name" content="Vonku&#39;s Blog">
-<meta property="og:description" content="目标：理解两套地址翻译（Hypervisor 自身 Stage1 + Guest Stage2）和 guest 内存分配。前置：Phase 3（trap 机制）、Phase 1（ARMv8 虚拟化基础）。学习主线：本文按”为什么 → 结构 → 代码 → 总结“组织，带你走通”VA→IPA→PA”的完整链路。">
+<meta property="og:description" content="本文介绍 Minos Hypervisor 的内存虚拟化机制。">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2026-08-12T14:09:59.000Z">
-<meta property="article:modified_time" content="2026-08-12T14:28:45.807Z">
+<meta property="article:modified_time" content="2026-08-12T14:36:07.614Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARMv8-a">
 <meta property="article:tag" content="Hypervisor">
@@ -245,7 +245,7 @@
     
     
     <div class="post-body" itemprop="articleBody"><blockquote>
-<p>目标：理解两套地址翻译（Hypervisor 自身 Stage1 + Guest Stage2）和 guest 内存分配。<br>前置：Phase 3（trap 机制）、Phase 1（ARMv8 虚拟化基础）。<br>学习主线：本文按”<strong>为什么 → 结构 → 代码 → 总结</strong>“组织，带你走通”VA→IPA→PA”的完整链路。</p>
+<p>本文介绍 Minos Hypervisor 的内存虚拟化机制。</p>
 </blockquote>
 <span id="more"></span>
 
