@@ -26,24 +26,24 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文分析 Minos 如何复用自身的任务调度器来实现 vCPU 的调度：从任务数据结构与就绪队列讲起，再到 vCPU 的创建、mode 四态状态机与 vcpu_idle 睡眠，最后覆盖 kick_vcpu 跨核唤醒、vmodule 状态保存恢复，以及 guest 与 VM0 通信所用的 vmcs 协议。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/images/phase7_taskready.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_wakeup.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_switch.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_ctxswitch.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_create.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_modecall.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_mode.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_idle.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_vmodule.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase7_vmcs.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_taskready.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_wakeup.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_switch.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_ctxswitch.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_create.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_modecall.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_mode.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_idle.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_vmodule.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_vmcs.svg">
 <meta property="article:published_time" content="2026-08-15T01:57:41.000Z">
-<meta property="article:modified_time" content="2026-08-15T02:10:18.972Z">
+<meta property="article:modified_time" content="2026-08-15T02:20:25.887Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARMv8-a">
 <meta property="article:tag" content="Hypervisor">
 <meta property="article:tag" content="Minos">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/images/phase7_taskready.svg">
+<meta name="twitter:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_taskready.svg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/">
@@ -342,7 +342,7 @@
 </ul>
 <p>队列结构定义好了，那任务<strong>怎么进队列</strong>？这由两个入口完成：<code>task_ready</code>（新任务&#x2F;被唤醒的任务入队）和 <code>__wake_up</code>（唤醒睡眠中的任务）。</p>
 <h3 id="2-3-入队与唤醒"><a href="#2-3-入队与唤醒" class="headerlink" title="2.3 入队与唤醒"></a>2.3 入队与唤醒</h3><h4 id="入队"><a href="#入队" class="headerlink" title="入队"></a><strong>入队</strong></h4><p><code>task_ready</code> 的两条路径（本核直接入队 &#x2F; 跨核投递 + SGI 通知）：</p>
-<p><img src="/images/phase7_taskready.svg" alt="phase7_taskready"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_taskready.svg" alt="phase7_taskready"></p>
 <ul>
 <li><code>task_ready(task, preempt)</code>（<code>core/sched.c:163-190</code>）：把任务放入就绪队列。先定目标核（<code>task-&gt;cpu = task-&gt;affinity</code>，无绑定核则 <code>select_task_run_cpu()</code> 现挑，sched.c:169-171），再按目标核分派：<ul>
 <li><strong>本核</strong>（<code>pcpu-&gt;pcpu_id == task-&gt;cpu</code>，sched.c:184）：<code>percpu_task_ready</code>（sched.c:138-145）直接 <code>add_task_to_ready_list</code>（sched.c:73-99）。入队时与当前任务同优先级则插到它前面（并触发 <code>sched_timer</code> 轮转），否则插队尾（sched.c:86-92）；最后更新位图、必要时 <code>set_need_resched()</code>（sched.c:94-98）。</li>
@@ -361,7 +361,7 @@
 </ul>
 <p>在 vCPU 场景，这个”事件”就是 <code>vcpu-&gt;vcpu_event</code>（<code>vm.c:354</code> 初始化）：睡眠侧是 <code>vcpu_idle</code>（<code>vm.c:144</code> 的 <code>wait_event</code>，第 3.4 节讲）；唤醒侧有三处——**<code>kick_vcpu</code><strong>（<code>vm.c:212</code>，给 vCPU 发 virq 时先唤醒）、</strong>vtimer 定时器到期<strong>（<code>arch/aarch64/virt/vtimer.c:94</code>）、</strong>VM 电源恢复**（<code>virt/vm_pm.c:57</code>）。</p>
 <p>唤醒流程（<code>__wake_up</code> 双分支 + <code>wake_up_common</code> 跨核同步）：</p>
-<p><img src="/images/phase7_wakeup.svg" alt="phase7_wakeup"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_wakeup.svg" alt="phase7_wakeup"></p>
 <p>任务入队只是第一步——队列里有多个任务时，谁在什么时候被选中运行？这就是”调度点”要回答的：在哪几个时机触发选队，以及选中后如何切换。</p>
 <h3 id="2-4-调度的执行点"><a href="#2-4-调度的执行点" class="headerlink" title="2.4 调度的执行点"></a>2.4 调度的执行点</h3><p><code>switch_to_task</code>（<code>sched.c:267-319</code>）是上下文切换的核心，顺序固定：</p>
 <ol>
@@ -371,7 +371,7 @@
 <li>切换到 <code>next</code>：置 RUNNING、<code>set_current_task</code>、<code>arch_task_sched_in(next)</code>（触发 vmodule restore）。</li>
 </ol>
 <p>UML 时序图（从调度入口到 vmodule save&#x2F;restore 的完整调用序列）：</p>
-<p><img src="/images/phase7_switch.svg" alt="phase7_switch"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_switch.svg" alt="phase7_switch"></p>
 <p>真正的调度点有两个：</p>
 <ul>
 <li>**<code>sched()</code>**（<code>sched.c:339-350</code>）：主动让出，如 <code>task_sleep</code>&#x2F;<code>task_suspend</code>&#x2F;<code>cond_resched</code>。</li>
@@ -381,7 +381,7 @@
 <p><code>pick_next_task</code> 选出了 <code>next</code>，接下来 <code>switch_to_task</code> 把当前任务换下来。但上文 2.4 的四步里<strong>看不到任何寄存器保存</strong>——这就引出下一节：真正的寄存器级切换其实不在这四步里，而在异常入口&#x2F;返回的汇编层。</p>
 <h3 id="2-5-寄存器级上下文切换"><a href="#2-5-寄存器级上下文切换" class="headerlink" title="2.5 寄存器级上下文切换"></a>2.5 寄存器级上下文切换</h3><p>细看 <code>switch_to_task</code>（<code>sched.c:267-319</code>）会发现一个容易困惑的点：<strong>它从头到尾没有保存&#x2F;恢复任何通用寄存器（x0-x30），也没有切换栈指针</strong>。它只做了 <code>set_current_task(next)</code>——即 <code>mov x18, next</code>（<code>include/minos/task_info.h:55-58</code>，<code>x18</code> 恒为 current task 指针）。</p>
 <p>那寄存器级切换在哪完成？答案在<strong>异常入口与异常返回</strong>，<code>switch_to_task</code> 只是”决定下一个是谁、改指针”，实际的换栈&#x2F;恢复现场全在汇编层。完整时序：</p>
-<p><img src="/images/phase7_ctxswitch.svg" alt="phase7_ctxswitch"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_ctxswitch.svg" alt="phase7_ctxswitch"></p>
 <p>上面是”怎么切”的调用时序；下面看<strong>栈视角</strong>——被切走的任务，它的栈里到底压了什么，切换后如何换到新任务的栈：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">task A stack: saved by SAVE_GP_REGS when exception enters EL2</span><br><span class="line">┌────────────────────────────────────────┐</span><br><span class="line">│ stack_top   (high addr)                │</span><br><span class="line">│ free area   (sp was here)              │</span><br><span class="line">├────────────────────────────────────────┤</span><br><span class="line">│ ELR_EL2   = guest pc (return addr)     │</span><br><span class="line">│ SPSR_EL2  = pstate before exception    │</span><br><span class="line">│ SP_EL0    = guest stack pointer        │</span><br><span class="line">│ x0 .. x29 = general purpose regs       │</span><br><span class="line">│ lr                                     │</span><br><span class="line">├────────────────────────────────────────┤</span><br><span class="line">│ stack_base = sp after SAVE_GP_REGS     │</span><br><span class="line">│              (= TASK_STACK_OFFSET)     │</span><br><span class="line">│ stack_bottom (low addr)                │</span><br><span class="line">└────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
 
@@ -427,7 +427,7 @@
 <p>注意普通任务创建时调 <code>arch_init_task</code> 初始化任务函数（<code>task.c:254-255</code>），而 vCPU 任务跳过这一步——它的”入口”由 <code>arch_vcpu_init</code> 单独设置（<code>arch_virt.c:108-129</code>）。</p>
 <p><code>vcpu-&gt;mode</code> 初始为 <code>IN_ROOT_MODE</code>（<code>vm.c:347</code>），<code>vcpu_event</code> 初始化为 <code>OS_EVENT_TYPE_NORMAL</code>（<code>vm.c:354</code>）。</p>
 <p>UML 时序图（create_vm → create_vcpu 的逐层调用）：</p>
-<p><img src="/images/phase7_create.svg" alt="phase7_create"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_create.svg" alt="phase7_create"></p>
 <p>注意创建阶段 vCPU 任务<strong>尚未进入就绪队列</strong>：<code>NO_AUTO_START</code> 让它只是”存在”，真正上线要等第 3.2 节的 <code>vcpu_online</code>。</p>
 <p>也就是说，创建只是把 vCPU 任务”造出来”，还躺在一边；让它进入就绪队列、真正可被调度，是”上线”这一步做的事。</p>
 <h3 id="3-2-任务上线与启动时机"><a href="#3-2-任务上线与启动时机" class="headerlink" title="3.2 任务上线与启动时机"></a>3.2 任务上线与启动时机</h3><p><code>vcpu_online</code>（<code>vm.c:63-67</code>）：</p>
@@ -469,9 +469,9 @@
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">eret 进 guest 前  → task_return_to_user（core/task.c:175-196）→ vcpu_return_to_user</span><br><span class="line">guest 异常进入 EL2 → task_exit_from_user（core/task.c:166-173）→ vcpu_exit_from_user</span><br></pre></td></tr></table></figure>
 
 <p>UML 时序图（进出 guest 时 mode 的完整切换调用序列，含中断注入&#x2F;回收钩子）：</p>
-<p><img src="/images/phase7_modecall.svg" alt="phase7_modecall"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_modecall.svg" alt="phase7_modecall"></p>
 <p>两张 mermaid 状态图概括：</p>
-<p><img src="/images/phase7_mode.svg" alt="phase7_mode"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_mode.svg" alt="phase7_mode"></p>
 <h3 id="3-4-guest-睡眠与-vcpu-idle"><a href="#3-4-guest-睡眠与-vcpu-idle" class="headerlink" title="3.4 guest 睡眠与 vcpu_idle"></a>3.4 guest 睡眠与 vcpu_idle</h3><p>guest 执行 <code>WFI</code> 会被 trap 到 EL2（<code>arch_vcpu_state_init</code> 里 <code>HCR_EL2.TWI</code> 默认置位，<code>arch_virt.c:198-199</code>），进入 <code>wfi_wfe_handler</code>（<code>arch/aarch64/virt/trap.c:47-51</code>）：</p>
 <figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">wfi_wfe_handler</span><span class="params">(gp_regs *reg, <span class="type">int</span> ec, <span class="type">uint32_t</span> esr_value)</span></span><br><span class="line">&#123;</span><br><span class="line">	vcpu_idle(get_current_vcpu());</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
@@ -484,7 +484,7 @@
 
 <p>即<strong>vCPU 睡眠只是”这个 vCPU 任务不占 CPU 了”，物理核不会闲着</strong>——它被调度器分给其他任务。这正是”vCPU &#x3D; 任务”的意义：guest 的空闲（WFI）通过 <code>sched()</code> 转化为本核 CPU 的高效复用。</p>
 <p>睡眠与唤醒的完整环路：</p>
-<p><img src="/images/phase7_idle.svg" alt="phase7_idle"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_idle.svg" alt="phase7_idle"></p>
 <p><strong>WFI 被 trap 的场景</strong>：<code>VM_FLAGS_NATIVE_WFI</code> 置位时（<code>arch_virt.c:198</code>）<code>TWI</code> 不置位，guest 的 WFI 不 trap、由硬件直接让 CPU 休眠，此时 vCPU 任务保持在 EL1 的”运行中”状态——这影响 <code>kick_vcpu</code> 的判断（见 4.2 第 4 种情况）。</p>
 <p>上面看到 vCPU 在 idle 时会 <code>wait_event</code> 睡眠，那么”谁把它唤醒、如何在另一个核上打断它”就成了下一个问题——这正是 <code>kick_vcpu</code> 的职责。</p>
 <hr>
@@ -568,7 +568,7 @@
 
 <p>逻辑：遍历全局 <code>vmodule_list</code>（注册时建的链表），对每个模块若有 <code>state_save</code> 回调，就用 <code>vcpu-&gt;context[vmodule-&gt;id]</code> 作为该模块的私有上下文调用它。<code>vmodule-&gt;id</code> 正是 <code>vcpu-&gt;context[]</code> 的下标（见 5.2 注册顺序），所以每个模块从自己的 context 槽位存取状态。</p>
 <p>完整切换时序：</p>
-<p><img src="/images/phase7_vmodule.svg" alt="phase7_vmodule"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_vmodule.svg" alt="phase7_vmodule"></p>
 <h3 id="5-5-各-vmodule-一览"><a href="#5-5-各-vmodule-一览" class="headerlink" title="5.5 各 vmodule 一览"></a>5.5 各 vmodule 一览</h3><table>
 <thead>
 <tr>
@@ -642,7 +642,7 @@
 </ol>
 <p>握手协议：<strong>host_index 是 guest 侧的”提交计数”（guest 每提交一笔 +1），guest_index 是 VM0 侧的”完成计数”（VM0 每处理完一笔 +1）</strong>。两者相等表示 guest 提交的请求都已处理完，即空闲、可发下一笔。SGI&#x2F;<code>sched</code> 的引入是为了避免”guest 与 VM0 绑在同一物理核上”时的互相等待死锁。</p>
 <p>一次请求-应答的完整时序：</p>
-<p><img src="/images/phase7_vmcs.svg" alt="phase7_vmcs"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/phase7_vmcs.svg" alt="phase7_vmcs"></p>
 <hr>
 <h2 id="7-关键知识点"><a href="#7-关键知识点" class="headerlink" title="7. 关键知识点"></a>7. 关键知识点</h2><ol>
 <li><strong>vCPU &#x3D; 任务</strong>：vCPU 没有 EL2 函数体，首调由 <code>arch_vcpu_init</code> 设置 guest 入口 PC，经异常返回路径 <code>eret</code> 进 EL1；调度、睡眠、唤醒全部复用 <code>core/task.c</code> + <code>core/sched.c</code>。</li>

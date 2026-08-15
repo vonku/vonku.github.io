@@ -26,22 +26,22 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文从 GICv3 硬件机制出发，梳理 Minos 中断虚拟化的完整实现：virq 抽象层如何描述一条虚拟中断的状态，硬件路径如何借助 List Register 直接注入，软件路径又如何模拟 GICD&#x2F;GICR 的 MMIO 访问，以及 vCPU 切换时中断上下文的保存与恢复。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/images/phase5_flow.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase5_hw_path.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase5_call1.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase5_call2.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase5_call3.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase5_call4.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase5_call5a.svg">
-<meta property="og:image" content="http://yoursite.com/images/phase5_call5b.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_flow.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_hw_path.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call1.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call2.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call3.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call4.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call5a.svg">
+<meta property="og:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call5b.svg">
 <meta property="article:published_time" content="2026-08-15T01:57:08.000Z">
-<meta property="article:modified_time" content="2026-08-15T02:10:17.818Z">
+<meta property="article:modified_time" content="2026-08-15T02:20:07.129Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="ARMv8-a">
 <meta property="article:tag" content="Hypervisor">
 <meta property="article:tag" content="Minos">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/images/phase5_flow.svg">
+<meta name="twitter:image" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_flow.svg">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/">
@@ -281,7 +281,7 @@
 <li><strong>应答&#x2F;结束（第 5、6 步）不 trap</strong>：GICv3 的硬件虚拟化让 guest 直接读写 <code>ICC_IAR1_EL1</code>&#x2F;<code>ICC_EOIR1_EL1</code>，硬件自动处理，几乎没有 hypervisor 开销。</li>
 </ul>
 <p>一张时序图概括，标注每步是否陷入 EL2：</p>
-<p><img src="/images/phase5_flow.svg" alt="phase5_flow"></p>
+<p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_flow.svg" alt="phase5_flow"></p>
 <h4 id="为什么要介入：三个本质问题"><a href="#为什么要介入：三个本质问题" class="headerlink" title="为什么要介入：三个本质问题"></a>为什么要介入：三个本质问题</h4><p>从 hypervisor 视角看，上面那些”介入”背后是三个必须解决的问题：</p>
 <ol>
 <li><strong>GIC 是共享硬件</strong>。系统中的 GICD（Distributor，全系统共享）和 GICR（Redistributor，每 CPU 一组）只有一份物理实现，多个 guest 不能各自随意读写，否则会互相干扰、甚至破坏 hypervisor 自己的中断配置。</li>
@@ -699,7 +699,7 @@
 </li>
 <li>若状态仍是 pending&#x2F;active（guest 还没处理完），什么都不做，留待下一轮。</li>
 </ol>
-<h4 id="完整链路图"><a href="#完整链路图" class="headerlink" title="完整链路图"></a>完整链路图</h4><p><img src="/images/phase5_hw_path.svg" alt="phase5_hw_path"></p>
+<h4 id="完整链路图"><a href="#完整链路图" class="headerlink" title="完整链路图"></a>完整链路图</h4><p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_hw_path.svg" alt="phase5_hw_path"></p>
 <p>这段链路里最值得体会的是：**”使能”和”配置”是软件路径，”注入”和”EO”是硬件路径**。guest 大部分中断生命周期都不需要陷入 hypervisor。</p>
 <hr>
 <h2 id="6-软件路径：GICD-GICR-的-MMIO-模拟"><a href="#6-软件路径：GICD-GICR-的-MMIO-模拟" class="headerlink" title="6. 软件路径：GICD&#x2F;GICR 的 MMIO 模拟"></a>6. 软件路径：GICD&#x2F;GICR 的 MMIO 模拟</h2><p>guest 初始化时（Linux 的 <code>gic_init_bases</code> 等）会读写一大堆 GICD&#x2F;GICR 寄存器来做配置。这些寄存器不能直接放 guest 碰硬件，所以 minos 把它们”虚拟化”成一个 MMIO 区域：guest 访问时产生 Stage2 数据中止，trap 到 EL2，由模拟器处理。</p>
@@ -821,7 +821,7 @@
 </ol>
 <hr>
 <h2 id="11-函数调用关系总览"><a href="#11-函数调用关系总览" class="headerlink" title="11. 函数调用关系总览"></a>11. 函数调用关系总览</h2><p>把前文分散在各章的调用链汇总成 6 张 UML 时序图，便于快速定位代码。图中消息已细化到函数内部关键步骤，Note 标注了状态变化（文件与行号均已在前文核实）。</p>
-<h3 id="11-1-系统初始化"><a href="#11-1-系统初始化" class="headerlink" title="11.1 系统初始化"></a>11.1 系统初始化</h3><p><img src="/images/phase5_call1.svg" alt="phase5_call1"></p>
+<h3 id="11-1-系统初始化"><a href="#11-1-系统初始化" class="headerlink" title="11.1 系统初始化"></a>11.1 系统初始化</h3><p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call1.svg" alt="phase5_call1"></p>
 <p>三个 <code>subsys_initcall</code> 注册运行期 hook：<code>virqs_init</code>（CREATE&#x2F;DESTROY_VM）、<code>virqchip_init</code>（ENTER&#x2F;EXIT_TO_GUEST）、<code>vcpu_vgic_hook_init</code>（VCPU_INIT）。物理 GIC 与虚拟层的初始化细节见下面两个子小节。</p>
 <h4 id="11-1-1-gicv3-init：主核初始化物理-GIC"><a href="#11-1-1-gicv3-init：主核初始化物理-GIC" class="headerlink" title="11.1.1 gicv3_init：主核初始化物理 GIC"></a>11.1.1 gicv3_init：主核初始化物理 GIC</h4><p><code>irq_init</code>（<code>core/irq.c:329</code>）遍历设备树，按 <code>compatible = &quot;arm,gic-v3&quot;</code> 匹配到 GIC 节点后调 <code>gicv3_init</code>（<code>.init</code>）。它分两半：先配全局共享的 GICD（一次），再配主核自己的 per-CPU 接口。</p>
 <p><strong>配置 GICD（全局共享，只需一次）：</strong></p>
@@ -854,29 +854,29 @@
 <li><strong>读硬件能力</strong>：<code>ICH_VTR_EL2</code> → <code>nr_lr = (val&amp;0x3f)+1</code>（List Register 数量）、<code>nr_pr = ((val&gt;&gt;29)&amp;0x7)+1</code>（优先级位数）。</li>
 <li><strong>注册 vmodule</strong>：<code>register_vcpu_vmodule(&quot;gicv3-vmodule&quot;, gicv3_vmodule_init)</code>，让 gicv3 上下文（LR&#x2F;APR&#x2F;VMCR&#x2F;HCR）随 vCPU 调度保存&#x2F;恢复（见第 8 章）。</li>
 </ol>
-<h3 id="11-2-虚拟机初始化"><a href="#11-2-虚拟机初始化" class="headerlink" title="11.2 虚拟机初始化"></a>11.2 虚拟机初始化</h3><p><img src="/images/phase5_call2.svg" alt="phase5_call2"></p>
+<h3 id="11-2-虚拟机初始化"><a href="#11-2-虚拟机初始化" class="headerlink" title="11.2 虚拟机初始化"></a>11.2 虚拟机初始化</h3><p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call2.svg" alt="phase5_call2"></p>
 <ul>
 <li><code>virq_create_vm</code>：<code>vspi_nr = vm_max_virq_line()</code> → 算 size、<code>get_free_pages</code> → 布局 <code>vspi_desc</code>&#x2F;<code>vspi_map</code>&#x2F;每 vCPU 的 pending+active bitmap。</li>
 <li><code>vgicv3_virqchip_init</code>：读 dts 5 段地址 → 注册 5 个 MMIO 区间 → gicd&#x2F;gicr 初始化 → 绑 8 个 ops → 挂 <code>sgi1r_el1_trap</code>。</li>
 <li><code>create_vcpu</code>：zalloc <code>virq_struct</code> → <code>vcpu_virq_struct_init</code>（初始化 local_desc）→ hook 设 <code>nr_lrs</code>。</li>
 </ul>
-<h3 id="11-3-注册中断"><a href="#11-3-注册中断" class="headerlink" title="11.3 注册中断"></a>11.3 注册中断</h3><p><img src="/images/phase5_call3.svg" alt="phase5_call3"></p>
+<h3 id="11-3-注册中断"><a href="#11-3-注册中断" class="headerlink" title="11.3 注册中断"></a>11.3 注册中断</h3><p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call3.svg" alt="phase5_call3"></p>
 <ul>
 <li>hypervisor 侧：<code>request_hw_virq</code> → <code>__request_virq</code>（置 REQUESTED 防重、设 vno&#x2F;hno、SPI 置 <code>vspi_map</code>、<code>request_irq(guest_irq_handler)</code>、默认 <code>irq_mask</code>）。</li>
 <li>guest 侧：写 <code>GICD_ISENABLER</code> → DABT → <code>dataabort_tfl_handler</code> → <code>vdev_mmio_emulation</code> → <code>vgic_mmio_handler</code> → <code>virq_enable</code>（SPI 且 hw 则 <code>irq_unmask</code>）。</li>
 </ul>
-<h3 id="11-4-释放中断"><a href="#11-4-释放中断" class="headerlink" title="11.4 释放中断"></a>11.4 释放中断</h3><p><img src="/images/phase5_call4.svg" alt="phase5_call4"></p>
+<h3 id="11-4-释放中断"><a href="#11-4-释放中断" class="headerlink" title="11.4 释放中断"></a>11.4 释放中断</h3><p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call4.svg" alt="phase5_call4"></p>
 <ul>
 <li>hypervisor 侧：<code>release_vm_virq</code>：<code>memset(virq_desc)</code> + <code>clear_bit(vspi_map)</code>。</li>
 <li>guest 侧：写 <code>GICD_ICENABLER</code> → DABT → <code>vgic_mmio_handler</code> → <code>virq_disable</code> → <code>irq_mask</code>。</li>
 </ul>
-<h3 id="11-5-中断处理：产生与标记-pending"><a href="#11-5-中断处理：产生与标记-pending" class="headerlink" title="11.5 中断处理：产生与标记 pending"></a>11.5 中断处理：产生与标记 pending</h3><p><img src="/images/phase5_call5a.svg" alt="phase5_call5a"></p>
+<h3 id="11-5-中断处理：产生与标记-pending"><a href="#11-5-中断处理：产生与标记-pending" class="headerlink" title="11.5 中断处理：产生与标记 pending"></a>11.5 中断处理：产生与标记 pending</h3><p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call5a.svg" alt="phase5_call5a"></p>
 <ul>
 <li>物理中断进 EL2 → <code>do_handle_host_irq</code> 调 <code>guest_irq_handler</code>（<code>request_irq</code> 注册的 handler）。</li>
 <li><code>send_virq</code> 检查 VM 状态 → <code>__send_virq</code>：<code>test_and_set_bit(pending_bitmap)</code> 防重、<code>atomic_inc(pending_virq)</code>、SGI 记 <code>src</code>。</li>
 <li><code>kick_vcpu</code> 唤醒目标 vCPU；物理侧 <code>irq_eoi</code>&#x2F;<code>irq_dir</code>。此刻仅 pending，尚未写 LR。</li>
 </ul>
-<h3 id="11-6-中断处理：注入与回收"><a href="#11-6-中断处理：注入与回收" class="headerlink" title="11.6 中断处理：注入与回收"></a>11.6 中断处理：注入与回收</h3><p><img src="/images/phase5_call5b.svg" alt="phase5_call5b"></p>
+<h3 id="11-6-中断处理：注入与回收"><a href="#11-6-中断处理：注入与回收" class="headerlink" title="11.6 中断处理：注入与回收"></a>11.6 中断处理：注入与回收</h3><p><img src="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/phase5_call5b.svg" alt="phase5_call5b"></p>
 <ul>
 <li>进 guest：<code>enter_to_guest</code> 遍历 pending → active 跳过 → <code>find_first_zero_bit(lrs_bitmap)</code> 分配 LR → <code>gicv3_send_virq</code> 填字段写 LR → bitmap 迁移（active++ &#x2F; pending–）；LR 用尽记 <code>last_fail_virq</code>。</li>
 <li>guest 运行：硬件投递，IAR 使 LR state <code>0b01→0b10</code>，EOIR 使 <code>0b10→0b00</code>。</li>
