@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文分析 Minos 如何复用自身的任务调度器来实现 vCPU 的调度：从任务数据结构与就绪队列讲起，再到 vCPU 的创建、mode 四态状态机与 vcpu_idle 睡眠，最后覆盖 kick_vcpu 跨核唤醒、vmodule 状态保存恢复，以及 guest 与 VM0 通信所用的 vmcs 协议。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: vCPU 与调度">
+<meta property="og:url" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文分析 Minos 如何复用自身的任务调度器来实现 vCPU 的调度：从任务数据结构与就绪队列讲起，再到 vCPU 的创建、mode 四态状态机与 vcpu_idle 睡眠，最后覆盖 kick_vcpu 跨核唤醒、vmodule 状态保存恢复，以及 guest 与 VM0 通信所用的 vmcs 协议。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/images/phase7_taskready.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_wakeup.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_switch.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_ctxswitch.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_create.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_modecall.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_mode.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_idle.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_vmodule.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase7_vmcs.svg">
+<meta property="article:published_time" content="2026-08-15T01:57:41.000Z">
+<meta property="article:modified_time" content="2026-08-15T02:10:18.972Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/phase7_taskready.svg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/","path":"2026/08/15/Minos-虚拟化-vCPU-与调度/","title":"Minos 虚拟化: vCPU 与调度"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: vCPU 与调度 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E8%83%8C%E6%99%AF%E4%B8%8E%E8%AE%BE%E8%AE%A1%E9%80%89%E6%8B%A9"><span class="nav-text">1. 背景与设计选择</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E4%B8%80%E4%B8%AA%E5%A4%8D%E7%94%A8%E7%8E%B0%E6%9C%89%E8%B0%83%E5%BA%A6%E7%9A%84%E9%80%89%E6%8B%A9"><span class="nav-text">1.1 一个复用现有调度的选择</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-vCPU-%E4%BB%BB%E5%8A%A1%E7%9A%84%E7%89%B9%E6%AE%8A%E6%80%A7"><span class="nav-text">1.2 vCPU 任务的特殊性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%BB%BB%E5%8A%A1%E4%B8%8E%E8%B0%83%E5%BA%A6%E5%99%A8%E5%9F%BA%E7%A1%80"><span class="nav-text">2. 任务与调度器基础</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%BB%BB%E5%8A%A1%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="nav-text">2.1 任务的数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-%E6%AF%8F-CPU-%E7%9A%84%E5%B0%B1%E7%BB%AA%E9%98%9F%E5%88%97"><span class="nav-text">2.2 每 CPU 的就绪队列</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-%E5%85%A5%E9%98%9F%E4%B8%8E%E5%94%A4%E9%86%92"><span class="nav-text">2.3 入队与唤醒</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%85%A5%E9%98%9F"><span class="nav-text">入队</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%94%A4%E9%86%92"><span class="nav-text">唤醒</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E8%B0%83%E5%BA%A6%E7%9A%84%E6%89%A7%E8%A1%8C%E7%82%B9"><span class="nav-text">2.4 调度的执行点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-5-%E5%AF%84%E5%AD%98%E5%99%A8%E7%BA%A7%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2"><span class="nav-text">2.5 寄存器级上下文切换</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-6-%E4%BB%BB%E5%8A%A1%E4%BA%B2%E5%92%8C%E6%80%A7%EF%BC%88affinity%EF%BC%89"><span class="nav-text">2.6 任务亲和性（affinity）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-7-%E8%B7%A8%E6%A0%B8%E6%89%93%E6%96%AD"><span class="nav-text">2.7 跨核打断</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-vCPU-%E7%9A%84%E5%88%9B%E5%BB%BA%E4%B8%8E%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-text">3. vCPU 的创建与生命周期</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%88%9B%E5%BB%BA%E6%B5%81%E7%A8%8B"><span class="nav-text">3.1 创建流程</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E4%BB%BB%E5%8A%A1%E4%B8%8A%E7%BA%BF%E4%B8%8E%E5%90%AF%E5%8A%A8%E6%97%B6%E6%9C%BA"><span class="nav-text">3.2 任务上线与启动时机</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-mode-%E5%9B%9B%E6%80%81%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-text">3.3 mode 四态状态机</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-guest-%E7%9D%A1%E7%9C%A0%E4%B8%8E-vcpu-idle"><span class="nav-text">3.4 guest 睡眠与 vcpu_idle</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-kick-vcpu%EF%BC%9A%E8%B7%A8%E6%A0%B8%E5%94%A4%E9%86%92"><span class="nav-text">4. kick_vcpu：跨核唤醒</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E8%A6%81%E8%A7%A3%E5%86%B3%E7%9A%84%E9%97%AE%E9%A2%98"><span class="nav-text">4.1 要解决的问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-%E5%9B%9B%E7%A7%8D%E6%83%85%E5%86%B5"><span class="nav-text">4.2 四种情况</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-vmodule-%E6%9C%BA%E5%88%B6%EF%BC%9A%E8%99%9A%E6%8B%9F%E5%8C%96%E7%8A%B6%E6%80%81%E7%9A%84%E7%BB%9F%E4%B8%80%E4%BF%9D%E5%AD%98-%E6%81%A2%E5%A4%8D"><span class="nav-text">5. vmodule 机制：虚拟化状态的统一保存&#x2F;恢复</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-%E8%AE%BE%E8%AE%A1%E5%8A%A8%E6%9C%BA"><span class="nav-text">5.1 设计动机</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E7%BB%93%E6%9E%84%E5%AE%9A%E4%B9%89%E4%B8%8E%E6%B3%A8%E5%86%8C"><span class="nav-text">5.2 结构定义与注册</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-%E6%AF%8F-vCPU-%E7%9A%84%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%86%E9%85%8D"><span class="nav-text">5.3 每 vCPU 的上下文分配</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-save-restore-%E7%9A%84%E8%A7%A6%E5%8F%91%E7%82%B9"><span class="nav-text">5.4 save&#x2F;restore 的触发点</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-%E5%90%84-vmodule-%E4%B8%80%E8%A7%88"><span class="nav-text">5.5 各 vmodule 一览</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-vmcs%EF%BC%9Aguest-%E4%B8%8E-VM0-%E7%9A%84%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98%E9%80%9A%E4%BF%A1%E5%8D%8F%E8%AE%AE"><span class="nav-text">6. vmcs：guest 与 VM0 的共享内存通信协议</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-vmcs"><span class="nav-text">6.1 为什么需要 vmcs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-vmcs-%E7%BB%93%E6%9E%84"><span class="nav-text">6.2 vmcs 结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-%E8%AF%B7%E6%B1%82-%E5%BA%94%E7%AD%94%E4%B8%BB%E6%B5%81%E7%A8%8B"><span class="nav-text">6.3 请求-应答主流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">7. 关键知识点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E4%BB%A3%E7%A0%81%E6%96%87%E4%BB%B6%E5%85%B3%E8%81%94%E9%80%9F%E6%9F%A5%E8%A1%A8"><span class="nav-text">7.1 代码文件关联速查表</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">85</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: vCPU 与调度 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: vCPU 与调度
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-15 09:57:41" itemprop="dateCreated datePublished" datetime="2026-08-15T09:57:41+08:00">2026-08-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文分析 Minos 如何复用自身的任务调度器来实现 vCPU 的调度：从任务数据结构与就绪队列讲起，再到 vCPU 的创建、mode 四态状态机与 vcpu_idle 睡眠，最后覆盖 kick_vcpu 跨核唤醒、vmodule 状态保存恢复，以及 guest 与 VM0 通信所用的 vmcs 协议。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-背景与设计选择"><a href="#1-背景与设计选择" class="headerlink" title="1. 背景与设计选择"></a>1. 背景与设计选择</h2><h3 id="1-1-一个复用现有调度的选择"><a href="#1-1-一个复用现有调度的选择" class="headerlink" title="1.1 一个复用现有调度的选择"></a>1.1 一个复用现有调度的选择</h3><p>minos 本身就是一个运行在 EL2 的小型 OS：有任务、有调度器、有中断、有定时器。要让多个 guest 分时复用 CPU，一个自然的做法是把”每个 vCPU”当作调度器里的一个普通任务，由同一个调度器统一调度。这样 hypervisor 不需要维护第二套调度逻辑，guest 的 vCPU 与 VM0（host）自己的内核线程可以按优先级公平竞争。</p>
+<p>这个设计在代码里有几个直接体现：</p>
+<ul>
+<li>vCPU 对应一个真实的任务：<code>create_vcpu</code> 里 <code>create_vcpu_task(name, vm-&gt;entry_point, vm-&gt;vcpu_affinity[vcpu_id], ...)</code>（<code>virt/vm.c:320-361</code>），任务创建时标记为 <code>TASK_FLAGS_VCPU</code>（<code>core/task.c:376-382</code>）。</li>
+<li>任务切换时，hypervisor 要为”即将失去 CPU 的 guest”保存虚拟化状态：<code>arch_task_sched_out</code> 里调用 <code>vcpu_context_save</code>（<code>arch/aarch64/core/arch.c:140-151</code>）。</li>
+<li>调度的”入&#x2F;出 guest”由钩子完成：<code>vcpu_return_to_user</code>&#x2F;<code>vcpu_exit_from_user</code>（<code>virt/vm.c:294-318</code>）在异常返回路径里切换 <code>vcpu-&gt;mode</code> 并触发中断注入钩子。</li>
+</ul>
+<h3 id="1-2-vCPU-任务的特殊性"><a href="#1-2-vCPU-任务的特殊性" class="headerlink" title="1.2 vCPU 任务的特殊性"></a>1.2 vCPU 任务的特殊性</h3><p>普通任务有 <code>task_func_t func</code>（任务函数），vCPU 任务没有 EL2 侧的函数体：它第一次被调度时，直接从异常返回路径 <code>eret</code> 进 guest 的入口地址。所以 vCPU 任务的特殊之处在两点：</p>
+<ol>
+<li><strong>入口不是函数，而是 guest 入口 PC</strong>。<code>arch_vcpu_init</code> 把 guest 入口地址填进 <code>gp_regs-&gt;pc</code>（<code>arch/aarch64/virt/arch_virt.c:108-129</code>），任务栈顶向下挂一张 <code>gp_regs</code>，首次调度后异常返回直接进 guest。</li>
+<li><strong>切换时多保存一层虚拟化上下文</strong>。普通任务切换只保存通用寄存器（<code>cpu_context</code> + fpsimd），vCPU 任务还要保存 GIC 的 LR、vtimer 的 CNTV 寄存器、EL1 系统寄存器等——这正是第 5 章 vmodule 机制要解决的。</li>
+</ol>
+<p>“vCPU &#x3D; 任务”意味着系统里其实有<strong>两套调度</strong>在同时工作：guest 的 Linux 调度器在自己的虚拟 CPU 之间分派任务，minos 的调度器在物理核上分派 vCPU。两套调度操作的是不同的 CPU 集合（虚拟 vs 物理），呈嵌套关系：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">  Linux 侧（虚拟 CPU = vCPU）          hypervisor 侧（物理核）    </span><br><span class="line">┌──────────────────────────┐          ┌──────────────────────────┐</span><br><span class="line">│  tasks: A  B  C          │          │  pcpu 0                  │</span><br><span class="line">│    |                     │          │  pcpu 1                  │</span><br><span class="line">│    v                     │          │    ^                     │</span><br><span class="line">│  vCPU0      vCPU1        │          │    |                     │</span><br><span class="line">│    ^         ^           │          │    |                     │</span><br><span class="line">└──────────────────────────┘          └──────────────────────────┘</span><br><span class="line">   Linux 只改就绪链表 + 发虚拟 IPI</span><br><span class="line">   （任务放哪个 vCPU 由 Linux 定，可任意迁移）</span><br><span class="line">   任务从 CPU0 迁到 CPU1 只是换链表</span><br><span class="line"></span><br><span class="line">   minos 决定：vCPU 钉在哪个物理核、何时跑</span><br><span class="line">   两套调度嵌套，互不竞争</span><br></pre></td></tr></table></figure>
+
+<p>Linux 的”跨 CPU 迁移”只是把它自己的任务从 vCPU0 的链表挪到 vCPU1 的链表，并发一个 SGI 请 vCPU1 重新调度；真正在物理核上执行什么、执行多久，由 minos 调度器决定。</p>
+<p>既然 vCPU 是一个普通任务，它就必须遵循这套任务与调度规则。下一章先补上这些基础，后面看 vCPU 时才能对上”它是在什么时候、以什么状态被调度的”。</p>
+<hr>
+<h2 id="2-任务与调度器基础"><a href="#2-任务与调度器基础" class="headerlink" title="2. 任务与调度器基础"></a>2. 任务与调度器基础</h2><h3 id="2-1-任务的数据结构"><a href="#2-1-任务的数据结构" class="headerlink" title="2.1 任务的数据结构"></a>2.1 任务的数据结构</h3><p><code>struct task</code>（<code>include/minos/task_def.h:82-145</code>）承载一个任务的全部信息，与 vCPU 直接相关的字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>stack_base/top/bottom</code></td>
+<td>任务栈。<code>stack_base</code> 指向栈顶的 <code>gp_regs</code>（异常返回帧）</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>任务状态：RUNNING&#x2F;READY&#x2F;WAIT_EVENT&#x2F;WAKING&#x2F;SUSPEND&#x2F;STOP（<code>task_def.h:50-55</code>）</td>
+</tr>
+<tr>
+<td><code>prio</code></td>
+<td>优先级 0-7，值越小优先级越高（<code>task_def.h:23-38</code>）</td>
+</tr>
+<tr>
+<td><code>affinity/cpu</code></td>
+<td>绑定的物理 CPU；<code>cpu</code> 为 -1 表示不在运行中（已 sched out）</td>
+</tr>
+<tr>
+<td><code>s_lock</code></td>
+<td>跨核保护 <code>state/pend_state</code> 的自旋锁</td>
+</tr>
+<tr>
+<td><code>state_list</code></td>
+<td>挂到某个调度链表（ready list &#x2F; new_list &#x2F; stop_list）</td>
+</tr>
+<tr>
+<td><code>event_list</code></td>
+<td>挂到等待的事件对象上</td>
+</tr>
+<tr>
+<td><code>return_to_user/exit_from_user</code></td>
+<td>进出 guest 的钩子函数指针，由 <code>create_vcpu</code> 赋值</td>
+</tr>
+<tr>
+<td><code>pdata</code></td>
+<td>私有数据，vCPU 任务的 <code>pdata</code> 即 <code>struct vcpu *</code></td>
+</tr>
+<tr>
+<td><code>cpu_context</code></td>
+<td>上下文切换用的寄存器保存区</td>
+</tr>
+</tbody></table>
+<p>优先级划分（<code>task_def.h:33-38</code>），<strong>数值越小优先级越高</strong>：<code>OS_PRIO_VCPU = 4</code>，其数值大于 <code>OS_PRIO_SYSTEM(3)</code>（故优先级低于系统任务）、小于 <code>OS_PRIO_DEFAULT(5)</code> 和 <code>OS_PRIO_IDLE(7)</code>（故优先级高于普通内核任务与 idle）。</p>
+<p>任务结构只是”任务的静态描述”；要让它被调度，还必须知道它<strong>挂在哪个队列、在哪个核上排队</strong>。这就是每个物理 CPU 自己维护的就绪队列（<code>struct pcpu</code>）——任务真正”住”的地方。</p>
+<h3 id="2-2-每-CPU-的就绪队列"><a href="#2-2-每-CPU-的就绪队列" class="headerlink" title="2.2 每 CPU 的就绪队列"></a>2.2 每 CPU 的就绪队列</h3><p>调度器为每个物理 CPU 维护一份独立的调度数据结构（<code>struct pcpu</code>，<code>include/minos/percpu.h:18-54</code>）。这些成员的关系可以用一张结构图概括（任务通过 <code>task-&gt;state_list</code> 挂到某条链表上；<code>new_list</code>&#x2F;<code>stop_list</code> 是独立于 <code>ready_list</code> 的旁路）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">┌──────────────────────────────────────────────────────────────────┐</span><br><span class="line">│struct pcpu  (one per physical cpu)                               │</span><br><span class="line">│running_task   idle_task                                          │</span><br><span class="line">│                                                                  │</span><br><span class="line">│local_rdy_grp : bit7..bit0                                        │</span><br><span class="line">│                                                                  │</span><br><span class="line">│ready_list[0] -&gt; [task B] -&gt; [task C] -&gt; NULL                     │</span><br><span class="line">│ready_list[1] -&gt; NULL                                             │</span><br><span class="line">│ready_list[2..6] ...                                              │</span><br><span class="line">│ready_list[7] -&gt; [idle] -&gt; NULL                                   │</span><br><span class="line">│                                                                  │</span><br><span class="line">│new_list   -&gt; [task X] -&gt; NULL                                    │</span><br><span class="line">│stop_list  -&gt; [task Y] -&gt; NULL                                    │</span><br><span class="line">└──────────────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>running_task</code> &#x2F; <code>idle_task</code>：本核当前运行的任务、本核 idle 任务指针（<code>percpu.h:40-41</code>）。</li>
+<li><code>local_rdy_grp</code>：8 位位图，<code>bit N = 1</code> 表示 <code>ready_list[N]</code> 非空，<code>pick_next_task</code> 用它 O(1) 找最高优先级（<code>sched.c:251</code>）。</li>
+<li><code>ready_list[8]</code>：按优先级分桶的主就绪队列，任务用 <code>state_list</code> 挂入对应桶（数值越小优先级越高）。</li>
+<li><code>new_list</code>：其他核投递过来的任务，暂存后由 <code>irqwork_handler</code> 批量取走——它是 <code>ready_list</code> 之外的旁路入口（需 <code>lock</code>）。</li>
+<li><code>stop_list</code>：已 STOP 任务，等本核 kworker 回收——同样是旁路，不进 <code>ready_list</code>。回收链路：<code>pick_next_task</code> 把 STOP 任务挂入 <code>stop_list</code> 并置 <code>KWORKER_TASK_RECYCLE</code>（<code>sched.c:242-244</code>），本核的 kworker 任务（<code>kworker_task</code>，<code>core/idle.c:94-115</code>）收 flag 后调用 <code>pcpu_release_task</code>（<code>core/idle.c:78-92</code>）回收。</li>
+<li><code>sched_timer</code>：同级任务多于 1 个时启用时间片轮转。</li>
+</ul>
+<p>队列结构定义好了，那任务<strong>怎么进队列</strong>？这由两个入口完成：<code>task_ready</code>（新任务&#x2F;被唤醒的任务入队）和 <code>__wake_up</code>（唤醒睡眠中的任务）。</p>
+<h3 id="2-3-入队与唤醒"><a href="#2-3-入队与唤醒" class="headerlink" title="2.3 入队与唤醒"></a>2.3 入队与唤醒</h3><h4 id="入队"><a href="#入队" class="headerlink" title="入队"></a><strong>入队</strong></h4><p><code>task_ready</code> 的两条路径（本核直接入队 &#x2F; 跨核投递 + SGI 通知）：</p>
+<p><img src="/images/phase7_taskready.svg" alt="phase7_taskready"></p>
+<ul>
+<li><code>task_ready(task, preempt)</code>（<code>core/sched.c:163-190</code>）：把任务放入就绪队列。先定目标核（<code>task-&gt;cpu = task-&gt;affinity</code>，无绑定核则 <code>select_task_run_cpu()</code> 现挑，sched.c:169-171），再按目标核分派：<ul>
+<li><strong>本核</strong>（<code>pcpu-&gt;pcpu_id == task-&gt;cpu</code>，sched.c:184）：<code>percpu_task_ready</code>（sched.c:138-145）直接 <code>add_task_to_ready_list</code>（sched.c:73-99）。入队时与当前任务同优先级则插到它前面（并触发 <code>sched_timer</code> 轮转），否则插队尾（sched.c:86-92）；最后更新位图、必要时 <code>set_need_resched()</code>（sched.c:94-98）。</li>
+<li><strong>跨核</strong>（sched.c:180-182）：<code>get_per_cpu</code> 取目标核 pcpu 后 <code>smp_percpu_task_ready</code>（sched.c:147-161）——加锁挂入目标核 **<code>new_list</code>**，发 <code>pcpu_irqwork</code> SGI，由目标核 <code>irqwork_handler</code>（sched.c:425-469）取走真正入队。</li>
+</ul>
+</li>
+</ul>
+<p>关键点：<strong>跨核路径不直接操作目标核的就绪队列</strong>，而是放进 <code>new_list</code>（只有它需要自旋锁保护，<code>percpu.h:36-37</code>），再用 SGI 让目标核自己取走。这样目标核的就绪链表永远只被本核修改，无需全局锁。</p>
+<h4 id="唤醒"><a href="#唤醒" class="headerlink" title="唤醒"></a><strong>唤醒</strong></h4><p><code>wait_event</code>（<code>include/minos/event.h:51-78</code>）与 <code>wake</code>（<code>core/event.c:132-154</code>）是一对：<strong>任务自己 <code>wait_event</code> 睡眠，别人 <code>wake</code> 把它拉起</strong>。事件对象 <code>event-&gt;data</code> 存着等待它的任务，<code>wake</code> 取出该任务调 <code>__wake_up</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"> 睡眠侧（任务自己）                    唤醒侧（别的代码/别的核）</span><br><span class="line">wait_event(&amp;ev, cond, to)          wake(&amp;ev)</span><br><span class="line">  ├─ __wait_event()                   ├─ get ev-&gt;data (task)</span><br><span class="line">  │   state -&gt; WAIT_EVENT             ├─ __wake_up(task, ...)</span><br><span class="line">  │   add to ev-&gt;wait_list            │  ├─ task == current?</span><br><span class="line">  │   sched() sleep                   │  │   └─ wake_up_interrupted()</span><br><span class="line">  └─ continue after wake              │  └─ wake_up_common()</span><br><span class="line">                                      └─ task_ready() re-enqueue</span><br></pre></td></tr></table></figure>
+<p>（睡眠侧：置 WAIT_EVENT → 挂等待链表 → <code>sched()</code> 让出；唤醒侧：<code>wake</code> 取任务调 <code>__wake_up</code>，中断里唤醒自己走 <code>wake_up_interrupted</code>，跨核唤醒走 <code>wake_up_common</code>。）</p>
+<p><code>__wake_up</code>（<code>sched.c:638-644</code>）按”唤醒谁”分两条路：</p>
+<ul>
+<li><strong>唤醒自己</strong>（<code>task == current</code>，中断里发生）→ <code>wake_up_interrupted</code>（<code>sched.c:516</code>）：<code>spin_trylock</code> 试锁，直接把自己从 WAIT_EVENT 置回 RUNNING，<strong>不入队</strong>、就地继续。</li>
+<li><strong>唤醒其他任务</strong> → <code>wake_up_common</code>（<code>sched.c:573-636</code>）：<code>spin_lock</code> 加锁，**自旋等 <code>task-&gt;cpu == -1</code>**（确保任务真的被 sched out，<code>switch_to_task</code> 里 <code>cur-&gt;cpu = -1</code>，<code>sched.c:300</code>），状态置 WAKING，最后 <code>task_ready</code> 重新入队。</li>
+</ul>
+<p>在 vCPU 场景，这个”事件”就是 <code>vcpu-&gt;vcpu_event</code>（<code>vm.c:354</code> 初始化）：睡眠侧是 <code>vcpu_idle</code>（<code>vm.c:144</code> 的 <code>wait_event</code>，第 3.4 节讲）；唤醒侧有三处——**<code>kick_vcpu</code><strong>（<code>vm.c:212</code>，给 vCPU 发 virq 时先唤醒）、</strong>vtimer 定时器到期<strong>（<code>arch/aarch64/virt/vtimer.c:94</code>）、</strong>VM 电源恢复**（<code>virt/vm_pm.c:57</code>）。</p>
+<p>唤醒流程（<code>__wake_up</code> 双分支 + <code>wake_up_common</code> 跨核同步）：</p>
+<p><img src="/images/phase7_wakeup.svg" alt="phase7_wakeup"></p>
+<p>任务入队只是第一步——队列里有多个任务时，谁在什么时候被选中运行？这就是”调度点”要回答的：在哪几个时机触发选队，以及选中后如何切换。</p>
+<h3 id="2-4-调度的执行点"><a href="#2-4-调度的执行点" class="headerlink" title="2.4 调度的执行点"></a>2.4 调度的执行点</h3><p><code>switch_to_task</code>（<code>sched.c:267-319</code>）是上下文切换的核心，顺序固定：</p>
+<ol>
+<li><code>arch_task_sched_out(cur)</code>：保存当前任务（vCPU 任务在此触发 vmodule save，见第 5 章）。</li>
+<li>处理当前任务状态：WAIT_EVENT 且有 delay 则启动延迟定时器；RUNNING 则置回 READY。</li>
+<li><code>cur-&gt;cpu = -1</code>，通知其他核可以安全唤醒它。</li>
+<li>切换到 <code>next</code>：置 RUNNING、<code>set_current_task</code>、<code>arch_task_sched_in(next)</code>（触发 vmodule restore）。</li>
+</ol>
+<p>UML 时序图（从调度入口到 vmodule save&#x2F;restore 的完整调用序列）：</p>
+<p><img src="/images/phase7_switch.svg" alt="phase7_switch"></p>
+<p>真正的调度点有两个：</p>
+<ul>
+<li>**<code>sched()</code>**（<code>sched.c:339-350</code>）：主动让出，如 <code>task_sleep</code>&#x2F;<code>task_suspend</code>&#x2F;<code>cond_resched</code>。</li>
+<li><strong>异常返回路径</strong>：<code>__exception_return_handler</code>（<code>sched.c:381-415</code>）在 <code>eret</code> 前检查 <code>__TIF_NEED_RESCHED</code>，需要就 <code>pick_next_task</code> + <code>switch_to_task</code>。</li>
+</ul>
+<p><code>pick_next_task</code>（<code>sched.c:226-265</code>）用 <code>ffs_one_table[local_rdy_grp]</code> 找最高非空优先级，取出队首任务并轮转（队首移到队尾）。</p>
+<p><code>pick_next_task</code> 选出了 <code>next</code>，接下来 <code>switch_to_task</code> 把当前任务换下来。但上文 2.4 的四步里<strong>看不到任何寄存器保存</strong>——这就引出下一节：真正的寄存器级切换其实不在这四步里，而在异常入口&#x2F;返回的汇编层。</p>
+<h3 id="2-5-寄存器级上下文切换"><a href="#2-5-寄存器级上下文切换" class="headerlink" title="2.5 寄存器级上下文切换"></a>2.5 寄存器级上下文切换</h3><p>细看 <code>switch_to_task</code>（<code>sched.c:267-319</code>）会发现一个容易困惑的点：<strong>它从头到尾没有保存&#x2F;恢复任何通用寄存器（x0-x30），也没有切换栈指针</strong>。它只做了 <code>set_current_task(next)</code>——即 <code>mov x18, next</code>（<code>include/minos/task_info.h:55-58</code>，<code>x18</code> 恒为 current task 指针）。</p>
+<p>那寄存器级切换在哪完成？答案在<strong>异常入口与异常返回</strong>，<code>switch_to_task</code> 只是”决定下一个是谁、改指针”，实际的换栈&#x2F;恢复现场全在汇编层。完整时序：</p>
+<p><img src="/images/phase7_ctxswitch.svg" alt="phase7_ctxswitch"></p>
+<p>上面是”怎么切”的调用时序；下面看<strong>栈视角</strong>——被切走的任务，它的栈里到底压了什么，切换后如何换到新任务的栈：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">task A stack: saved by SAVE_GP_REGS when exception enters EL2</span><br><span class="line">┌────────────────────────────────────────┐</span><br><span class="line">│ stack_top   (high addr)                │</span><br><span class="line">│ free area   (sp was here)              │</span><br><span class="line">├────────────────────────────────────────┤</span><br><span class="line">│ ELR_EL2   = guest pc (return addr)     │</span><br><span class="line">│ SPSR_EL2  = pstate before exception    │</span><br><span class="line">│ SP_EL0    = guest stack pointer        │</span><br><span class="line">│ x0 .. x29 = general purpose regs       │</span><br><span class="line">│ lr                                     │</span><br><span class="line">├────────────────────────────────────────┤</span><br><span class="line">│ stack_base = sp after SAVE_GP_REGS     │</span><br><span class="line">│              (= TASK_STACK_OFFSET)     │</span><br><span class="line">│ stack_bottom (low addr)                │</span><br><span class="line">└────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li>任务栈从高地址向下生长；<code>SAVE_GP_REGS</code>（vector.S:55-83）把 <code>ELR/SPSR/SP_EL0/x0-x29/lr</code> 从低到高压到栈顶。</li>
+<li>压完后 <code>sp</code> 指向 <code>stack_base</code>，<code>exception_return</code> 换栈时 <code>ldr sp ← next-&gt;stack_base</code>（vector.S:125-126），再 <code>LOAD_GP_REGS</code> 从新栈弹出恢复。</li>
+<li><strong>这些都在任务自己的栈上</strong>，是”通用寄存器现场”。</li>
+</ul>
+<p>除了异常帧（栈上），<code>arch_task_sched_out</code>（arch.c:140-151）还保存 <strong>fpsimd</strong>——<code>fpsimd_state_save</code>（arch.c:150）把 FPSR&#x2F;FPCR 和 q0-q31（浮点&#x2F;NEON 寄存器）存进 <code>task-&gt;cpu_context.fpsimd_state</code>（<code>arch/aarch64/include/asm/tcb.h:47-59</code>），<code>arch_task_sched_in</code> 再恢复。这是<strong>所有任务</strong>（含普通内核任务）都有的第二层，存在 <code>struct task</code> 结构体里（不是栈上）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">struct task  (allocated via zalloc, NOT on the task stack)</span><br><span class="line">┌────────────────────────────────────────────────────┐</span><br><span class="line">│  ...                                               │</span><br><span class="line">│  union &#123; pdata / vcpu &#125;                            │</span><br><span class="line">│  struct cpu_context cpu_context                    │</span><br><span class="line">│  └─ struct fpsimd_context fpsimd_state             │</span><br><span class="line">│      regs[64]  (q0..q31, 128-bit each)             │</span><br><span class="line">│      fpsr / fpcr                                   │</span><br><span class="line">│      fpexc32_el2  (32-bit vCPU only)               │</span><br><span class="line">└────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p><strong>vCPU 任务比普通任务再多保存一层</strong>——EL1 系统寄存器不在任务栈上，而是由 <strong>vmodule 机制</strong>保存（第 5 章）。每个槽位 <code>vcpu-&gt;context[i]</code> 对应一个<strong>注册的 vmodule</strong>，各模块在注册时（第 5.2 节）提供自己的 <code>state_save/restore</code> 回调；<code>arch_task_sched_out/in</code>（arch.c:140&#x2F;153）时，由宏生成的遍历函数 <code>save/restore_vcpu_vmodule_state</code>（vmodule.c:150-151）按注册顺序调用各模块的回调，每个模块从自己的 <code>context[vmodule-&gt;id]</code> 槽位存取状态。各槽位内容如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">vCPU extra state: vmodule save/restore, stored in vcpu-&gt;context[]</span><br><span class="line">order = registration order (gicv3 first, then vtimer, then linker modules)</span><br><span class="line">┌──────────────────────────────────────────────────────────┐</span><br><span class="line">│ vcpu-&gt;context[0] = gicv3-vmodule                         │</span><br><span class="line">│     ICH_LR0..15 / APR / VMCR                             │</span><br><span class="line">│     gicv3_state_save/restore  (vgicv3.c:1043-1072)       │</span><br><span class="line">│                                                          │   </span><br><span class="line">│ vcpu-&gt;context[1] = vtimer_module                         │</span><br><span class="line">│     CNTV_CVAL_EL0 / CNTV_CTL_EL0                         │</span><br><span class="line">│     vtimer_state_save/restore (vtimer.c:110/97)          │</span><br><span class="line">│                                                          │</span><br><span class="line">│ vcpu-&gt;context[2] = aarch64 vcpu context                  │</span><br><span class="line">│     vbar_el1/sctlr_el1/tcr_el1/ttbr0/1_el1               │</span><br><span class="line">│     hcr_el2/vttbr_el2/vtcr_el2/sp_el1 ...                │</span><br><span class="line">│     arch_vcpu_state_save/restore (arch_virt.c:239/284)   │</span><br><span class="line">│                                                          │</span><br><span class="line">│ vcpu-&gt;context[3] = vfp                                   │</span><br><span class="line">│     VFP / NEON registers                                 │</span><br><span class="line">│     vfp_state_save/restore (vfp.c:44/77)                 │</span><br><span class="line">└──────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>这些模块在开机时注册（<code>gicv3-vmodule</code> 经 gicv3 驱动、<code>vtimer_module</code> 经定时器驱动、链接期 <code>aarch64 vcpu context</code>&#x2F;<code>vfp</code> 经 <code>vmodules_init</code>，见 5.2 节）；<code>save_vcpu_vmodule_state</code> 的具体实现见 5.4 节。</p>
+<p>三个关键理解：</p>
+<ol>
+<li><p><strong><code>stack_base</code> 就是”异常返回帧”的位置</strong>。每次异常&#x2F;<code>sched()</code> 进 EL2，现场被压到当前任务栈顶，<code>sp</code> 存入 <code>task-&gt;stack_base</code>（<code>asm-offset.c:31</code> 的 <code>TASK_STACK_OFFSET</code> 就是这个字段）。换栈的本质就是换一个 <code>stack_base</code>。</p>
+</li>
+<li><p><strong><code>switch_to_task</code> 不碰寄存器是设计使然</strong>。它运行在异常处理上下文里，当前任务的现场已经在栈上了（由 SAVE_GP_REGS 压好）；它只需要把 <code>x18</code> 指向下一个任务，返回后汇编层读新任务的 <code>stack_base</code> 换栈即可。这样上下文切换的”脏活”集中在一处汇编，C 层调度器保持简洁。</p>
+</li>
+<li><p><strong>vCPU 任务切换与普通任务完全同机制</strong>。vCPU 是任务，它被切走时同样是异常帧机制保存通用寄存器；区别只在 <code>arch_task_sched_out/in</code> 额外触发 vmodule save&#x2F;restore（第 5 章）。<strong>从一个 vCPU 切到另一个 vCPU</strong>，就是换栈 + eret 到下一个 vCPU 任务——若目标是进 guest 前，<code>task_return_to_user</code> 还会先跑 <code>vcpu_return_to_user</code> 的 mode 钩子（第 3.3 节）。</p>
+</li>
+</ol>
+<h3 id="2-6-任务亲和性（affinity）"><a href="#2-6-任务亲和性（affinity）" class="headerlink" title="2.6 任务亲和性（affinity）"></a>2.6 任务亲和性（affinity）</h3><p>每个任务绑定一个物理核（<code>task-&gt;affinity</code>），vCPU 任务也不例外——<code>create_vcpu</code> 把 <code>vm-&gt;vcpu_affinity[vcpu_id]</code> 传给 <code>create_vcpu_task</code>。亲和性决定三件事：任务在哪个核就绪、<code>kick_vcpu</code> 往哪个核发 SGI、<code>task_ready</code> 走本核还是跨核路径（<code>sched.c:179-185</code>）。</p>
+<p>VM 的亲和性来源：</p>
+<ol>
+<li><strong>静态配置</strong>：VM 的 dts&#x2F;vmtag 里写死 <code>vcpu_affinity[VM_MAX_VCPU]</code>（<code>__create_vm</code> 里 <code>memcpy(vm-&gt;vcpu_affinity, vme-&gt;vcpu_affinity, ...)</code>，<code>vm.c:865-866</code>），<code>vm_check_vcpu_affinity</code> 校验不重复、不越界（<code>vm.c:164-180</code>）。</li>
+<li><strong>动态分配</strong>：<code>VM_FLAGS_DYNAMIC_AFF</code> 置位时，<code>vmtag_check_and_config</code> 调 <code>get_vcpu_affinity</code>（<code>vm.c:466-469</code>），从全局位图 <code>vcpu_aff_bitmap</code> 上挑空闲核。<code>vcpu_affinity_init</code>（<code>vm.c:381-403</code>）在开机时把已声明 VM 占用的核记进位图，并记录已占用核数 <code>native_vcpus</code>（空闲核数 &#x3D; <code>NR_CPUS - native_vcpus</code>，<code>get_vcpu_affinity</code> 正是用这个差值判断剩余核是否够用，<code>vm.c:415</code>）。</li>
+</ol>
+<h3 id="2-7-跨核打断"><a href="#2-7-跨核打断" class="headerlink" title="2.7 跨核打断"></a>2.7 跨核打断</h3><ul>
+<li><code>pcpu_resched(pcpu_id)</code>（<code>sched.c:120-123</code>）：给目标核发 <code>CONFIG_MINOS_RESCHED_IRQ</code> SGI，让目标核从 guest&#x2F;异常返回路径检查重调度。</li>
+<li><code>pcpu_irqwork(pcpu_id)</code>（<code>sched.c:125-128</code>）：发 <code>CONFIG_MINOS_IRQWORK_IRQ</code>，目标核的 <code>irqwork_handler</code> 处理 <code>new_list</code>。</li>
+</ul>
+<p>两个 SGI handler 在 <code>local_sched_init</code>（<code>sched.c:477-490</code>）注册。</p>
+<p>这两个 SGI 是第 2.3 节跨核入队（<code>smp_percpu_task_ready</code> → <code>pcpu_irqwork</code>）和后面第 4 章 <code>kick_vcpu</code> 跨核唤醒的底层通道：**目标核收到 SGI 后，在异常返回路径检查 resched 标志或处理 <code>new_list</code>**。</p>
+<hr>
+<h2 id="3-vCPU-的创建与生命周期"><a href="#3-vCPU-的创建与生命周期" class="headerlink" title="3. vCPU 的创建与生命周期"></a>3. vCPU 的创建与生命周期</h2><p>有了任务与调度器的基础，就可以看 vCPU 这一特殊任务是如何被创建、唤醒，以及它的状态如何随 guest 进出而流转的。先看创建流程。</p>
+<h3 id="3-1-创建流程"><a href="#3-1-创建流程" class="headerlink" title="3.1 创建流程"></a>3.1 创建流程</h3><p><code>create_vm</code>（<code>virt/vm.c:885-937</code>）→ <code>create_vcpus</code>（<code>vm.c:786-807</code>）→ 逐个 <code>create_vcpu</code>（<code>vm.c:320-361</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">task = create_vcpu_task(name, vm-&gt;entry_point,</span><br><span class="line">        vm-&gt;vcpu_affinity[vcpu_id], <span class="number">0</span>, <span class="literal">NULL</span>);</span><br><span class="line">task-&gt;return_to_user = vcpu_return_to_user;</span><br><span class="line">task-&gt;exit_from_user = vcpu_exit_from_user;</span><br></pre></td></tr></table></figure>
+
+<p><code>create_vcpu_task</code>（<code>core/task.c:376-382</code>）用 <code>TASK_FLAGS_VCPU | TASK_FLAGS_NO_AUTO_START</code> 创建任务：<strong>不自动启动</strong>（<code>NO_AUTO_START</code>），启动时机由 <code>vcpu_online</code> 决定。</p>
+<p>注意普通任务创建时调 <code>arch_init_task</code> 初始化任务函数（<code>task.c:254-255</code>），而 vCPU 任务跳过这一步——它的”入口”由 <code>arch_vcpu_init</code> 单独设置（<code>arch_virt.c:108-129</code>）。</p>
+<p><code>vcpu-&gt;mode</code> 初始为 <code>IN_ROOT_MODE</code>（<code>vm.c:347</code>），<code>vcpu_event</code> 初始化为 <code>OS_EVENT_TYPE_NORMAL</code>（<code>vm.c:354</code>）。</p>
+<p>UML 时序图（create_vm → create_vcpu 的逐层调用）：</p>
+<p><img src="/images/phase7_create.svg" alt="phase7_create"></p>
+<p>注意创建阶段 vCPU 任务<strong>尚未进入就绪队列</strong>：<code>NO_AUTO_START</code> 让它只是”存在”，真正上线要等第 3.2 节的 <code>vcpu_online</code>。</p>
+<p>也就是说，创建只是把 vCPU 任务”造出来”，还躺在一边；让它进入就绪队列、真正可被调度，是”上线”这一步做的事。</p>
+<h3 id="3-2-任务上线与启动时机"><a href="#3-2-任务上线与启动时机" class="headerlink" title="3.2 任务上线与启动时机"></a>3.2 任务上线与启动时机</h3><p><code>vcpu_online</code>（<code>vm.c:63-67</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ASSERT(vcpu_is_offline(vcpu));</span><br><span class="line">task_ready(vcpu-&gt;task, <span class="number">0</span>);</span><br></pre></td></tr></table></figure>
+
+<p><code>vcpu_is_offline</code> 检查 <code>VCPU_STATE_SUSPEND</code>。启动路径：<code>do_start_vm</code>（<code>vm.c:519-537</code>）只对 vcpu0 调 <code>vcpu_online</code>；多 vCPU 的后续启动靠 guest 内部通过 SGI&#x2F;psci 触发 <code>vcpu_power_on</code>（<code>vm.c:90-116</code>）。</p>
+<p>上线后 vCPU 任务开始在调度器里运行，但它会反复在”执行 guest 代码”和”陷入 EL2 处理事务”之间切换。vCPU 当前处于哪一侧、切换进行到哪一步，用一个字段就能表达——这就是 <code>mode</code> 状态机。它对第 4 章 <code>kick_vcpu</code> 的跨核判断也至关重要。</p>
+<h3 id="3-3-mode-四态状态机"><a href="#3-3-mode-四态状态机" class="headerlink" title="3.3 mode 四态状态机"></a>3.3 mode 四态状态机</h3><p><code>struct vcpu</code> 的 <code>mode</code> 字段（<code>include/virt/vm.h:48-78</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>状态</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>IN_GUEST_MODE</code></td>
+<td>vCPU 正在执行 guest 代码（EL1）</td>
+</tr>
+<tr>
+<td><code>OUTSIDE_GUEST_MODE</code></td>
+<td>已从 guest 退出、尚未执行 <code>OS_HOOK_EXIT_FROM_GUEST</code></td>
+</tr>
+<tr>
+<td><code>IN_ROOT_MODE</code></td>
+<td>运行在 hypervisor（EL2），如处理 trap</td>
+</tr>
+<tr>
+<td><code>OUTSIDE_ROOT_MODE</code></td>
+<td>即将进入 guest、尚未执行 <code>OS_HOOK_ENTER_TO_GUEST</code></td>
+</tr>
+</tbody></table>
+<p>两个切点函数（<code>vm.c:294-318</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">vcpu_return_to_user</span><span class="params">(<span class="keyword">struct</span> task *task, gp_regs *regs)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vcpu</span> *<span class="title">vcpu</span> =</span> (<span class="keyword">struct</span> vcpu *)task-&gt;pdata;</span><br><span class="line"></span><br><span class="line">	vcpu-&gt;mode = OUTSIDE_ROOT_MODE;</span><br><span class="line">	smp_wmb();</span><br><span class="line"></span><br><span class="line">	do_hooks(vcpu, (<span class="type">void</span> *)regs, OS_HOOK_ENTER_TO_GUEST);</span><br><span class="line"></span><br><span class="line">	smp_wmb();</span><br><span class="line">	vcpu-&gt;mode = IN_GUEST_MODE;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">vcpu_exit_from_user</span><span class="params">(<span class="keyword">struct</span> task *task, gp_regs *regs)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vcpu</span> *<span class="title">vcpu</span> =</span> (<span class="keyword">struct</span> vcpu *)task-&gt;pdata;</span><br><span class="line"></span><br><span class="line">	vcpu-&gt;mode = OUTSIDE_GUEST_MODE;</span><br><span class="line">	smp_wmb();</span><br><span class="line"></span><br><span class="line">	do_hooks(vcpu, (<span class="type">void</span> *)regs, OS_HOOK_EXIT_FROM_GUEST);</span><br><span class="line"></span><br><span class="line">	smp_wmb();</span><br><span class="line">	vcpu-&gt;mode = IN_ROOT_MODE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>（<code>OS_HOOK_ENTER_TO_GUEST</code> 触发中断注入，<code>OS_HOOK_EXIT_FROM_GUEST</code> 触发中断回收，分别对应 Phase 5 的 <code>vgic_irq_enter_to_guest</code>&#x2F;<code>exit_from_guest</code>。）</p>
+<p><strong>关键点：先置中间态、再跑钩子、最后置最终态，中间用 <code>smp_wmb</code> 保证顺序。</strong> 这样设计是因为 <code>kick_vcpu</code> 需要读取 <code>mode</code> 判断是否发物理 SGI：<code>smp_wmb/smp_rmb</code> 只保证同一 vCPU 上的读写顺序，不保证远程读者一定采样到最终态——读者可能看到 <code>OUTSIDE_*</code> 中间态。安全性来自 <code>kick_vcpu</code> 对任何 <code>mode != IN_ROOT_MODE</code> 都发 resched（<code>vm.c:240</code>），天然保守，无论采到中间态还是 guest 态都不会漏发。这也是第 4 章 <code>kick_vcpu</code> 判断是否需要发物理 SGI 的依据。</p>
+<p>调用链（由异常向量汇编触发）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">eret 进 guest 前  → task_return_to_user（core/task.c:175-196）→ vcpu_return_to_user</span><br><span class="line">guest 异常进入 EL2 → task_exit_from_user（core/task.c:166-173）→ vcpu_exit_from_user</span><br></pre></td></tr></table></figure>
+
+<p>UML 时序图（进出 guest 时 mode 的完整切换调用序列，含中断注入&#x2F;回收钩子）：</p>
+<p><img src="/images/phase7_modecall.svg" alt="phase7_modecall"></p>
+<p>两张 mermaid 状态图概括：</p>
+<p><img src="/images/phase7_mode.svg" alt="phase7_mode"></p>
+<h3 id="3-4-guest-睡眠与-vcpu-idle"><a href="#3-4-guest-睡眠与-vcpu-idle" class="headerlink" title="3.4 guest 睡眠与 vcpu_idle"></a>3.4 guest 睡眠与 vcpu_idle</h3><p>guest 执行 <code>WFI</code> 会被 trap 到 EL2（<code>arch_vcpu_state_init</code> 里 <code>HCR_EL2.TWI</code> 默认置位，<code>arch_virt.c:198-199</code>），进入 <code>wfi_wfe_handler</code>（<code>arch/aarch64/virt/trap.c:47-51</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">wfi_wfe_handler</span><span class="params">(gp_regs *reg, <span class="type">int</span> ec, <span class="type">uint32_t</span> esr_value)</span></span><br><span class="line">&#123;</span><br><span class="line">	vcpu_idle(get_current_vcpu());</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>vcpu_idle</code>（<code>vm.c:142-145</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">vcpu_idle</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> wait_event(&amp;vcpu-&gt;vcpu_event, vcpu_can_idle(vcpu), <span class="number">0</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>wait_event</code>（<code>include/minos/event.h:51-78</code>）把当前任务状态置 <code>WAIT_EVENT</code> 并挂到 <code>vcpu_event</code> 的等待链表，然后 <code>sched()</code> 让出 CPU。<code>vcpu_can_idle</code>（<code>vm.c:128-140</code>）是等待条件：VM 在线、任务无需停止、无 pending 也无 active 中断（<code>vcpu_has_irq</code> 检查 pending_bitmap 和 active_bitmap 两个位图，<code>virt/virq.c:391-401</code>）。当 <code>kick_vcpu</code> 唤醒该事件时，任务重新就绪、被调度回来，<code>wait_event</code> 返回，vCPU 再次进入 guest。</p>
+<p>这里要澄清一个关键点：**<code>sched()</code> 让出的是”vCPU 任务”，不是”物理核”**。vCPU 进入 <code>WAIT_EVENT</code> 后，<code>pick_next_task</code>（<code>sched.c:226</code>）会在本核就绪队列里选下一个最高优先级任务接着跑——可能是另一个 vCPU、VM0 的内核任务，或 idle 任务（第 2.4 节）。所以：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">guest 执行 WFI → trap 到 EL2 → vcpu_idle → wait_event</span><br><span class="line">    └─ sched() 让出 vCPU 任务（状态置 WAIT_EVENT，从就绪队列移除）</span><br><span class="line">        └─ pick_next_task 选出下一个任务，物理核继续跑别人</span><br><span class="line">            └─ 直到 kick_vcpu 唤醒该 vCPU，它重新入队、被调度回来</span><br></pre></td></tr></table></figure>
+
+<p>即<strong>vCPU 睡眠只是”这个 vCPU 任务不占 CPU 了”，物理核不会闲着</strong>——它被调度器分给其他任务。这正是”vCPU &#x3D; 任务”的意义：guest 的空闲（WFI）通过 <code>sched()</code> 转化为本核 CPU 的高效复用。</p>
+<p>睡眠与唤醒的完整环路：</p>
+<p><img src="/images/phase7_idle.svg" alt="phase7_idle"></p>
+<p><strong>WFI 被 trap 的场景</strong>：<code>VM_FLAGS_NATIVE_WFI</code> 置位时（<code>arch_virt.c:198</code>）<code>TWI</code> 不置位，guest 的 WFI 不 trap、由硬件直接让 CPU 休眠，此时 vCPU 任务保持在 EL1 的”运行中”状态——这影响 <code>kick_vcpu</code> 的判断（见 4.2 第 4 种情况）。</p>
+<p>上面看到 vCPU 在 idle 时会 <code>wait_event</code> 睡眠，那么”谁把它唤醒、如何在另一个核上打断它”就成了下一个问题——这正是 <code>kick_vcpu</code> 的职责。</p>
+<hr>
+<h2 id="4-kick-vcpu：跨核唤醒"><a href="#4-kick-vcpu：跨核唤醒" class="headerlink" title="4. kick_vcpu：跨核唤醒"></a>4. kick_vcpu：跨核唤醒</h2><h3 id="4-1-要解决的问题"><a href="#4-1-要解决的问题" class="headerlink" title="4.1 要解决的问题"></a>4.1 要解决的问题</h3><p>当一个 vCPU 收到虚拟中断（例如另一个 guest 或定时器给它发 virq），它可能处于三种状态：正在本核运行、正在睡眠（WFI 后 idle）、或正在被调度。<code>kick_vcpu</code>（<code>virt/vm.c:201-246</code>）要保证：<strong>目标 vCPU 尽快回到 guest 里响应中断</strong>。对于不在本核的 vCPU，可能还要发一个物理 SGI 去打断它。</p>
+<p>调用入口（<code>virt/virq.c:51-56</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="keyword">inline</span> <span class="title function_">virq_kick_vcpu</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu, <span class="keyword">struct</span> virq_desc *desc)</span></span><br><span class="line">&#123;</span><br><span class="line">	kick_vcpu(vcpu, virq_is_hw(desc) ?</span><br><span class="line">			VCPU_KICK_REASON_HIRQ: VCPU_KICK_REASON_VIRQ);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>send_virq</code>（<code>virq.c:80-118</code>）在把 virq 置为 pending 后调用 <code>virq_kick_vcpu</code>。</p>
+<p>上文是调用入口；下面贴出 <code>kick_vcpu</code> 完整代码，拆开它的四个分支，看它如何根据”同核&#x2F;跨核 × ret × mode”决定要不要发 SGI。</p>
+<h3 id="4-2-四种情况"><a href="#4-2-四种情况" class="headerlink" title="4.2 四种情况"></a>4.2 四种情况</h3><p><code>kick_vcpu</code> 的核心逻辑（<code>virt/vm.c:201-246</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">ret = wake(&amp;vcpu-&gt;vcpu_event);        <span class="comment">// ① 先尝试唤醒事件</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (smp_processor_id() == vcpu_affinity(vcpu))</span><br><span class="line">	<span class="keyword">return</span> ret;                      <span class="comment">// ② 同核：只唤醒即可</span></span><br><span class="line"></span><br><span class="line">mode = vcpu-&gt;mode;                    <span class="comment">// ③ 读目标 vCPU 状态</span></span><br><span class="line">smp_rmb();</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> ((ret &lt; <span class="number">0</span>) &amp;&amp; (mode != IN_ROOT_MODE))          <span class="comment">// ④ 分支 A</span></span><br><span class="line">	pcpu_resched(vcpu_affinity(vcpu));</span><br><span class="line"><span class="keyword">else</span> <span class="keyword">if</span> ((ret &lt; <span class="number">0</span>) &amp;&amp; (vcpu-&gt;vm-&gt;flags &amp; VM_FLAGS_NATIVE_WFI))  <span class="comment">// ⑤ 分支 B</span></span><br><span class="line">	pcpu_resched(vcpu_affinity(vcpu));</span><br></pre></td></tr></table></figure>
+
+<p><code>wake</code>（<code>core/event.c:132-154</code>）返回 <strong>0（唤醒成功）或负值（唤醒失败）</strong>——负值说明任务不在等事件，即已在 ready&#x2F;running 状态。四个分支：</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>条件</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>同核（<code>smp_processor_id() == vcpu_affinity</code>）</td>
+<td>只 <code>wake</code>，不打断（同核无需 SGI，返回路径会自查 resched）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>跨核，<code>ret &lt; 0</code>，<code>mode != IN_ROOT_MODE</code></td>
+<td>vCPU 不在 EL2（在 guest 中或切换途中）：发 resched SGI 打断</td>
+</tr>
+<tr>
+<td>3</td>
+<td>跨核，<code>ret &lt; 0</code>，<code>mode == IN_ROOT_MODE</code>，非 NATIVE_WFI</td>
+<td>vCPU 正在 EL2 处理事务，返回路径会自查，无需 SGI</td>
+</tr>
+<tr>
+<td>4</td>
+<td>跨核，<code>ret &lt; 0</code>，<code>mode == IN_ROOT_MODE</code>，NATIVE_WFI</td>
+<td>额外补发一次 SGI，保证目标核能被物理中断唤醒</td>
+</tr>
+</tbody></table>
+<p>说明：第 2、3、4 种是互斥的（<code>else if</code> 只在前一条件为假时走到）。第 4 种只在本核真正是”root 模式 + native WFI”时才补发；若 vCPU 正在 EL1 执行 WFI，其 <code>mode == IN_GUEST_MODE</code>，会被第 2 种捕获，不走第 4 种。</p>
+<p>以上是 vCPU 作为任务”何时被调度、如何被唤醒”的机制；接下来换到状态一侧——当它真的被切换走&#x2F;切回时，GIC、vtimer、CPU 上下文这些虚拟化状态靠什么统一保存与恢复，这就是 vmodule。</p>
+<hr>
+<h2 id="5-vmodule-机制：虚拟化状态的统一保存-恢复"><a href="#5-vmodule-机制：虚拟化状态的统一保存-恢复" class="headerlink" title="5. vmodule 机制：虚拟化状态的统一保存&#x2F;恢复"></a>5. vmodule 机制：虚拟化状态的统一保存&#x2F;恢复</h2><h3 id="5-1-设计动机"><a href="#5-1-设计动机" class="headerlink" title="5.1 设计动机"></a>5.1 设计动机</h3><p>一个 vCPU 在上下文切换时要保存&#x2F;恢复多种互不相关的状态：CPU 的 EL1 系统寄存器、GICv3 的 List Register 与 VMCR、vtimer 的 CNTV 寄存器、VFP&#x2F;NEON 寄存器……如果每种状态都往 <code>switch_to_task</code> 里塞一个 if 分支，代码会越来越乱、每加一个特性都要改调度器。</p>
+<p>vmodule 把每种”虚拟化状态”抽象成一个模块，统一约定 <code>state_save/restore/init/...</code> 回调，调度器只调一个通用的遍历接口，加新状态只需新注册一个 vmodule。<strong>调度器与具体状态解耦</strong>。</p>
+<h3 id="5-2-结构定义与注册"><a href="#5-2-结构定义与注册" class="headerlink" title="5.2 结构定义与注册"></a>5.2 结构定义与注册</h3><p><code>struct vmodule</code>（<code>include/virt/vmodule.h:12-39</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">vmodule</span> &#123;</span></span><br><span class="line">	<span class="type">char</span> name[<span class="number">32</span>];          <span class="comment">/* 模块名 */</span></span><br><span class="line">	<span class="type">int</span> id;                 <span class="comment">/* 模块 id，即 vcpu-&gt;context[] 的下标 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span>  <span class="comment">/* 挂到全局 vmodule_list */</span></span><br><span class="line">	<span class="type">uint32_t</span> context_size;  <span class="comment">/* 每个 vCPU 独享的上下文大小 */</span></span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 9 个状态回调，由各模块实现 */</span></span><br><span class="line">	<span class="type">void</span> (*state_save)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_restore)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_init)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_deinit)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_reset)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_stop)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_suspend)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_resume)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">	<span class="type">void</span> (*state_dump)(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">void</span> *context);</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>关键成员：<code>id</code> 与 <code>vcpu-&gt;context[]</code> 下标一一对应（见 5.3）；<code>state_save/restore</code> 是每次任务切换都要调的；<code>state_init</code> 是 VM 上线时初始化一次；<code>context_size</code> 决定给每个 vCPU 分配多大的上下文内存。</p>
+<p>注册方式有两种：</p>
+<ol>
+<li><strong>链接期声明</strong>：<code>MINOS_MODULE_DECLARE</code>（<code>include/minos/device_id.h:55-61</code>）把 <code>module_id</code> 放进 <code>__vmodule</code> section，开机时由 <code>vmodules_init</code>（<code>virt/vmodule.c:158-170</code>）遍历 section 统一创建。已有：<code>aarch64 vcpu context</code>（<code>arch_virt.c:361-362</code>）、<code>vfp</code>（<code>arch/aarch64/virt/vfp.c:107-116</code>）。</li>
+<li><strong>运行期注册</strong>：<code>register_vcpu_vmodule(name, init_fn)</code>（<code>vmodule.c:62-74</code>）。已有：<code>gicv3-vmodule</code>（<code>virt/virq_chips/vgicv3.c:1072</code>）、<code>vgicv2</code>（<code>vgicv2.c:778</code>）、<code>vtimer_module</code>（<code>arch/aarch64/virt/vtimer.c:301-304</code>）。</li>
+</ol>
+<p>两种最终都走 <code>create_vmodule</code>（<code>vmodule.c:30-60</code>）：分配 <code>struct vmodule</code>、<code>id = vmodule_class_nr++</code>、调用 <code>init_fn</code> 填充回调。</p>
+<p>注意两点：</p>
+<ul>
+<li>代码里想用 <code>strcmp(name, &quot;vcpu_core&quot;)</code> 把 CPU 上下文模块强制插到链表头（<code>vmodule.c:54-57</code>），但**当前没有任何模块叫 <code>vcpu_core</code>**（arch 模块真名 <code>aarch64 vcpu context</code>，<code>arch_virt.c:361</code>），该分支是死代码，意图未生效。</li>
+<li>实际注册顺序由<strong>注册时机</strong>决定：<code>gicv3-vmodule</code> 最早（<code>irq_init()</code>，<code>core/minos.c:68</code>）、<code>vtimer_module</code> 次之、链接期的 <code>aarch64 vcpu context</code>&#x2F;<code>vfp</code> 最后，链表序为 <code>[gicv3, vtimer, aarch64 vcpu context, vfp]</code>。</li>
+</ul>
+<p>注册顺序决定了 <code>vmodule-&gt;id</code> 与 <code>vcpu-&gt;context[]</code> 的下标，也决定 save&#x2F;restore 的遍历顺序（<code>VCPU_VMODULE_ACTION</code> 按链表头到尾遍历，save 与 restore 同序）。</p>
+<p>以上注册的都是”模块类型”（全局一份链表）；但状态是<strong>每个 vCPU 各自一份</strong>的——同一个 gicv3 模块，vcpu0 和 vcpu1 各需要一块自己的上下文内存。下面看这块内存怎么分配、何时初始化。</p>
+<h3 id="5-3-每-vCPU-的上下文分配"><a href="#5-3-每-vCPU-的上下文分配" class="headerlink" title="5.3 每 vCPU 的上下文分配"></a>5.3 每 vCPU 的上下文分配</h3><p><code>vcpu_vmodules_init</code>（<code>vmodule.c:81-116</code>）在 <code>vm_vcpus_init</code>（<code>vm.c:759-784</code>）里被调用：</p>
+<ul>
+<li>按 <code>vmodule_class_nr</code> 分配 <code>vcpu-&gt;context</code> 指针数组（<code>vm.h:77</code>）。</li>
+<li>遍历链表，为每个有 <code>context_size</code> 的 vmodule <code>malloc</code> 一块独享内存，<code>memset</code> 清零后调 <code>state_init(vcpu, data)</code>。</li>
+</ul>
+<p>之后任何地方都能用 <code>get_vmodule_data_by_id(vcpu, id)</code>（<code>vmodule.c:76-79</code>）取到某个模块的上下文——Phase 6 里 <code>vtimer_handle_cntp_*</code> 就是用它取 vtimer 上下文。</p>
+<h3 id="5-4-save-restore-的触发点"><a href="#5-4-save-restore-的触发点" class="headerlink" title="5.4 save&#x2F;restore 的触发点"></a>5.4 save&#x2F;restore 的触发点</h3><p>状态切换的桥接在 <code>vm.c</code> 与 <code>arch.c</code> 之间：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">vcpu_context_save</span><span class="params">(<span class="keyword">struct</span> task *task)</span>    <span class="comment">/* vm.c:118-121 */</span></span><br><span class="line">&#123;</span><br><span class="line">	save_vcpu_vmodule_state(task_to_vcpu(task));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">vcpu_context_restore</span><span class="params">(<span class="keyword">struct</span> task *task)</span> <span class="comment">/* vm.c:123-126 */</span></span><br><span class="line">&#123;</span><br><span class="line">	restore_vcpu_vmodule_state(task_to_vcpu(task));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这两个函数被 <code>arch_task_sched_out</code>&#x2F;<code>arch_task_sched_in</code> 调用（<code>arch/aarch64/core/arch.c:140-164</code>），而它们又由 <code>switch_to_task</code>（<code>sched.c:267-319</code>）调用。于是每次任务切换必然走 vmodule 遍历。</p>
+<p>遍历本身由宏生成（<code>vmodule.c:138-156</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> VCPU_VMODULE_ACTION(action)				\</span></span><br><span class="line"><span class="meta">	void action##_vcpu_vmodule_state(struct vcpu *vcpu)	\</span></span><br><span class="line"><span class="meta">	&#123;							\</span></span><br><span class="line"><span class="meta">		struct vmodule *vmodule;			\</span></span><br><span class="line"><span class="meta">		list_for_each_entry(vmodule, &amp;vmodule_list, list) &#123;\</span></span><br><span class="line"><span class="meta">			<span class="keyword">if</span> (vmodule-&gt;state_##action) &#123;		\</span></span><br><span class="line"><span class="meta">				vmodule-&gt;state_##action(vcpu,	\</span></span><br><span class="line"><span class="meta">					vcpu-&gt;context[vmodule-&gt;id]);\</span></span><br><span class="line"><span class="meta">			&#125;					\</span></span><br><span class="line"><span class="meta">		&#125;						\</span></span><br><span class="line"><span class="meta">	&#125;</span></span><br><span class="line"></span><br><span class="line">VCPU_VMODULE_ACTION(save)</span><br><span class="line">VCPU_VMODULE_ACTION(restore)</span><br><span class="line">VCPU_VMODULE_ACTION(reset)</span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<p>一次生成 save&#x2F;restore&#x2F;reset&#x2F;stop&#x2F;suspend&#x2F;resume&#x2F;dump 七个遍历函数。</p>
+<p>以 <code>save_vcpu_vmodule_state</code> 为例，它没有手写函数体——是 <code>VCPU_VMODULE_ACTION(save)</code>（vmodule.c:150）在编译期展开生成的。展开后等价于：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">void</span> <span class="title function_">save_vcpu_vmodule_state</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu)</span>   <span class="comment">/* 由宏生成，vmodule.c:150 */</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vmodule</span> *<span class="title">vmodule</span>;</span></span><br><span class="line">	list_for_each_entry(vmodule, &amp;vmodule_list, <span class="built_in">list</span>) &#123;</span><br><span class="line">		<span class="keyword">if</span> (vmodule-&gt;state_save) &#123;</span><br><span class="line">			vmodule-&gt;state_save(vcpu,</span><br><span class="line">				vcpu-&gt;context[vmodule-&gt;id]);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逻辑：遍历全局 <code>vmodule_list</code>（注册时建的链表），对每个模块若有 <code>state_save</code> 回调，就用 <code>vcpu-&gt;context[vmodule-&gt;id]</code> 作为该模块的私有上下文调用它。<code>vmodule-&gt;id</code> 正是 <code>vcpu-&gt;context[]</code> 的下标（见 5.2 注册顺序），所以每个模块从自己的 context 槽位存取状态。</p>
+<p>完整切换时序：</p>
+<p><img src="/images/phase7_vmodule.svg" alt="phase7_vmodule"></p>
+<h3 id="5-5-各-vmodule-一览"><a href="#5-5-各-vmodule-一览" class="headerlink" title="5.5 各 vmodule 一览"></a>5.5 各 vmodule 一览</h3><table>
+<thead>
+<tr>
+<th>vmodule</th>
+<th>保存内容</th>
+<th>位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>aarch64 vcpu context</code></td>
+<td>全部 EL1 系统寄存器 + HCR&#x2F;VTCR&#x2F;VTTBR 等 EL2 虚拟化寄存器</td>
+<td><code>arch_virt.c:239-349</code></td>
+</tr>
+<tr>
+<td><code>gicv3-vmodule</code></td>
+<td>ICH_LR &#x2F; APR &#x2F; VMCR，进 guest 前填 LR</td>
+<td><code>vgicv3.c:1043-1072</code></td>
+</tr>
+<tr>
+<td><code>vtimer_module</code></td>
+<td>CNTV_CVAL&#x2F;CTL，<code>CNTVOFF_EL2</code> 偏移</td>
+<td><code>vtimer.c:97-130</code></td>
+</tr>
+<tr>
+<td><code>vfp</code></td>
+<td>VFP&#x2F;NEON 寄存器（<code>state_init/save/restore</code>）</td>
+<td><code>vfp.c:107-116</code></td>
+</tr>
+</tbody></table>
+<p>注意：<code>state_init</code> 由 <code>vcpu_vmodules_init</code> 在 VM 上线时调用一次；<code>state_save/restore</code> 每次任务切换都调用；<code>state_stop</code> 由 <code>release_vcpu</code> 在销毁时调用（<code>vm.c:248-271</code>）。</p>
+<p>前面几章讲的都是单个 vCPU 在调度器里的行为；最后一个模块 vmcs 则是 vCPU 与 VM0 之间”跨 VM”的通信通道，回答”guest 如何请求 VM0 替它做事”。</p>
+<hr>
+<h2 id="6-vmcs：guest-与-VM0-的共享内存通信协议"><a href="#6-vmcs：guest-与-VM0-的共享内存通信协议" class="headerlink" title="6. vmcs：guest 与 VM0 的共享内存通信协议"></a>6. vmcs：guest 与 VM0 的共享内存通信协议</h2><h3 id="6-1-为什么需要-vmcs"><a href="#6-1-为什么需要-vmcs" class="headerlink" title="6.1 为什么需要 vmcs"></a>6.1 为什么需要 vmcs</h3><p>minos 采用”VM0 托管其他 VM”的模型：VM0（host Linux）通过 hypercall 创建&#x2F;销毁 guest（<code>virt/hypercall.c:28-107</code>）。guest 运行中遇到”需要 VM0 协助”的事件（如访问由 VM0 模拟的设备寄存器、请求时间、请求重启），需要一种<strong>双向请求-应答</strong>机制：guest 把请求发给 VM0，VM0 处理后回传结果。这就是 vmcs（Virtual Machine Communication Structure）——一块同时映射到 guest 和 VM0 的共享内存。</p>
+<h3 id="6-2-vmcs-结构"><a href="#6-2-vmcs-结构" class="headerlink" title="6.2 vmcs 结构"></a>6.2 vmcs 结构</h3><p><code>struct vmcs</code>（<code>include/virt/vmcs.h:6-16</code>），每个 vCPU 一块，<code>__align(1024)</code>：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>trap_type/reason/data</code></td>
+<td>请求的类别、原因、附加数据</td>
+</tr>
+<tr>
+<td><code>trap_ret/result</code></td>
+<td>VM0 的回传结果</td>
+</tr>
+<tr>
+<td><code>host_index</code></td>
+<td>guest 已提交的请求序号（guest 递增，<code>vmcs.c:79</code>）</td>
+</tr>
+<tr>
+<td><code>guest_index</code></td>
+<td>VM0 已处理完成的确认序号（VM0 递增，<code>tools/mvm/main/mvm.c:424</code>）</td>
+</tr>
+<tr>
+<td><code>data[0]</code></td>
+<td>请求携带的数据区（<code>VMCS_DATA_SIZE = 1024-48</code>）</td>
+</tr>
+</tbody></table>
+<p>创建：<code>vm_create_vmcs</code>（<code>vmcs.c:154-187</code>）分配共享内存并映射进 VM0（<code>create_hvm_shmem_map</code>）；<code>vm_create_vmcs_irq</code>（<code>vmcs.c:189-205</code>）给 vCPU 分配一个 hvm virq，用来通知 VM0”有新请求”。</p>
+<h3 id="6-3-请求-应答主流程"><a href="#6-3-请求-应答主流程" class="headerlink" title="6.3 请求-应答主流程"></a>6.3 请求-应答主流程</h3><p><code>__vcpu_trap</code>（<code>vmcs.c:24-129</code>）在 guest 需要 VM0 服务时被调用（MMIO trap 的 <code>trap_mmio_*</code> 等封装见 <code>vmcs.h:58-84</code>）：</p>
+<ol>
+<li><strong>等上一笔请求完成</strong>：<code>while (vmcs-&gt;guest_index != vmcs-&gt;host_index)</code>（<code>vmcs.c:54-66</code>）。循环内 <code>vcpu_affinity(vcpu) &lt; vcpu_affinity(vm0-&gt;vcpus[0])</code> 时 <code>sched()</code>，否则 <code>cpu_relax()</code>。注释意图是”guest 与 VM0 vcpu0 绑在同一物理核时用 <code>sched()</code> 让 VM0 有机会运行、防死锁”（<code>vmcs.c:49-53</code>），注意实现用的是 <code>&lt;</code> 比较而非 <code>==</code> 同核判断。</li>
+<li><strong>写请求</strong>：<code>trap_type/reason/data</code> 写入共享结构，<code>vmcs-&gt;host_index++</code>，<code>smp_mb()</code>（<code>vmcs.c:68-79</code>）。</li>
+<li><strong>通知 VM0</strong>：<code>send_virq_to_vm(vm0, vcpu-&gt;vmcs_irq)</code>（<code>vmcs.c:82</code>），VM0 的驱动收中断、读 vmcs 处理。</li>
+<li><strong>等待应答</strong>：若 <code>nonblock</code> 为 0，<code>while (vmcs-&gt;guest_index != vmcs-&gt;host_index)</code> 等 VM0 处理完——VM0 侧的 <code>vmcs_ack</code> 每处理完一笔就 <code>guest_index++</code>（<code>tools/mvm/main/mvm.c:418-425</code>），两者相等即本笔完成。真正判断”guest 与 VM0 vcpu0 同核”的是 <code>vmcs.c:97-98</code>：相等时把 <code>nonblock</code> 强制置 0（必须阻塞等应答）。第二个循环内用 <code>vcpu_affinity(vcpu) &lt; vm0-&gt;vcpu_nr</code> 决定 <code>sched()</code> 还是 <code>cpu_relax()</code>（<code>vmcs.c:105-124</code>）——用核号与 vCPU 数比较，疑似源码笔误，语义上仍是”让同核 VM0 有机会运行”。</li>
+<li><strong>回传结果</strong>：<code>*result = vmcs-&gt;trap_result</code>，返回 <code>trap_ret</code>。</li>
+</ol>
+<p>握手协议：<strong>host_index 是 guest 侧的”提交计数”（guest 每提交一笔 +1），guest_index 是 VM0 侧的”完成计数”（VM0 每处理完一笔 +1）</strong>。两者相等表示 guest 提交的请求都已处理完，即空闲、可发下一笔。SGI&#x2F;<code>sched</code> 的引入是为了避免”guest 与 VM0 绑在同一物理核上”时的互相等待死锁。</p>
+<p>一次请求-应答的完整时序：</p>
+<p><img src="/images/phase7_vmcs.svg" alt="phase7_vmcs"></p>
+<hr>
+<h2 id="7-关键知识点"><a href="#7-关键知识点" class="headerlink" title="7. 关键知识点"></a>7. 关键知识点</h2><ol>
+<li><strong>vCPU &#x3D; 任务</strong>：vCPU 没有 EL2 函数体，首调由 <code>arch_vcpu_init</code> 设置 guest 入口 PC，经异常返回路径 <code>eret</code> 进 EL1；调度、睡眠、唤醒全部复用 <code>core/task.c</code> + <code>core/sched.c</code>。</li>
+<li><strong>mode 四态是锁步协议</strong>：<code>vcpu_return_to_user</code>&#x2F;<code>vcpu_exit_from_user</code> 先置中间态 → <code>do_hooks</code> → 置最终态，配合 <code>smp_wmb</code>&#x2F;<code>smp_rmb</code> 保证顺序；安全性来自 <code>kick_vcpu</code> 对任何 <code>mode != IN_ROOT_MODE</code> 都发 resched，天然保守。</li>
+<li><strong>kick_vcpu 的分支</strong>：同核只唤醒；<code>ret &lt; 0 &amp;&amp; mode != IN_ROOT_MODE</code> 发 resched SGI；<code>ret &lt; 0 &amp;&amp; mode == IN_ROOT_MODE</code> 时仅 native WFI 场景额外补发一次 SGI，否则靠返回路径自查。</li>
+<li><strong>vmodule 统一状态机</strong>：每种虚拟化状态一个模块，调度器只遍历回调，加新状态不改调度器；名为 <code>vcpu_core</code> 的模块本应最先处理，但该名字当前无模块注册，实际注册序是 gicv3-vmodule 最先、CPU 上下文排第三，save&#x2F;restore 按链表序同向遍历。</li>
+<li><strong>寄存器级上下文切换在异常帧完成</strong>：<code>switch_to_task</code> 不保存&#x2F;恢复通用寄存器，只 <code>mov x18, next</code>；真正换栈靠 <code>exception_return</code> 读 <code>next-&gt;stack_base</code> + <code>LOAD_GP_REGS</code>。vCPU↔vCPU 切换与普通任务同机制，vmodule 只额外处理虚拟化状态（见 2.5）。</li>
+<li><strong>调度器用 <code>cpu == -1</code> 做跨核同步</strong>：唤醒任务前自旋等 <code>task-&gt;cpu == -1</code>，保证任务确实已 sched out。</li>
+<li><strong>vmcs 是共享内存请求-应答协议</strong>：guest 写请求并 <code>host_index++</code>，VM0 处理完 <code>guest_index++</code>，两值相等即空闲；<code>send_virq_to_vm</code> 通知 VM0，与 VM0 同核时靠 <code>sched()</code> 让 VM0 有机会运行以防死锁（实现用 <code>&lt;</code> 比较判断，见 6.3）。</li>
+</ol>
+<hr>
+<h3 id="7-1-代码文件关联速查表"><a href="#7-1-代码文件关联速查表" class="headerlink" title="7.1 代码文件关联速查表"></a>7.1 代码文件关联速查表</h3><p>本文各章讲到的机制主要落在几个关键文件（行号对应正文引用的关键位置）：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>在本文的作用</th>
+<th>关键位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>core/sched.c</code></td>
+<td><strong>调度器主体</strong>：<code>task_ready</code>&#x2F;<code>__wake_up</code>、<code>pick_next_task</code>、<code>switch_to_task</code></td>
+<td>sched.c:267&#x2F;163&#x2F;226&#x2F;638</td>
+</tr>
+<tr>
+<td><code>core/task.c</code></td>
+<td>任务创建与进出 guest 钩子：<code>create_vcpu_task</code>、<code>task_return/exit_from_user</code></td>
+<td>task.c:376&#x2F;175&#x2F;166</td>
+</tr>
+<tr>
+<td><code>virt/vm.c</code></td>
+<td><strong>vCPU 生命周期主线</strong>：<code>create_vcpu</code>、<code>vcpu_online</code>、<code>kick_vcpu</code>、mode 切点、<code>vcpu_idle</code>、亲和性</td>
+<td>vm.c:320&#x2F;201&#x2F;294&#x2F;307</td>
+</tr>
+<tr>
+<td><code>virt/vmodule.c</code></td>
+<td><strong>vmodule 机制</strong>：注册、<code>vcpu_vmodules_init</code> 分配 context、save&#x2F;restore 遍历</td>
+<td>vmodule.c:81&#x2F;138</td>
+</tr>
+<tr>
+<td><code>virt/vmcs.c</code></td>
+<td><strong>vmcs 通信协议</strong>：<code>__vcpu_trap</code> 请求-应答</td>
+<td>vmcs.c:24</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/core/vector.S</code></td>
+<td><strong>异常入口&#x2F;返回</strong>：<code>SAVE_GP_REGS</code> 压栈、<code>exception_return</code> 换栈 + <code>LOAD_GP_REGS</code></td>
+<td>vector.S:120&#x2F;145</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/virt/arch_virt.c</code></td>
+<td>每 vCPU 的 EL1&#x2F;EL2 系统寄存器上下文</td>
+<td>arch_virt.c:239&#x2F;284</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>其余辅助文件（<code>event.c</code>&#x2F;<code>idle.c</code>&#x2F;<code>percpu.h</code>&#x2F;<code>task_def.h</code>&#x2F;<code>virq.c</code>&#x2F;<code>trap.c</code> 等）在正文引用处标注了行号，需要时按引用回查即可。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/" rel="prev" title="Minos 虚拟化: 中断虚拟化">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: 中断虚拟化
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/" rel="next" title="Minos 虚拟化: Hypercall 与设备虚拟化">
+                  Minos 虚拟化: Hypercall 与设备虚拟化 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

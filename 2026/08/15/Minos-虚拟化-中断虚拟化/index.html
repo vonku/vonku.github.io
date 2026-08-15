@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文从 GICv3 硬件机制出发，梳理 Minos 中断虚拟化的完整实现：virq 抽象层如何描述一条虚拟中断的状态，硬件路径如何借助 List Register 直接注入，软件路径又如何模拟 GICD&#x2F;GICR 的 MMIO 访问，以及 vCPU 切换时中断上下文的保存与恢复。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: 中断虚拟化">
+<meta property="og:url" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文从 GICv3 硬件机制出发，梳理 Minos 中断虚拟化的完整实现：virq 抽象层如何描述一条虚拟中断的状态，硬件路径如何借助 List Register 直接注入，软件路径又如何模拟 GICD&#x2F;GICR 的 MMIO 访问，以及 vCPU 切换时中断上下文的保存与恢复。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/images/phase5_flow.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase5_hw_path.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase5_call1.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase5_call2.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase5_call3.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase5_call4.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase5_call5a.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase5_call5b.svg">
+<meta property="article:published_time" content="2026-08-15T01:57:08.000Z">
+<meta property="article:modified_time" content="2026-08-15T02:10:17.818Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/phase5_flow.svg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/","path":"2026/08/15/Minos-虚拟化-中断虚拟化/","title":"Minos 虚拟化: 中断虚拟化"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: 中断虚拟化 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E8%83%8C%E6%99%AF"><span class="nav-text">1. 背景</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-guest-%E5%A6%82%E4%BD%95%E4%BD%BF%E7%94%A8%E4%B8%AD%E6%96%AD"><span class="nav-text">1.1 guest 如何使用中断</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%80%E4%B8%AA%E4%B8%AD%E6%96%AD%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-text">一个中断的生命周期</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#hypervisor-%E5%9C%A8%E5%93%AA%E9%87%8C%E4%BB%8B%E5%85%A5"><span class="nav-text">hypervisor 在哪里介入</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E4%BB%8B%E5%85%A5%EF%BC%9A%E4%B8%89%E4%B8%AA%E6%9C%AC%E8%B4%A8%E9%97%AE%E9%A2%98"><span class="nav-text">为什么要介入：三个本质问题</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-%E7%A1%AC%E4%BB%B6%E5%9F%BA%E7%A1%80%E7%9F%A5%E8%AF%86"><span class="nav-text">1.2 硬件基础知识</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#GICv3-%E5%9F%BA%E7%A1%80"><span class="nav-text">GICv3 基础</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#ICH-%E5%AF%84%E5%AD%98%E5%99%A8%E7%BB%84%EF%BC%9A%E7%A1%AC%E4%BB%B6%E8%99%9A%E6%8B%9F%E5%8C%96%E7%9A%84%E5%85%B3%E9%94%AE"><span class="nav-text">ICH_* 寄存器组：硬件虚拟化的关键</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#ICH-LR-EL2-%E2%80%94%E2%80%94-%E6%B3%A8%E5%85%A5%E7%9A%84%E4%B8%AD%E8%BD%AC%E7%AB%99"><span class="nav-text">ICH_LR_EL2 —— 注入的中转站</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#ICH-HCR-EL2-%E2%80%94%E2%80%94-%E6%80%BB%E5%BC%80%E5%85%B3"><span class="nav-text">ICH_HCR_EL2 —— 总开关</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#ICH-VMCR-EL2-%E2%80%94%E2%80%94-guest-%E7%9C%BC%E4%B8%AD%E7%9A%84-CPU-interface"><span class="nav-text">ICH_VMCR_EL2 —— guest 眼中的 CPU interface</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#ICH-VTR-EL2-%E2%80%94%E2%80%94-%E5%8F%AA%E8%AF%BB%E8%83%BD%E5%8A%9B%E6%8A%A5%E5%91%8A"><span class="nav-text">ICH_VTR_EL2 —— 只读能力报告</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%9B%9B%E8%80%85%E5%8D%8F%E5%90%8C%E7%9A%84%E4%B8%80%E6%AC%A1%E5%AE%8C%E6%95%B4%E6%B3%A8%E5%85%A5%EF%BC%9A"><span class="nav-text">四者协同的一次完整注入：</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96%E7%9A%84%E6%95%B4%E4%BD%93%E6%A1%86%E6%9E%B6"><span class="nav-text">2. 中断虚拟化的整体框架</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-virq-%E6%8A%BD%E8%B1%A1%E5%B1%82"><span class="nav-text">3. virq 抽象层</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-virq-desc%EF%BC%9A%E4%B8%80%E6%9D%A1%E4%B8%AD%E6%96%AD%E7%9A%84%E5%85%A8%E9%83%A8%E7%8A%B6%E6%80%81"><span class="nav-text">3.1 virq_desc：一条中断的全部状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-%E7%8A%B6%E6%80%81%E6%9C%BA"><span class="nav-text">3.2 状态机</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-virq-struct%EF%BC%9A%E6%AF%8F%E4%B8%AA-vCPU-%E4%B8%80%E4%BB%BD%E7%9A%84%E8%BF%90%E8%A1%8C%E6%97%B6%E8%A7%86%E5%9B%BE"><span class="nav-text">3.3 virq_struct：每个 vCPU 一份的运行时视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-SGI-PPI-SPI-%E7%9A%84%E5%A4%84%E7%90%86%E5%B7%AE%E5%BC%82"><span class="nav-text">3.4 SGI&#x2F;PPI&#x2F;SPI 的处理差异</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-virq-chip%EF%BC%9A%E6%8A%BD%E8%B1%A1-ops-%E8%A1%A8"><span class="nav-text">4. virq_chip：抽象 ops 表</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E7%A1%AC%E4%BB%B6%E8%B7%AF%E5%BE%84%EF%BC%9AGICv3-%E7%9A%84-List-Register-%E6%B3%A8%E5%85%A5"><span class="nav-text">5. 硬件路径：GICv3 的 List Register 注入</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-LR-%E7%9A%84%E7%BB%93%E6%9E%84"><span class="nav-text">5.1 LR 的结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E7%A1%AC%E4%BB%B6%E8%B7%AF%E5%BE%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF"><span class="nav-text">5.2 硬件路径完整链路</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE%E9%98%B6%E6%AE%B5%EF%BC%9A%E4%BD%BF%E8%83%BD%E4%B8%AD%E6%96%AD%EF%BC%88%E8%BD%AF%E4%BB%B6%E8%B7%AF%E5%BE%84%EF%BC%8C%E5%89%8D%E7%BD%AE%EF%BC%89"><span class="nav-text">配置阶段：使能中断（软件路径，前置）</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AC%AC%E4%B8%80%E6%AE%B5%EF%BC%9A%E7%89%A9%E7%90%86%E4%B8%AD%E6%96%AD%E5%88%B0%E6%9D%A5-%E2%86%92-%E6%A0%87%E4%B8%BA-pending"><span class="nav-text">第一段：物理中断到来 → 标为 pending</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AC%AC%E4%BA%8C%E6%AE%B5%EF%BC%9A%E8%BF%9B%E5%85%A5-guest-%E5%89%8D-%E2%86%92-%E5%A1%AB-LR"><span class="nav-text">第二段：进入 guest 前 → 填 LR</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E7%AC%AC%E4%B8%89%E6%AE%B5%EF%BC%9A%E9%80%80%E5%87%BA-guest-%E5%90%8E-%E2%86%92-%E5%9B%9E%E6%94%B6-LR"><span class="nav-text">第三段：退出 guest 后 → 回收 LR</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF%E5%9B%BE"><span class="nav-text">完整链路图</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-%E8%BD%AF%E4%BB%B6%E8%B7%AF%E5%BE%84%EF%BC%9AGICD-GICR-%E7%9A%84-MMIO-%E6%A8%A1%E6%8B%9F"><span class="nav-text">6. 软件路径：GICD&#x2F;GICR 的 MMIO 模拟</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E4%BB%8E-trap-%E5%88%B0%E6%A8%A1%E6%8B%9F%E5%99%A8"><span class="nav-text">6.1 从 trap 到模拟器</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-%E5%9C%B0%E5%9D%80%E5%88%86%E6%B4%BE"><span class="nav-text">6.2 地址分派</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-GICD-%E6%A8%A1%E6%8B%9F%EF%BC%9ASPI-%E7%9A%84%E4%BD%BF%E8%83%BD%E4%B8%8E%E9%85%8D%E7%BD%AE"><span class="nav-text">6.3 GICD 模拟：SPI 的使能与配置</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-GICR-%E6%A8%A1%E6%8B%9F%EF%BC%9APPI-SGI-%E7%9A%84%E4%BD%BF%E8%83%BD"><span class="nav-text">6.4 GICR 模拟：PPI&#x2F;SGI 的使能</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-5-%E8%BD%AF%E4%BB%B6%E8%B7%AF%E5%BE%84%E7%9A%84%E2%80%9D%E7%BA%AF%E8%99%9A%E6%8B%9F%E4%B8%AD%E6%96%AD%E2%80%9D%E6%B3%A8%E5%85%A5"><span class="nav-text">6.5 软件路径的”纯虚拟中断”注入</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-GICv2-%E5%AF%B9%E6%AF%94%EF%BC%9A%E7%BA%AF%E8%BD%AF%E4%BB%B6%E6%A8%A1%E6%8B%9F%E7%9A%84-CPU-%E6%8E%A5%E5%8F%A3"><span class="nav-text">7. GICv2 对比：纯软件模拟的 CPU 接口</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E4%B8%8A%E4%B8%8B%E6%96%87%E5%88%87%E6%8D%A2%EF%BC%9Avmodule-%E4%BF%9D%E5%AD%98-%E6%81%A2%E5%A4%8D"><span class="nav-text">8. 上下文切换：vmodule 保存&#x2F;恢复</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#9-SGI-%E4%B8%8E%E7%B3%BB%E7%BB%9F%E5%AF%84%E5%AD%98%E5%99%A8-trap"><span class="nav-text">9. SGI 与系统寄存器 trap</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#10-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">10. 关键知识点</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#11-%E5%87%BD%E6%95%B0%E8%B0%83%E7%94%A8%E5%85%B3%E7%B3%BB%E6%80%BB%E8%A7%88"><span class="nav-text">11. 函数调用关系总览</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#11-1-%E7%B3%BB%E7%BB%9F%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">11.1 系统初始化</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#11-1-1-gicv3-init%EF%BC%9A%E4%B8%BB%E6%A0%B8%E5%88%9D%E5%A7%8B%E5%8C%96%E7%89%A9%E7%90%86-GIC"><span class="nav-text">11.1.1 gicv3_init：主核初始化物理 GIC</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#11-1-2-vgicv3-init%EF%BC%9A%E8%99%9A%E6%8B%9F%E5%B1%82%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">11.1.2 vgicv3_init：虚拟层初始化</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11-2-%E8%99%9A%E6%8B%9F%E6%9C%BA%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="nav-text">11.2 虚拟机初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11-3-%E6%B3%A8%E5%86%8C%E4%B8%AD%E6%96%AD"><span class="nav-text">11.3 注册中断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11-4-%E9%87%8A%E6%94%BE%E4%B8%AD%E6%96%AD"><span class="nav-text">11.4 释放中断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11-5-%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%EF%BC%9A%E4%BA%A7%E7%94%9F%E4%B8%8E%E6%A0%87%E8%AE%B0-pending"><span class="nav-text">11.5 中断处理：产生与标记 pending</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#11-6-%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%EF%BC%9A%E6%B3%A8%E5%85%A5%E4%B8%8E%E5%9B%9E%E6%94%B6"><span class="nav-text">11.6 中断处理：注入与回收</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">85</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: 中断虚拟化 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: 中断虚拟化
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-15 09:57:08" itemprop="dateCreated datePublished" datetime="2026-08-15T09:57:08+08:00">2026-08-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文从 GICv3 硬件机制出发，梳理 Minos 中断虚拟化的完整实现：virq 抽象层如何描述一条虚拟中断的状态，硬件路径如何借助 List Register 直接注入，软件路径又如何模拟 GICD&#x2F;GICR 的 MMIO 访问，以及 vCPU 切换时中断上下文的保存与恢复。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-背景"><a href="#1-背景" class="headerlink" title="1. 背景"></a>1. 背景</h2><h3 id="1-1-guest-如何使用中断"><a href="#1-1-guest-如何使用中断" class="headerlink" title="1.1 guest 如何使用中断"></a>1.1 guest 如何使用中断</h3><p>在深入实现之前，先建立两个整体概念：guest 如何使用中断（它眼中的 GIC 长什么样、一个中断的完整生命周期），以及 hypervisor 为什么要介入、介入在哪一步。这样后面读实现代码时，每一处都能对应回”这是 guest 生命周期里的哪一步”。</p>
+<p>guest 通过三类接口使用 GIC，对应 GICv3 的三类寄存器：</p>
+<ul>
+<li><strong>GICD &#x2F; GICR（MMIO 寄存器）</strong>：配置型寄存器，用于设置中断的使能（<code>GICD_ISENABLER</code>）、类型（<code>GICD_ICFGR</code>）、优先级（<code>GICD_IPRIORITYR</code>）等。guest 启动时由 Linux 的 GIC 驱动初始化。</li>
+<li>**ICC_*（系统寄存器）**：CPU 接口，用于应答中断（<code>ICC_IAR1_EL1</code>）和结束中断（<code>ICC_EOIR1_EL1</code>），guest 的中断处理程序直接读写。</li>
+<li><strong>中断交付</strong>：中断真正”到达” guest 的 CPU，靠硬件把 pending 的中断号递交给 EL1 的异常入口。</li>
+</ul>
+<h4 id="一个中断的生命周期"><a href="#一个中断的生命周期" class="headerlink" title="一个中断的生命周期"></a>一个中断的生命周期</h4><p>以 virtio 网卡中断为例，从 guest 视角走一遍：</p>
+<ol>
+<li><strong>发现</strong>：Linux 启动时解析设备树，读到 GIC 的 GICD&#x2F;GICR 基址与中断号空间。</li>
+<li><strong>初始化配置</strong>：GIC 驱动写 <code>GICD_CTLR</code> 使能 distributor，为 SPI 设置类型（<code>GICD_ICFGR</code>）、优先级（<code>GICD_IPRIORITYR</code>）。</li>
+<li><strong>注册并使能</strong>：virtio 驱动 <code>request_irq()</code> 注册处理函数，然后写 <code>GICD_ISENABLER</code> 使能这个 SPI。</li>
+<li><strong>接收</strong>：网卡有数据时物理中断产生，guest 的 CPU 接口把中断递交给 Linux，CPU 进入 IRQ 异常。</li>
+<li><strong>应答并处理</strong>：处理函数读 <code>ICC_IAR1_EL1</code> 得到中断号，调用 virtio 的 handler。</li>
+<li><strong>结束</strong>：处理完写 <code>ICC_EOIR1_EL1</code>，中断回到 inactive，等待下一次。</li>
+</ol>
+<h4 id="hypervisor-在哪里介入"><a href="#hypervisor-在哪里介入" class="headerlink" title="hypervisor 在哪里介入"></a>hypervisor 在哪里介入</h4><p>这 6 步里，hypervisor（minos）实际只介入两处，其余交给硬件：</p>
+<ul>
+<li><strong>配置类操作（第 2、3 步）会被拦截</strong>：guest 写 GICD&#x2F;GICR 是 MMIO 访问，而这块地址被标成 <code>VM_GUEST_VDEV</code> 类型（<code>include/minos/memattr.h:61</code>，注释为 memory R&#x2F;W will trapped），guest 一读写就陷入 EL2，由 minos 的软件模拟接手（本文第 6 章）。</li>
+<li><strong>真实中断的产生（第 4 步）在 EL2 被截获</strong>：物理中断号是全局的，GIC 把物理 IRQ 路由给 hypervisor（<code>HCR_EL2.IMO</code> 使物理中断进入 EL2），minos 把物理中断号翻译成这个 guest 的虚拟中断号，再注入回 guest（本文第 5 章）。</li>
+<li><strong>应答&#x2F;结束（第 5、6 步）不 trap</strong>：GICv3 的硬件虚拟化让 guest 直接读写 <code>ICC_IAR1_EL1</code>&#x2F;<code>ICC_EOIR1_EL1</code>，硬件自动处理，几乎没有 hypervisor 开销。</li>
+</ul>
+<p>一张时序图概括，标注每步是否陷入 EL2：</p>
+<p><img src="/images/phase5_flow.svg" alt="phase5_flow"></p>
+<h4 id="为什么要介入：三个本质问题"><a href="#为什么要介入：三个本质问题" class="headerlink" title="为什么要介入：三个本质问题"></a>为什么要介入：三个本质问题</h4><p>从 hypervisor 视角看，上面那些”介入”背后是三个必须解决的问题：</p>
+<ol>
+<li><strong>GIC 是共享硬件</strong>。系统中的 GICD（Distributor，全系统共享）和 GICR（Redistributor，每 CPU 一组）只有一份物理实现，多个 guest 不能各自随意读写，否则会互相干扰、甚至破坏 hypervisor 自己的中断配置。</li>
+<li><strong>中断归属需要翻译</strong>。物理中断号（pINTID）是全局的，guest 感知的是虚拟中断号（vINTID）。同一块物理设备的中断要能注入到某个 guest 的某个 vCPU，且 guest 的”使能&#x2F;关闭&#x2F;优先级”操作不能直达硬件。</li>
+<li><strong>有两种做法</strong>。一种是借助 ARM GICv3 提供的硬件虚拟化能力（List Register + VMCR），把要注入的中断直接写进硬件，guest 像用真 GIC 一样收中断；另一种是纯软件模拟——拦截 guest 对 GIC 寄存器的 MMIO 访问，自己维护一份虚拟 GIC 状态。</li>
+</ol>
+<p>minos 对 vGICv3 的实现，恰好两种路径都存在：<strong>注入走硬件 LR，配置走 MMIO 模拟</strong>。本文就沿着这两条路走读代码。</p>
+<h3 id="1-2-硬件基础知识"><a href="#1-2-硬件基础知识" class="headerlink" title="1.2 硬件基础知识"></a>1.2 硬件基础知识</h3><h4 id="GICv3-基础"><a href="#GICv3-基础" class="headerlink" title="GICv3 基础"></a>GICv3 基础</h4><p>为方便后续阅读，这里把本文反复出现、且需对照 ARM GICv3 规范理解的概念列成速查表。不求全面，只覆盖本文实际用到的部分。</p>
+<p><strong>GIC 的三个组成部分</strong></p>
+<p>以 SPI 为例，中断在三者之间的流向如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">外设中断源（SPI）</span><br><span class="line">      │</span><br><span class="line">      ▼</span><br><span class="line">┌────────────────────────────────┐</span><br><span class="line">│        GICD  Distributor       │</span><br><span class="line">│     enable/priority/route SPI  │</span><br><span class="line">└──────────────┬─────────────────┘</span><br><span class="line">               │ 按亲和性路由</span><br><span class="line">        ┌──────┴──────┐</span><br><span class="line">        ▼             ▼</span><br><span class="line">┌────────────────┐ ┌────────────────┐</span><br><span class="line">│   GICR  CPU0   │ │   GICR  CPU1   │</span><br><span class="line">│  SGI/PPI cfg   │ │  SGI/PPI cfg   │</span><br><span class="line">└───────┬────────┘ └───────┬────────┘</span><br><span class="line">        ▼                  ▼</span><br><span class="line">┌────────────────┐ ┌────────────────┐</span><br><span class="line">│   ICC_*  CPU0  │ │   ICC_*  CPU1  │</span><br><span class="line">│   IAR / EOIR   │ │   IAR / EOIR   │</span><br><span class="line">└───────┬────────┘ └───────┬────────┘</span><br><span class="line">        ▼                  ▼</span><br><span class="line">      CPU0               CPU1</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>GICD（Distributor）</strong>：全局共享、仅一份，负责所有 SPI 的使能&#x2F;优先级&#x2F;路由。</li>
+<li><strong>GICR（Redistributor）</strong>：每个 CPU 一组，负责该 CPU 的 SGI&#x2F;PPI 配置。</li>
+<li>**ICC_*（CPU Interface）**：每个 CPU 一组的系统寄存器，负责应答（IAR）与结束（EOIR）中断。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>全称</th>
+<th>访问方式</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Distributor</td>
+<td>GICD</td>
+<td>MMIO（系统级共享）</td>
+<td>全局配置：SPI 使能、优先级、触发类型、路由</td>
+</tr>
+<tr>
+<td>Redistributor</td>
+<td>GICR</td>
+<td>MMIO（每 CPU 一组）</td>
+<td>该 CPU 的 SGI&#x2F;PPI 配置</td>
+</tr>
+<tr>
+<td>CPU Interface</td>
+<td>ICC_*</td>
+<td>系统寄存器</td>
+<td>应答中断（IAR）、结束中断（EOIR）</td>
+</tr>
+</tbody></table>
+<p><strong>中断类型与编号空间</strong></p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>中断号</th>
+<th>特点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SGI</td>
+<td>0-15</td>
+<td>软件生成，CPU 之间通信用</td>
+</tr>
+<tr>
+<td>PPI</td>
+<td>16-31</td>
+<td>每 CPU 私有</td>
+</tr>
+<tr>
+<td>SPI</td>
+<td>32+</td>
+<td>全局共享，可路由到任意 CPU</td>
+</tr>
+</tbody></table>
+<p><strong>本文涉及的寄存器速查</strong></p>
+<table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>类别</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GICD_CTLR</code></td>
+<td>MMIO</td>
+<td>Distributor 使能</td>
+</tr>
+<tr>
+<td><code>GICD_ISENABLER</code> &#x2F; <code>ICENABLER</code></td>
+<td>MMIO</td>
+<td>使能&#x2F;关闭 SPI</td>
+</tr>
+<tr>
+<td><code>GICD_ICFGR</code></td>
+<td>MMIO</td>
+<td>中断触发类型（电平&#x2F;边沿）</td>
+</tr>
+<tr>
+<td><code>GICD_IPRIORITYR</code></td>
+<td>MMIO</td>
+<td>中断优先级</td>
+</tr>
+<tr>
+<td><code>GICR_ISENABLER</code> &#x2F; <code>ICENABLER</code></td>
+<td>MMIO</td>
+<td>使能&#x2F;关闭 PPI&#x2F;SGI</td>
+</tr>
+<tr>
+<td><code>ICC_IAR1_EL1</code></td>
+<td>系统寄存器</td>
+<td>应答中断，读出中断号</td>
+</tr>
+<tr>
+<td><code>ICC_EOIR1_EL1</code></td>
+<td>系统寄存器</td>
+<td>结束中断（EOI）</td>
+</tr>
+<tr>
+<td><code>ICH_LR&lt;n&gt;_EL2</code></td>
+<td>EL2 系统寄存器</td>
+<td>List Register，hypervisor 注入虚拟中断</td>
+</tr>
+<tr>
+<td><code>ICH_HCR_EL2</code></td>
+<td>EL2 系统寄存器</td>
+<td>使能 List Register 处理</td>
+</tr>
+<tr>
+<td><code>ICH_VMCR_EL2</code></td>
+<td>EL2 系统寄存器</td>
+<td>虚拟 CPU interface 控制</td>
+</tr>
+<tr>
+<td><code>ICH_VTR_EL2</code></td>
+<td>EL2 系统寄存器</td>
+<td>读取 LR 数量、优先级位数</td>
+</tr>
+<tr>
+<td><code>HCR_EL2.IMO</code> &#x2F; <code>FMO</code></td>
+<td>EL2 系统寄存器</td>
+<td>物理 IRQ&#x2F;FIQ 路由到 EL2</td>
+</tr>
+</tbody></table>
+<p><strong>中断状态机（硬件视角）</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">inactive ──中断到来──▶ pending ──CPU 应答(IAR)──▶ active ──EOI──▶ inactive</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>inactive</strong>：无中断。</li>
+<li><strong>pending</strong>：已产生、等待 CPU 应答。</li>
+<li><strong>active</strong>：CPU 已应答、正在处理。</li>
+<li><strong>active and pending</strong>：处理过程中又来了新的一笔（边沿触发常见）。</li>
+</ul>
+<p><strong>虚拟化关键点</strong>：GICv3 的硬件虚拟化能力集中在 <code>ICH_*</code> 寄存器组——这是让”交付不 trap”成为可能的硬件基础，也是理解第 5 章硬件路径的前提，下面单独展开。</p>
+<h4 id="ICH-寄存器组：硬件虚拟化的关键"><a href="#ICH-寄存器组：硬件虚拟化的关键" class="headerlink" title="ICH_* 寄存器组：硬件虚拟化的关键"></a>ICH_* 寄存器组：硬件虚拟化的关键</h4><p>GICv3 的硬件虚拟化能力，落在 EL2 的一组”虚拟中断控制”寄存器上。hypervisor 用它们预先准备好要投递给 guest 的中断，之后交付过程完全由硬件完成。核心成员有四个：</p>
+<table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ICH_LR&lt;n&gt;_EL2</code></td>
+<td>List Register，存放一条待投递的虚拟中断：hypervisor 写入，硬件投递，guest 应答后硬件推进其状态</td>
+</tr>
+<tr>
+<td><code>ICH_HCR_EL2</code></td>
+<td>虚拟化总开关（使能 LR 处理），以及维护中断使能位</td>
+</tr>
+<tr>
+<td><code>ICH_VMCR_EL2</code></td>
+<td>guest 看到的虚拟 CPU interface 配置（使能、优先级掩码等）</td>
+</tr>
+<tr>
+<td><code>ICH_VTR_EL2</code></td>
+<td>只读能力报告：几条 LR、几位优先级</td>
+</tr>
+</tbody></table>
+<ul>
+<li><h5 id="ICH-LR-EL2-——-注入的中转站"><a href="#ICH-LR-EL2-——-注入的中转站" class="headerlink" title="ICH_LR_EL2 —— 注入的中转站"></a><strong>ICH_LR<n>_EL2 —— 注入的中转站</strong></h5></li>
+</ul>
+<p>hypervisor 把一个虚拟中断的完整信息打包写进一条 LR：虚拟中断号 vINTID、可选的关联物理中断号 pINTID、优先级，以及 HW（是否绑定物理中断）、state（初始 pending）等字段（完整位段见 5.1）。</p>
+<p>写完之后硬件接管。guest 随后的两个动作都被硬件直接映射为 LR 的状态推进，全程不陷入 EL2：</p>
+<ul>
+<li>guest 读 <code>ICC_IAR1_EL1</code> 应答 → 硬件从所有 LR 中挑出优先级最高、state&#x3D;pending 的一条，返回其 vINTID，并把该 LR 的 state 推进到 active。</li>
+<li>guest 写 <code>ICC_EOIR1_EL1</code> 结束 → 硬件把对应 LR 的 state 清回 inactive（若处理期间又 pending 则回到 pending+active）。</li>
+</ul>
+<p>因此 hypervisor 只在两个时间点介入：注入前写 LR（第 5 章 enter_to_guest），回收时读 LR 状态清空已完成的条目（第 5 章 exit_from_guest）。</p>
+<blockquote>
+<p><strong>疑问：LR 只有 16 条，够多个 guest 用吗？</strong></p>
+<p>16 条 LR 并不是所有 guest 共享的，不会不够分。原因是：</p>
+<ol>
+<li><strong>LR 是每个物理核一套，不是全局共享</strong>。<code>ICH_LR&lt;n&gt;_EL2</code> 是 EL2 的 per-CPU 寄存器，每个核各有一套 16 条；而同一时刻一个物理核上只跑一个 vCPU，所以这 16 条只服务”当前这个 vCPU”。</li>
+<li><strong>多 guest 靠 vCPU 调度 + vmodule 保存恢复来复用同一套 LR</strong>。切换 vCPU 时，LR 内容随 vmodule 的 <code>state_save/state_restore</code>（第 8 章）一起换进换出，各 guest 的状态互不干扰。</li>
+<li><strong>LR 是”在途中断数”的上限，不是”总中断数”的上限</strong>。中断处理完（EOI）后，<code>exit_from_guest</code> 就把对应 LR 回收复用（<code>vgic.c:135-141</code>）。16 条限制的是”同一 vCPU 同一时刻还挂着（pending&#x2F;active）的中断数”，而不是它能服务的中断总量。</li>
+</ol>
+<p>真正的瓶颈只在一种场景：<strong>单个 vCPU 同时在途中断超过 16 条</strong>。此时 minos 分批注入——LR 装不下就记下 <code>last_fail_virq</code> 并 break，等下一轮进出 guest 再补（<code>vgic.c:72-77</code>、<code>104-109</code> 的重试逻辑，日志 <code>&quot;VM%d no space to send new irq %d&quot;</code>）。硬件其实还提供了维护中断（<code>ICH_HCR_EL2.UIE</code>）在 LR 下溢时主动通知 hypervisor，但 minos 没开。</p>
+<p>实际 Linux guest 里，单个 vCPU 同时在途的中断通常远小于 16，所以 16 条绰绰有余；真超了也只是”延迟注入”而非”丢中断”——因为 <code>pending_bitmap</code> 里还记着，下一轮会补上。</p>
+</blockquote>
+<ul>
+<li><h5 id="ICH-HCR-EL2-——-总开关"><a href="#ICH-HCR-EL2-——-总开关" class="headerlink" title="ICH_HCR_EL2 —— 总开关"></a><strong>ICH_HCR_EL2 —— 总开关</strong></h5></li>
+</ul>
+<p>最关键的位是 En（bit 0）：使能整套 LR 处理机制，不置它 LR 不会生效。minos 在 vmodule 状态初始化时写 <code>ICH_HCR_EL2 = GICH_HCR_EN</code>。</p>
+<p>其余位（UIE&#x2F;LRENPIE&#x2F;NPIE&#x2F;VGrp*EIE 等）用于在”LR 用完””LR 清空””guest EOI”等事件发生时产生维护中断（maintenance interrupt），让硬件主动通知 hypervisor 补 LR。minos 目前只开了 En，注入靠进出 guest 时软件轮询 pending_bitmap 完成（对应第 5 章的 enter&#x2F;exit_from_guest），没有依赖维护中断。</p>
+<ul>
+<li><h5 id="ICH-VMCR-EL2-——-guest-眼中的-CPU-interface"><a href="#ICH-VMCR-EL2-——-guest-眼中的-CPU-interface" class="headerlink" title="ICH_VMCR_EL2 —— guest 眼中的 CPU interface"></a><strong>ICH_VMCR_EL2 —— guest 眼中的 CPU interface</strong></h5><ul>
+<li>VENG1（bit 1）：使能虚拟 Group1 中断投递，不置则 guest 收不到任何虚拟中断。minos 置 <code>GICH_VMCR_VENG1</code>。</li>
+<li>VPMR（bit[31:24]）：虚拟优先级掩码，guest 读 <code>ICC_PMR_EL1</code> 得到的就是它。minos 置 0xff，即不屏蔽任何优先级。</li>
+</ul>
+</li>
+</ul>
+<p>guest 感知不到真实的 CPU interface 配置，它读到的优先级掩码、中断使能等，来自这个寄存器虚拟出来的值。</p>
+<p>其余还有 VEOIM（虚拟 EOI 模式）、VBPR（优先级分组）等控制 guest 侧 EOI 语义的字段，minos 未配置，沿用默认。</p>
+<ul>
+<li><h5 id="ICH-VTR-EL2-——-只读能力报告"><a href="#ICH-VTR-EL2-——-只读能力报告" class="headerlink" title="ICH_VTR_EL2 —— 只读能力报告"></a><strong>ICH_VTR_EL2 —— 只读能力报告</strong></h5></li>
+</ul>
+<p>hypervisor 启动时读它确定硬件的 LR 数量和优先级位数。<code>vgicv3_init</code>（<code>vgicv3.c:1067-1069</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">val = read_sysreg32(ICH_VTR_EL2);</span><br><span class="line">gicv3_nr_lr = (val &amp; <span class="number">0x3f</span>) + <span class="number">1</span>;        <span class="comment">// ListRegs 字段</span></span><br><span class="line">gicv3_nr_pr = ((val &gt;&gt; <span class="number">29</span>) &amp; <span class="number">0x7</span>) + <span class="number">1</span>; <span class="comment">// PRIbits 字段</span></span><br></pre></td></tr></table></figure>
+
+<p>QEMU 的 cortex-a53 上通常报告 16 条 LR；优先级位数由 PRIbits 字段决定。</p>
+<ul>
+<li><h5 id="四者协同的一次完整注入："><a href="#四者协同的一次完整注入：" class="headerlink" title="四者协同的一次完整注入："></a><strong>四者协同的一次完整注入</strong>：</h5></li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">初始化：读 ICH_VTR_EL2（几条 LR）→ 设 ICH_HCR_EL2.En → 设 ICH_VMCR_EL2（VENG1 | VPMR）</span><br><span class="line">注入：hypervisor 写 ICH_LR0_EL2（vINTID=48, state=pending）</span><br><span class="line">交付：硬件投递给 guest → guest 读 IAR 得 48 → 该 LR 的 state 变 active</span><br><span class="line">结束：guest 写 EOIR → 硬件把 LR state 清 inactive → hypervisor 回收该 LR</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h2 id="2-中断虚拟化的整体框架"><a href="#2-中断虚拟化的整体框架" class="headerlink" title="2. 中断虚拟化的整体框架"></a>2. 中断虚拟化的整体框架</h2><p>先看 minos 里的分层关系：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">+----------------------+   virt/virq.c        中断抽象层（virq_desc / 状态机 / 发送）</span><br><span class="line">|    virq 抽象层        |   每个 VM 一份 desc，每个 vCPU 一份 bitmap</span><br><span class="line">+----------------------+</span><br><span class="line">           │  调用 ops 表（virq_chip）</span><br><span class="line">           │ </span><br><span class="line">+----------------------+   virt/virq_chips/   虚拟中断控制器实现</span><br><span class="line">|   virq_chip 实现      |   vgicv3.c / vgicv2.c / bcm_virq.c / vaic.c</span><br><span class="line">+----------------------+</span><br><span class="line">           │  写入</span><br><span class="line">+----------------------+</span><br><span class="line">|   物理 GIC 硬件       |   ICH_LR 等 EL2 寄存器</span><br><span class="line">+----------------------+</span><br></pre></td></tr></table></figure>
+
+<p>中断号按 ARM GIC 惯例分成三类，minos 用宏把它们映射到 virq 编号空间（<code>include/virt/virq.h:25-51</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>中断号范围</th>
+<th>minos 的 virq 编号</th>
+<th>归属</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SGI</td>
+<td>0-15</td>
+<td><code>0 ~ VM_SGI_VIRQ_NR-1</code>（默认 16）</td>
+<td>每 vCPU 本地（软件触发）</td>
+</tr>
+<tr>
+<td>PPI</td>
+<td>16-31</td>
+<td><code>VM_SGI_VIRQ_NR ~ VM_LOCAL_VIRQ_NR-1</code></td>
+<td>每 vCPU 本地</td>
+</tr>
+<tr>
+<td>SPI</td>
+<td>32+</td>
+<td><code>VM_LOCAL_VIRQ_NR + (virq-32)</code></td>
+<td>整个 VM 共享</td>
+</tr>
+</tbody></table>
+<p>其中 <code>VM_LOCAL_VIRQ_NR = VM_SGI_VIRQ_NR + VM_PPI_VIRQ_NR = 32</code>，对应 ARM 里的”本地 32 个中断”。SPI 的容量按 VM 类型区分：HVM（host VM）默认 384 个（<code>HVM_SPI_VIRQ_NR</code>），普通 guest VM 默认 64 个（<code>GVM_SPI_VIRQ_NR</code>）。</p>
+<hr>
+<h2 id="3-virq-抽象层"><a href="#3-virq-抽象层" class="headerlink" title="3. virq 抽象层"></a>3. virq 抽象层</h2><h3 id="3-1-virq-desc：一条中断的全部状态"><a href="#3-1-virq-desc：一条中断的全部状态" class="headerlink" title="3.1 virq_desc：一条中断的全部状态"></a>3.1 virq_desc：一条中断的全部状态</h3><p>每个虚拟中断对应一个 <code>struct virq_desc</code>（<code>include/virt/virq.h:76-88</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">virq_desc</span> &#123;</span></span><br><span class="line">	<span class="type">int32_t</span> flags;</span><br><span class="line">	<span class="type">uint16_t</span> vno;      <span class="comment">/* 虚拟中断号 */</span></span><br><span class="line">	<span class="type">uint16_t</span> hno;      <span class="comment">/* 物理中断号（非 HW 中断时为 0） */</span></span><br><span class="line">	<span class="type">uint8_t</span> id;        <span class="comment">/* 在 List Register 中的槽位，无则为 VIRQ_INVALID_ID */</span></span><br><span class="line">	<span class="type">uint8_t</span> state;     <span class="comment">/* INACTIVE / PENDING / ACTIVE / ACTIVE_AND_PENDING */</span></span><br><span class="line">	<span class="type">uint8_t</span> pr;        <span class="comment">/* 优先级 */</span></span><br><span class="line">	<span class="type">uint8_t</span> src;       <span class="comment">/* SGI 来源（发 SGI 的 vCPU） */</span></span><br><span class="line">	<span class="type">uint8_t</span> type;      <span class="comment">/* 0=LEVEL_HIGH, 1=EDGE_RISING */</span></span><br><span class="line">	<span class="type">uint8_t</span> vcpu_id;   <span class="comment">/* 目标 vCPU 或 VIRQ_AFFINITY_VCPU_ANY */</span></span><br><span class="line">	<span class="type">uint8_t</span> vmid;</span><br><span class="line">	<span class="type">uint8_t</span> padding;</span><br><span class="line">&#125; __packed;</span><br></pre></td></tr></table></figure>
+
+<p>关键字段说明：</p>
+<ul>
+<li><strong>vno &#x2F; hno</strong>：虚拟号与物理号。硬件路径（HW 中断）下两者都有效，写 LR 时同时填 <code>v_intid</code> 和 <code>p_intid</code> 并置 <code>HW=1</code>；纯虚拟中断（如 vGIC 定时器、vdev 生成的中断）hno 为 0，<code>HW=0</code>。</li>
+<li><strong>flags</strong>：一组位标志，最重要的有 <code>VIRQS_ENABLED</code>（guest 已使能该中断）、<code>VIRQS_HW</code>（绑定物理中断）、<code>VIRQS_REQUESTED</code>（已被 request 占用）、<code>VIRQS_FIQ</code>（以 FIQ 注入）。</li>
+<li><strong>state</strong>：中断状态机，见下。</li>
+</ul>
+<h3 id="3-2-状态机"><a href="#3-2-状态机" class="headerlink" title="3.2 状态机"></a>3.2 状态机</h3><p><code>include/virt/virq.h:10-13</code> 定义了 4 个状态：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">INACTIVE  ──收到中断──▶ PENDING  ──注入 LR/交付给 vCPU──▶ ACTIVE</span><br><span class="line">  ▲                                                       │</span><br><span class="line">  └──────────────guest 处理完并 EO ────────────────────────┘</span><br><span class="line">        （EO 时若又 pending，则回到 PENDING）</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>VIRQ_STATE_INACTIVE</code>：无事发生。</li>
+<li><code>VIRQ_STATE_PENDING</code>：中断已产生、等待交付。</li>
+<li><code>VIRQ_STATE_ACTIVE</code>：已交付、guest 正在处理（尚未 End of Interrupt）。</li>
+<li><code>VIRQ_STATE_ACTIVE_AND_PENDING</code>：正在处理期间又来了新的一笔。</li>
+</ul>
+<h3 id="3-3-virq-struct：每个-vCPU-一份的运行时视图"><a href="#3-3-virq-struct：每个-vCPU-一份的运行时视图" class="headerlink" title="3.3 virq_struct：每个 vCPU 一份的运行时视图"></a>3.3 virq_struct：每个 vCPU 一份的运行时视图</h3><p>每个 vCPU 有一个 <code>struct virq_struct</code>（<code>include/virt/virq.h:92-101</code>），保存该 vCPU 所有中断的位图：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">virq_struct</span> &#123;</span></span><br><span class="line">	<span class="type">int</span> nr_lrs;                       <span class="comment">/* 硬件 List Register 数量 */</span></span><br><span class="line">	<span class="type">int</span> last_fail_virq;</span><br><span class="line">	<span class="type">atomic_t</span> pending_virq;            <span class="comment">/* pending 总数（计数） */</span></span><br><span class="line">	<span class="type">uint32_t</span> active_virq;             <span class="comment">/* active 总数 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">virq_desc</span> <span class="title">local_desc</span>[<span class="title">VM_LOCAL_VIRQ_NR</span>];</span>  <span class="comment">/* SGI+PPI 的 desc */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> *pending_bitmap;    <span class="comment">/* 处于 pending 的 virq 位图 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> *active_bitmap;     <span class="comment">/* 处于 active 的 virq 位图 */</span></span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> lrs_bitmap[BITS_TO_LONGS(VGIC_MAX_LRS)]; <span class="comment">/* LR 槽位占用 */</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p>数据结构的分工：</p>
+<ul>
+<li>SGI&#x2F;PPI（0-31）的 desc 存在 <code>local_desc</code> 里，静态内嵌在 virq_struct 中。</li>
+<li>SPI 的 desc 存在 <code>vm-&gt;vspi_desc[]</code> 数组里，所有 vCPU 共享（SPI 归属 VM 而非某个 vCPU）。</li>
+<li><code>get_virq_desc()</code>（<code>virt/virq.c:38-49</code>）按编号决定去哪个表取：<code>virq &lt; VM_LOCAL_VIRQ_NR</code> 取 <code>local_desc[virq]</code>，否则取 <code>vm-&gt;vspi_desc[VIRQ_SPI_OFFSET(virq)]</code>。</li>
+</ul>
+<blockquote>
+<p>为什么 SGI&#x2F;PPI 的 desc 是”每 vCPU 一份”而 SPI 是”VM 一份”？因为 SGI&#x2F;PPI 在硬件上本来就是 per-CPU 的（每个 CPU 各有自己的一份），而 SPI 是全局共享、路由到某个 CPU 的。虚拟化沿用了这个语义。</p>
+</blockquote>
+<p>内存是怎么分配的？<code>virq_create_vm</code>（<code>virt/virq.c:596-642</code>）在 VM 创建时挂 <code>OS_HOOK_CREATE_VM</code> hook，一次性分配：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">vspi_desc[]（每 VM 一份）</span><br><span class="line">vspi_map（SPI 占用位图，每 VM 一份）</span><br><span class="line">pending_bitmap + active_bitmap（每 vCPU 一份）</span><br></pre></td></tr></table></figure>
+
+<p>各 vCPU 的 <code>virq_struct</code> 本体在 vCPU 创建时由 <code>alloc_vcpu</code>（<code>virt/vm.c:281</code>）<code>zalloc</code>，随后 <code>vcpu_virq_struct_init</code>（<code>virt/virq.c:414-439</code>）初始化 <code>local_desc</code>：默认清 HW 标志、置 enable、<code>vcpu_id/vmid = ANY</code>、<code>id = VIRQ_INVALID_ID</code>。</p>
+<h3 id="3-4-SGI-PPI-SPI-的处理差异"><a href="#3-4-SGI-PPI-SPI-的处理差异" class="headerlink" title="3.4 SGI&#x2F;PPI&#x2F;SPI 的处理差异"></a>3.4 SGI&#x2F;PPI&#x2F;SPI 的处理差异</h3><ul>
+<li><strong>SGI</strong>（软件触发中断）：guest 写 <code>ICC_SGI1R_EL1</code> 触发，被 trap 后由 <code>vgicv3_send_sgi</code> 逐目标 vCPU <code>send_virq</code>（见第 9 节）。<code>__send_virq</code> 里对 <code>vno &lt; VM_SGI_VIRQ_NR</code> 的中断会记录 <code>src</code>（来源 vCPU，<code>virt/virq.c:74-75</code>）。需注意：<code>src</code> 目前在 GICv3 路径上没有任何代码把它暴露给 guest（只有 GICv2 的 <code>GICH_LR</code> 会用 <code>pid</code> 携带它），属于预留字段。</li>
+<li><strong>PPI</strong>：per-CPU，由 <code>request_virq_pervcpu</code>（<code>virt/virq.c:532-563</code>）对每个 vCPU 分别 request。</li>
+<li><strong>SPI</strong>：由 <code>alloc_vm_virq</code>（<code>virt/virq.c:565-579</code>）在 <code>vspi_map</code> 里找一个空闲位，返回 <code>virq + VM_LOCAL_VIRQ_NR</code>。</li>
+</ul>
+<hr>
+<h2 id="4-virq-chip：抽象-ops-表"><a href="#4-virq-chip：抽象-ops-表" class="headerlink" title="4. virq_chip：抽象 ops 表"></a>4. virq_chip：抽象 ops 表</h2><p>不同硬件平台的中断控制器行为不同（GICv2、GICv3、树莓派的 BCM、Apple 的 AIC），所以 minos 把”虚拟中断控制器”抽象成一张 ops 表 <code>struct virq_chip</code>（<code>include/virt/virq_chip.h:11-25</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>ops</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>enter_to_guest</code></td>
+<td>进 guest 前调用，把 pending 的中断”装填”给硬件</td>
+</tr>
+<tr>
+<td><code>exit_from_guest</code></td>
+<td>退出 guest 后调用，回收已处理完的中断</td>
+</tr>
+<tr>
+<td><code>send_virq</code></td>
+<td>把单个 virq 注入硬件（GICv3 写 LR）</td>
+</tr>
+<tr>
+<td><code>get_virq_state</code></td>
+<td>读硬件上该 virq 的当前状态（GICv3 读 LR 的 state 位）</td>
+</tr>
+<tr>
+<td><code>update_virq</code></td>
+<td>更新&#x2F;清除硬件上的 virq（GICv3 清 LR）</td>
+</tr>
+<tr>
+<td><code>generate_virq</code></td>
+<td>生成 dtb 里的中断描述（供 guest 设备树使用）</td>
+</tr>
+<tr>
+<td><code>xlate</code></td>
+<td>把设备树中断说明转成 hwirq</td>
+</tr>
+<tr>
+<td><code>vcpu_init</code></td>
+<td>vCPU 初始化时的回调（设置 nr_lrs）</td>
+</tr>
+</tbody></table>
+<p>具体实现通过 <code>VIRQCHIP_DECLARE</code>（<code>include/minos/device_id.h:70-75</code>）注册进链接段 <code>.__virqchip</code>。VM 创建时，<code>create_vm_irqchip_of</code>（<code>virt/resource.c:57-85</code>）根据设备树节点的 compatible 字符串匹配到对应 init 函数（<code>vgicv3_virqchip_init</code>），得到该 VM 的 <code>vm-&gt;virq_chip</code>。也就是说，<strong>每个 VM 可以有自己的虚拟中断控制器实现</strong>。</p>
+<p><code>vgicv3_init_virqchip</code>（<code>virt/virq_chips/vgicv3.c:743-762</code>）把上述 ops 全部绑到 vgic 的实现上，前提是 <code>flags &amp; VIRQCHIP_F_HW_VIRT</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">vgicv3_init_virqchip</span><span class="params">(<span class="keyword">struct</span> virq_chip *vc,</span></span><br><span class="line"><span class="params">		<span class="keyword">struct</span> vgicv3_dev *dev, <span class="type">unsigned</span> <span class="type">long</span> flags)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">if</span> (flags &amp; VIRQCHIP_F_HW_VIRT) &#123;</span><br><span class="line">		vc-&gt;exit_from_guest = vgic_irq_exit_from_guest;</span><br><span class="line">		vc-&gt;enter_to_guest = vgic_irq_enter_to_guest;</span><br><span class="line">		vc-&gt;send_virq = gicv3_send_virq;</span><br><span class="line">		vc-&gt;update_virq = gicv3_update_virq;</span><br><span class="line">		vc-&gt;get_virq_state = gicv3_get_virq_state;</span><br><span class="line">		...</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		pr_warn(<span class="string">&quot;***WARN***vgicv3 currently only support hard virt mode\n&quot;</span>);</span><br><span class="line">	&#125;</span><br><span class="line">	vc-&gt;inc_pdata = dev;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>VIRQCHIP_F_HW_VIRT</code> 这个标志（<code>include/virt/virq_chip.h:9</code>）在 <code>vgicv3_virqchip_init</code> 里被置位（<code>vgicv3.c:866-867</code>，只要 <code>gicd_base != 0</code>）。它表示”走硬件虚拟化”，这也是第 5 节硬件路径存在的前提。<code>inc_pdata</code> 指向 vgicv3_dev（vdev 封装），ops 回调通过它拿到 <code>vgic_gicd/gicr</code> 结构。</p>
+<blockquote>
+<p>值得一提：GICv2 的 <code>vgicv2_init_virqchip</code>（<code>virt/virq_chips/vgicv2.c:561-578</code>）也绑定了同一对 <code>vgic_irq_enter_to_guest/exit_from_guest</code>，说明”进出 guest 时装填&#x2F;回收中断”的框架与具体 GIC 版本无关，差别只在 <code>send_virq</code>（GICv2 写 GICH_LR，GICv3 写 ICH_LR）。</p>
+</blockquote>
+<hr>
+<h2 id="5-硬件路径：GICv3-的-List-Register-注入"><a href="#5-硬件路径：GICv3-的-List-Register-注入" class="headerlink" title="5. 硬件路径：GICv3 的 List Register 注入"></a>5. 硬件路径：GICv3 的 List Register 注入</h2><p>这是”硬件虚拟化”的核心。GICv3 提供一组 <strong>ICH_LR<n>_EL2（List Register）</strong>，hypervisor 把要交给 guest 的中断逐条写进 LR，硬件会在 vCPU 运行时直接把 LR 里的中断当成”自己产生的中断”交付给 EL1，完全不需要每次中断都陷入 EL2。guest 对中断的 EO 也由硬件在后台推进 LR 的状态位。</p>
+<h3 id="5-1-LR-的结构"><a href="#5-1-LR-的结构" class="headerlink" title="5.1 LR 的结构"></a>5.1 LR 的结构</h3><p><code>include/device/gicv3.h:154-163</code> 用 C 位段声明了 LR 的布局，与 ARM 规范 <code>ICH_LR&lt;n&gt;_EL2</code> 一致（GCC&#x2F;Clang 在 aarch64 小端下位段自 LSB 依次分配）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">┌───────────────────┬─────────────┬────────┬───────────┬────────┬─────┬────┬───────┐</span><br><span class="line">│ [31:0]            │ [41:32]     │[47:42] │ [55:48]   │[59:56] │[60] │[61]│[63:62]│</span><br><span class="line">│ vINTID            │ pINTID      │ res0   │ priority  │ res1   │grp  │ hw │ state │</span><br><span class="line">│ v_intid : 32      │ p_intid : 10│        │ priority: │        │group│ hw │       │</span><br><span class="line">└───────────────────┴─────────────┴────────┴───────────┴────────┴─────┴────┴───────┘</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>v_intid[31:0]</code>：交付给 guest 的虚拟中断号。</li>
+<li><code>p_intid[41:32]</code>：关联的物理中断号。仅当 <code>hw=1</code> 时有效。</li>
+<li><code>priority[55:48]</code>：中断优先级；<code>group[60]</code>：组别（1&#x3D;Group1）；<code>hw[61]</code>：见下。</li>
+<li><code>hw[61]</code>：1 表示这条 LR 关联了一个物理中断。此时硬件在 guest 处理完该中断时自动把物理中断 EO 掉（省一次 trap）；<code>hw=0</code> 表示纯虚拟中断，guest 的 EO 会通过 <code>exit_from_guest</code> 由 hypervisor 处理。</li>
+<li><code>state[63:62]</code>：<code>0b01</code>&#x3D;pending，<code>0b10</code>&#x3D;active，<code>0b11</code>&#x3D;pending+active。硬件在交付和 EO 时自动更新这两位；<code>gicv3_get_virq_state</code> 正是读 <code>[63:62]</code> 位获取状态（见 5.2）。</li>
+</ul>
+<blockquote>
+<p>注意：C 位段的具体布局属于实现定义（依赖 ABI&#x2F;编译器）。这里依赖的是 GCC&#x2F;Clang 在 aarch64 小端下”字段自低位起按声明顺序分配”，正好与 ARM 规范一致；<code>(value &gt;&gt; 62) &amp; 3</code> 能读出 state 位也印证了这一点。</p>
+</blockquote>
+<h3 id="5-2-硬件路径完整链路"><a href="#5-2-硬件路径完整链路" class="headerlink" title="5.2 硬件路径完整链路"></a>5.2 硬件路径完整链路</h3><p>一个中断从 guest 使能它，到最终处理完，串起两条路径：先走软件路径完成配置（使能），再走硬件路径完成交付。交付部分又分三段——中断产生侧、注入侧（进 guest 前）、回收侧（退出 guest 后）。</p>
+<h4 id="配置阶段：使能中断（软件路径，前置）"><a href="#配置阶段：使能中断（软件路径，前置）" class="headerlink" title="配置阶段：使能中断（软件路径，前置）"></a>配置阶段：使能中断（软件路径，前置）</h4><p>在物理中断触发之前，guest 要先”使能”它。Linux 启动时，GIC 驱动写 <code>GICD_ISENABLER</code>（使能 SPI）、<code>GICD_ICFGR</code>（设置触发类型）、<code>GICD_IPRIORITYR</code>（设置优先级）等寄存器。这些都是 MMIO 访问，而 GIC 地址在 Stage2 里被标成陷阱区，guest 一写就陷入 EL2：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">guest 写 GICD_ISENABLER → Stage2 触发 DABT → dataabort_tfl_handler</span><br><span class="line">   └─ vdev_mmio_emulation → vgic_mmio_handler → vgic_gicd_mmio_write</span><br><span class="line">       └─ virq_enable（置使能标志，绑定物理中断则 irq_unmask）</span><br></pre></td></tr></table></figure>
+
+<p><code>virq_enable</code>（<code>virt/virq.c:252-265</code>）除了置软件使能标志，对绑定了物理中断的 SPI 还会 <code>irq_unmask(desc-&gt;hno)</code>——物理中断从此才允许进 EL2，触发后面那段交付链路。这一阶段的详细模拟逻辑见第 6 章，这里点到为止：使能之后，中断就”就位”了，等着物理设备触发。</p>
+<h4 id="第一段：物理中断到来-→-标为-pending"><a href="#第一段：物理中断到来-→-标为-pending" class="headerlink" title="第一段：物理中断到来 → 标为 pending"></a>第一段：物理中断到来 → 标为 pending</h4><p>物理设备触发中断 → GIC 硬件把中断路由到某物理核 → 因为 <code>HCR_EL2.IMO</code> 置位，物理中断在 <strong>EL2</strong> 进入 → <code>do_handle_host_irq</code>（<code>core/irq.c:66-88</code>）调 irq 的 handler。</p>
+<p>这个 handler 就是 <code>guest_irq_handler</code>（<code>virt/virq.c:120-138</code>），它是 <code>__request_virq</code> 里 <code>request_irq(hwirq, guest_irq_handler, IRQ_FLAGS_VCPU, ...)</code> 注册的（<code>virt/virq.c:477</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">guest_irq_handler</span><span class="params">(<span class="type">uint32_t</span> irq, <span class="type">void</span> *data)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">virq_desc</span> *<span class="title">desc</span> =</span> (<span class="keyword">struct</span> virq_desc *)data;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> ((!desc) || (!virq_is_hw(desc))) &#123; ... &#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> ((desc-&gt;vmid == VIRQ_AFFINITY_VM_ANY) &amp;&amp;</span><br><span class="line">			(desc-&gt;vcpu_id == VIRQ_AFFINITY_VCPU_ANY))</span><br><span class="line">		vcpu = get_current_vcpu();</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		vcpu = get_vcpu_by_id(desc-&gt;vmid, desc-&gt;vcpu_id);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> send_virq(vcpu, desc);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>send_virq</code>（<code>virt/virq.c:80-118</code>）做三件事：</p>
+<ol>
+<li>检查 VM 状态（只在 ONLINE&#x2F;SUSPEND 时接受，SUSPEND 且中断不能唤醒则丢弃）。</li>
+<li><code>__send_virq</code>（<code>virt/virq.c:58-78</code>）：在 <code>pending_bitmap</code> 里置位该 virq（<code>test_and_set_bit</code> 保证不重复），<code>atomic_inc(&amp;pending_virq)</code>。</li>
+<li><code>virq_kick_vcpu</code>：<code>kick_vcpu(vcpu, ...)</code> 唤醒&#x2F;打断目标 vCPU，让它尽快退出 idle 或被抢占状态、重新进入 guest。</li>
+</ol>
+<blockquote>
+<p>注意：到这一步，中断<strong>还没有</strong>进入硬件 LR，只是记录在内存的 pending_bitmap 里。真正的硬件注入发生在下一次进入 guest 之前。</p>
+</blockquote>
+<h4 id="第二段：进入-guest-前-→-填-LR"><a href="#第二段：进入-guest-前-→-填-LR" class="headerlink" title="第二段：进入 guest 前 → 填 LR"></a>第二段：进入 guest 前 → 填 LR</h4><p>vCPU 任务从 EL2 回到 guest 用户态之前，调度器调用 <code>vcpu_return_to_user</code>（<code>virt/vm.c:294-305</code>），它会先 <code>do_hooks(vcpu, regs, OS_HOOK_ENTER_TO_GUEST)</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">进入 guest：vcpu_return_to_user → OS_HOOK_ENTER_TO_GUEST</span><br><span class="line">   └─ virqchip_enter_to_guest（virq_chip.c:26）</span><br><span class="line">       └─ vgic_irq_enter_to_guest（vgic.c:42）── 扫描 pending_bitmap，逐条写 LR</span><br></pre></td></tr></table></figure>
+
+<p><code>vgic_irq_enter_to_guest</code> 是注入的核心（<code>virt/virq_chips/vgic.c:42-112</code>），逻辑：</p>
+<ol>
+<li>从 <code>last_fail_virq</code> 开始遍历 <code>pending_bitmap</code>。</li>
+<li>对每个 pending 的 virq：<ul>
+<li>若它同时已在 <code>active_bitmap</code> 里（同号中断还在处理中），<strong>跳过</strong>，等上一笔完成（<code>vgic.c:67-68</code>）。</li>
+<li>从 <code>lrs_bitmap</code> 找一个空闲 LR 槽 <code>id</code>；LR 用尽则记 <code>last_fail_virq</code> 并 break，等下一轮再试（<code>vgic.c:71-77</code>）。</li>
+<li><code>virq-&gt;id = id</code>，占住 LR 槽。</li>
+<li><code>virqchip_send_virq(vcpu, virq)</code> → <code>gicv3_send_virq</code>，把 LR 写进硬件（见下）。</li>
+<li>状态置 <code>VIRQ_STATE_PENDING</code>，把 virq 加入 <code>active_bitmap</code>、从 <code>pending_bitmap</code> 摘除（<code>vgic.c:88-101</code>）。</li>
+</ul>
+</li>
+<li>返回 <code>flags</code>：注入了几条、以及是否注入了 FIQ（<code>FIQ_HAS_INJECT</code> 位）。</li>
+</ol>
+<p><code>gicv3_send_virq</code>（<code>virt/virq_chips/vgicv3.c:661-681</code>）真正写 LR：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">gicv3_send_virq</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu, <span class="keyword">struct</span> virq_desc *virq)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">uint64_t</span> value = <span class="number">0</span>;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">gic_lr</span> *<span class="title">lr</span> =</span> (<span class="keyword">struct</span> gic_lr *)&amp;value;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (virq-&gt;id &gt;= gicv3_nr_lr) &#123; ... &#125;</span><br><span class="line"></span><br><span class="line">	lr-&gt;v_intid = virq-&gt;vno;</span><br><span class="line">	lr-&gt;p_intid = virq-&gt;hno;</span><br><span class="line">	lr-&gt;priority = virq-&gt;pr;</span><br><span class="line">	lr-&gt;group = <span class="number">1</span>;</span><br><span class="line">	lr-&gt;hw = !!virq_is_hw(virq);</span><br><span class="line">	lr-&gt;state = <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line">	gicv3_write_lr(virq-&gt;id, value);</span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>写入后硬件接管：guest 在 EL1 运行时，硬件把 LR 里的 <code>v_intid</code> 当作一个真实的 GIC 中断投递到 vCPU，guest 的中断处理程序照常收中断、EO。<strong>这个过程完全不经过 hypervisor</strong>——这就是硬件虚拟化的意义：中断交付路径上没有 trap 开销。</p>
+<h4 id="第三段：退出-guest-后-→-回收-LR"><a href="#第三段：退出-guest-后-→-回收-LR" class="headerlink" title="第三段：退出 guest 后 → 回收 LR"></a>第三段：退出 guest 后 → 回收 LR</h4><p>guest 处理完中断并 EO 后，或者因别的原因退出到 EL2（调度、其他 trap），<code>vcpu_exit_from_user</code>（<code>virt/vm.c:307-318</code>）触发 <code>OS_HOOK_EXIT_FROM_GUEST</code>：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">退出 guest：vcpu_exit_from_user → OS_HOOK_EXIT_FROM_GUEST</span><br><span class="line">   └─ virqchip_exit_from_guest（virq_chip.c:56）</span><br><span class="line">       └─ vgic_irq_exit_from_guest（vgic.c:114）── 扫描 active_bitmap，回收已处理的 LR</span><br></pre></td></tr></table></figure>
+
+<p><code>vgic_irq_exit_from_guest</code>（<code>virt/virq_chips/vgic.c:114-145</code>）：</p>
+<ol>
+<li>遍历 <code>active_bitmap</code> 里的每个 virq。</li>
+<li>调用 <code>virqchip_get_virq_state</code> → <code>gicv3_get_virq_state</code>（<code>vgicv3.c:714-726</code>）：读对应 LR 的 <code>[63:62]</code> 位（即代码里的 <code>(value &gt;&gt; 62) &amp; 3</code>），得到硬件反馈的当前状态。</li>
+</ol>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">gicv3_get_virq_state</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu, <span class="keyword">struct</span> virq_desc *virq)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">uint64_t</span> value;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (virq-&gt;id &gt;= gicv3_nr_lr)</span><br><span class="line">		<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">	value = gicv3_read_lr(virq-&gt;id);</span><br><span class="line">	rmb();</span><br><span class="line">	value = (value &gt;&gt; <span class="number">62</span>) &amp; <span class="number">0x03</span>;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> ((<span class="type">int</span>)value);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ol start="3">
+<li>若状态为 <code>VIRQ_STATE_INACTIVE</code>（guest 已 EO、硬件已把 LR 清空），则：<ul>
+<li><code>virqchip_update_virq(vcpu, virq, VIRQ_ACTION_CLEAR)</code> → <code>gicv3_update_virq</code>（<code>vgicv3.c:683-712</code>）的 CLEAR 分支：<code>gicv3_write_lr(id, 0)</code> 显式清空 LR 槽。该函数里还有一个 <code>VIRQ_ACTION_REMOVE</code> 分支会 <code>irq_clear_pending(hno)</code> 清物理 pending，但当前代码没有任何调用方传 REMOVE，实际走不到。</li>
+<li>释放 LR 槽（<code>clear_bit(virq-&gt;id, lrs_bitmap)</code>），<code>virq-&gt;id = VIRQ_INVALID_ID</code>，从 <code>active_bitmap</code> 摘除，<code>active_virq--</code>。</li>
+</ul>
+</li>
+<li>若状态仍是 pending&#x2F;active（guest 还没处理完），什么都不做，留待下一轮。</li>
+</ol>
+<h4 id="完整链路图"><a href="#完整链路图" class="headerlink" title="完整链路图"></a>完整链路图</h4><p><img src="/images/phase5_hw_path.svg" alt="phase5_hw_path"></p>
+<p>这段链路里最值得体会的是：**”使能”和”配置”是软件路径，”注入”和”EO”是硬件路径**。guest 大部分中断生命周期都不需要陷入 hypervisor。</p>
+<hr>
+<h2 id="6-软件路径：GICD-GICR-的-MMIO-模拟"><a href="#6-软件路径：GICD-GICR-的-MMIO-模拟" class="headerlink" title="6. 软件路径：GICD&#x2F;GICR 的 MMIO 模拟"></a>6. 软件路径：GICD&#x2F;GICR 的 MMIO 模拟</h2><p>guest 初始化时（Linux 的 <code>gic_init_bases</code> 等）会读写一大堆 GICD&#x2F;GICR 寄存器来做配置。这些寄存器不能直接放 guest 碰硬件，所以 minos 把它们”虚拟化”成一个 MMIO 区域：guest 访问时产生 Stage2 数据中止，trap 到 EL2，由模拟器处理。</p>
+<h3 id="6-1-从-trap-到模拟器"><a href="#6-1-从-trap-到模拟器" class="headerlink" title="6.1 从 trap 到模拟器"></a>6.1 从 trap 到模拟器</h3><p>Stage2 上 GIC 区域没有映射（或映射为 trap），guest 一读写就产生 DABT。上一阶段的 <code>dataabort_tfl_handler</code>（<code>arch/aarch64/virt/trap.c:241-294</code>）取出故障地址（IPA）后：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ret = vdev_mmio_emulation(regs, iswrite, ipa, &amp;value);   <span class="comment">// trap.c:272</span></span><br></pre></td></tr></table></figure>
+
+<p><code>vdev_mmio_emulation</code>（<code>virt/vdev.c:198-238</code>）遍历当前 VM 的 vdev 链表，用地址匹配 vdev 注册的 iomem 区间：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">list_for_each_entry(vdev, &amp;vm-&gt;vdev_list, <span class="built_in">list</span>) &#123;</span><br><span class="line">	idx = <span class="number">0</span>;</span><br><span class="line">	va = vdev-&gt;gvm_area;</span><br><span class="line">	<span class="keyword">while</span> (va) &#123;</span><br><span class="line">		<span class="keyword">if</span> ((address &gt;= va-&gt;start) &amp;&amp; (address &lt;= va-&gt;end)) &#123;</span><br><span class="line">			ret = handle_mmio(vdev, regs, write, idx,</span><br><span class="line">					address - va-&gt;start, value);</span><br><span class="line">			...</span><br><span class="line">		&#125;</span><br><span class="line">		idx++;</span><br><span class="line">		va = va-&gt;next;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>若没有任何 vdev 认领这个地址，就 <code>trap_vcpu(VMTRAP_TYPE_MMIO, ...)</code> 上报给 host VM（VM0）处理——这是”device passthrough to VM0”的机制。</p>
+<p>vGIC 作为 vdev 注册了 5 个地址区间：GICD、GICR、GICC、GICH、GICV（<code>vgicv3_virqchip_init</code>，<code>vgicv3.c:832-836</code>）。GICD&#x2F;GICR 有完整模拟，GICC&#x2F;GICH&#x2F;GICV 在 GICv3 下用不到（CPU 接口走系统寄存器而非 MMIO），所以 <code>vgic_mmio_handler</code> 里只实现了 GICD 和 GICR 两类（<code>vgicv3.c:444-447</code>）。</p>
+<h3 id="6-2-地址分派"><a href="#6-2-地址分派" class="headerlink" title="6.2 地址分派"></a>6.2 地址分派</h3><p><code>vgic_mmio_handler</code>（<code>vgicv3.c:416-474</code>）先确定这次访问属于哪个子模块：</p>
+<ul>
+<li><code>idx == VGICV3_IDX_GICD</code> → GICD。</li>
+<li><code>idx == VGICV3_IDX_GICR</code> → 先查当前 vCPU 自己的 GICR（<code>offset_to_gicr_type</code> 把 GICR 的 128KB 空间分成 RD（前 64K）和 SGI（后 64K）两个区），若不在自己这组就再查其他 vCPU 的 GICR——因为 master vCPU 可能访问别的 vCPU 的 GICR（<code>vgicv3.c:437-443</code>）。</li>
+<li>定位到类型后调 <code>vgic_gicd_mmio</code> &#x2F; <code>vgic_gicr_rd_mmio</code> &#x2F; <code>vgic_gicr_sgi_mmio</code>。</li>
+</ul>
+<h3 id="6-3-GICD-模拟：SPI-的使能与配置"><a href="#6-3-GICD-模拟：SPI-的使能与配置" class="headerlink" title="6.3 GICD 模拟：SPI 的使能与配置"></a>6.3 GICD 模拟：SPI 的使能与配置</h3><p><code>vgic_gicd_mmio_read/write</code>（<code>vgicv3.c:204-293</code>）用 switch 处理各寄存器。两个最有代表性的：</p>
+<p><strong>GICD_ISENABLER（使能 SPI，写 1 生效）</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> GICD_ISENABLER...GICD_ISENABLER_END:</span><br><span class="line">	x = (offset - GICD_ISENABLER) / <span class="number">4</span>;</span><br><span class="line">	y = x * <span class="number">32</span>;</span><br><span class="line">	for_each_set_bit(bit, value, <span class="number">32</span>)</span><br><span class="line">		virq_enable(vcpu, y + bit);</span><br><span class="line">	<span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p>每个 ISENABLER 寄存器管 32 个 SPI，<code>y = x*32</code> 算出这 32 个的起始编号。对每个置位位调用 <code>virq_enable</code>（<code>virt/virq.c:252-265</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">virq_enable</span><span class="params">(<span class="keyword">struct</span> vcpu *vcpu, <span class="type">uint32_t</span> virq)</span></span><br><span class="line">&#123;</span><br><span class="line">	desc = get_virq_desc(vcpu, virq);</span><br><span class="line">	virq_set_enable(desc);</span><br><span class="line">	<span class="keyword">if</span> ((virq &gt; VM_LOCAL_VIRQ_NR) &amp;&amp; virq_is_hw(desc))</span><br><span class="line">		irq_unmask(desc-&gt;hno);    <span class="comment">/* 解开对应的物理中断屏蔽 */</span></span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>virq_set_enable</code> 只置软件标志；如果是绑定了物理中断的 SPI，还要 <code>irq_unmask(desc-&gt;hno)</code> 真的把物理中断使能——物理中断从此才允许进 EL2 触发 <code>guest_irq_handler</code>。这就是”guest 使能虚拟中断 → 物理中断真正解屏蔽”的联动。</p>
+<p><strong>GICD_ICFGR（中断触发类型，边沿&#x2F;电平）</strong>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> GICD_ICFGR...GICD_ICFGR_END:</span><br><span class="line">	vgic_set_virq_type(vcpu, offset, *value);</span><br><span class="line">	<span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>vgic_set_virq_type</code>（<code>vgicv3.c:189-202</code>）逐中断调 <code>virq_set_type</code>（<code>virt/virq.c:209-234</code>），后者对 HW 中断会进一步 <code>irq_set_type(desc-&gt;hno, ...)</code> 把触发方式同步给物理 GIC。</p>
+<p>GICD 模拟的只读寄存器（GICD_CTLR&#x2F;TYPER&#x2F;PIDR2&#x2F;STATUSR）则返回内存里保存的值。<code>vgic_gicd_init</code>（<code>vgicv3.c:488-516</code>）在 VM 创建时构造 <code>gicd_typer</code>，向 guest 报告 CPU 接口数（<code>vcpu_nr &lt;&lt; 5</code>）、SPI 容量（<code>ItLinesNumber = (vspi_nr+32)/32 - 1</code>）、IDbits（<code>9 &lt;&lt; 19</code>，表示支持大中断号空间）。</p>
+<h3 id="6-4-GICR-模拟：PPI-SGI-的使能"><a href="#6-4-GICR-模拟：PPI-SGI-的使能" class="headerlink" title="6.4 GICR 模拟：PPI&#x2F;SGI 的使能"></a>6.4 GICR 模拟：PPI&#x2F;SGI 的使能</h3><p>GICR 的 SGI 区（后 64K）里有 <code>GICR_ISENABLER/GICR_ICENABLER</code> 管 PPI&#x2F;SGI 的使能，<code>vgic_gicr_sgi_mmio</code>（<code>vgicv3.c:329-387</code>）用 <code>gicr-&gt;gicr_enabler0</code> 这个软件影子变量记录状态：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> GICR_ISENABLER:</span><br><span class="line">	spin_lock(&amp;gicr-&gt;gicr_lock);</span><br><span class="line">	for_each_set_bit(bit, value, <span class="number">32</span>) &#123;</span><br><span class="line">		<span class="keyword">if</span> (!(gicr-&gt;gicr_enabler0 &amp; BIT(bit))) &#123;</span><br><span class="line">			virq_enable(vcpu, bit);</span><br><span class="line">			gicr-&gt;gicr_enabler0 |= BIT(bit);</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">	spin_unlock(&amp;gicr-&gt;gicr_lock);</span><br><span class="line">	<span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>GICR_ICPENDR0</code> 的写（清 pending）则调 <code>clear_pending_virq</code>（<code>virt/virq.c:343-364</code>），把处于 ACTIVE 状态的 virq 从 <code>active_bitmap</code> 摘除并清掉 LR。</p>
+<p>需要注意：<code>vgic_gicr_sgi_mmio</code> 的 switch 只处理了 <code>GICR_CTLR</code>&#x2F;<code>ISPENDR0</code>&#x2F;<code>ICPENDR0</code>&#x2F;<code>ISENABLER</code>&#x2F;<code>ICENABLER</code>&#x2F;<code>PIDR2</code> 这几类，<strong>没有</strong>处理 <code>GICR_ICFGR0/1</code>（PPI&#x2F;SGI 的触发类型配置）。对比 GICD 那边是模拟了 <code>GICD_ICFGR</code> 的（见 6.3），GICR 的 ICFGR 读返回 0、写被 default 分支忽略——这是 minos 的一个未实现项。对大部分场景无碍：SGI 本来就是边沿触发，PPI（如 vtimer）触发类型固定，guest 通常不依赖 GICR_ICFGR。</p>
+<p>GICR 还有个细节：Linux 用 <code>GICR_TYPER</code> 的 bit4（Last）判断哪个 GICR 是最后一个，<code>vgic_gicr_init</code>（<code>vgicv3.c:543-545</code>）在最后一个 vCPU 的 GICR 上置该位。</p>
+<h3 id="6-5-软件路径的”纯虚拟中断”注入"><a href="#6-5-软件路径的”纯虚拟中断”注入" class="headerlink" title="6.5 软件路径的”纯虚拟中断”注入"></a>6.5 软件路径的”纯虚拟中断”注入</h3><p>软件路径不只用于配置。第 5 节的 <code>gicv3_send_virq</code> 同样服务于<strong>纯虚拟中断</strong>（<code>hw=0</code>，如虚拟定时器、virtio 的中断）：某处调用 <code>send_virq_to_vm / send_virq_to_vcpu</code> → 置 pending_bitmap → 进 guest 时写 LR。区别只在 <code>lr-&gt;hw = 0</code>，此时 p_intid 无效，guest 的 EO 由 hypervisor 在 <code>exit_from_guest</code> 里回收 LR 完成。</p>
+<p><code>send_virq_to_vm</code>（<code>virt/virq.c:299-327</code>）只接受 SPI（<code>virq &gt;= VM_LOCAL_VIRQ_NR</code>），且要求该 virq 已使能、非 HW 中断，然后发给它绑定的 vCPU。</p>
+<hr>
+<h2 id="7-GICv2-对比：纯软件模拟的-CPU-接口"><a href="#7-GICv2-对比：纯软件模拟的-CPU-接口" class="headerlink" title="7. GICv2 对比：纯软件模拟的 CPU 接口"></a>7. GICv2 对比：纯软件模拟的 CPU 接口</h2><p>看一遍 GICv2 的实现能更清楚”硬件路径省了什么”。GICv2 的虚拟化有两种模式：</p>
+<ul>
+<li><p><strong>HWA（硬件虚拟化）模式</strong>：与 GICv3 一样，<code>enter_to_guest</code>&#x2F;<code>exit_from_guest</code> 绑定 <code>vgic_irq_enter_to_guest/exit_from_guest</code>（<code>vgicv2.c:561-578</code>），注入走 32 位的 <code>GICH_LR</code>（<code>gicv2_send_virq</code>，<code>vgicv2.c:501</code>）。</p>
+</li>
+<li><p><strong>SWE（软件模拟）模式</strong>：不绑 <code>enter_to_guest</code>（<code>vgicv2.c:564</code> 仅在 <code>HW_VIRT</code> 下绑定），需要<strong>额外模拟 CPU 接口 GICC</strong>（<code>virt/virq_chips/vgicv2.c:379-438</code>）：</p>
+<ul>
+<li><strong>GICC_IAR（读）</strong>：<code>get_pending_virq(get_current_vcpu())</code>（<code>virt/virq.c:366-389</code>）——从 pending_bitmap 里取一个当前可投递的 virq，把它从 pending 转成 active 再返回给 guest。这相当于”用软件实现硬件该干的事”。</li>
+<li><strong>GICC_EOIR（写）</strong>：<code>clear_pending_virq(...)</code>，软件完成 EO。</li>
+<li><strong>GICC_PMR&#x2F;BPR</strong>：返回 zalloc 的 shadow 值（初始 0），写时更新到 <code>vgicc</code> 结构；<strong>GICC_RPR&#x2F;HPPIR</strong>：硬编码返回 <code>0xa0</code>（<code>vgicv2.c:398-405</code>）。</li>
+</ul>
+</li>
+</ul>
+<p>对比结论（GICv3 对应的是 GICv2 的 HWA 模式；SWE 模式是纯软件兜底）：</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>GICv3（minos 当前 QEMU 平台）</th>
+<th>GICv2 HWA</th>
+<th>GICv2 SWE</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>中断交付</td>
+<td>写 ICH_LR，硬件投递给 EL1</td>
+<td>写 32 位 GICH_LR</td>
+<td>guest 读 GICC_IAR 时软件取数</td>
+</tr>
+<tr>
+<td>中断 EO</td>
+<td>硬件推进 LR state，退出后软件回收</td>
+<td>同左</td>
+<td>guest 写 GICC_EOIR，软件清除</td>
+</tr>
+<tr>
+<td>进 guest 前</td>
+<td><code>vgic_irq_enter_to_guest</code> 批量填 LR</td>
+<td>同左</td>
+<td>无 enter_to_guest</td>
+</tr>
+<tr>
+<td>CPU 接口</td>
+<td>系统寄存器（ICC_*），不走 MMIO</td>
+<td>GICH 寄存器</td>
+<td>GICC 需要 MMIO 模拟</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="8-上下文切换：vmodule-保存-恢复"><a href="#8-上下文切换：vmodule-保存-恢复" class="headerlink" title="8. 上下文切换：vmodule 保存&#x2F;恢复"></a>8. 上下文切换：vmodule 保存&#x2F;恢复</h2><p>中断虚拟化的状态（LR、优先级寄存器、VMCR 等）是 per-vCPU 的，当 vCPU 被调度走、换另一个 vCPU 上这个物理核时，必须保存&#x2F;恢复，否则 LR 会串台。minos 用 vmodule 机制（<code>include/virt/vmodule.h</code>）统一处理这类”每 vCPU 一份的虚拟化状态”。</p>
+<p><code>gicv3_vmodule_init</code>（<code>vgicv3.c:1043-1052</code>）填充 vmodule 的 <code>context_size</code> 和四个状态回调，随后 <code>vgicv3_init</code> 里 <code>register_vcpu_vmodule(&quot;gicv3-vmodule&quot;, ...)</code>（<code>vgicv3.c:1072</code>）把它注册成名为 <code>gicv3-vmodule</code> 的 vmodule：</p>
+<ul>
+<li><code>gicv3_state_save</code>（<code>vgicv3.c:942-952</code>）：<code>dsb()</code> 后批量读 ICH_LR（<code>gicv3_save_lrs</code>）、ICH_AP0R&#x2F;AP1R（<code>gicv3_save_aprn</code>）、<code>ICC_SRE_EL1</code>、<code>ICH_VMCR_EL2</code>、<code>ICH_HCR_EL2</code>，存进 <code>struct gicv3_context</code>。</li>
+<li><code>gicv3_state_restore</code>（<code>vgicv3.c:1016-1026</code>）：对称写回，最后 <code>dsb()</code>。</li>
+<li><code>gicv3_state_init</code>（<code>vgicv3.c:1028-1036</code>）：初始状态——<code>ICC_SRE_EL1 = 0x7</code>（使能 EL1 访问系统寄存器接口）、<code>ICH_VMCR_EL2 = GICH_VMCR_VENG1 | (0xff &lt;&lt; 24)</code>（使能 Group1 虚拟中断 + 设定默认优先级掩码）、<code>ICH_HCR_EL2 = GICH_HCR_EN</code>（使能 LR 处理）。</li>
+<li><code>gicv3_state_resume</code>：VM 恢复时重新 init。</li>
+</ul>
+<p>这些回调由 vmodule 框架在 vCPU 调度切换时自动调用（<code>vcpu_vmodules_init / save_vcpu_vmodule_state / restore_vcpu_vmodule_state</code>，见 Phase 7）。LR 数量与优先级寄存器数量来自硬件：<code>vgicv3_init</code>（<code>vgicv3.c:1054-1075</code>）读 <code>ICH_VTR_EL2</code>，<code>gicv3_nr_lr = (val &amp; 0x3f) + 1</code>、<code>gicv3_nr_pr = ((val &gt;&gt; 29) &amp; 0x7) + 1</code>（QEMU cortex-a53 上一般 16 条 LR）。<code>vgicv3_init</code> 在物理 GIC 驱动初始化末尾被调用（<code>drivers/irq-chips/gicv3.c:508</code>）。</p>
+<hr>
+<h2 id="9-SGI-与系统寄存器-trap"><a href="#9-SGI-与系统寄存器-trap" class="headerlink" title="9. SGI 与系统寄存器 trap"></a>9. SGI 与系统寄存器 trap</h2><p>guest 触发 SGI 不走 MMIO，而是写 <code>ICC_SGI1R_EL1</code> 系统寄存器。HCR_EL2 的 TSC&#x2F;TACR 等位使能系统寄存器 trap（见 Phase 3），<code>access_system_reg_handler</code>（<code>arch/aarch64/virt/trap.c:143</code>）捕获后分发：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">case</span> ESR_SYSREG_ICC_SGI1R_EL1:</span><br><span class="line"><span class="keyword">case</span> ESR_SYSREG_ICC_ASGI1R_EL1:</span><br><span class="line">	<span class="keyword">if</span> (!sysreg-&gt;read &amp;&amp; (arm_data-&gt;sgi1r_el1_trap))</span><br><span class="line">		arm_data-&gt;sgi1r_el1_trap(vcpu, reg_value);   <span class="comment">// trap.c:161</span></span><br><span class="line">	<span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>sgi1r_el1_trap</code> 在 vgicv3 创建时绑定为 <code>vgicv3_send_sgi</code>（<code>vgicv3.c:870</code>）。<code>vgicv3_send_sgi</code>（<code>vgicv3.c:96-144</code>）解析 SGI 值：</p>
+<ul>
+<li><code>sgi = (value &gt;&gt; 24) &amp; 0xf</code>：SGI 号（0-15）。</li>
+<li><code>mode = value &amp; (1UL &lt;&lt; 40)</code>：目标模式——<code>SGI_TO_LIST</code>（列表）或 <code>SGI_TO_OTHERS</code>（除自己外所有 vCPU）。</li>
+<li>对目标列表，解出 aff1&#x2F;aff2&#x2F;aff3 和 target list，<code>affinity_to_logic_cpu</code> 换算成 VM 内 vCPU 号；对 others 模式，遍历该 VM 除自己外的所有 vCPU。</li>
+<li>逐个 <code>send_virq_to_vcpu(target, sgi)</code>——也就是复用第 5 节的注入路径，进入 guest 前写 LR。</li>
+</ul>
+<blockquote>
+<p>注：<code>access_system_reg_handler</code> 只拦截 SGI 的<strong>写</strong>。guest 读 ICC_SGI1R 是没意义的（SGI 寄存器只写不读），直接放行即可。</p>
+</blockquote>
+<hr>
+<h2 id="10-关键知识点"><a href="#10-关键知识点" class="headerlink" title="10. 关键知识点"></a>10. 关键知识点</h2><ol>
+<li><strong>中断虚拟化的两条路径</strong>：配置（GICD&#x2F;GICR 寄存器）走 MMIO 软件模拟；交付（写入 LR）走 GICv3 硬件虚拟化。这是 GICv3 相对 GICv2 的核心优势。</li>
+<li><strong>virq 编号与物理中断解耦</strong>：<code>vno</code>（虚拟）与 <code>hno</code>（物理）并存于 <code>virq_desc</code>；<code>hw</code> 标志决定写 LR 时是否携带 p_intid。使能虚拟中断时（<code>virq_enable</code>）才会真正 <code>irq_unmask</code> 对应物理中断。</li>
+<li><strong>状态机 INACTIVE→PENDING→ACTIVE</strong>：pending_bitmap 记录”该给 guest 的”，active_bitmap 记录”已给 guest 在处理的”。同号中断 active 期间再次 pending 会被跳过（<code>vgic.c:67</code>），避免重复注入。</li>
+<li><strong>注入时机在进出 guest 的 hook 里</strong>：<code>OS_HOOK_ENTER_TO_GUEST</code>（<code>vcpu_return_to_user</code>）前批量填 LR；<code>OS_HOOK_EXIT_FROM_GUEST</code>（<code>vcpu_exit_from_user</code>）后读 LR 状态回收。LR 不够时记 <code>last_fail_virq</code> 下轮再试。</li>
+<li><strong>纯虚拟中断与 HW 中断的区别</strong>：纯虚拟中断 <code>hw=0</code>，EO 由 hypervisor 回收 LR；HW 中断 <code>hw=1</code>，硬件自动 EO 物理中断，hypervisor 只回收 LR 槽位。</li>
+<li><strong>上下文切换靠 vmodule</strong>：<code>gicv3-vmodule</code> 在 vCPU 调度切换时保存&#x2F;恢复 ICH_LR、APR、VMCR、HCR。LR 数量来自 <code>ICH_VTR_EL2</code>。</li>
+</ol>
+<hr>
+<h2 id="11-函数调用关系总览"><a href="#11-函数调用关系总览" class="headerlink" title="11. 函数调用关系总览"></a>11. 函数调用关系总览</h2><p>把前文分散在各章的调用链汇总成 6 张 UML 时序图，便于快速定位代码。图中消息已细化到函数内部关键步骤，Note 标注了状态变化（文件与行号均已在前文核实）。</p>
+<h3 id="11-1-系统初始化"><a href="#11-1-系统初始化" class="headerlink" title="11.1 系统初始化"></a>11.1 系统初始化</h3><p><img src="/images/phase5_call1.svg" alt="phase5_call1"></p>
+<p>三个 <code>subsys_initcall</code> 注册运行期 hook：<code>virqs_init</code>（CREATE&#x2F;DESTROY_VM）、<code>virqchip_init</code>（ENTER&#x2F;EXIT_TO_GUEST）、<code>vcpu_vgic_hook_init</code>（VCPU_INIT）。物理 GIC 与虚拟层的初始化细节见下面两个子小节。</p>
+<h4 id="11-1-1-gicv3-init：主核初始化物理-GIC"><a href="#11-1-1-gicv3-init：主核初始化物理-GIC" class="headerlink" title="11.1.1 gicv3_init：主核初始化物理 GIC"></a>11.1.1 gicv3_init：主核初始化物理 GIC</h4><p><code>irq_init</code>（<code>core/irq.c:329</code>）遍历设备树，按 <code>compatible = &quot;arm,gic-v3&quot;</code> 匹配到 GIC 节点后调 <code>gicv3_init</code>（<code>.init</code>）。它分两半：先配全局共享的 GICD（一次），再配主核自己的 per-CPU 接口。</p>
+<p><strong>配置 GICD（全局共享，只需一次）：</strong></p>
+<ol>
+<li><strong>解析地址</strong>：<code>translate_device_address_index</code> 读 dts GIC 节点的 4 段 reg（GICD@0x08000000 &#x2F; GICR@0x080a0000 &#x2F; GICC &#x2F; GICH）存进 <code>array[]</code>，<code>io_remap</code> 映射 GICD 与 GICR。</li>
+<li><strong>校验优先级位数</strong>：读 <code>ICH_VTR_EL2</code>，<code>nr_pr = ((val&gt;&gt;29)&amp;0x7)+1</code>，若不在 5~7 之间则 panic。</li>
+<li><strong>记录每 CPU 的 GICR 基址</strong>：<code>rbase = GICR起始 + i*128KB</code>，per-CPU 存 <code>gicr_rd_base</code>&#x2F;<code>gicr_sgi_base</code>（128KB stride 与 64KB 两段划分是 GICv3 规范固定的）。</li>
+<li><strong>关 GICD</strong>：<code>iowrite32(0, GICD_CTLR)</code>。</li>
+<li><strong>读能力</strong>：<code>GICD_TYPER</code> → <code>nr_lines = 32 * (type &amp; 0x1f)</code>（支持的中断线数）。</li>
+<li><strong>触发类型</strong>：<code>GICD_ICFGR = 0</code>，所有 SPI 默认电平触发、低有效。</li>
+<li><strong>优先级</strong>：<code>GICD_IPRIORITYR = 0xa0</code>，SPI 默认优先级。</li>
+<li><strong>全部禁用</strong>：<code>GICD_ICENABLER = 0xffffffff</code>（写 1 清使能）。</li>
+<li><strong>分组</strong>：<code>GICD_IGROUPR = 0xffffffff</code>，SPI 归 Group1 Non-secure。</li>
+<li><strong>等生效</strong>：<code>gicv3_gicd_wait_for_rwp()</code>，轮询 <code>GICD_CTLR</code> 的 bit31（RWP）清零。</li>
+<li><strong>使能 GICD</strong>：<code>GICD_CTLR = 1 | EN_GRP1 | EN_GRP1A | ARE_NS</code>。</li>
+</ol>
+<p><strong>配置本核 per-CPU 接口：</strong></p>
+<ol start="12">
+<li><code>gicv3_icc_sre_init</code>：<code>ICC_SRE_EL1/EL2 = 0xf</code>，打开 CPU 接口的系统寄存器访问方式（GICv3 核心前提）。</li>
+<li><code>gicv3_gicr_init</code>：唤醒本核 GICR；SGI 优先级 0x90、PPI 0xa0；SGI 使能、PPI 禁用；归 Group1。</li>
+<li><code>gicv3_gicc_init</code>：记录本核 <code>cpus_affinity[cpu]</code>；<code>ICC_BPR1=0</code>、<code>ICC_PMR=0xff</code>、<code>ICC_CTLR=EOImode=1</code>（split 模式）、<code>ICC_IGRPEN1=1</code>。</li>
+<li><code>gicv3_hyp_init</code>：<code>ICH_VMCR_EL2 = VENG1 | 0xff&lt;&lt;24</code>、<code>ICH_HCR_EL2 = EN</code>，为 vGIC 的 LR 注入做准备。</li>
+</ol>
+<p><strong>主核 vs 从核</strong>：<code>gicv3_init</code> 只由主核执行一次；每个从核启动时走 <code>gicv3_secondary_init</code>（<code>gicv3.c:517</code>），只重跑第 12~15 步的 per-CPU 初始化，GICD 是共享的、主核已配好，不重复。</p>
+<p><strong>RWP 等待</strong>：GICD 寄存器写入是异步的，<code>GICD_CTLR</code> 的 bit31（RWP）为 1 表示硬件还在处理之前的写；<code>wait_for_rwp</code> 忙等它清零，确保配置真正生效后再继续。</p>
+<h4 id="11-1-2-vgicv3-init：虚拟层初始化"><a href="#11-1-2-vgicv3-init：虚拟层初始化" class="headerlink" title="11.1.2 vgicv3_init：虚拟层初始化"></a>11.1.2 vgicv3_init：虚拟层初始化</h4><p><code>gicv3_init</code> 末尾调 <code>vgicv3_init(array, 10)</code>（<code>gicv3.c:508</code>）：</p>
+<ol>
+<li><strong>保存地址</strong>：把 <code>array</code> 拷贝进全局 <code>vgicv3_info</code>（GICD&#x2F;GICR&#x2F;GICC&#x2F;GICH 的基址与大小），供之后 VM 创建时 <code>get_vgicv3_info</code> 使用。</li>
+<li><strong>校验</strong>：GICD&#x2F;GICR 的基址与大小非 0，否则 panic。</li>
+<li><strong>读硬件能力</strong>：<code>ICH_VTR_EL2</code> → <code>nr_lr = (val&amp;0x3f)+1</code>（List Register 数量）、<code>nr_pr = ((val&gt;&gt;29)&amp;0x7)+1</code>（优先级位数）。</li>
+<li><strong>注册 vmodule</strong>：<code>register_vcpu_vmodule(&quot;gicv3-vmodule&quot;, gicv3_vmodule_init)</code>，让 gicv3 上下文（LR&#x2F;APR&#x2F;VMCR&#x2F;HCR）随 vCPU 调度保存&#x2F;恢复（见第 8 章）。</li>
+</ol>
+<h3 id="11-2-虚拟机初始化"><a href="#11-2-虚拟机初始化" class="headerlink" title="11.2 虚拟机初始化"></a>11.2 虚拟机初始化</h3><p><img src="/images/phase5_call2.svg" alt="phase5_call2"></p>
+<ul>
+<li><code>virq_create_vm</code>：<code>vspi_nr = vm_max_virq_line()</code> → 算 size、<code>get_free_pages</code> → 布局 <code>vspi_desc</code>&#x2F;<code>vspi_map</code>&#x2F;每 vCPU 的 pending+active bitmap。</li>
+<li><code>vgicv3_virqchip_init</code>：读 dts 5 段地址 → 注册 5 个 MMIO 区间 → gicd&#x2F;gicr 初始化 → 绑 8 个 ops → 挂 <code>sgi1r_el1_trap</code>。</li>
+<li><code>create_vcpu</code>：zalloc <code>virq_struct</code> → <code>vcpu_virq_struct_init</code>（初始化 local_desc）→ hook 设 <code>nr_lrs</code>。</li>
+</ul>
+<h3 id="11-3-注册中断"><a href="#11-3-注册中断" class="headerlink" title="11.3 注册中断"></a>11.3 注册中断</h3><p><img src="/images/phase5_call3.svg" alt="phase5_call3"></p>
+<ul>
+<li>hypervisor 侧：<code>request_hw_virq</code> → <code>__request_virq</code>（置 REQUESTED 防重、设 vno&#x2F;hno、SPI 置 <code>vspi_map</code>、<code>request_irq(guest_irq_handler)</code>、默认 <code>irq_mask</code>）。</li>
+<li>guest 侧：写 <code>GICD_ISENABLER</code> → DABT → <code>dataabort_tfl_handler</code> → <code>vdev_mmio_emulation</code> → <code>vgic_mmio_handler</code> → <code>virq_enable</code>（SPI 且 hw 则 <code>irq_unmask</code>）。</li>
+</ul>
+<h3 id="11-4-释放中断"><a href="#11-4-释放中断" class="headerlink" title="11.4 释放中断"></a>11.4 释放中断</h3><p><img src="/images/phase5_call4.svg" alt="phase5_call4"></p>
+<ul>
+<li>hypervisor 侧：<code>release_vm_virq</code>：<code>memset(virq_desc)</code> + <code>clear_bit(vspi_map)</code>。</li>
+<li>guest 侧：写 <code>GICD_ICENABLER</code> → DABT → <code>vgic_mmio_handler</code> → <code>virq_disable</code> → <code>irq_mask</code>。</li>
+</ul>
+<h3 id="11-5-中断处理：产生与标记-pending"><a href="#11-5-中断处理：产生与标记-pending" class="headerlink" title="11.5 中断处理：产生与标记 pending"></a>11.5 中断处理：产生与标记 pending</h3><p><img src="/images/phase5_call5a.svg" alt="phase5_call5a"></p>
+<ul>
+<li>物理中断进 EL2 → <code>do_handle_host_irq</code> 调 <code>guest_irq_handler</code>（<code>request_irq</code> 注册的 handler）。</li>
+<li><code>send_virq</code> 检查 VM 状态 → <code>__send_virq</code>：<code>test_and_set_bit(pending_bitmap)</code> 防重、<code>atomic_inc(pending_virq)</code>、SGI 记 <code>src</code>。</li>
+<li><code>kick_vcpu</code> 唤醒目标 vCPU；物理侧 <code>irq_eoi</code>&#x2F;<code>irq_dir</code>。此刻仅 pending，尚未写 LR。</li>
+</ul>
+<h3 id="11-6-中断处理：注入与回收"><a href="#11-6-中断处理：注入与回收" class="headerlink" title="11.6 中断处理：注入与回收"></a>11.6 中断处理：注入与回收</h3><p><img src="/images/phase5_call5b.svg" alt="phase5_call5b"></p>
+<ul>
+<li>进 guest：<code>enter_to_guest</code> 遍历 pending → active 跳过 → <code>find_first_zero_bit(lrs_bitmap)</code> 分配 LR → <code>gicv3_send_virq</code> 填字段写 LR → bitmap 迁移（active++ &#x2F; pending–）；LR 用尽记 <code>last_fail_virq</code>。</li>
+<li>guest 运行：硬件投递，IAR 使 LR state <code>0b01→0b10</code>，EOIR 使 <code>0b10→0b00</code>。</li>
+<li>退出：<code>exit_from_guest</code> 读 LR state[63:62]，INACTIVE 则 <code>write_lr(0)</code> 清 LR、释放槽、摘 active_bitmap。</li>
+</ul>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/12/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E5%90%AF%E5%8A%A8%E9%A1%B5%E8%A1%A8%E7%9A%84%E6%9E%84%E5%BB%BA%E8%AF%A6%E8%A7%A3/" rel="prev" title="Minos 虚拟化: 启动页表的构建详解">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: 启动页表的构建详解
+                </a>
+            </div>
+            <div class="post-nav-item">
+                <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/" rel="next" title="Minos 虚拟化: vCPU 与调度">
+                  Minos 虚拟化: vCPU 与调度 <i class="fa fa-angle-right"></i>
+                </a>
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

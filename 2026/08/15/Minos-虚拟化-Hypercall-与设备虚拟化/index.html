@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文拆解 Minos 中 guest 与 hypervisor 的通信与设备模拟机制：Hypercall 的 ID 编码与调用约定、从 HVC 指令到 handler 的分发链路、VM 管理接口，并以 create_guest_vm 为线索串起 mvm—驱动—hypervisor 的完整数据流，最后落到 vdev 框架与 virtio-mmio 块设备虚拟化的实例。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Minos 虚拟化: Hypercall 与设备虚拟化">
+<meta property="og:url" content="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文拆解 Minos 中 guest 与 hypervisor 的通信与设备模拟机制：Hypercall 的 ID 编码与调用约定、从 HVC 指令到 handler 的分发链路、VM 管理接口，并以 create_guest_vm 为线索串起 mvm—驱动—hypervisor 的完整数据流，最后落到 vdev 框架与 virtio-mmio 块设备虚拟化的实例。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/images/phase8_hvc_flow.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_mvm_main.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_mmap_flow.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_create_vm.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_forward_chain.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_virtio_arch.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_virtio_guest.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_virtio_beinit.svg">
+<meta property="og:image" content="http://yoursite.com/images/phase8_virtio_flow.svg">
+<meta property="article:published_time" content="2026-08-15T01:57:55.000Z">
+<meta property="article:modified_time" content="2026-08-15T02:10:20.217Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="ARMv8-a">
+<meta property="article:tag" content="Hypervisor">
+<meta property="article:tag" content="Minos">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/images/phase8_hvc_flow.svg">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/","path":"2026/08/15/Minos-虚拟化-Hypercall-与设备虚拟化/","title":"Minos 虚拟化: Hypercall 与设备虚拟化"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>Minos 虚拟化: Hypercall 与设备虚拟化 | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-%E8%83%8C%E6%99%AF%E4%B8%8E%E8%AE%BE%E8%AE%A1%E9%80%89%E6%8B%A9"><span class="nav-text">1. 背景与设计选择</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-1-%E4%B8%80%E4%B8%AA%E9%9C%80%E8%A6%81%E2%80%9D%E5%8F%8C%E5%90%91%E9%80%9A%E4%BF%A1%E2%80%9D%E7%9A%84%E7%B3%BB%E7%BB%9F"><span class="nav-text">1.1 一个需要”双向通信”的系统</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#1-2-hypercall-%E4%B8%8E%E4%BC%A0%E7%BB%9F%E7%B3%BB%E7%BB%9F%E8%B0%83%E7%94%A8%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="nav-text">1.2 hypercall 与传统系统调用的区别</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-Hypercall-%E7%9A%84-ID-%E7%BC%96%E7%A0%81%E4%B8%8E%E8%B0%83%E7%94%A8%E7%BA%A6%E5%AE%9A"><span class="nav-text">2. Hypercall 的 ID 编码与调用约定</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#2-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81%E4%B8%80%E5%A5%97%E7%BC%96%E7%A0%81%E8%A7%84%E5%88%99"><span class="nav-text">2.1 为什么需要一套编码规则</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-2-Function-Identifier-%E7%9A%84%E4%BD%8D%E5%B8%83%E5%B1%80"><span class="nav-text">2.2 Function Identifier 的位布局</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-3-minos-%E7%9A%84-hypercall-ID-%E7%BC%96%E7%A0%81"><span class="nav-text">2.3 minos 的 hypercall ID 编码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-4-%E8%B0%83%E7%94%A8%E4%BE%A7%E7%9A%84%E4%BC%A0%E5%8F%82%E4%B8%8E%E8%BF%94%E5%9B%9E"><span class="nav-text">2.4 调用侧的传参与返回</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E5%88%86%E5%8F%91%E6%9C%BA%E5%88%B6%EF%BC%9A%E4%BB%8E-HVC-%E6%8C%87%E4%BB%A4%E5%88%B0-handler"><span class="nav-text">3. 分发机制：从 HVC 指令到 handler</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#3-1-%E5%BC%82%E5%B8%B8%E5%85%A5%E5%8F%A3%EF%BC%9AEC-%E5%88%86%E5%8F%91"><span class="nav-text">3.1 异常入口：EC 分发</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-2-handler-%E6%B3%A8%E5%86%8C%E8%A1%A8%EF%BC%9Asection-%E6%94%B6%E9%9B%86"><span class="nav-text">3.2 handler 注册表：section 收集</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-3-%E6%9F%A5%E8%A1%A8%E5%88%86%E5%8F%91%EF%BC%9Ado-svc-handler"><span class="nav-text">3.3 查表分发：do_svc_handler</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#3-4-SMC-%E9%80%9A%E9%81%93%EF%BC%9APSCI-%E7%9A%84%E8%99%9A%E6%8B%9F%E5%8C%96"><span class="nav-text">3.4 SMC 通道：PSCI 的虚拟化</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-Hypercall-%E7%9A%84-VM-%E7%AE%A1%E7%90%86%E6%8E%A5%E5%8F%A3"><span class="nav-text">4. Hypercall 的 VM 管理接口</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#4-1-%E4%B8%80%E4%B8%AA%E5%87%BD%E6%95%B0%E7%AE%A1%E7%90%86%E6%89%80%E6%9C%89-VM-%E6%93%8D%E4%BD%9C"><span class="nav-text">4.1 一个函数管理所有 VM 操作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-2-VM-%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F%EF%BC%9Acreate-destroy-restart-power"><span class="nav-text">4.2 VM 生命周期：create &#x2F; destroy &#x2F; restart &#x2F; power</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-3-%E5%86%85%E5%AD%98%E4%B8%8E%E8%B5%84%E6%BA%90%EF%BC%9Ammap-create-resource-virtio-mmio-init"><span class="nav-text">4.3 内存与资源：mmap &#x2F; create resource &#x2F; virtio mmio init</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-4-%E4%B8%AD%E6%96%AD%E4%B8%8E-vmcs%EF%BC%9Asend-virq-create-vmcs"><span class="nav-text">4.4 中断与 vmcs：send virq &#x2F; create vmcs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#4-5-%E6%9D%82%E9%A1%B9%EF%BC%9Amisc-hvc-handler"><span class="nav-text">4.5 杂项：misc_hvc_handler</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-%E5%AE%8C%E6%95%B4%E6%95%B0%E6%8D%AE%E6%B5%81%EF%BC%9Acreate-guest-vm-%E7%9A%84%E6%97%85%E7%A8%8B"><span class="nav-text">5. 完整数据流：create_guest_vm 的旅程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#5-1-mvm%EF%BC%9A%E7%94%A8%E6%88%B7%E6%80%81%E5%8F%91%E8%B5%B7%E8%80%85"><span class="nav-text">5.1 mvm：用户态发起者</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-2-%E5%86%85%E6%A0%B8%E9%A9%B1%E5%8A%A8%EF%BC%9Aioctl-%E2%86%92-hvc-%E7%9A%84%E7%BF%BB%E8%AF%91%E5%B1%82"><span class="nav-text">5.2 内核驱动：ioctl → hvc 的翻译层</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-3-hypervisor-%E4%BE%A7%EF%BC%9Acreate-guest-vm"><span class="nav-text">5.3 hypervisor 侧：create_guest_vm</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-4-mmap%EF%BC%9A%E6%8A%8A-guest-%E5%86%85%E5%AD%98%E6%98%A0%E5%B0%84%E7%BB%99-VM0"><span class="nav-text">5.4 mmap：把 guest 内存映射给 VM0</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#5-5-vCPU-%E7%BA%BF%E7%A8%8B%E4%B8%8E-vmcs-%E4%BA%8B%E4%BB%B6%E5%BE%AA%E7%8E%AF"><span class="nav-text">5.5 vCPU 线程与 vmcs 事件循环</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#6-vdev-%E6%9C%BA%E5%88%B6%EF%BC%9A%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96%E7%9A%84%E6%A1%86%E6%9E%B6"><span class="nav-text">6. vdev 机制：设备虚拟化的框架</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#6-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%9C%80%E8%A6%81-vdev"><span class="nav-text">6.1 为什么需要 vdev</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-2-vdev-%E7%9A%84%E6%B3%A8%E5%86%8C%EF%BC%9A%E4%BB%8E%E8%AE%BE%E5%A4%87%E6%A0%91%E8%8A%82%E7%82%B9%E5%88%9B%E5%BB%BA"><span class="nav-text">6.2 vdev 的注册：从设备树节点创建</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-3-MMIO-trap-%E2%86%92-vdev-mmio-emulation"><span class="nav-text">6.3 MMIO trap → vdev_mmio_emulation</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#6-4-%E8%BD%AC%E5%8F%91%E9%93%BE%E8%B7%AF%E5%B0%8F%E7%BB%93"><span class="nav-text">6.4 转发链路小结</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#7-virtio-mmio%EF%BC%9A%E5%9D%97%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96%E5%AE%9E%E4%BE%8B"><span class="nav-text">7. virtio-mmio：块设备虚拟化实例</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#7-1-%E6%95%B4%E4%BD%93%E6%9E%B6%E6%9E%84%EF%BC%9A%E4%B8%89%E6%96%B9%E5%8D%8F%E4%BD%9C"><span class="nav-text">7.1 整体架构：三方协作</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-2-guest-%E4%BE%A7%E5%A6%82%E4%BD%95%E5%8F%91%E7%8E%B0%E5%B9%B6%E4%BD%BF%E7%94%A8-virtio-%E8%AE%BE%E5%A4%87"><span class="nav-text">7.2 guest 侧如何发现并使用 virtio 设备</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-3-%E5%AF%84%E5%AD%98%E5%99%A8%E6%96%87%E4%BB%B6%E4%B8%8E%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98"><span class="nav-text">7.3 寄存器文件与共享内存</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-4-virtio-mmio-init%EF%BC%9A%E5%85%B1%E4%BA%AB%E5%86%85%E5%AD%98%E7%9A%84%E5%BB%BA%E7%AB%8B"><span class="nav-text">7.4 virtio_mmio_init：共享内存的建立</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-5-%E5%AF%84%E5%AD%98%E5%99%A8%E5%86%99%E8%BD%AC%E5%8F%91%EF%BC%9Avirtio-mmio-write"><span class="nav-text">7.5 寄存器写转发：virtio_mmio_write</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-6-VM0-%E5%90%8E%E7%AB%AF%E7%9A%84-virtio-%E5%AE%9E%E7%8E%B0"><span class="nav-text">7.6 VM0 后端的 virtio 实现</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#7-7-%E4%B8%80%E6%AC%A1%E5%9D%97%E8%AE%BE%E5%A4%87%E8%AF%BB%E5%86%99%E7%9A%84%E5%AE%8C%E6%95%B4%E9%93%BE%E8%B7%AF"><span class="nav-text">7.7 一次块设备读写的完整链路</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#8-%E5%85%B3%E9%94%AE%E7%9F%A5%E8%AF%86%E7%82%B9"><span class="nav-text">8. 关键知识点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#8-1-%E4%BB%A3%E7%A0%81%E6%96%87%E4%BB%B6%E5%85%B3%E8%81%94%E9%80%9F%E6%9F%A5%E8%A1%A8"><span class="nav-text">8.1 代码文件关联速查表</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">85</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="Minos 虚拟化: Hypercall 与设备虚拟化 | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Minos 虚拟化: Hypercall 与设备虚拟化
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-15 09:57:55" itemprop="dateCreated datePublished" datetime="2026-08-15T09:57:55+08:00">2026-08-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><blockquote>
+<p>本文拆解 Minos 中 guest 与 hypervisor 的通信与设备模拟机制：Hypercall 的 ID 编码与调用约定、从 HVC 指令到 handler 的分发链路、VM 管理接口，并以 create_guest_vm 为线索串起 mvm—驱动—hypervisor 的完整数据流，最后落到 vdev 框架与 virtio-mmio 块设备虚拟化的实例。</p>
+</blockquote>
+<span id="more"></span>
+
+<h2 id="1-背景与设计选择"><a href="#1-背景与设计选择" class="headerlink" title="1. 背景与设计选择"></a>1. 背景与设计选择</h2><h3 id="1-1-一个需要”双向通信”的系统"><a href="#1-1-一个需要”双向通信”的系统" class="headerlink" title="1.1 一个需要”双向通信”的系统"></a>1.1 一个需要”双向通信”的系统</h3><p>minos 采用”VM0 托管其他 VM”的模型：VM0（host Linux）负责创建、销毁、控制所有 guest VM，并通过用户态进程 mvm 来管理每个 guest。这个模型天然产生<strong>两个方向的通信需求</strong>：</p>
+<ol>
+<li><strong>VM0 → hypervisor（控制面）</strong>：VM0 要”创建一个新 VM”、”启动一个 VM”、”把一块 guest 内存映射到自己的地址空间”——这些是改变系统状态的<strong>管理操作</strong>，需要一个同步的控制通道。这就是 <strong>hypercall（HVC）</strong>。</li>
+<li><strong>guest → VM0（数据面&#x2F;服务面）</strong>：guest 运行中遇到”需要 VM0 协助”的事件（访问 virtio 设备寄存器、请求时间、请求重启），需要一个<strong>异步的请求-应答</strong>通道。这就是第 5、6 章讲的 <strong>vmcs + MMIO trap</strong>。</li>
+</ol>
+<p>两个方向用<strong>不同的机制</strong>，因为它们的语义完全不同：</p>
+<table>
+<thead>
+<tr>
+<th>方向</th>
+<th>机制</th>
+<th>同步性</th>
+<th>谁发起</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>VM0 → hypervisor</td>
+<td><strong>HVC hypercall</strong></td>
+<td>同步（<code>hvc</code> 指令陷入 EL2，处理完 <code>eret</code> 返回）</td>
+<td>VM0（host）</td>
+<td>创建&#x2F;销毁&#x2F;控制 VM、内存映射、发 virq</td>
+</tr>
+<tr>
+<td>guest → VM0</td>
+<td><strong>MMIO trap + vmcs</strong></td>
+<td>异步（guest 写共享内存，virq 通知 VM0，轮询应答）</td>
+<td>guest</td>
+<td>设备模拟、时间、重启等服务请求</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>注意两者方向相反：hypercall 是”VM0 向 hypervisor 下达指令”，vmcs 是”guest 向 VM0 请求服务”。这一章主题是前者，但两者在 virtio 场景（第 7 章）会串联起来。</p>
+</blockquote>
+<h3 id="1-2-hypercall-与传统系统调用的区别"><a href="#1-2-hypercall-与传统系统调用的区别" class="headerlink" title="1.2 hypercall 与传统系统调用的区别"></a>1.2 hypercall 与传统系统调用的区别</h3><p>传统 OS 里，用户程序用 <code>svc</code>（system call）陷入内核请求服务；在 minos 里，VM0 的 Linux 用 <code>hvc</code>（hypercall）陷入 EL2 的 hypervisor 请求服务。两者共享一个关键点：<strong>调用方通过寄存器传参、通过寄存器取返回值</strong>（ARM 的 SMCCC 约定），但服务对象不同：</p>
+<ul>
+<li>Linux 的 <code>svc</code> → 服务方是 <strong>Linux 内核本身</strong>；</li>
+<li>VM0 的 <code>hvc</code> → 服务方是 <strong>minos hypervisor（EL2）</strong>。</li>
+</ul>
+<p>第 2 章先讲 hypercall 的”号码”怎么编码，第 3 章讲号码怎么分发到 handler，第 4 章看 handler 具体做什么。</p>
+<hr>
+<h2 id="2-Hypercall-的-ID-编码与调用约定"><a href="#2-Hypercall-的-ID-编码与调用约定" class="headerlink" title="2. Hypercall 的 ID 编码与调用约定"></a>2. Hypercall 的 ID 编码与调用约定</h2><h3 id="2-1-为什么需要一套编码规则"><a href="#2-1-为什么需要一套编码规则" class="headerlink" title="2.1 为什么需要一套编码规则"></a>2.1 为什么需要一套编码规则</h3><p>hypervisor 面对两类调用：<strong>HVC（hypervisor 自有的 hypercall）</strong>和 <strong>SMC（ARM 标准调用，主要是 PSCI）</strong>。两者都要在 EL2 被分发给正确的 handler。为了让”分发”统一、可扩展，minos 复用了 <strong>ARM SMCCC（SMC Calling Convention）的函数标识符（Function Identifier）位布局</strong>：把”服务类别”编码进 ID 的固定位段，分发时只查这一个位段就能定位 handler。</p>
+<h3 id="2-2-Function-Identifier-的位布局"><a href="#2-2-Function-Identifier-的位布局" class="headerlink" title="2.2 Function Identifier 的位布局"></a>2.2 Function Identifier 的位布局</h3><p><code>arch/aarch64/include/asm/svccc.h:6-18</code> 按 ARM_DEN0028B 定义了 ID 的位含义：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">Function Identifier (32-bit) bit layout</span><br><span class="line">┌──┬──┬──────────┬────────┬────────────────┐</span><br><span class="line">│31│30│  29..24  │ 23..16 │     15..0      │</span><br><span class="line">├──┼──┼──────────┼────────┼────────────────┤</span><br><span class="line">│CT│BT│  STYPE   │  zero  │   function n   │</span><br><span class="line">└──┴──┴──────────┴────────┴────────────────┘</span><br><span class="line">CT   : call type    0 = yielding call  1 = fast call</span><br><span class="line">BT   : call type    0 = smc32/hvc32    1 = smc64/hvc64</span><br><span class="line">STYPE: service call range  (0x00..0x3f)</span><br></pre></td></tr></table></figure>
+
+<p>对应的掩码宏（<code>svccc.h:15-18</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>宏</th>
+<th>值</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SVC_CTYPE_MASK</code></td>
+<td><code>0x80000000</code></td>
+<td>bit31：fast call 标志</td>
+</tr>
+<tr>
+<td><code>SVC_BTYPE_MASK</code></td>
+<td><code>0x40000000</code></td>
+<td>bit30：64 位调用标志</td>
+</tr>
+<tr>
+<td><code>SVC_STYPE_MASK</code></td>
+<td><code>0x3f000000</code></td>
+<td>bit[29:24]：服务类别</td>
+</tr>
+<tr>
+<td><code>SVC_FID_MASK</code></td>
+<td><code>0x0000ffff</code></td>
+<td>bit[15:0]：函数号</td>
+</tr>
+</tbody></table>
+<p><strong>分发只依赖 <code>STYPE</code>（bit[29:24]）</strong>：hypervisor 从 ID 里取出这一位段，作为查表下标。<code>svc_service.c:40</code> 正是这么做的：<code>type = (svc_id &amp; SVC_STYPE_MASK) &gt;&gt; 24;</code>。</p>
+<h3 id="2-3-minos-的-hypercall-ID-编码"><a href="#2-3-minos-的-hypercall-ID-编码" class="headerlink" title="2.3 minos 的 hypercall ID 编码"></a>2.3 minos 的 hypercall ID 编码</h3><p><code>include/virt/hypercall.h:10-17</code> 定义编码规则：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> HVC_CALL_BASE		(0xc0000000)	<span class="comment">/* bit31+bit30 置位 = hvc64 fast call */</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> HVC_CALL_NUM(t, n)	(HVC_CALL_BASE + (t &lt;&lt; 24) + n)</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> HVC_VM0_FN(n)		HVC_CALL_NUM(HVC_TYPE_VM0, n)</span></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> HVC_MISC_FN(n)		HVC_CALL_NUM(HVC_TYPE_MISC, n)</span></span><br></pre></td></tr></table></figure>
+
+<p>服务类别（<code>hypercall.h:5-8</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>宏</th>
+<th>值</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HVC_TYPE_VM0</code></td>
+<td><code>0x8</code></td>
+<td>VM 生命周期管理（VM0 专用）</td>
+</tr>
+<tr>
+<td><code>HVC_TYPE_MISC</code></td>
+<td><code>0x9</code></td>
+<td>杂项（取 vmid、让出 CPU、能力查询）</td>
+</tr>
+<tr>
+<td><code>HVC_TYPE_VMBOX</code></td>
+<td><code>0xa</code></td>
+<td>VM 间通信（vmbox，Phase 10）</td>
+</tr>
+<tr>
+<td><code>HVC_TYPE_DEBUG_CONSOLE</code></td>
+<td><code>0xb</code></td>
+<td>调试控制台</td>
+</tr>
+</tbody></table>
+<p>以 <code>HVC_VM_CREATE</code> 为例（<code>hypercall.h:20</code>，<code>HVC_VM0_FN(0)</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">HVC_VM_CREATE = HVC_CALL_BASE + (0x08 &lt;&lt; 24) + 0</span><br><span class="line">              = 0xc0000000   + 0x08000000    + 0</span><br><span class="line">              = 0xc8000000</span><br><span class="line">                 ^^  ^^          ^^           ^</span><br><span class="line">                 CT  BT          STYPE=0x08   fn=0</span><br><span class="line">                 (fast call, 64-bit)</span><br></pre></td></tr></table></figure>
+
+<p>关键点：**<code>HVC_VM_CREATE</code> 的值 <code>0xc8000000</code> 里，<code>0x8</code> 正好落在 <code>STYPE</code> 位段（bit[29:24]）**。所以第 3 章分发时 <code>(0xc8000000 &amp; 0x3f000000) &gt;&gt; 24 = 0x08</code>，查到”VM0 服务”这一类的 handler。</p>
+<p>同样地，PSCI 标准调用（第 3.4 章）的 ID 是 <code>PSCI_0_2_FN_BASE = 0x84000000</code>（<code>psci.h:14</code>），取 STYPE 位段：<code>(0x84000000 &amp; 0x3f000000) &gt;&gt; 24 = 0x04</code>，正好等于 <code>SVC_STYPE_STDSMC</code>——这就是为什么 PSCI 调用能不加修改地进入 <code>std_smc_handler</code>。</p>
+<h3 id="2-4-调用侧的传参与返回"><a href="#2-4-调用侧的传参与返回" class="headerlink" title="2.4 调用侧的传参与返回"></a>2.4 调用侧的传参与返回</h3><p>调用方（VM0 的 Linux）把 <strong>ID 放 x0，参数放 x1-x6</strong>，执行 <code>hvc</code> 指令陷入 EL2。<code>arch/aarch64/virt/trap.c:124-141</code> 的 <code>__arm_svc_handler</code> 把寄存器搬到数组里交给分发函数：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> __arm_svc_handler(gp_regs *reg, <span class="type">int</span> smc)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">uint32_t</span> id;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> args[<span class="number">6</span>];</span><br><span class="line"></span><br><span class="line">	id = reg-&gt;x0;          <span class="comment">/* Function Identifier */</span></span><br><span class="line">	args[<span class="number">0</span>] = reg-&gt;x1;     <span class="comment">/* 参数 a0 - a5 */</span></span><br><span class="line">	args[<span class="number">1</span>] = reg-&gt;x2;</span><br><span class="line">	args[<span class="number">2</span>] = reg-&gt;x3;</span><br><span class="line">	args[<span class="number">3</span>] = reg-&gt;x4;</span><br><span class="line">	args[<span class="number">4</span>] = reg-&gt;x5;</span><br><span class="line">	args[<span class="number">5</span>] = reg-&gt;x6;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!(id &amp; SVC_CTYPE_MASK))	<span class="comment">/* yielding call 允许开中断 */</span></span><br><span class="line">		local_irq_enable();</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> do_svc_handler(reg, id, args, smc);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回时用 <code>SVC_RET1/RET2</code> 宏把结果写回 x0&#x2F;x1（<code>svccc.h:37-46</code>），<code>eret</code> 后调用方直接从寄存器取。这就是”同步控制通道”的含义：<strong>调用全程卡在 EL2，直到结果写回寄存器</strong>。</p>
+<blockquote>
+<p>补充：minos 的 hypercall ID 都在 <code>HVC_CALL_BASE(0xc0000000)</code> 之上，bit31 恒为 1（fast call），所以 <code>__arm_svc_handler</code> 里的 <code>local_irq_enable()</code>（<code>trap.c:137-138</code>，只对 bit31&#x3D;0 的 yielding call 生效）对 minos 自身的 hypercall 实际不会触发。</p>
+</blockquote>
+<p>ID 编码定了，分发还需要一张”类别 → handler”的表。下一章看这张表怎么建、怎么查。</p>
+<hr>
+<h2 id="3-分发机制：从-HVC-指令到-handler"><a href="#3-分发机制：从-HVC-指令到-handler" class="headerlink" title="3. 分发机制：从 HVC 指令到 handler"></a>3. 分发机制：从 HVC 指令到 handler</h2><h3 id="3-1-异常入口：EC-分发"><a href="#3-1-异常入口：EC-分发" class="headerlink" title="3.1 异常入口：EC 分发"></a>3.1 异常入口：EC 分发</h3><p>guest 执行 <code>hvc</code> 指令时，CPU 以 <code>EC = HVC64</code>（0x16）陷入 EL2。<code>trap.c:392-420</code> 的 <code>handle_vcpu_sync_exception</code> 读出 ESR 的 EC 字段，查 <code>guest_sync_descs[]</code> 表：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">esr_value = read_esr_el2();</span><br><span class="line">ec_type = (esr_value &amp; ESR_ELx_EC_MASK) &gt;&gt; ESR_ELx_EC_SHIFT;</span><br><span class="line">...</span><br><span class="line">ec = guest_sync_descs[ec_type];</span><br><span class="line">...</span><br><span class="line">regs-&gt;pc += ec-&gt;ret_addr_adjust;   <span class="comment">/* 部分异常需跳过指令 */</span></span><br><span class="line">ec-&gt;handler(regs, ec_type, esr_value);</span><br></pre></td></tr></table></figure>
+
+<p>注意：<code>ret_addr_adjust</code> 对 HVC 是 <strong>0</strong>（<code>trap.c:363</code>）——HVC 陷入时 ELR_EL2 已指向下一条指令，不需要再加；而 WFx 表项是 <strong>4</strong>（<code>trap.c:344</code>）——WFI&#x2F;WFE 陷入时 ELR_EL2 停在 WFI 指令本身，需 +4 跳过它，否则会再次执行 WFI。</p>
+<p><code>HVC64</code> 的表项（<code>trap.c:363</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">DEFINE_SYNC_DESC(guest_ESR_ELx_EC_HVC64, EC_TYPE_AARCH64,</span><br><span class="line">		aarch64_hypercall_handler, <span class="number">1</span>, <span class="number">0</span>);</span><br></pre></td></tr></table></figure>
+
+<p><code>aarch64_hypercall_handler</code>（<code>trap.c:320-329</code>）先看 VM 有没有自定义的 HVC 处理钩子（<code>arm_data-&gt;hvc_handler</code>），没有就走通用路径 <code>__arm_svc_handler(reg, 0)</code>（第 2.4 节），最终到 <code>do_svc_handler</code>。<code>SMC64</code> 同理，走 <code>aarch64_smccall_handler</code>（<code>trap.c:331-340</code>）→ <code>__arm_svc_handler(reg, 1)</code>。</p>
+<h3 id="3-2-handler-注册表：section-收集"><a href="#3-2-handler-注册表：section-收集" class="headerlink" title="3.2 handler 注册表：section 收集"></a>3.2 handler 注册表：section 收集</h3><p>分发表本身由 <strong>编译期 section + 链接期收集</strong> 构建，这与 Phase 5 的 <code>DEFINE_SYNC_DESC</code>、Phase 7 的 <code>DEFINE_PLATFORM</code> 是同一套模式。<code>svccc.h:78-94</code> 定义两个注册宏：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> DEFINE_HVC_HANDLER(n, start, end, h)	\</span></span><br><span class="line"><span class="meta">	static struct svc_desc __hvc_##h __used \</span></span><br><span class="line"><span class="meta">	__section(<span class="string">&quot;.__hvc_handler&quot;</span>) = &#123;	\</span></span><br><span class="line"><span class="meta">		.name = n,	\</span></span><br><span class="line"><span class="meta">		.type_start = start, \</span></span><br><span class="line"><span class="meta">		.type_end = end, \</span></span><br><span class="line"><span class="meta">		.handler = h, \</span></span><br><span class="line"><span class="meta">	&#125;</span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> DEFINE_SMC_HANDLER(n, start, end, h)	\</span></span><br><span class="line"><span class="meta">	... __section(<span class="string">&quot;.__smc_handler&quot;</span>) ...</span></span><br></pre></td></tr></table></figure>
+
+<p><code>struct svc_desc</code>（<code>svccc.h:71-76</code>）含 <code>type_start</code>&#x2F;<code>type_end</code>（可服务的一整段类别）和 <code>handler</code>。各模块用宏把自己”登记”进对应 section：</p>
+<ul>
+<li><code>hypercall.c:144-148</code>：<code>vm_hvc_handler</code> 覆盖 <code>HVC_TYPE_VM0</code>、<code>misc_hvc_handler</code> 覆盖 <code>HVC_TYPE_MISC</code>；</li>
+<li><code>smc_service.c:110-111</code>：<code>std_smc_handler</code> 覆盖 <code>SVC_STYPE_STDSMC</code>（PSCI 标准服务）。</li>
+</ul>
+<p>开机时 <code>svc_service_init</code>（<code>svc_service.c:77-87</code>）把 section 展开填进两张表：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">svc_desc</span> *<span class="title">smc_descs</span>[<span class="title">SVC_STYPE_MAX</span>];</span>	<span class="comment">/* svc_service.c:26-27 */</span></span><br><span class="line"><span class="type">static</span> <span class="class"><span class="keyword">struct</span> <span class="title">svc_desc</span> *<span class="title">hvc_descs</span>[<span class="title">SVC_STYPE_MAX</span>];</span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">void</span> <span class="title function_">parse_svc_desc</span><span class="params">(<span class="type">unsigned</span> <span class="type">long</span> start, <span class="type">unsigned</span> <span class="type">long</span> end,</span></span><br><span class="line"><span class="params">			   <span class="keyword">struct</span> svc_desc **table)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">svc_desc</span> *<span class="title">desc</span>;</span></span><br><span class="line">	<span class="type">int32_t</span> j;</span><br><span class="line"></span><br><span class="line">	section_for_each_item_addr(start, end, desc) &#123;</span><br><span class="line">		BUG_ON((desc-&gt;type_start &gt; desc-&gt;type_end) ||</span><br><span class="line">		       (desc-&gt;type_end &gt;= SVC_STYPE_MAX));</span><br><span class="line">		<span class="keyword">for</span> (j = desc-&gt;type_start; j &lt;= desc-&gt;type_end; j++)</span><br><span class="line">			table[j] = desc;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>即：<code>hvc_descs[0x08] = vm_hvc_handler</code>，<code>hvc_descs[0x09] = misc_hvc_handler</code>，<code>smc_descs[0x04] = std_smc_handler</code>。**表的下标就是 <code>STYPE</code>**。</p>
+<h3 id="3-3-查表分发：do-svc-handler"><a href="#3-3-查表分发：do-svc-handler" class="headerlink" title="3.3 查表分发：do_svc_handler"></a>3.3 查表分发：do_svc_handler</h3><p><code>do_svc_handler</code>（<code>svc_service.c:29-57</code>）是分发核心：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">do_svc_handler</span><span class="params">(gp_regs *regs, <span class="type">uint32_t</span> svc_id, <span class="type">uint64_t</span> *args, <span class="type">int</span> smc)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">uint16_t</span> type;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">svc_desc</span> **<span class="title">table</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">svc_desc</span> *<span class="title">desc</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (smc)</span><br><span class="line">		table = smc_descs;</span><br><span class="line">	<span class="keyword">else</span></span><br><span class="line">		table = hvc_descs;</span><br><span class="line"></span><br><span class="line">	type = (svc_id &amp; SVC_STYPE_MASK) &gt;&gt; <span class="number">24</span>;	<span class="comment">/* 取 STYPE 作下标 */</span></span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (unlikely(type &gt; SVC_STYPE_MAX))</span><br><span class="line">		<span class="keyword">goto</span> invalid;</span><br><span class="line"></span><br><span class="line">	desc = table[type];</span><br><span class="line">	<span class="keyword">if</span> (unlikely(!desc))</span><br><span class="line">		<span class="keyword">goto</span> invalid;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> desc-&gt;handler(regs, svc_id, args);</span><br><span class="line">invalid:</span><br><span class="line">	SVC_RET1(regs, -EINVAL);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>一次 HVC 调用的完整分发路径：</p>
+<p><img src="/images/phase8_hvc_flow.svg" alt="phase8_hvc_flow"></p>
+<p>关键理解：**<code>svc_service.c</code> 只负责”把 ID 的 STYPE 位段翻译成 handler 指针”**，不关心具体业务。加一种新的 hypercall 类别 &#x3D; 用 <code>DEFINE_HVC_HANDLER</code> 注册一个新 handler 覆盖一个未用的 <code>STYPE</code>，无需改分发代码——这就是”可扩展”的来源。</p>
+<h3 id="3-4-SMC-通道：PSCI-的虚拟化"><a href="#3-4-SMC-通道：PSCI-的虚拟化" class="headerlink" title="3.4 SMC 通道：PSCI 的虚拟化"></a>3.4 SMC 通道：PSCI 的虚拟化</h3><p><code>smc_service.c</code> 用同一套机制处理 guest 的 PSCI 调用（CPU 开关、系统复位等）。ARM 的 PSCI 标准函数 ID 落在 <code>SVC_STYPE_STDSMC = 0x04</code>（<code>svccc.h:24</code>），因此 <code>DEFINE_SMC_HANDLER(..., SVC_STYPE_STDSMC, SVC_STYPE_STDSMC, std_smc_handler)</code> 就把所有 PSCI 调用引到 <code>std_smc_handler</code>（<code>smc_service.c:24-108</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">std_smc_handler</span><span class="params">(gp_regs *c, <span class="type">uint32_t</span> id, <span class="type">unsigned</span> <span class="type">long</span> *args)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">switch</span> (id) &#123;</span><br><span class="line">	<span class="keyword">case</span> PSCI_0_2_FN64_CPU_ON:</span><br><span class="line">	<span class="keyword">case</span> PSCI_0_2_FN_CPU_ON:</span><br><span class="line">		ret = vcpu_power_on(get_current_vcpu(), args[<span class="number">0</span>], args[<span class="number">1</span>], args[<span class="number">2</span>]);</span><br><span class="line">		...</span><br><span class="line">	<span class="keyword">case</span> PSCI_0_2_FN_CPU_OFF:</span><br><span class="line">		ret = vcpu_off(get_current_vcpu());</span><br><span class="line">		...</span><br><span class="line">	<span class="keyword">case</span> PSCI_0_2_FN_SYSTEM_OFF:</span><br><span class="line">		vm_power_off(get_vmid(get_current_vcpu()), <span class="literal">NULL</span>, VM_PM_ACTION_BY_SELF);</span><br><span class="line">		...</span><br><span class="line">	&#125;</span><br><span class="line">	SVC_RET1(c, PSCI_RET_SUCCESS);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里把 guest 的 <code>CPU_ON/CPU_OFF/SYSTEM_RESET</code> 等 <strong>PSCI 调用翻译成对 vCPU&#x2F;VM 的操作</strong>——相当于 hypervisor 替 guest 模拟了”电源管理固件”。其中 <code>vcpu_power_on</code> 就是 Phase 7 讲过的多 vCPU 二次启动入口。</p>
+<blockquote>
+<p>理解点：HVC 与 SMC 只是<strong>入口指令不同</strong>，分发框架完全复用（<code>smc</code> 标志选择 <code>smc_descs</code> 还是 <code>hvc_descs</code>）。PSCI 之所以无需额外注册就能接入，是因为它的标准 ID 本身就带 <code>STYPE=0x04</code>。</p>
+</blockquote>
+<hr>
+<h2 id="4-Hypercall-的-VM-管理接口"><a href="#4-Hypercall-的-VM-管理接口" class="headerlink" title="4. Hypercall 的 VM 管理接口"></a>4. Hypercall 的 VM 管理接口</h2><h3 id="4-1-一个函数管理所有-VM-操作"><a href="#4-1-一个函数管理所有-VM-操作" class="headerlink" title="4.1 一个函数管理所有 VM 操作"></a>4.1 一个函数管理所有 VM 操作</h3><p><code>vm_hvc_handler</code>（<code>virt/hypercall.c:28-107</code>）是 VM0 侧所有 VM 管理 hypercall 的总入口，按 ID 的<strong>函数号</strong>（bit[15:0]）switch 分发。开头有一段重要的安全检查：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">vm_hvc_handler</span><span class="params">(gp_regs *c, <span class="type">uint32_t</span> id, <span class="type">uint64_t</span> *args)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> vmid = <span class="number">-1</span>, ret;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> addr;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> hbase = <span class="number">0</span>;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vm</span> *<span class="title">vm</span> =</span> get_vm_by_id((<span class="type">uint32_t</span>)args[<span class="number">0</span>]);</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (!vm_is_host_vm(get_current_vm()))</span><br><span class="line">		panic(<span class="string">&quot;only vm0 can call vm related hypercall\n&quot;</span>);</span><br></pre></td></tr></table></figure>
+
+<p><strong><code>vm_is_host_vm(get_current_vm())</code> 检查发起者是否为 VM0</strong>——这是”VM0 中心模型”在安全上的体现：只有 VM0 能执行 VM 生命周期操作，其他 guest 调用这里直接 panic。</p>
+<p>各 case 几乎都是”取参数 → 调 virt&#x2F;vm.c 或 virt&#x2F;vm_pm.c 里的函数 → <code>HVC_RET1</code> 回传结果”的薄封装。分类如下。</p>
+<h3 id="4-2-VM-生命周期：create-destroy-restart-power"><a href="#4-2-VM-生命周期：create-destroy-restart-power" class="headerlink" title="4.2 VM 生命周期：create &#x2F; destroy &#x2F; restart &#x2F; power"></a>4.2 VM 生命周期：create &#x2F; destroy &#x2F; restart &#x2F; power</h3><table>
+<thead>
+<tr>
+<th>宏</th>
+<th>ID</th>
+<th>实现</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HVC_VM_CREATE</code></td>
+<td><code>HVC_VM0_FN(0)</code></td>
+<td><code>create_guest_vm</code>（vm.c:593）</td>
+<td>创建 guest，返回新 vmid</td>
+</tr>
+<tr>
+<td><code>HVC_VM_DESTORY</code></td>
+<td><code>HVC_VM0_FN(1)</code></td>
+<td><code>destroy_guest_vm</code>（vm_pm.c:315）</td>
+<td>销毁 guest</td>
+</tr>
+<tr>
+<td><code>HVC_VM_RESTART</code></td>
+<td><code>HVC_VM0_FN(2)</code></td>
+<td><code>vm_reset</code>（vm_pm.c:229）</td>
+<td>复位 guest</td>
+</tr>
+<tr>
+<td><code>HVC_VM_POWER_UP</code></td>
+<td><code>HVC_VM0_FN(3)</code></td>
+<td><code>power_up_guest_vm</code>（vm_pm.c:431）</td>
+<td>上电启动 guest</td>
+</tr>
+<tr>
+<td><code>HVC_VM_POWER_DOWN</code></td>
+<td><code>HVC_VM0_FN(4)</code></td>
+<td><code>vm_power_off</code>（vm_pm.c:322）</td>
+<td>下电 guest</td>
+</tr>
+</tbody></table>
+<p><code>create_guest_vm</code> 的完整数据流留到第 5 章专门展开；<code>vm_reset</code>&#x2F;<code>vm_power_off</code> 按”native VM &#x2F; guest VM”分两条路（<code>vm_pm.c:209-227</code> 的 <code>__vm_reset</code>）。<strong>guest 路径并不由 hypervisor 直接重启</strong>：<code>__vm_reset</code> 先停所有 vCPU（<code>vcpu_enter_poweroff</code>），guest 分支 <code>guest_vm_reset</code>（<code>vm_pm.c:201-207</code>）只把 <code>vm-&gt;state</code> 置 <code>VM_STATE_OFFLINE</code>，再经 vmcs 异步通知 mvm（<code>trap_vcpu_nonblock(VMTRAP_REASON_REBOOT)</code>）；真正重载镜像并 <code>IOCTL_POWER_UP_VM</code> → <code>do_start_vm</code> 的是 mvm 侧（<code>tools/mvm/main/mvm.c:578-608</code> 的 <code>__vm_reboot</code>）。</p>
+<h3 id="4-3-内存与资源：mmap-create-resource-virtio-mmio-init"><a href="#4-3-内存与资源：mmap-create-resource-virtio-mmio-init" class="headerlink" title="4.3 内存与资源：mmap &#x2F; create resource &#x2F; virtio mmio init"></a>4.3 内存与资源：mmap &#x2F; create resource &#x2F; virtio mmio init</h3><table>
+<thead>
+<tr>
+<th>宏</th>
+<th>ID</th>
+<th>实现</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HVC_VM_MMAP</code></td>
+<td><code>HVC_VM0_FN(5)</code></td>
+<td><code>create_vm_mmap</code>（vm.c:578）</td>
+<td>把 guest 内存映射进 VM0，返回 VM0 侧 IPA</td>
+</tr>
+<tr>
+<td><code>HVC_VM_CREATE_RESOURCE</code></td>
+<td><code>HVC_VM0_FN(13)</code></td>
+<td><code>os_create_guest_vm_resource</code>（os.c:119）</td>
+<td>从 guest dtb 解析创建 VM 资源（vdev&#x2F;virqchip 等）</td>
+</tr>
+<tr>
+<td><code>HVC_VM_VIRTIO_MMIO_INIT</code></td>
+<td><code>HVC_VM0_FN(11)</code></td>
+<td><code>virtio_mmio_init</code>（virtio_mmio.c:224）</td>
+<td>为 virtio 设备分配共享内存并双向映射</td>
+</tr>
+</tbody></table>
+<p>这三个分别在后续章节展开：<code>HVC_VM_MMAP</code> 在第 5.4 节，<code>HVC_VM_VIRTIO_MMIO_INIT</code> 在第 7.4 节，<code>HVC_VM_CREATE_RESOURCE</code> 对应第 5 章的资源装配。先记住一句话：**<code>HVC_VM_MMAP</code> 让 VM0 获得访问 guest 内存的能力，<code>HVC_VM_VIRTIO_MMIO_INIT</code> 让 VM0 获得操作 virtio 寄存器文件的能力**——它们共同支撑了”VM0 替 guest 处理事务”。</p>
+<h3 id="4-4-中断与-vmcs：send-virq-create-vmcs"><a href="#4-4-中断与-vmcs：send-virq-create-vmcs" class="headerlink" title="4.4 中断与 vmcs：send virq &#x2F; create vmcs"></a>4.4 中断与 vmcs：send virq &#x2F; create vmcs</h3><table>
+<thead>
+<tr>
+<th>宏</th>
+<th>ID</th>
+<th>实现</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HVC_VM_SEND_VIRQ</code></td>
+<td><code>HVC_VM0_FN(7)</code></td>
+<td><code>send_virq_to_vm</code>（virq.c:299）</td>
+<td>向 guest 注入一个 SPI virq</td>
+</tr>
+<tr>
+<td><code>HVC_VM_CREATE_VMCS</code></td>
+<td><code>HVC_VM0_FN(8)</code></td>
+<td><code>vm_create_vmcs</code>（vmcs.c:154）</td>
+<td>创建 VMCS 共享内存并映射到 VM0</td>
+</tr>
+<tr>
+<td><code>HVC_VM_CREATE_VMCS_IRQ</code></td>
+<td><code>HVC_VM0_FN(9)</code></td>
+<td><code>vm_create_vmcs_irq</code>（vmcs.c:189）</td>
+<td>为每个 vCPU 分配一个 hvm virq</td>
+</tr>
+<tr>
+<td><code>HVC_VM_REQUEST_VIRQ</code></td>
+<td><code>HVC_VM0_FN(10)</code></td>
+<td><code>request_vm_virqs</code>（vm.c:474）</td>
+<td>批量申请一批 virq</td>
+</tr>
+</tbody></table>
+<p><code>send_virq_to_vm</code>（<code>virq.c:299</code>）要求 virq ≥ <code>VM_LOCAL_VIRQ_NR</code>（只支持 SPI），找到 desc 后走 Phase 5 的注入路径。这组接口是第 7 章 virtio 完成”数据就绪 → 通知 guest”的通道：<strong>后端在 VM0 处理完请求，通过 <code>HVC_VM_SEND_VIRQ</code> 让 hypervisor 往 guest 注入中断</strong>。</p>
+<h3 id="4-5-杂项：misc-hvc-handler"><a href="#4-5-杂项：misc-hvc-handler" class="headerlink" title="4.5 杂项：misc_hvc_handler"></a>4.5 杂项：misc_hvc_handler</h3><p><code>misc_hvc_handler</code>（<code>hypercall.c:122-142</code>）给所有 VM（不只 VM0）提供几个通用服务：</p>
+<table>
+<thead>
+<tr>
+<th>宏</th>
+<th>ID</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HVC_GET_VMID</code></td>
+<td><code>HVC_MISC_FN(0)</code></td>
+<td>返回当前 VM 的 vmid</td>
+</tr>
+<tr>
+<td><code>HVC_SCHED_OUT</code></td>
+<td><code>HVC_MISC_FN(1)</code></td>
+<td>主动让出 CPU（<code>sched()</code>）</td>
+</tr>
+<tr>
+<td><code>HVC_GET_VM_CAP</code></td>
+<td><code>HVC_MISC_FN(2)</code></td>
+<td>返回 VM 能力位（<code>VM_CAP_HOST</code>&#x2F;<code>VM_CAP_NATIVE</code>）</td>
+</tr>
+</tbody></table>
+<p><code>get_vm_capability</code>（<code>hypercall.c:112-120</code>）用宏把 VM 的 flags 翻译成能力位：<code>VM_FLAGS_HOST → VM_CAP_HOST</code>、<code>VM_FLAGS_NATIVE → VM_CAP_NATIVE</code>。VM0 的 Linux 驱动通过 <code>HVC_GET_VM_CAP</code> 判断自身是否为 host（<code>minos_hypercall.h:172-175</code> 的 <code>vm_is_host_vm()</code>）。</p>
+<p>第 4 章看到的是”hypervisor 侧”的接口；第 5 章把它接到 VM0 侧的实际调用链上，回答”mvm 用户进程怎么一步步调到这里”。</p>
+<hr>
+<h2 id="5-完整数据流：create-guest-vm-的旅程"><a href="#5-完整数据流：create-guest-vm-的旅程" class="headerlink" title="5. 完整数据流：create_guest_vm 的旅程"></a>5. 完整数据流：create_guest_vm 的旅程</h2><h3 id="5-1-mvm：用户态发起者"><a href="#5-1-mvm：用户态发起者" class="headerlink" title="5.1 mvm：用户态发起者"></a>5.1 mvm：用户态发起者</h3><p>mvm 是运行在 VM0 里的用户态进程（<code>tools/mvm/main/mvm.c</code>），一个 mvm 进程管理一个 guest。它的初始化流程（<code>mvm_main</code>，<code>mvm.c:704-816</code>）顺序固定：</p>
+<p><img src="/images/phase8_mvm_main.svg" alt="phase8_mvm_main"></p>
+<p>其中 <strong>“创建 VM”</strong> 和 <strong>“启动 VM” 是分开的两步</strong>：<code>create_and_init_vm</code> 里的 <code>create_new_vm</code>（<code>mvm.c:121-154</code>）构造 <code>struct vmtag</code>（名称、OS、核数、内存、入口地址）后发 <code>IOCTL_CREATE_VM</code>；真正的上电在 <code>mvm_main_loop</code> 里发 <code>IOCTL_POWER_UP_VM</code>。这与 Phase 7 的 <code>NO_AUTO_START</code> + <code>vcpu_online</code> 对应：创建只建立 VM 结构，上电才让 vCPU 进就绪队列。</p>
+<h3 id="5-2-内核驱动：ioctl-→-hvc-的翻译层"><a href="#5-2-内核驱动：ioctl-→-hvc-的翻译层" class="headerlink" title="5.2 内核驱动：ioctl → hvc 的翻译层"></a>5.2 内核驱动：ioctl → hvc 的翻译层</h3><p>VM0 内核里加载了 <code>generic/minos-linux-driver/minos.c</code>（mvm 设备驱动）。它把 mvm 的 ioctl 翻译成 hypercall。mvm 的 <code>ioctl(IOCTL_CREATE_VM, &amp;vmtag)</code> 落到驱动的 <code>vm0_ioctl</code>（<code>minos.c:1006-1021</code>）→ <code>ioctl_create_vm</code>（<code>minos.c:984-1004</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">ioctl_create_vm</span><span class="params">(<span class="keyword">struct</span> file *filp, <span class="type">void</span> __user *p)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> vmid;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vmtag</span> <span class="title">vmtag</span>;</span></span><br><span class="line"></span><br><span class="line">	vmid = copy_from_user(&amp;vmtag, p, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> vmtag));	<span class="comment">/* 取用户态参数 */</span></span><br><span class="line">	...</span><br><span class="line">	vmid = create_new_vm(&amp;vmtag);	<span class="comment">/* 定义见 minos.c:951 */</span></span><br><span class="line">	...</span><br><span class="line">	<span class="keyword">return</span> vmid;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>create_new_vm</code>（<code>minos.c:951-982</code>）调用 hypercall 封装 <code>hvc_vm_create(info)</code>，再为这个 vmid 建立设备节点、注册 mmu_notifier（guest 内存被释放时通知 hypervisor 解除映射）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="type">int</span> <span class="title function_">create_new_vm</span><span class="params">(<span class="keyword">struct</span> vmtag *info)</span></span><br><span class="line">&#123;</span><br><span class="line">	...</span><br><span class="line">	vmid = hvc_vm_create(info);	<span class="comment">/* → HVC_VM_CREATE */</span></span><br><span class="line">	...</span><br><span class="line">	ret = create_vm_device(vmid, info);	<span class="comment">/* /dev/mvm/mvm&lt;vmid&gt; 设备节点 */</span></span><br><span class="line">	...</span><br><span class="line">	vm-&gt;mmu_notifier.ops = &amp;mvm_mmu_notifier_ops;</span><br><span class="line">	mmu_notifier_register(&amp;vm-&gt;mmu_notifier, vm-&gt;mm);</span><br><span class="line">	<span class="keyword">return</span> vmid;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>hypercall 的最终封装在 <code>minos_hypercall.h:50-63</code>，用 Linux 的 SMCCC 辅助函数直接执行 <code>hvc</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">unsigned</span> <span class="type">long</span> __minos_hvc(<span class="type">uint32_t</span> id, <span class="type">unsigned</span> <span class="type">long</span> a0, ...)</span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">arm_smccc_res</span> <span class="title">res</span>;</span></span><br><span class="line">	arm_smccc_hvc(id, a0, a1, a2, a3, a4, a5, <span class="number">0</span>, &amp;res);</span><br><span class="line">	<span class="keyword">return</span> res.a0;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> minos_hvc1(id, a)		minos_hvc(id, a, 0, 0, 0, 0, 0)</span></span><br><span class="line"><span class="type">static</span> <span class="keyword">inline</span> <span class="type">int</span> <span class="title function_">hvc_vm_create</span><span class="params">(<span class="type">void</span> *vmtag)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="keyword">return</span> minos_hvc1(HVC_VM_CREATE, vmtag);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>（<code>HVC_VM_CREATE</code> 进 x0、<code>vmtag</code> 进 x1。）</p>
+<p>至此链条是：<strong>mvm → ioctl → 驱动 → <code>hvc</code> 指令 → EL2</strong>。第 3 章的分发机制接手后进入第 4 章的 <code>create_guest_vm</code>。</p>
+<h3 id="5-3-hypervisor-侧：create-guest-vm"><a href="#5-3-hypervisor-侧：create-guest-vm" class="headerlink" title="5.3 hypervisor 侧：create_guest_vm"></a>5.3 hypervisor 侧：create_guest_vm</h3><p><code>create_guest_vm</code>（<code>virt/vm.c:593-623</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">create_guest_vm</span><span class="params">(<span class="keyword">struct</span> vmtag __guest *tag)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">int</span> ret = <span class="number">0</span>;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vm</span> *<span class="title">vm</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vmtag</span> <span class="title">vmtag</span>;</span></span><br><span class="line"></span><br><span class="line">	<span class="built_in">memset</span>(&amp;vmtag, <span class="number">0</span>, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> vmtag));</span><br><span class="line">	ret = copy_from_guest(&amp;vmtag, tag, <span class="keyword">sizeof</span>(<span class="keyword">struct</span> vmtag));	<span class="comment">/* ① 从 VM0 内存拷参数 */</span></span><br><span class="line">	<span class="keyword">if</span> (ret != <span class="number">0</span>) &#123;</span><br><span class="line">		pr_err(<span class="string">&quot;copy vmtag from guest failed\n&quot;</span>);</span><br><span class="line">		<span class="keyword">return</span> -EFAULT;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	ret = vmtag_check_and_config(&amp;vmtag);	<span class="comment">/* ② 校验并配置 vmtag */</span></span><br><span class="line">	<span class="keyword">if</span> (ret)</span><br><span class="line">		<span class="keyword">return</span> ret;</span><br><span class="line"></span><br><span class="line">	vmtag.vmid = <span class="number">0</span>;</span><br><span class="line">	vmtag.flags |= VM_FLAGS_CAN_RESET;</span><br><span class="line">	vm = create_vm(&amp;vmtag, <span class="literal">NULL</span>);		<span class="comment">/* ③ 分配 vmid、建 VM 结构 */</span></span><br><span class="line">	<span class="keyword">if</span> (!vm)</span><br><span class="line">		<span class="keyword">return</span> -ENOMEM;</span><br><span class="line"></span><br><span class="line">	ret = guest_mm_init(vm, vmtag.mem_base, vmtag.mem_size);	<span class="comment">/* ④ 初始化 stage2 内存 */</span></span><br><span class="line">	<span class="keyword">if</span> (ret) &#123;</span><br><span class="line">		destroy_vm(vm);</span><br><span class="line">		<span class="keyword">return</span> ret;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">return</span> vm-&gt;vmid;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>四步对应四个关注点：</p>
+<ol>
+<li><strong><code>copy_from_guest</code>（vm.c:600）</strong>：<code>tag</code> 是 VM0 内核的虚拟地址，hypervisor 要把这块数据从 VM0 的地址空间拷到 EL2。它逐页做”VM0 虚拟地址 → IPA → 物理地址 → 临时映射 → memcpy”（<code>vmm.c:500-529</code>）。这也是学习计划里提到的<strong>安全边界</strong>——guest 输入都从这里进来。</li>
+<li><strong><code>vmtag_check_and_config</code>（vm.c:441）</strong>：校验 vmtag 的合法性，检查&#x2F;分配 vCPU 亲和性（Phase 7 的 <code>vcpu_affinity</code> 动态分配就在这）。</li>
+<li><strong><code>create_vm</code>（vm.c:885）</strong>：分配新 vmid（<code>alloc_new_vmid</code>）、<code>__create_vm</code> 建 VM 结构、<code>create_vcpus</code>（vm.c:786）逐个建 vCPU 任务。与 Phase 7 完全衔接。</li>
+<li><strong><code>guest_mm_init</code>（vm.c:563）</strong>：建立 guest 的 stage2 页表，映射 guest 内存。</li>
+</ol>
+<h3 id="5-4-mmap：把-guest-内存映射给-VM0"><a href="#5-4-mmap：把-guest-内存映射给-VM0" class="headerlink" title="5.4 mmap：把 guest 内存映射给 VM0"></a>5.4 mmap：把 guest 内存映射给 VM0</h3><p>VM 创建后，mvm 还需要”访问 guest 内存”的能力（比如把 kernel 拷进去、让 virtio 后端读写 vring）。这就是 <code>map_vm_memory</code>（<code>mvm.c:70-119</code>）：</p>
+<p><img src="/images/phase8_mmap_flow.svg" alt="phase8_mmap_flow"></p>
+<p>映射完成后，mvm 进程得到一个连续的虚拟地址区间（<code>vm-&gt;mmap</code>），<strong>guest 的物理内存与 mvm 的进程内存共享同一块物理页</strong>。<code>gpa_to_hvm_va</code>（<code>tools/mvm/include/minos/vm.h:100-101</code>）就是做这个换算的：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> gpa_to_hvm_va(gpa) \</span></span><br><span class="line"><span class="meta">	(unsigned long)(mvm_vm-&gt;mmap + ((gpa) - mvm_vm-&gt;mem_start))</span></span><br></pre></td></tr></table></figure>
+
+<p>含义：<strong>guest 物理地址 → mvm 进程虚拟地址</strong>，靠”减去 guest 内存基址、加上 mvm 映射基址”完成。virtio 后端用它对 vring 描述符做地址换算（第 7.6 节）。<code>vm_load_images</code> 正是先 mmap、再往这块共享内存里写入 kernel&#x2F;dtb。</p>
+<p>完整创建数据流：</p>
+<p><img src="/images/phase8_create_vm.svg" alt="phase8_create_vm"></p>
+<h3 id="5-5-vCPU-线程与-vmcs-事件循环"><a href="#5-5-vCPU-线程与-vmcs-事件循环" class="headerlink" title="5.5 vCPU 线程与 vmcs 事件循环"></a>5.5 vCPU 线程与 vmcs 事件循环</h3><p>创建完 VM、映射完内存，mvm 为每个 vCPU 建一个线程（<code>vm_create_vcpus</code>，<code>mvm.c:311-374</code>）来响应 guest 的服务请求。每个 vCPU 线程绑定一个 <strong>eventfd</strong>，并把它注册到 VM0 内核（<code>IOCTL_REGISTER_VCPU</code> → <code>register_vm_event</code>，<code>minos.c:338-390</code>）。之后线程在 epoll 上等事件（<code>vm_vcpu_thread</code>，<code>mvm.c:510-561</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (<span class="number">1</span>) &#123;</span><br><span class="line">	ret = epoll_wait(epfd, &amp;ep_events, <span class="number">1</span>, <span class="number">-1</span>);	<span class="comment">/* 等 guest 来请求 */</span></span><br><span class="line">	...</span><br><span class="line">	eventfd_read(eventfd, &amp;value);</span><br><span class="line">	handle_vcpu_event(vmcs);	<span class="comment">/* mvm.c:482-508：读 vmcs 处理 */</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>handle_vcpu_event</code> 读 vmcs 的 <code>trap_type/trap_reason/trap_data</code>，按类型分派：<code>VMTRAP_TYPE_MMIO</code> 交给 <code>vcpu_handle_mmio</code>（<code>mvm.c:427-453</code>）遍历 VM 的 vdev 列表模拟设备访问；<code>VMTRAP_TYPE_COMMON</code> 处理重启&#x2F;关机&#x2F;取时间等。处理完 <code>vmcs_ack</code>（<code>mvm.c:418-425</code>）把 <code>guest_index++</code>，guest 端的等待循环才放行（Phase 7 第 6 章）。</p>
+<p>到这里，”VM0 怎么管 VM”已经走通。但 guest 想要”用设备”还差关键一环：<strong>guest 访问设备寄存器时，是谁、在哪一步把请求交给 VM0 的 mvm？</strong> 这就是第 6 章的 vdev 机制。</p>
+<hr>
+<h2 id="6-vdev-机制：设备虚拟化的框架"><a href="#6-vdev-机制：设备虚拟化的框架" class="headerlink" title="6. vdev 机制：设备虚拟化的框架"></a>6. vdev 机制：设备虚拟化的框架</h2><h3 id="6-1-为什么需要-vdev"><a href="#6-1-为什么需要-vdev" class="headerlink" title="6.1 为什么需要 vdev"></a>6.1 为什么需要 vdev</h3><p>虚拟设备有两种实现位置：<strong>hypervisor 内部实现</strong>（如 vGIC、vtimer，直接操作硬件状态）和 <strong>VM0 用户态实现</strong>（如 virtio 块设备，读写镜像文件）。对于后者，hypervisor 需要一种统一的方式：<strong>把 guest 对一段地址的 MMIO 访问，翻译成对 VM0 后端的一次请求</strong>。</p>
+<p><code>struct vdev</code>（<code>include/virt/vdev.h:14-29</code>）就是这样一个抽象：它描述”虚拟设备”，持有该设备在 guest 地址空间里的 MMIO 区间，以及 <code>read</code>&#x2F;<code>write</code> 回调：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">struct</span> <span class="title">vdev</span> &#123;</span></span><br><span class="line">	<span class="type">char</span> name[VDEV_NAME_SIZE + <span class="number">1</span>];</span><br><span class="line">	<span class="type">int</span> host;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vm</span> *<span class="title">vm</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vmm_area</span> *<span class="title">gvm_area</span>;</span>	<span class="comment">/* 设备占用的 guest MMIO 区间链表 */</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">list_head</span> <span class="title">list</span>;</span>		<span class="comment">/* 挂到 vm-&gt;vdev_list */</span></span><br><span class="line"></span><br><span class="line">	<span class="type">int</span> (*read)(<span class="keyword">struct</span> vdev *, gp_regs *, <span class="type">int</span>, <span class="type">unsigned</span> <span class="type">long</span>, <span class="type">unsigned</span> <span class="type">long</span> *);</span><br><span class="line">	<span class="type">int</span> (*write)(<span class="keyword">struct</span> vdev *, gp_regs *, <span class="type">int</span>, <span class="type">unsigned</span> <span class="type">long</span>, <span class="type">unsigned</span> <span class="type">long</span> *);</span><br><span class="line">	<span class="type">void</span> (*deinit)(<span class="keyword">struct</span> vdev *vdev);</span><br><span class="line">	<span class="type">void</span> (*reset)(<span class="keyword">struct</span> vdev *vdev);</span><br><span class="line">	...</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+
+<p><code>vdev_add_iomem_range</code>（<code>vdev.c:102-123</code>）在 guest 的 mm 里 <code>split_vmm_area</code> 划出一段 <code>VM_GUEST_VDEV</code> 区，挂进 <code>gvm_area</code> 链表——**这段区间就是 vdev 在 guest 眼中的”设备寄存器文件”**。</p>
+<h3 id="6-2-vdev-的注册：从设备树节点创建"><a href="#6-2-vdev-的注册：从设备树节点创建" class="headerlink" title="6.2 vdev 的注册：从设备树节点创建"></a>6.2 vdev 的注册：从设备树节点创建</h3><p>hypervisor 侧的 vdev 由 <strong>资源解析</strong> 创建：<code>resource.c</code> 遍历 VM 的 dtb，遇到”设备类”节点就查 <code>__vdev</code> section 里的创建函数。<code>virtio_mmio.c:222</code> 的注册：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">VDEV_DECLARE(virtio_mmio, virtio_match_table, virtio_create_device);</span><br></pre></td></tr></table></figure>
+
+<p><code>virtio_create_device</code>（<code>virtio_mmio.c:170-221</code>）做的事：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">ret = translate_device_address(node, &amp;base, &amp;size);	<span class="comment">/* 取设备 MMIO 基址 */</span></span><br><span class="line">...</span><br><span class="line">vdev = &amp;virtio_dev-&gt;vdev;</span><br><span class="line">host_vdev_init(vm, vdev, <span class="string">&quot;virtio-mmio&quot;</span>);</span><br><span class="line">vdev_add_iomem_range(vdev, base, VIRTIO_DEVICE_IOMEM_SIZE);	<span class="comment">/* 划 guest MMIO 区 */</span></span><br><span class="line">...</span><br><span class="line">translate_guest_ipa(&amp;vm-&gt;mm, base, (<span class="type">unsigned</span> <span class="type">long</span> *)&amp;virtio_dev-&gt;iomem);	<span class="comment">/* 换算共享内存地址 */</span></span><br><span class="line">vdev-&gt;read = virtio_mmio_read;</span><br><span class="line">vdev-&gt;write = virtio_mmio_write;</span><br><span class="line">vdev_add(vdev);	<span class="comment">/* 挂进 vm-&gt;vdev_list */</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-3-MMIO-trap-→-vdev-mmio-emulation"><a href="#6-3-MMIO-trap-→-vdev-mmio-emulation" class="headerlink" title="6.3 MMIO trap → vdev_mmio_emulation"></a>6.3 MMIO trap → vdev_mmio_emulation</h3><p>guest 访问 vdev 的 MMIO 区间时产生数据异常，走 Phase 3 的 <code>dataabort_tfl_handler</code>（<code>trap.c:241-294</code>），最终调到 <code>vdev_mmio_emulation</code>（<code>vdev.c:198-238</code>）：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">vdev_mmio_emulation</span><span class="params">(gp_regs *regs, <span class="type">int</span> write,</span></span><br><span class="line"><span class="params">		<span class="type">unsigned</span> <span class="type">long</span> address, <span class="type">unsigned</span> <span class="type">long</span> *value)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vm</span> *<span class="title">vm</span> =</span> get_current_vm();</span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vdev</span> *<span class="title">vdev</span>;</span></span><br><span class="line">	<span class="class"><span class="keyword">struct</span> <span class="title">vmm_area</span> *<span class="title">va</span>;</span></span><br><span class="line">	<span class="type">int</span> idx, ret = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">	list_for_each_entry(vdev, &amp;vm-&gt;vdev_list, <span class="built_in">list</span>) &#123;</span><br><span class="line">		idx = <span class="number">0</span>;</span><br><span class="line">		va = vdev-&gt;gvm_area;</span><br><span class="line">		<span class="keyword">while</span> (va) &#123;</span><br><span class="line">			<span class="keyword">if</span> ((address &gt;= va-&gt;start) &amp;&amp; (address &lt;= va-&gt;end)) &#123;</span><br><span class="line">				ret = handle_mmio(vdev, regs, write, idx,</span><br><span class="line">						address - va-&gt;start, value);	<span class="comment">/* 命中 → vdev-&gt;write/read */</span></span><br><span class="line">				...</span><br><span class="line">				<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">			&#125;</span><br><span class="line">			idx++;</span><br><span class="line">			va = va-&gt;next;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="comment">/* 没有 hypervisor 侧 vdev 能处理 → 转发给 VM0 */</span></span><br><span class="line">	<span class="keyword">if</span> (vm_is_native(vm))</span><br><span class="line">		<span class="keyword">return</span> -EACCES;</span><br><span class="line"></span><br><span class="line">	ret = trap_vcpu(VMTRAP_TYPE_MMIO, write, address, value);</span><br><span class="line">	...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>逻辑分两层：</p>
+<ol>
+<li><strong>先在 hypervisor 的 <code>vdev_list</code> 里找</strong>：命中就调用该 vdev 的 <code>read</code>&#x2F;<code>write</code> 回调（virtio 的实现在第 7 章）。</li>
+<li><strong>找不到 → 转发给 VM0</strong>：<code>trap_vcpu(VMTRAP_TYPE_MMIO, ...)</code>（<code>vmcs.h:46-50</code>）→ <code>__vcpu_trap</code>（<code>vmcs.c:24-129</code>）走 vmcs 共享内存协议，把”这次 MMIO 读&#x2F;写”投递给 VM0 的 mvm（第 5.5 节的事件循环会收到并处理）。native VM 例外，直接返回 <code>-EACCES</code> 让 hypervisor 注入 abort。</li>
+</ol>
+<blockquote>
+<p>这里能看到 minos 的”双层设备模型”：<strong>能快速处理的（vGIC&#x2F;vtimer）留在 hypervisor，费资源的（块&#x2F;网络）下沉到 VM0 用户态</strong>。第 7 章 virtio 用的就是下沉路径。</p>
+</blockquote>
+<h3 id="6-4-转发链路小结"><a href="#6-4-转发链路小结" class="headerlink" title="6.4 转发链路小结"></a>6.4 转发链路小结</h3><p>guest 一次 MMIO 写请求落到 mvm 的完整转发链（第 7 章会具体到 virtio）：</p>
+<p><img src="/images/phase8_forward_chain.svg" alt="phase8_forward_chain"></p>
+<hr>
+<h2 id="7-virtio-mmio：块设备虚拟化实例"><a href="#7-virtio-mmio：块设备虚拟化实例" class="headerlink" title="7. virtio-mmio：块设备虚拟化实例"></a>7. virtio-mmio：块设备虚拟化实例</h2><h3 id="7-1-整体架构：三方协作"><a href="#7-1-整体架构：三方协作" class="headerlink" title="7.1 整体架构：三方协作"></a>7.1 整体架构：三方协作</h3><p>virtio 是”前端-后端”模型，在 minos 里被拆成<strong>三方</strong>：</p>
+<p><img src="/images/phase8_virtio_arch.svg" alt="phase8_virtio_arch"></p>
+<ul>
+<li><strong>guest 侧</strong>：Linux 自带的 virtio-mmio 前端驱动，把 virtio 设备当作 MMIO 寄存器 + 共享内存中的 vring 队列。</li>
+<li><strong>hypervisor 侧</strong>（<code>virt/virtio_mmio.c</code>）：分配一块共享内存作为”设备寄存器文件”，<strong>同时映射到 guest 和 VM0</strong>；guest 的 MMIO 写会 trap 进来，hypervisor 负责把写操作转发给 VM0 后端。</li>
+<li><strong>VM0 侧</strong>（<code>tools/mvm/devices/virtio/</code>）：mvm 里的 virtio 后端（<code>virtio_block.c</code> 等），真正读写磁盘&#x2F;网络设备，通过 vring 与 guest 交换数据。</li>
+</ul>
+<h3 id="7-2-guest-侧如何发现并使用-virtio-设备"><a href="#7-2-guest-侧如何发现并使用-virtio-设备" class="headerlink" title="7.2 guest 侧如何发现并使用 virtio 设备"></a>7.2 guest 侧如何发现并使用 virtio 设备</h3><p>前面几节默认”guest 直接操作 MMIO 寄存器”，但 guest 怎么知道有这样一个设备、怎么初始化它，需要补上。答案分两步：<strong>mvm 先把设备”装进”guest 的 dtb，Linux 内核再按标准 virtio-mmio 流程探测和初始化</strong>。</p>
+<p><strong>第 1 步：mvm 把设备写进 guest dtb。</strong> guest 启动装配时（mvm 侧 <code>os_setup_vm</code> → <code>linux_setup_env</code> → <code>vdev_setup_env</code> → <code>vdev_setup_dtb</code>，<code>tools/mvm/devices/vdev.c:232-241</code>），mvm 遍历自己创建的所有 virtio vdev，用 <code>dtb_add_virtio</code>（<code>vdev.c:167-208</code>）在 guest 设备树 <code>/smb</code> 节点下加一个子节点：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">fdt_setprop(dtb, node, <span class="string">&quot;compatible&quot;</span>, <span class="string">&quot;virtio,mmio&quot;</span>, <span class="number">12</span>);	<span class="comment">/* 匹配 Linux 驱动 */</span></span><br><span class="line">fdt_setprop(dtb, node, <span class="string">&quot;virtual_device&quot;</span>, <span class="string">&quot;&quot;</span>, <span class="number">1</span>);</span><br><span class="line"><span class="comment">/* reg = &#123;guest_iomem, iomem_size&#125;（MMIO 基址 + 大小） */</span></span><br><span class="line">args[<span class="number">0</span>] = cpu_to_fdt32(vdev-&gt;guest_iomem);</span><br><span class="line">args[<span class="number">1</span>] = cpu_to_fdt32(vdev-&gt;iomem_size);</span><br><span class="line">fdt_setprop(dtb, node, <span class="string">&quot;reg&quot;</span>, (<span class="type">void</span> *)args, <span class="number">2</span> * <span class="keyword">sizeof</span>(<span class="type">uint32_t</span>));</span><br><span class="line"><span class="comment">/* interrupts = &#123;0, gvm_irq - 32, 4&#125;（一个 SPI 中断） */</span></span><br></pre></td></tr></table></figure>
+
+<p>这个节点告诉 guest 内核：地址 <code>0x1fe00000 + index*0x1000</code>（<code>VM_VIRTIO_IOMEM_BASE</code>）处有一个 virtio-mmio 设备，中断号是 <code>gvm_irq</code>。<strong>guest 内核和 mvm 都靠同一个 vring&#x2F;寄存器文件通信，而设备”长什么样”由 dtb 描述。</strong></p>
+<p><strong>第 2 步：Linux 内核探测并初始化。</strong> guest 的 Linux 自带 <code>drivers/virtio/virtio_mmio.c</code> 驱动，按平台设备匹配 <code>&quot;virtio,mmio&quot;</code> 后走标准 virtio 初始化流程：</p>
+<p><img src="/images/phase8_virtio_guest.svg" alt="phase8_virtio_guest"></p>
+<p>流程要点：</p>
+<ol>
+<li><strong>探测</strong>：<code>virtio_mmio_probe</code> 读寄存器文件确认设备存在——读 <code>MagicValue</code>（应为 <code>0x74726976</code>）、<code>Version</code>、<code>DeviceID</code>、<code>VendorID</code>。这些是<strong>读操作</strong>，而寄存器文件映射进 guest 是 <code>VM_IO|VM_RO</code>（第 7.3 节），<strong>读直接命中共享内存，不 trap</strong>。</li>
+<li><strong>特性协商</strong>：写 <code>Status=ACKNOWLEDGE</code> → 读 <code>HostFeatures</code>（设备能力）→ 写 <code>GuestFeatures</code>（协商结果）→ 写 <code>Status=DRIVER_OK</code>。这些<strong>写操作</strong> trap 到 hypervisor，经 <code>virtio_mmio_write</code> 转发给 mvm 后端（第 7.5 节）。</li>
+<li><strong>建队列</strong>：guest 在<strong>自己的普通内存</strong>里分配 vring 三区（desc&#x2F;avail&#x2F;used），把地址写进 <code>QueueDesc/Avail/Used</code> 寄存器，写 <code>QueueReady=1</code> 告知设备”队列就绪”。</li>
+<li><strong>使用</strong>：此后每次 I&#x2F;O，guest 把请求写进 vring 的 desc&#x2F;avail 环，写 <code>QueueNotify</code> 通知；mvm 后端处理完写 used 环并发中断，guest 中断处理里读 used 环拿结果——这就是第 7.7 节的完整链路。</li>
+</ol>
+<blockquote>
+<p>关键理解：guest 侧<strong>不需要任何 minos 专用代码</strong>——它只是一个标准 Linux virtio-mmio 设备。三方里只有 mvm 和 hypervisor 在”造假设备”（dtb 节点 + 共享寄存器文件 + 事件转发），guest 完全按标准流程使用。</p>
+</blockquote>
+<blockquote>
+<p>补充（vring 地址的换算）：</p>
+<ol>
+<li><strong>寄存器里存的是 guest 的 IPA</strong>——guest 视角的”物理地址”，实际是 Stage2 翻译的输入（Phase 4）。</li>
+<li><strong>mvm 能直接读写 vring</strong>，因为同一块物理页被同时映射进三个地址空间：guest 的 Stage2、VM0 的 Stage2、mvm 进程页表（第 5.4 节建 guest 时映射好）。</li>
+<li><strong><code>gpa_to_hvm_va</code> 只算偏移</strong>：<code>vm-&gt;mmap + (gpa - mem_start)</code>，数据仍在那块物理页上，两端用不同地址称呼它，无数据搬运。</li>
+</ol>
+</blockquote>
+<h3 id="7-3-寄存器文件与共享内存"><a href="#7-3-寄存器文件与共享内存" class="headerlink" title="7.3 寄存器文件与共享内存"></a>7.3 寄存器文件与共享内存</h3><p>virtio-mmio 规范定义了一组寄存器（<code>generic/include/generic/virtio_mmio.h</code>），hypervisor 把这组寄存器放在<strong>一块共享物理内存</strong>里，同时映射给 guest 和 VM0。关键寄存器（<code>virtio_mmio.h:8-48</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">virtio-mmio register file (4K, shared between guest and VM0)</span><br><span class="line">┌────────────┬──────┬──────────────────────────────────────┐</span><br><span class="line">│  offset    │ size │  meaning                             │</span><br><span class="line">├────────────┼──────┼──────────────────────────────────────┤</span><br><span class="line">│ 0x000      │ 4    │  MagicValue (0x74726976)             │</span><br><span class="line">│ 0x004      │ 4    │  Version                             │</span><br><span class="line">│ 0x008      │ 4    │  DeviceID                            │</span><br><span class="line">│ 0x00c      │ 4    │  VendorID                            │</span><br><span class="line">│ 0x010/0x014│ 4    │  HostFeatures / HostFeaturesSel      │</span><br><span class="line">│ 0x020/0x024│ 4    │  GuestFeatures / GuestFeaturesSel    │</span><br><span class="line">│ 0x030      │ 4    │  QueueSel                            │</span><br><span class="line">│ 0x034/0x038│ 4    │  QueueNumMax / QueueNum              │</span><br><span class="line">│ 0x044      │ 4    │  QueueReady                          │</span><br><span class="line">│ 0x050      │ 4    │  QueueNotify (queue index)           │</span><br><span class="line">│ 0x060/0x064│ 4    │  InterruptStatus / InterruptACK      │</span><br><span class="line">│ 0x070      │ 4    │  Status                              │</span><br><span class="line">│ 0x080-0x0a4│ 4    │  QueueDesc/Avail/Used Low/High       │</span><br><span class="line">│ 0x100      │ 4    │  Config (device specific)            │</span><br><span class="line">└────────────┴──────┴──────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>各寄存器用途（含义）：<code>QueueNotify</code> 写队列号触发通知；<code>Status</code> 承载设备状态机（0x070）；<code>QueueDesc/Avail/Used</code> 三组寄存器保存 vring 三个区的地址（0x080-0x0a4）；<code>Config</code> 是设备配置区（0x100），如块设备的容量。</p>
+<p><strong>vring 本身不在寄存器文件里</strong>，而是由 guest 分配在<strong>自己的普通内存</strong>中（通过 <code>QueueDesc/Avail/Used</code> 寄存器把地址告诉设备）。后端通过第 5.4 节的 <code>gpa_to_hvm_va</code> 把 vring 地址从 guest IPA 换算成 mvm 虚拟地址，直接读写。</p>
+<h3 id="7-4-virtio-mmio-init：共享内存的建立"><a href="#7-4-virtio-mmio-init：共享内存的建立" class="headerlink" title="7.4 virtio_mmio_init：共享内存的建立"></a>7.4 virtio_mmio_init：共享内存的建立</h3><p><code>virtio_mmio_init</code>（<code>virtio_mmio.c:224-262</code>）由 <code>HVC_VM_VIRTIO_MMIO_INIT</code>（第 4.3 节）触发，参数是 guest 侧的基址 <code>gbase</code>：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">int</span> <span class="title function_">virtio_mmio_init</span><span class="params">(<span class="keyword">struct</span> vm *vm, <span class="type">unsigned</span> <span class="type">long</span> gbase,</span></span><br><span class="line"><span class="params">		<span class="type">size_t</span> size, <span class="type">unsigned</span> <span class="type">long</span> *hbase)</span></span><br><span class="line">&#123;</span><br><span class="line">	<span class="type">void</span> *iomem = <span class="literal">NULL</span>;</span><br><span class="line">	<span class="type">unsigned</span> <span class="type">long</span> hva;</span><br><span class="line"></span><br><span class="line">	size = PAGE_BALIGN(size);</span><br><span class="line">	iomem = alloc_shmem(PAGE_NR(size));		<span class="comment">/* ① 分配物理共享内存 */</span></span><br><span class="line">	<span class="keyword">if</span> (!iomem)</span><br><span class="line">		<span class="keyword">return</span> -ENOMEM;</span><br><span class="line">	<span class="built_in">memset</span>(iomem, <span class="number">0</span>, size);</span><br><span class="line"></span><br><span class="line">	hva = create_hvm_shmem_map(vm, (<span class="type">unsigned</span> <span class="type">long</span>)iomem, size);	<span class="comment">/* ② 映射进 VM0 */</span></span><br><span class="line">	<span class="keyword">if</span> (hva == BAD_ADDRESS) &#123;</span><br><span class="line">		free_shmem(iomem);</span><br><span class="line">		<span class="keyword">return</span> -ENOMEM;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> (create_guest_mapping(&amp;vm-&gt;mm, gbase, (<span class="type">unsigned</span> <span class="type">long</span>)iomem,</span><br><span class="line">				size, VM_IO | VM_RO)) &#123;		<span class="comment">/* ③ 映射进 guest */</span></span><br><span class="line">		free_shmem(iomem);</span><br><span class="line">		<span class="keyword">return</span> -ENOMEM;</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	*hbase = hva;	<span class="comment">/* ④ 把 VM0 侧地址回传给调用方 */</span></span><br><span class="line">	<span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>同一块物理内存，两个视角</strong>：</p>
+<ul>
+<li>映射进 guest 的 <code>gbase</code>（guest 读寄存器直接命中，写会 trap）；</li>
+<li>映射进 VM0 的 <code>hva</code>（mvm 通过 <code>vdev_map_iomem</code> → <code>hvm_map_iomem</code>（<code>mvm.c:285-297</code>）再 mmap 进自己进程）。</li>
+</ul>
+<h3 id="7-5-寄存器写转发：virtio-mmio-write"><a href="#7-5-寄存器写转发：virtio-mmio-write" class="headerlink" title="7.5 寄存器写转发：virtio_mmio_write"></a>7.5 寄存器写转发：virtio_mmio_write</h3><p>guest 写寄存器会 trap 到 EL2，<code>vdev_mmio_emulation</code> 命中 virtio vdev 后调 <code>virtio_mmio_write</code>（<code>virtio_mmio.c:40-147</code>）。它分三类处理：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">switch</span> (offset) &#123;</span><br><span class="line"><span class="keyword">case</span> VIRTIO_MMIO_HOST_FEATURES_SEL:		<span class="comment">/* ① 直接读写共享内存 */</span></span><br><span class="line">	tmp = ioread32(iomem + VIRTIO_MMIO_HOST_FEATURE0 + value * <span class="number">4</span>);</span><br><span class="line">	iowrite32(tmp, iomem + VIRTIO_MMIO_HOST_FEATURES);</span><br><span class="line">	<span class="keyword">break</span>;</span><br><span class="line">...</span><br><span class="line"><span class="keyword">case</span> VIRTIO_MMIO_QUEUE_NOTIFY:			<span class="comment">/* ② 只转发：队列就绪通知 */</span></span><br><span class="line">	trap_mmio_write_nonblock(address, write_value);</span><br><span class="line">	<span class="keyword">break</span>;</span><br><span class="line"><span class="keyword">case</span> VIRTIO_MMIO_STATUS:			<span class="comment">/* ③ 先写共享内存再转发 */</span></span><br><span class="line">	tmp = ioread32(iomem + VIRTIO_MMIO_STATUS);</span><br><span class="line">	value = value - tmp;</span><br><span class="line">	*write_value = value;</span><br><span class="line">	iowrite32(value, iomem + VIRTIO_MMIO_STATUS);</span><br><span class="line">	trap_mmio_write(address, write_value);</span><br><span class="line">	<span class="keyword">break</span>;</span><br><span class="line">...</span><br><span class="line"><span class="keyword">case</span> VIRTIO_MMIO_QUEUE_READY:			<span class="comment">/* ④ 转发时带上队列号 */</span></span><br><span class="line">	value = ioread32(iomem + VIRTIO_MMIO_QUEUE_SEL);</span><br><span class="line">	*write_value = value;</span><br><span class="line">	trap_mmio_write(address, write_value);</span><br><span class="line">	<span class="keyword">break</span>;</span><br></pre></td></tr></table></figure>
+
+<p>三类动作（代码里的 ①②③④ 按行为归类）：</p>
+<ul>
+<li><strong>纯共享内存读写</strong>（① <code>HOST_FEATURES_SEL</code>、<code>QUEUE_SEL</code>&#x2F;<code>QUEUE_NUM</code> 等）：直接把值写进 <code>dev-&gt;iomem</code>（共享内存），VM0 后端能直接看到，不需要额外通知；</li>
+<li><strong>只转发</strong>（② <code>QUEUE_NOTIFY</code>）：用 <code>trap_mmio_write_nonblock</code>（<code>vmcs.h:79-84</code>，<code>nonblock=1</code>）异步通知 VM0”有队列要处理”，不等应答；</li>
+<li><strong>改值后转发</strong>（③④ <code>STATUS</code>&#x2F;<code>QUEUE_READY</code>）：<code>STATUS</code> 算出本次新增的状态位（<code>value - tmp</code>）写回共享内存再转发；<code>QUEUE_READY</code> 用 <code>QUEUE_SEL</code> 的值替换写入值再转发，让后端知道”哪个队列就绪”。两者都用阻塞版 <code>trap_mmio_write</code> 通知并等待处理结果。</li>
+</ul>
+<p><code>trap_mmio_write</code>&#x2F;<code>trap_mmio_write_nonblock</code>（<code>vmcs.h:72-84</code>）是第 6.4 节 <code>__vcpu_trap</code> 的薄封装，把请求经 vmcs 投递给 VM0。**hypervisor 在这里不实现设备逻辑，只做”地址&#x2F;值的中转”**——真正的设备在 mvm。</p>
+<h3 id="7-6-VM0-后端的-virtio-实现"><a href="#7-6-VM0-后端的-virtio-实现" class="headerlink" title="7.6 VM0 后端的 virtio 实现"></a>7.6 VM0 后端的 virtio 实现</h3><p>mvm 里 virtio 后端分为两层：通用 virtio 框架（<code>tools/mvm/devices/virtio/virtio.c</code>）+ 具体设备（<code>virtio_block.c</code>&#x2F;<code>virtio_net.c</code>&#x2F;<code>virtio_console.c</code>）。本节看它的<strong>结构</strong>与<strong>接口</strong>；一条完整的数据链路见第 7.7 节的时序图。</p>
+<p><strong>设备初始化</strong>（如 <code>virtio_blk_init</code>，<code>virtio_block.c:286-397</code>）做三件事：</p>
+<ol>
+<li><code>virtio_device_init</code>（<code>virtio.c:466-530</code>）→ <code>hv_create_virtio_device</code>（<code>virtio.c:68-89</code>）算 guest 侧基址（<code>VM_VIRTIO_IOMEM_BASE + index * 0x1000</code>，<code>gvm.h:60-61</code>），发 <code>IOCTL_VIRTIO_MMIO_INIT</code> 触发第 7.4 节的共享内存建立，拿到 VM0 侧地址；</li>
+<li><code>__virtio_vdev_init</code>（<code>virtio.c:390-418</code>）往寄存器文件里写 <code>MagicValue/Version/DeviceID/VendorID/QueueNumMax</code>，申请设备中断 <code>vdev_alloc_irq</code>（<code>vdev.c:157-160</code>）；</li>
+<li>初始化 vring 的三个指针区。</li>
+</ol>
+<p>初始化时序（从 mvm 创建设备到共享寄存器文件就绪）：</p>
+<p><img src="/images/phase8_virtio_beinit.svg" alt="phase8_virtio_beinit"></p>
+<p><strong>MMIO 事件入口</strong>：mvm 的 <code>vcpu_handle_mmio</code>（<code>mvm.c:427-453</code>）按 guest 地址匹配 vdev，调 <code>vdev-&gt;ops-&gt;event</code>（virtio 的 <code>virtio_handle_mmio</code>，<code>virtio.c:681-689</code>）→ <code>virtio_mmio_write</code>（<code>virtio.c:653-679</code>）。后端只关心三个寄存器：</p>
+<table>
+<thead>
+<tr>
+<th>寄存器</th>
+<th>后端处理</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>STATUS</code></td>
+<td><code>virtio_status_event</code>（virtio.c:532）</td>
+<td>设备状态变化，<code>FEATURES_OK</code> 时读 <code>acked_features</code> 做特性协商</td>
+</tr>
+<tr>
+<td><code>QUEUE_READY</code></td>
+<td><code>virtio_buffer_event</code>（virtio.c:593）</td>
+<td>读 vring 三个区地址，<code>gpa_to_hvm_va</code> 换算成 mvm 进程 VA</td>
+</tr>
+<tr>
+<td><code>QUEUE_NOTIFY</code></td>
+<td><code>virtio_queue_event</code>（virtio.c:565）</td>
+<td>队列可处理，调 <code>queue-&gt;callback</code>（如 <code>virtio_blk_notify</code>）</td>
+</tr>
+</tbody></table>
+<p>其中 <code>virtio_buffer_event</code> 用第 5.4 节的 <code>gpa_to_hvm_va</code> 把 <code>QueueDesc/Avail/Used</code> 从 guest IPA 换算成 mvm 进程地址——<strong>vring 描述符从此在 mvm 侧直接可见</strong>。之后各设备就在这块共享 vring 上取请求、做 I&#x2F;O、回写 used 环，这就是第 7.7 节时序图展示的完整过程。</p>
+<h3 id="7-7-一次块设备读写的完整链路"><a href="#7-7-一次块设备读写的完整链路" class="headerlink" title="7.7 一次块设备读写的完整链路"></a>7.7 一次块设备读写的完整链路</h3><p>把第 5、6、7 章串起来，guest 发一次块读请求的完整旅程：</p>
+<p><img src="/images/phase8_virtio_flow.svg" alt="phase8_virtio_flow"></p>
+<p>完整链路分五段：</p>
+<ol>
+<li><strong>guest 提交请求</strong>：guest 的 virtio-blk 驱动把”读扇区 X”写入 vring 的 desc&#x2F;avail 环（这块内存是 guest 普通内存，无 trap），再写 <code>QueueNotify</code> 寄存器触发通知。</li>
+<li><strong>hypervisor 转发</strong>：<code>QueueNotify</code> 写 trap 到 EL2 → <code>vdev_mmio_emulation</code> → <code>virtio_mmio_write</code> 的 <code>QUEUE_NOTIFY</code> 分支 → <code>trap_mmio_write_nonblock</code> → vmcs 写请求、<code>host_index++</code>、发 virq 通知 VM0。</li>
+<li><strong>VM0 处理</strong>：mvm vcpu 线程 epoll 醒来 → <code>handle_vcpu_event</code> → <code>vcpu_handle_mmio</code> → <code>virtio_queue_event</code> → <code>virtio_blk_notify</code> → 从共享 vring 取请求 → <code>blockif_read</code> 异步读镜像文件。</li>
+<li><strong>完成后通知</strong>：磁盘线程读完数据写进 guest 内存 → <code>virtio_blk_done</code> 写状态字节 → <code>virtq_add_used_and_signal</code> 更新 used 环 → <code>virtio_send_irq</code>（<code>tools/mvm/include/minos/virtio.h:170-181</code>）置 <code>InterruptStatus</code> → <code>vdev_send_irq</code> → <code>send_virq_to_vm</code> → ioctl <code>IOCTL_SEND_VIRQ</code>（<code>minos.c:502-504</code>）。</li>
+<li><strong>回到 guest</strong>：驱动 <code>hvc_send_virq</code> → <code>HVC_VM_SEND_VIRQ</code>（<code>hypercall.c:69-72</code>）→ hypervisor <code>send_virq_to_vm</code> 注入中断 → guest 中断处理里读 used 环拿结果。</li>
+</ol>
+<blockquote>
+<p>对照学习计划里的实验”跟踪 create_guest_vm 的完整数据流”和”新增一个 hypercall ID”，第 5 章与第 4 章给出了完整的对照路径。</p>
+</blockquote>
+<hr>
+<h2 id="8-关键知识点"><a href="#8-关键知识点" class="headerlink" title="8. 关键知识点"></a>8. 关键知识点</h2><ol>
+<li><strong>两条通道方向相反</strong>：VM0→hypervisor 用同步的 HVC hypercall（管理面）；guest→VM0 用异步的 MMIO trap + vmcs（服务面）。virtio 把两者串联：guest 写寄存器（trap+vmcs 下去），VM0 处理完再经 <code>HVC_VM_SEND_VIRQ</code> 注入中断（hypercall 上来）。</li>
+<li><strong>hypercall ID 复用了 SMCCC 位布局</strong>：<code>HVC_CALL_BASE(0xc0000000) + (STYPE &lt;&lt; 24) + fn</code>。分发只查 <code>STYPE</code> 位段（<code>svc_service.c:40</code> 的 <code>(svc_id &amp; SVC_STYPE_MASK) &gt;&gt; 24</code>），加新类别只需注册新 handler。</li>
+<li><strong>分发表由 section 收集构建</strong>：<code>DEFINE_HVC_HANDLER</code>&#x2F;<code>DEFINE_SMC_HANDLER</code> 把 <code>struct svc_desc</code> 放进 <code>__hvc_handler</code>&#x2F;<code>__smc_handler</code> section，<code>svc_service_init</code> 展开填进 <code>hvc_descs</code>&#x2F;<code>smc_descs</code> 表（下标 &#x3D; STYPE）。</li>
+<li><strong>PSCI 复用同一分发框架</strong>：PSCI 标准函数 ID 自带 <code>STYPE=0x04</code>，<code>std_smc_handler</code> 注册在 <code>SVC_STYPE_STDSMC</code>，把 guest 的 CPU 电源操作翻译成 <code>vcpu_power_on</code>&#x2F;<code>vcpu_off</code> 等。</li>
+<li><strong>VM 管理 hypercall 只许 VM0 调用</strong>：<code>vm_hvc_handler</code> 开头 <code>vm_is_host_vm(get_current_vm())</code> 检查，非 VM0 直接 panic——这是”VM0 中心模型”的安全边界。</li>
+<li><strong>create_guest_vm 四步</strong>：<code>copy_from_guest</code>（拷 vmtag）→ <code>vmtag_check_and_config</code>（校验&#x2F;亲和性）→ <code>create_vm</code>（vmid + vCPU）→ <code>guest_mm_init</code>（stage2）。创建与上电分离（<code>HVC_VM_POWER_UP</code> 才让 vCPU 上线）。</li>
+<li><strong>guest 内存以共享物理页暴露给 VM0</strong>：<code>HVC_VM_MMAP</code> → <code>vm_mmap</code> 在 VM0 stage2 里映射 guest 物理页；mvm 再 mmap 到自己进程。<code>gpa_to_hvm_va</code> 是两端地址换算的关键。</li>
+<li><strong>vdev 双层模型</strong>：能快速处理的设备留 hypervisor（vGIC&#x2F;vtimer），费资源的走 <code>vdev_mmio_emulation</code> 未命中路径 <code>trap_vcpu</code> 下沉到 VM0 用户态。</li>
+<li><strong>virtio 寄存器文件是共享物理页</strong>：<code>virtio_mmio_init</code> 一块内存映射进 guest（<code>VM_IO|VM_RO</code>）和 VM0；guest 读直接命中、写 trap，hypervisor 只做寄存器值的中转，设备逻辑全在 mvm。vring 在 guest 普通内存，后端用 <code>gpa_to_hvm_va</code> 直接访问。</li>
+</ol>
+<hr>
+<h3 id="8-1-代码文件关联速查表"><a href="#8-1-代码文件关联速查表" class="headerlink" title="8.1 代码文件关联速查表"></a>8.1 代码文件关联速查表</h3><p>本文各章讲到的机制主要落在几个关键文件（行号对应正文引用的关键位置）：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>在本文的作用</th>
+<th>关键位置</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>arch/aarch64/include/asm/svccc.h</code></td>
+<td><strong>ID 位布局 + handler 注册宏</strong>：<code>SVC_STYPE_MASK</code>、<code>DEFINE_HVC/SMC_HANDLER</code>、<code>SVC_RET1</code></td>
+<td>svccc.h:17&#x2F;78&#x2F;87</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/virt/svc_service.c</code></td>
+<td><strong>分发核心</strong>：<code>do_svc_handler</code> 查表、<code>parse_svc_desc</code> 建表</td>
+<td>svc_service.c:29&#x2F;59</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/virt/smc_service.c</code></td>
+<td><strong>PSCI 虚拟化</strong>：<code>std_smc_handler</code></td>
+<td>smc_service.c:24</td>
+</tr>
+<tr>
+<td><code>arch/aarch64/virt/trap.c</code></td>
+<td><strong>异常入口</strong>：<code>aarch64_hypercall_handler</code>、<code>dataabort_tfl_handler</code>、EC 分发</td>
+<td>trap.c:320&#x2F;241&#x2F;392</td>
+</tr>
+<tr>
+<td><code>include/virt/hypercall.h</code></td>
+<td><strong>hypercall ID 编码</strong>：<code>HVC_CALL_NUM</code>、<code>HVC_VM_*</code></td>
+<td>hypercall.h:10&#x2F;20</td>
+</tr>
+<tr>
+<td><code>virt/hypercall.c</code></td>
+<td><strong>VM 管理 hypercall 入口</strong>：<code>vm_hvc_handler</code>&#x2F;<code>misc_hvc_handler</code></td>
+<td>hypercall.c:28&#x2F;122</td>
+</tr>
+<tr>
+<td><code>virt/vm.c</code></td>
+<td><strong>VM 生命周期</strong>：<code>create_guest_vm</code>、<code>create_vm_mmap</code>、<code>create_vm</code></td>
+<td>vm.c:593&#x2F;578&#x2F;885</td>
+</tr>
+<tr>
+<td><code>virt/vmm.c</code></td>
+<td><strong>内存映射</strong>：<code>vm_mmap</code>、<code>create_hvm_shmem_map</code>、<code>copy_from_guest</code></td>
+<td>vmm.c:589&#x2F;483&#x2F;500</td>
+</tr>
+<tr>
+<td><code>virt/vdev.c</code></td>
+<td><strong>vdev 框架</strong>：<code>vdev_mmio_emulation</code>、<code>vdev_add_iomem_range</code></td>
+<td>vdev.c:198&#x2F;102</td>
+</tr>
+<tr>
+<td><code>virt/vmcs.c</code> &#x2F; <code>include/virt/vmcs.h</code></td>
+<td><strong>共享内存协议</strong>：<code>__vcpu_trap</code>、<code>trap_mmio_write</code></td>
+<td>vmcs.c:24 &#x2F; vmcs.h:72</td>
+</tr>
+<tr>
+<td><code>virt/virtio_mmio.c</code></td>
+<td><strong>hypervisor 侧 virtio</strong>：<code>virtio_mmio_write</code>、<code>virtio_mmio_init</code></td>
+<td>virtio_mmio.c:40&#x2F;224</td>
+</tr>
+<tr>
+<td><code>generic/include/generic/virtio_mmio.h</code></td>
+<td><strong>virtio 寄存器定义</strong></td>
+<td>virtio_mmio.h:8</td>
+</tr>
+<tr>
+<td><code>generic/minos-linux-driver/minos.c</code></td>
+<td><strong>VM0 内核驱动</strong>：ioctl→hypercall 翻译、设备节点</td>
+<td>minos.c:951&#x2F;478&#x2F;1106</td>
+</tr>
+<tr>
+<td><code>generic/minos-linux-driver/minos_hypercall.h</code></td>
+<td><strong>hypercall 封装</strong>：<code>__minos_hvc</code>、<code>hvc_vm_create</code></td>
+<td>minos_hypercall.h:50&#x2F;73</td>
+</tr>
+<tr>
+<td><code>tools/mvm/main/mvm.c</code></td>
+<td><strong>mvm 主流程</strong>：<code>create_new_vm</code>、<code>map_vm_memory</code>、<code>handle_vcpu_event</code></td>
+<td>mvm.c:121&#x2F;70&#x2F;482</td>
+</tr>
+<tr>
+<td><code>tools/mvm/devices/virtio/virtio.c</code></td>
+<td><strong>mvm 侧 virtio 框架</strong>：<code>virtio_buffer_event</code>、<code>virtio_mmio_write</code></td>
+<td>virtio.c:593&#x2F;653</td>
+</tr>
+<tr>
+<td><code>tools/mvm/devices/virtio/virtio_block.c</code></td>
+<td><strong>块设备后端</strong>：<code>virtio_blk_notify</code>、<code>virtio_blk_proc</code></td>
+<td>virtio_block.c:240&#x2F;150</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>其余辅助文件（<code>virt/vm_pm.c</code>、<code>virt/os/os.c</code>、<code>tools/mvm/devices/vdev.c</code>、<code>tools/mvm/main/mevent.c</code> 等）在正文引用处标注了行号，需要时按引用回查即可。</p>
+</blockquote>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/ARMv8-a/" rel="tag"># ARMv8-a</a>
+              <a href="/tags/Hypervisor/" rel="tag"># Hypervisor</a>
+              <a href="/tags/Minos/" rel="tag"># Minos</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/" rel="prev" title="Minos 虚拟化: vCPU 与调度">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: vCPU 与调度
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>

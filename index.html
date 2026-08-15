@@ -140,7 +140,7 @@
   <nav class="site-state">
       <div class="site-state-item site-state-posts">
         <a href="/archives/">
-          <span class="site-state-item-count">82</span>
+          <span class="site-state-item-count">85</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -176,6 +176,267 @@
     </div>
 
     <div class="main-inner index posts-expand">
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content=" | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/" class="post-title-link" itemprop="url">Minos 虚拟化: Hypercall 与设备虚拟化</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-15 09:57:55" itemprop="dateCreated datePublished" datetime="2026-08-15T09:57:55+08:00">2026-08-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <blockquote>
+<p>本文拆解 Minos 中 guest 与 hypervisor 的通信与设备模拟机制：Hypercall 的 ID 编码与调用约定、从 HVC 指令到 handler 的分发链路、VM 管理接口，并以 create_guest_vm 为线索串起 mvm—驱动—hypervisor 的完整数据流，最后落到 vdev 框架与 virtio-mmio 块设备虚拟化的实例。</p>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content=" | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/" class="post-title-link" itemprop="url">Minos 虚拟化: vCPU 与调度</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-15 09:57:41" itemprop="dateCreated datePublished" datetime="2026-08-15T09:57:41+08:00">2026-08-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <blockquote>
+<p>本文分析 Minos 如何复用自身的任务调度器来实现 vCPU 的调度：从任务数据结构与就绪队列讲起，再到 vCPU 的创建、mode 四态状态机与 vcpu_idle 睡眠，最后覆盖 kick_vcpu 跨核唤醒、vmodule 状态保存恢复，以及 guest 与 VM0 通信所用的 vmcs 协议。</p>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-vCPU-%E4%B8%8E%E8%B0%83%E5%BA%A6/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
+
+    
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content=" | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h2 class="post-title" itemprop="name headline">
+          <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/" class="post-title-link" itemprop="url">Minos 虚拟化: 中断虚拟化</a>
+        </h2>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-15 09:57:08" itemprop="dateCreated datePublished" datetime="2026-08-15T09:57:08+08:00">2026-08-15</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/Hypervisor/" itemprop="url" rel="index"><span itemprop="name">Hypervisor</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+          <blockquote>
+<p>本文从 GICv3 硬件机制出发，梳理 Minos 中断虚拟化的完整实现：virq 抽象层如何描述一条虚拟中断的状态，硬件路径如何借助 List Register 直接注入，软件路径又如何模拟 GICD&#x2F;GICR 的 MMIO 访问，以及 vCPU 切换时中断上下文的保存与恢复。</p>
+</blockquote>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+      
+    </footer>
+  </article>
+</div>
+
+
+
 
     
 
@@ -237,7 +498,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>本文是内存虚拟化一文的补充，详细介绍 map_boot_mem 启动页表的构建细节。</p>
+<p>本文是内存虚拟化一文的补充，逐行拆解 map_boot_mem 如何建立启动页表：从函数在启动链路中的位置与寄存器别名说起，再到 PUD&#x2F;PMD&#x2F;PTE 三级页表骨架的搭建、内核镜像各段与 UART 设备的精确映射，最后给出最终的内存布局图。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -324,7 +585,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>本文介绍 Minos Hypervisor 的内存虚拟化机制。</p>
+<p>本文讲解 Minos 内存虚拟化的两级翻译架构：hypervisor 自身的 Stage1 页表如何建立与动态映射，guest 的 Stage2 页表如何用 40-bit IPA &#x2F; 4K granule 三级结构完成重映射与权限控制，VTCR_EL2&#x2F;VTTBR_EL2 的硬件配置，以及一次 guest 内存访问的完整流程。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -411,7 +672,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>本文介绍 Minos Hypervisor 的 trap 机制。</p>
+<p>本文梳理 guest 异常陷入 EL2 后的完整处理路径：从异常入口的现场保存&#x2F;恢复，到同步异常按 ESR 的 EC&#x2F;ISS 字段分发到 22 个 handler，并重点剖析 access_system_reg_handler 与 dataabort_tfl_handler 两类典型场景，最后覆盖 IRQ 的中断进入与分发流程。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -498,7 +759,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>本文介绍 Minos Hypervisor 启动流程。</p>
+<p>本文梳理 Minos 从上电到进入 C 世界的完整启动过程：镜像的段布局、汇编启动核心（_start、EL2 环境初始化、降级分支、mmu_on），以及 arch_main 到 boot_main 的 C 世界初始化主流程，并穿插与 Linux 启动流程的对比。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -585,7 +846,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>本文介绍 Minos Hypervisor 虚拟化的基础知识。</p>
+<p>本文是 Minos 虚拟化系列的硬件基础篇，梳理 ARMv8-A 虚拟化所依赖的关键机制：EL 层级与异常模型、HCR_EL2 控制寄存器、Stage1&#x2F;Stage2 两级地址翻译、异常向量表布局，以及 GICv3 中断虚拟化与 Generic Timer 定时器虚拟化的原理与代码位置。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -672,7 +933,7 @@
     
     <div class="post-body" itemprop="articleBody">
           <blockquote>
-<p>本文是基于 WSL2+Docker 从零复现 Minos Hypervisor 的过程记录。</p>
+<p>本文记录了在 WSL2 + Docker 环境下从零复现 Minos Hypervisor 的全过程：搭建容器与镜像加速、clone 源码并补装工具、修复 GCC15 编译错误，再构建 U-Boot、Linux 内核与 ramdisk，最终打包镜像并在 QEMU 中成功启动，文末汇总了踩坑记录与关键产物位置。</p>
 </blockquote>
           <!--noindex-->
             <div class="post-button">
@@ -762,261 +1023,6 @@
           <!--noindex-->
             <div class="post-button">
               <a class="btn" href="/2026/08/11/AArch64-%E9%80%9A%E7%94%A8%E5%AE%9A%E6%97%B6%E5%99%A8/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/vonku.jpg">
-      <meta itemprop="name" content="Vonku">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Vonku's Blog">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content=" | Vonku's Blog">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/" class="post-title-link" itemprop="url">AArch64 同步原语</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">发表于</span>
-
-      <time title="创建时间：2026-08-05 21:23:06" itemprop="dateCreated datePublished" datetime="2026-08-05T21:23:06+08:00">2026-08-05</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">分类于</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/AArch64/" itemprop="url" rel="index"><span itemprop="name">AArch64</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>本文介绍AArch64的同步原语。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2026/08/05/AArch64-%E5%90%8C%E6%AD%A5%E5%8E%9F%E8%AF%AD/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/vonku.jpg">
-      <meta itemprop="name" content="Vonku">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Vonku's Blog">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content=" | Vonku's Blog">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/" class="post-title-link" itemprop="url">AArch64 指令集架构</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">发表于</span>
-
-      <time title="创建时间：2026-08-05 21:08:14" itemprop="dateCreated datePublished" datetime="2026-08-05T21:08:14+08:00">2026-08-05</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">分类于</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/AArch64/" itemprop="url" rel="index"><span itemprop="name">AArch64</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>本文介绍AArch64的指令集架构。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2026/08/05/AArch64-%E6%8C%87%E4%BB%A4%E9%9B%86%E6%9E%B6%E6%9E%84/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-          <!--/noindex-->
-        
-      
-    </div>
-
-    
-    
-    
-
-    <footer class="post-footer">
-        <div class="post-eof"></div>
-      
-    </footer>
-  </article>
-</div>
-
-
-
-
-    
-
-
-<div class="post-block">
-  
-  
-
-  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="image" content="/images/vonku.jpg">
-      <meta itemprop="name" content="Vonku">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Vonku's Blog">
-      <meta itemprop="description" content="">
-    </span>
-
-    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
-      <meta itemprop="name" content=" | Vonku's Blog">
-      <meta itemprop="description" content="">
-    </span>
-      <header class="post-header">
-        <h2 class="post-title" itemprop="name headline">
-          <a href="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/" class="post-title-link" itemprop="url">AArch64 异常模型 - 异常处理</a>
-        </h2>
-
-        <div class="post-meta-container">
-          <div class="post-meta">
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-calendar"></i>
-      </span>
-      <span class="post-meta-item-text">发表于</span>
-
-      <time title="创建时间：2026-08-05 21:07:57" itemprop="dateCreated datePublished" datetime="2026-08-05T21:07:57+08:00">2026-08-05</time>
-    </span>
-    <span class="post-meta-item">
-      <span class="post-meta-item-icon">
-        <i class="far fa-folder"></i>
-      </span>
-      <span class="post-meta-item-text">分类于</span>
-        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
-          <a href="/categories/AArch64/" itemprop="url" rel="index"><span itemprop="name">AArch64</span></a>
-        </span>
-    </span>
-
-  
-</div>
-
-        </div>
-      </header>
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-          <p>本文介绍AArch64异常模型的异常处理。</p>
-          <!--noindex-->
-            <div class="post-button">
-              <a class="btn" href="/2026/08/05/AArch64-%E5%BC%82%E5%B8%B8%E6%A8%A1%E5%9E%8B-%E5%BC%82%E5%B8%B8%E5%A4%84%E7%90%86/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
