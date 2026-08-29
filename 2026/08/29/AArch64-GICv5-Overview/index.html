@@ -1,0 +1,1840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<meta name="theme-color" content="#222"><meta name="generator" content="Hexo 7.3.0">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
+
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+
+    <meta name="description" content="本文介绍 Arm 通用中断控制器 GIC v5的主要特性，并与GIC v3&#x2F;v4进行对比。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="AArch64 GICv5 Overview">
+<meta property="og:url" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/index.html">
+<meta property="og:site_name" content="Vonku&#39;s Blog">
+<meta property="og:description" content="本文介绍 Arm 通用中断控制器 GIC v5的主要特性，并与GIC v3&#x2F;v4进行对比。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/1.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/2.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/3.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/4.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/5.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/6.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/7.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/8.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/9.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/10.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/11.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/12.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/13.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/14.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/15.png">
+<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/16.png">
+<meta property="article:published_time" content="2026-08-29T02:18:35.000Z">
+<meta property="article:modified_time" content="2026-08-29T02:31:33.556Z">
+<meta property="article:author" content="Vonku">
+<meta property="article:tag" content="AArch64">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/1.png">
+
+
+<link rel="canonical" href="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/">
+
+
+<script class="next-config" data-name="page" type="application/json">{"sidebar":"","isHome":false,"isPost":true,"lang":"zh-CN","comments":true,"permalink":"http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/","path":"2026/08/29/AArch64-GICv5-Overview/","title":"AArch64 GICv5 Overview"}</script>
+
+<script class="next-config" data-name="calendar" type="application/json">""</script>
+<title>AArch64 GICv5 Overview | Vonku's Blog</title>
+  
+
+
+
+
+
+
+
+
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js" integrity="sha256-XL2inqUJaslATFnHdJOi9GfQ60on8Wx1C2H8DYiN1xY=" crossorigin="anonymous" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
+<script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
+
+  
+
+
+
+  <script src="/js/third-party/fancybox.js" defer></script>
+
+
+
+  
+
+
+
+
+
+  <noscript>
+    <link rel="stylesheet" href="/css/noscript.css">
+  </noscript>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="headband"></div>
+
+  <main class="main">
+    <div class="column">
+      <header class="header" itemscope itemtype="http://schema.org/WPHeader"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏" role="button">
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+        <span class="toggle-line"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <i class="logo-line"></i>
+      <p class="site-title">Vonku's Blog</p>
+      <i class="logo-line"></i>
+    </a>
+      <p class="site-subtitle" itemprop="description">Keep calm or 烫烫烫</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger" aria-label="搜索" role="button">
+    </div>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+  </ul>
+</nav>
+
+
+
+
+</header>
+        
+  
+  <aside class="sidebar">
+
+    <div class="sidebar-inner sidebar-nav-active sidebar-toc-active">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <div class="sidebar-panel-container">
+        <!--noindex-->
+        <div class="post-toc-wrap sidebar-panel">
+            <div class="post-toc animated"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#1-GICv5-%E5%9F%BA%E7%A1%80"><span class="nav-text">1. GICv5 基础</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#GIC-%E6%9E%B6%E6%9E%84%E7%BB%84%E4%BB%B6"><span class="nav-text">GIC 架构组件</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E5%9F%9F%EF%BC%88Interrupt-Domains%EF%BC%89"><span class="nav-text">中断域（Interrupt Domains）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E7%B1%BB%E5%9E%8B%E4%B8%8E-ID%EF%BC%88Interrupt-IDs-and-Types%EF%BC%89"><span class="nav-text">中断类型与 ID（Interrupt IDs and Types）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#INTID-%E9%85%8D%E7%BD%AE%EF%BC%88INTID-Configuration%EF%BC%89"><span class="nav-text">INTID 配置（INTID Configuration）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E7%8A%B6%E6%80%81%EF%BC%88INTID-State%EF%BC%89"><span class="nav-text">中断状态（INTID State）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E7%8A%B6%E6%80%81%E6%9C%BA%EF%BC%88Interrupt-State-Machine%EF%BC%89"><span class="nav-text">中断状态机（Interrupt State Machine）</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#2-%E4%B8%AD%E6%96%AD%E6%B5%81%E8%BD%AC"><span class="nav-text">2. 中断流转</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#LPIs"><span class="nav-text">LPIs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SPIs"><span class="nav-text">SPIs</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PPIs"><span class="nav-text">PPIs</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#3-%E4%B8%AD%E6%96%AD%E4%BF%A1%E5%8F%B7%E5%92%8C%E5%A4%84%E7%90%86"><span class="nav-text">3. 中断信号和处理</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%A1%AE%E5%AE%9A%E6%9C%80%E9%AB%98%E4%BC%98%E5%85%88%E7%BA%A7%E6%8C%82%E8%B5%B7%E4%B8%AD%E6%96%AD"><span class="nav-text">确定最高优先级挂起中断</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%BC%98%E5%85%88%E7%BA%A7%E6%8E%A9%E7%A0%81%E4%B8%8E%E8%BF%90%E8%A1%8C%E4%BC%98%E5%85%88%E7%BA%A7"><span class="nav-text">优先级掩码与运行优先级</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BC%82%E5%B8%B8%E4%BA%A7%E7%94%9F"><span class="nav-text">异常产生</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%E6%B5%81%E7%A8%8B"><span class="nav-text">中断处理流程</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#4-%E9%85%8D%E7%BD%AEGIC"><span class="nav-text">4. 配置GIC</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%BB%BA%E7%AB%8B-CPUIF-%E4%B8%8E-IRI-%E7%9A%84%E9%93%BE%E8%B7%AF"><span class="nav-text">建立 CPUIF 与 IRI 的链路</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E9%85%8D%E7%BD%AE-LPI"><span class="nav-text">配置 LPI</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#IWB"><span class="nav-text">IWB</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#ITS"><span class="nav-text">ITS</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#ITS-%E9%85%8D%E7%BD%AE%E6%AD%A5%E9%AA%A4"><span class="nav-text">ITS 配置步骤</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#IRS-%E7%9A%84-LPI-%E9%85%8D%E7%BD%AE%E4%B8%8E%E8%B7%AF%E7%94%B1%E7%AE%A1%E7%90%86"><span class="nav-text">IRS 的 LPI 配置与路由管理</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1-LPI-%E6%95%B0%E9%87%8F%E7%A1%AE%E5%AE%9A%E4%B8%8E-IST-%E8%A7%84%E6%A8%A1%E4%BC%B0%E7%AE%97"><span class="nav-text">1. LPI 数量确定与 IST 规模估算</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-IST-%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B8%8E%E8%B7%AF%E7%94%B1%E6%9C%BA%E5%88%B6"><span class="nav-text">2. IST 数据结构与路由机制</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-LPI-%E9%85%8D%E7%BD%AE%E4%B8%8E%E4%BD%BF%E8%83%BD%E7%9A%84%E5%AE%8C%E6%95%B4%E8%BD%AF%E4%BB%B6%E6%B5%81%E7%A8%8B"><span class="nav-text">3. LPI 配置与使能的完整软件流程</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E4%B8%A4%E7%BA%A7%E9%A1%B5%E8%A1%A8%E7%BB%93%E6%9E%84%EF%BC%9ASplit-%E4%B8%8E-Span"><span class="nav-text">两级页表结构：Split 与 Span</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E7%A4%BA%E4%BE%8B%E4%B8%8E%E8%BE%B9%E7%95%8C%E5%A4%84%E7%90%86"><span class="nav-text">示例与边界处理</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SPI-%E7%9A%84%E9%85%8D%E7%BD%AE%E4%B8%8E%E8%B7%AF%E7%94%B1%E6%9C%BA%E5%88%B6"><span class="nav-text">SPI 的配置与路由机制</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#%E5%9F%BA%E4%BA%8E-IRS-%E7%9A%84-SPI-%E9%85%8D%E7%BD%AE%E4%B8%8E%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-text">基于 IRS 的 SPI 配置与生命周期</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1-%E9%80%89%E6%8B%A9%E5%B9%B6%E6%A0%A1%E9%AA%8C%E7%9B%AE%E6%A0%87-SPI"><span class="nav-text">1. 选择并校验目标 SPI</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#2-%E9%85%8D%E7%BD%AE%E6%AD%A5%E9%AA%A4%E4%B8%8E%E5%AF%84%E5%AD%98%E5%99%A8%E4%BA%A4%E4%BA%92"><span class="nav-text">2. 配置步骤与寄存器交互</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-%E7%A1%AC%E4%BB%B6%E4%B8%AD%E6%96%AD%E5%A4%84%E7%90%86%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F"><span class="nav-text">3. 硬件中断处理生命周期</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#PPI-%E9%85%8D%E7%BD%AE%E6%9C%BA%E5%88%B6"><span class="nav-text">PPI 配置机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#IPI-%E7%9A%84%E9%85%8D%E7%BD%AE%E4%B8%8E%E8%A7%A6%E5%8F%91%E6%9C%BA%E5%88%B6"><span class="nav-text">IPI 的配置与触发机制</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E5%8D%95%E4%B8%AA%E4%B8%AD%E6%96%AD%E9%85%8D%E7%BD%AE%E6%B1%87%E6%80%BB%E4%B8%8E%E7%B3%BB%E7%BB%9F%E6%8C%87%E4%BB%A4%E9%9B%86"><span class="nav-text">单个中断配置汇总与系统指令集</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#GICv5-%E5%90%8C%E6%AD%A5%E6%9C%BA%E5%88%B6%E4%B8%8E%E5%B1%8F%E9%9A%9C%E6%8C%87%E4%BB%A4"><span class="nav-text">GICv5 同步机制与屏障指令</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#5-GICv5-%E4%B8%AD%E6%96%AD%E8%99%9A%E6%8B%9F%E5%8C%96%E6%9C%BA%E5%88%B6"><span class="nav-text">5. GICv5 中断虚拟化机制</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#GICv5-%E8%99%9A%E6%8B%9F%E4%B8%AD%E6%96%AD%E7%B1%BB%E5%9E%8B%E4%B8%8E%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%E9%9A%94%E7%A6%BB"><span class="nav-text">GICv5 虚拟中断类型与命名空间隔离</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#GICv5-%E8%99%9A%E6%8B%9F%E5%8C%96%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84%E4%B8%8E%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86"><span class="nav-text">GICv5 虚拟化数据结构与内存管理</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#%E5%9F%BA%E7%A1%80%E4%BD%BF%E8%83%BD%E6%B5%81%E7%A8%8B"><span class="nav-text">基础使能流程</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#%E4%BA%8C%E7%BA%A7-VM-%E8%A1%A8%EF%BC%882-level-Structure%EF%BC%89%E5%8A%A8%E6%80%81%E5%88%86%E9%85%8D"><span class="nav-text">二级 VM 表（2-level Structure）动态分配</span></a></li></ol></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E7%89%A9%E7%90%86%E4%B8%AD%E6%96%AD%E5%90%91-VM-%E4%B8%8E-VPE-%E7%9A%84%E5%88%86%E9%85%8D%E4%B8%8E%E6%98%A0%E5%B0%84"><span class="nav-text">物理中断向 VM 与 VPE 的分配与映射</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#vLPI-%E6%98%A0%E5%B0%84%E4%B8%8E%E8%B7%AF%E7%94%B1%E6%9C%BA%E5%88%B6"><span class="nav-text">vLPI 映射与路由机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#vSPI-%E6%98%A0%E5%B0%84%E4%B8%8E%E8%B7%AF%E7%94%B1%E6%9C%BA%E5%88%B6"><span class="nav-text">vSPI 映射与路由机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#VPE-%E8%B0%83%E5%BA%A6%E4%B8%8E%E5%B8%B8%E9%A9%BB%EF%BC%88Residency%EF%BC%89%E6%9C%BA%E5%88%B6"><span class="nav-text">VPE 调度与常驻（Residency）机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#%E9%97%A8%E9%93%83%E4%B8%AD%E6%96%AD%EF%BC%88Doorbell%EF%BC%89%E6%9C%BA%E5%88%B6"><span class="nav-text">门铃中断（Doorbell）机制</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#vPPI-%E6%98%A0%E5%B0%84%E4%B8%8E%E7%8A%B6%E6%80%81%E7%AE%A1%E7%90%86"><span class="nav-text">vPPI 映射与状态管理</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#%E8%99%9A%E6%8B%9F-CPU-%E6%8E%A5%E5%8F%A3%EF%BC%88Virtual-CPU-Interface%EF%BC%89"><span class="nav-text">虚拟 CPU 接口（Virtual CPU Interface）</span></a></li></ol></li></ol></div>
+        </div>
+        <!--/noindex-->
+
+        <div class="site-overview-wrap sidebar-panel">
+          <div class="site-author animated" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="Vonku"
+      src="/images/vonku.jpg">
+  <p class="site-author-name" itemprop="name">Vonku</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap animated">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        <a href="/archives/">
+          <span class="site-state-item-count">86</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+          <a href="/categories/">
+        <span class="site-state-item-count">16</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+          <a href="/tags/">
+        <span class="site-state-item-count">24</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author animated">
+      <span class="links-of-author-item">
+        <a href="https://github.com/vonku" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;vonku" rel="noopener me" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:512880475@qq.com" title="E-Mail → mailto:512880475@qq.com" rel="noopener me" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+        </div>
+      </div>
+    </div>
+
+    
+  </aside>
+
+
+    </div>
+
+    <div class="main-inner post posts-expand">
+
+
+  
+
+
+<div class="post-block">
+  
+  
+
+  <article itemscope itemtype="http://schema.org/Article" class="post-content" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/vonku.jpg">
+      <meta itemprop="name" content="Vonku">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="post" itemscope itemtype="http://schema.org/CreativeWork">
+      <meta itemprop="name" content="AArch64 GICv5 Overview | Vonku's Blog">
+      <meta itemprop="description" content="">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          AArch64 GICv5 Overview
+        </h1>
+
+        <div class="post-meta-container">
+          <div class="post-meta">
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-calendar"></i>
+      </span>
+      <span class="post-meta-item-text">发表于</span>
+
+      <time title="创建时间：2026-08-29 10:18:35" itemprop="dateCreated datePublished" datetime="2026-08-29T10:18:35+08:00">2026-08-29</time>
+    </span>
+    <span class="post-meta-item">
+      <span class="post-meta-item-icon">
+        <i class="far fa-folder"></i>
+      </span>
+      <span class="post-meta-item-text">分类于</span>
+        <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+          <a href="/categories/AArch64/" itemprop="url" rel="index"><span itemprop="name">AArch64</span></a>
+        </span>
+    </span>
+
+  
+</div>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody"><p>本文介绍 Arm 通用中断控制器 GIC v5的主要特性，并与GIC v3&#x2F;v4进行对比。</p>
+<span id="more"></span>
+
+<p>作为 Arm A-profile 系统的核心组件，通用中断控制器（GIC）负责管理硬件中断的接收、状态维护、优先级排序与路由投递。相比 GICv3 与 GICv4，最新一代的 GICv5 带来了架构层面的重大演进，其核心优势集中在以下三大维度：</p>
+<ul>
+<li><strong>超大规模扩展能力（Scalability）：</strong> 彻底取消了架构维度的中断数量限制。设计期支持从单核扩展至跨 Die 的数百核系统，并可承载成千上万个引脚中断（Wired）与消息中断（MSI）；运行时支持动态扩展，允许通过 PCIe 等接口动态插入并配置新设备的中断。</li>
+<li><strong>近乎零损耗的虚拟化（Virtualization）：</strong> 针对虚拟化工作负载进行了专项优化，旨在大幅降低中断在虚拟化环境中的处理延迟，提供与非虚拟化环境无异的极速响应能力。</li>
+<li><strong>原生机密计算支持（Confidential Compute）：</strong> 原生集成 Arm Realm Management Extension (RME)，为构建硬件级安全的 Arm Confidential Compute环境提供底层中断安全保障。</li>
+</ul>
+<h2 id="1-GICv5-基础"><a href="#1-GICv5-基础" class="headerlink" title="1. GICv5 基础"></a>1. GICv5 基础</h2><h3 id="GIC-架构组件"><a href="#GIC-架构组件" class="headerlink" title="GIC 架构组件"></a>GIC 架构组件</h3><p>GICv5 架构主要由两大模块组成：中断路由基础设施（IRI）与紧邻处理核心（PE）的 <strong>CPU 接口（CPU-IF）</strong>。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/1.png" alt="1"></p>
+<p><strong>中断路由基础设施（IRI）</strong></p>
+<p>IRI 负责整体中断信号的接收、转换与路由，由以下三个服务&#x2F;硬件单元协同工作：</p>
+<ul>
+<li><strong>中断引脚桥（IWB）</strong>：接收来自系统中外设的硬中断信号（Wired interrupts），生成中断事件并转发给 ITS。架构支持系统包含 0 到任意数量的 IWB，通常按 Chip 或 Chiplet 部署，每个 IWB 绑定一个 ITS。</li>
+<li><strong>中断转换服务（ITS）</strong>：接收来自 IWB 的硬中断事件或来自 PCIe 等子系统的消息中断（MSI），将其转换为逻辑外设中断 ID（LPI INTID），并将转换结果作为中断事件转发给 IRS。系统中可部署多个 ITS（例如紧邻 PCIe Root Complex 部署），每个 ITS 绑定一个 IRS。</li>
+<li><strong>中断路由服务（IRS）</strong>：负责整体的中断管理。它维护每个中断的配置与状态，将中断路由到目标，并最终投递给 PE。系统通常按 Chip 或 Chiplet 部署独立的 IRS。</li>
+</ul>
+<p><strong>处理器接口组件 (CPU interface)</strong></p>
+<p><strong>CPU 接口（CPU-IF）</strong>：每个 PE 旁独立的组件，通过 IRI Link 连接至 IRS。除了负责私有外设中断（PPI）的管理、优先级屏蔽与响应&#x2F;清除接口外，还在 EL2 具备时原生支持物理与虚拟中断的处理。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/2.png" alt="2"></p>
+<p>从内部信号交互来看，CPU-IF 与 PE 内核紧密绑定，主要包含以下关键模块与接口：</p>
+<ul>
+<li><strong>Physical CPU interface</strong>：负责物理中断的处理，通过 <code>IRQ</code> &#x2F; <code>FIQ</code> 线路向 PE 触发中断信号，PE 则通过系统指令（<code>MSR</code>&#x2F;<code>MRS</code>）与 CPU-IF 交互以响应或清除中断。</li>
+<li><strong>Virtual CPU interface</strong>：专为虚拟化设计，向 PE 注入虚拟中断信号（<code>vIRQ</code> &#x2F; <code>vFIQ</code>），内部还包含了兼容旧架构的 Legacy 模块，协助 Hypervisor（EL2）高效管理虚拟机中断。</li>
+<li><strong>PPI configuration and state</strong>：独立管理该 PE 私有的外设中断（PPI）的状态与配置，同样通过 <code>MSR</code>&#x2F;<code>MRS</code> 寄存器进行访问。</li>
+</ul>
+<p><strong>小结：</strong></p>
+<ol>
+<li>**接入层 (IWB)**：将物理引脚中断转化为事件（可选）。</li>
+<li>**转换层 (ITS)**：将引脚事件或 PCIe MSI 中断统一翻译为 LPI INTID。</li>
+<li>**路由层 (IRS)**：维护全局中断状态与路由策略，确定目标核心。</li>
+<li>**执行层 (CPU-IF)**：紧贴 CPU 核心，负责优先级过滤、虚拟化映射及最终的 CPU 触发。</li>
+</ol>
+<hr>
+<h3 id="中断域（Interrupt-Domains）"><a href="#中断域（Interrupt-Domains）" class="headerlink" title="中断域（Interrupt Domains）"></a>中断域（Interrupt Domains）</h3><p>中断域是 GICv5 架构中实现隔离与安全管理的核心概念。一个物理中断域（Physical Interrupt Domain）包含了一组特定的中断及其配置属性。GICv5 将中断域与 Arm 系统的安全状态（Security State）及异常级别（Exception Level）进行了直接映射，使得不同安全环境下的中断处理能够严格隔离。</p>
+<p>在硬件层面上，系统最多可以实现以下四种物理中断域：</p>
+<table>
+<thead>
+<tr>
+<th><strong>中断域</strong></th>
+<th><strong>映射的安全状态与控制者</strong></th>
+<th><strong>描述与典型应用场景</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EL3</td>
+<td>由运行在 EL3 的固件管理</td>
+<td>用于处理系统最高特权级的底层固件中断。</td>
+</tr>
+<tr>
+<td>Secure</td>
+<td>由 Secure 状态管理</td>
+<td>典型控制者为运行在 Secure EL2 的安全分区管理器（SPM）或 Secure EL1 的可信操作系统（Trusted OS）。</td>
+</tr>
+<tr>
+<td>Non-secure</td>
+<td>由 Non-secure 状态（普通世界）管理</td>
+<td>典型控制者为运行在 Non-secure EL2 的 Hypervisor，或直接由宿主操作系统（EL2&#x2F;EL1）控制。</td>
+</tr>
+<tr>
+<td>Realm</td>
+<td>由 Realm 状态（机密计算）管理</td>
+<td>专为 Arm RME 机密计算设计，典型控制者为运行在 Realm EL2 的 Realm 管理监视器（RMM）。</td>
+</tr>
+</tbody></table>
+<p><strong>硬件隔离与独立编程接口</strong></p>
+<p>各个中断域之间保持严格的独立性。为了防止跨域干涉，GICv5 硬件的底层组件——包括中断路由服务（IRS）、中断转换服务（ITS）以及中断引脚桥（IWB）——都会为不同的中断域提供各自独立的编程接口和物理地址空间（PAS）。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/3.png" alt="3"></p>
+<p>在硬件部署与实现上，GICv5 遵循以下两条核心约束：</p>
+<ul>
+<li>动态适配原则：如果处理核心（PE）未实现某种安全状态或异常级别，GIC 硬件就不会实现对应的中断域。例如，若系统 CPU 不支持 Realm 状态，GIC 便不会包含 Realm 中断域。</li>
+<li>状态一致性要求：所有连接到同一个 GIC 系统的 PE，必须实现完全相同的安全状态集合，以保证整个系统中断处理逻辑的一致与安全。</li>
+</ul>
+<hr>
+<h3 id="中断类型与-ID（Interrupt-IDs-and-Types）"><a href="#中断类型与-ID（Interrupt-IDs-and-Types）" class="headerlink" title="中断类型与 ID（Interrupt IDs and Types）"></a>中断类型与 ID（Interrupt IDs and Types）</h3><p>GICv5 架构中支持三种主要的中断类型。不同类型的核心差异在于其配置与状态的存储介质、作用范围以及动态扩展能力：</p>
+<table>
+<thead>
+<tr>
+<th><strong>中断类型</strong></th>
+<th><strong>存储位置</strong></th>
+<th><strong>作用范围与特性</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>LPI（Logical Peripheral Interrupt）</td>
+<td>软件分配的系统内存</td>
+<td>全局外设中断。配置与状态存于内存，数量可运行时动态扩展，极其适合 PCIe 等设备。支持通过 IWB 或 MSI 触发。</td>
+</tr>
+<tr>
+<td>SPI（Shared Peripheral Interrupt）</td>
+<td>硬件寄存器（IRS 内）</td>
+<td>全局外设中断。配置与状态存于寄存器，数量固定且不依赖系统内存，适合内存尚未初始化时的早期引导阶段（Early Boot）。</td>
+</tr>
+<tr>
+<td>PPI（Private Peripheral Interrupt）</td>
+<td>系统寄存器（PE 内）</td>
+<td>核心私有外设中断。每个 PE 拥有独立的 PPI 集合，通常由通用定时器（Generic Timer）或 PMU 等 PE 内部源驱动。</td>
+</tr>
+</tbody></table>
+<p><strong>INTID 格式与命名空间隔离</strong></p>
+<p>每一个中断在 GICv5 中都由一个 32 位的 INTID 唯一标识。INTID 的结构主要由 Type 字段与 ID 字段组成：</p>
+<ul>
+<li>Type 字段：标明该中断属于 LPI、SPI 还是 PPI。</li>
+<li>ID 字段：特定中断类型下的具体编号。每种中断类型拥有独立的 ID 命名空间，例如 <code>&#123;SPI, 8&#125;</code> 与 <code>&#123;LPI, 8&#125;</code> 代表两个完全不同的独立中断。</li>
+</ul>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/4.png" alt="4"></p>
+<p>在中断域（Interrupt Domain）的隔离维度上，不同中断类型的命名空间规则如下：</p>
+<ul>
+<li>LPI 的 ID 命名空间是按中断域独立隔离的。即 Non-secure 域中的 LPI 42 与 Secure 域中的 LPI 42 是完全互不干扰的两个独立中断。</li>
+<li>SPI 与 PPI 的 ID 命名空间则是跨中断域共享的。每个 SPI 或 PPI 会被动态分配给某一个特定的中断域，且仅在该中断域内可见，该分配过程由 EL3 软件统一控制。</li>
+</ul>
+<p><strong>核间中断（Inter-Processor Interrupts, IPI）</strong></p>
+<p>GICv5 原生支持核间中断（IPI），允许系统中的某一个 PE 向另一个指定 PE 发送中断信号。</p>
+<p>在 GICv5 中，IPI 并没有单独定义一种新的物理中断类型，而是通过将 SPI 或 LPI 指定目标 PE 的 Affinity ID 来实现：</p>
+<ul>
+<li>PE 亲和性标识：GICv5 为系统中的每一个 PE 都定义了唯一的 PE 中断 Affinity ID（注意：该 ID 与 MPIDR 寄存器中定义的亲和性级别无关）。</li>
+<li>域控制逻辑：<ul>
+<li>若使用 LPI 作为 IPI，则对应的 LPI 由使用该 IPI 的软件在各自的中断域内进行分配与配置；(原因是 LPI 是各个域独立的)</li>
+<li>若使用 SPI 作为 IPI，则由 EL3 软件负责将其分配给对应的中断域。（原因是 SPI 是全局共享的，比如物理上的 <code>SPI 8</code> 只有一个，所以要统一管理）</li>
+</ul>
+</li>
+</ul>
+<hr>
+<h3 id="INTID-配置（INTID-Configuration）"><a href="#INTID-配置（INTID-Configuration）" class="headerlink" title="INTID 配置（INTID Configuration）"></a>INTID 配置（INTID Configuration）</h3><p>在 GICv5 中，每一个 INTID 都有与其关联的特定配置属性。这些配置决定了中断如何被触发、如何进行优先级排序以及最终路由到哪一个核心执行。</p>
+<p>核心配置选项如下表所示：</p>
+<table>
+<thead>
+<tr>
+<th><strong>配置项（Configuration）</strong></th>
+<th><strong>描述（Description）</strong></th>
+<th><strong>架构特性与注意事项（Notes）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Enabled</td>
+<td>控制中断是否可以向 PE 发送信号。仅在启用状态下，中断才会向处理核心投递。</td>
+<td>基础使能控制位。</td>
+</tr>
+<tr>
+<td>Priority</td>
+<td>中断优先级，由 5 位无符号整数表示。数值越小，优先级越高（<code>0b00000</code> 为最高，<code>0b11111</code> 为最低）。</td>
+<td>系统不一定实现完整的 5 位。未实现的低位固定为 RES0，具体支持位数由 <code>IRS_IDR1</code> 寄存器报告。且 CPU-IF 固定支持 5 位，但 IRS 可能会更少，因此软件应选择两者通用的优先级配置。</td>
+</tr>
+<tr>
+<td>Routing Mode</td>
+<td>决定中断被路由至哪个 PE 处理。支持定向（Targeted）与 1ofN 两种模式。</td>
+<td>不适用于 PPI；1ofN 路由模式在架构中属于可选实现（Optional）。</td>
+</tr>
+<tr>
+<td>Handling Mode</td>
+<td>描述外设发送中断的语义，分为电平触发（Level-sensitive）与边沿触发（Edge-triggered）。</td>
+<td>PPI 的触发模式在系统设计时固化，无法通过软件配置。</td>
+</tr>
+<tr>
+<td>Affinity</td>
+<td>目标 PE 的唯一中断 Affinity ID。</td>
+<td>GICv5 为系统中的每个 PE 都定义了唯一的 Affinity ID。PPI 具有固定亲和性，始终指向本地（Local）PE。</td>
+</tr>
+</tbody></table>
+<p><strong>路由机制与亲和性</strong></p>
+<p>在路由模式上，GICv5 提供了更加灵活的调度方式：</p>
+<ul>
+<li>定向模式（Targeted）：中断将精准投递至由 16 位 ID 标识的指定 PE 上。</li>
+<li>1of N 负载均衡模式：GIC 硬件会动态选择一个合适的目标 PE 来处理该中断。各个 PE 可以自主选择加入（Opt-in）或退出（Opt-out）接收 1of N 中断的候选池。</li>
+</ul>
+<p>此外，为了确保路由的精准性，GICv5 为系统内的每一个 PE 都分配了一个唯一的 PE 中断 Affinity ID，用作路由寻址的物理凭证。</p>
+<hr>
+<h3 id="中断状态（INTID-State）"><a href="#中断状态（INTID-State）" class="headerlink" title="中断状态（INTID State）"></a>中断状态（INTID State）</h3><p>在 GIC 架构中，中断状态用于追踪某个中断信号是否被触发以及当前是否正在被软件处理。GICv5 对中断状态的管理方式进行了重构，引入了更明确的状态划分。</p>
+<p>每一个 INTID 都包含以下两个独立的属性状态：</p>
+<table>
+<thead>
+<tr>
+<th><strong>状态（State）</strong></th>
+<th><strong>描述（Description）</strong></th>
+<th><strong>取值与含义（Values）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pending</td>
+<td>标识中断源是否已经向控制器发出了中断信号。</td>
+<td>Idle：中断未触发；Pending：中断已触发，正在等待处理。</td>
+</tr>
+<tr>
+<td>Active</td>
+<td>标识当前中断是否正在由 CPU&#x2F;软件处理中。</td>
+<td>Inactive：当前未处于处理状态；Active：CPU 已响应中断，软件正在执行处理程序。</td>
+</tr>
+</tbody></table>
+<p>GICv5 将早期架构中合并追踪的挂起与激活状态彻底解耦，拆分为 Pending 和 Active 两个独立字段，简化了硬件状态机的维护逻辑。</p>
+<hr>
+<h3 id="中断状态机（Interrupt-State-Machine）"><a href="#中断状态机（Interrupt-State-Machine）" class="headerlink" title="中断状态机（Interrupt State Machine）"></a>中断状态机（Interrupt State Machine）</h3><p>中断状态机用于动态追踪中断从触发、响应到处理完成的全生命周期。状态的迁移主要由三类要素共同驱动：外设的中断事件（信号产生或清除）、CPU 的响应动作（应答 Acknowledge 或解除激活 Deactivate），以及硬件的触发模式（边沿触发或电平触发）。</p>
+<p>Pending 与 Active 两个独立属性组合形成了以下四种状态：</p>
+<table>
+<thead>
+<tr>
+<th><strong>中断状态（Interrupt State）</strong></th>
+<th><strong>描述（Description）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Idle, Inactive</td>
+<td>闲置状态。没有挂起的中断，也没有正在运行的中断处理函数。</td>
+</tr>
+<tr>
+<td>Pending, Inactive</td>
+<td>挂起状态。外设已发出中断信号，但 CPU 尚未响应（Acknowledge）。</td>
+</tr>
+<tr>
+<td>Idle, Active</td>
+<td>激活状态。CPU 已响应中断并开始运行处理函数，当前没有新的挂起中断。</td>
+</tr>
+<tr>
+<td>Pending, Active</td>
+<td>挂起且激活状态。在第一个中断实例尚未解除激活（Deactivate）前，该中断再次被触发；或对于电平触发中断，外设的中断引脚依然维持高电平。</td>
+</tr>
+</tbody></table>
+<p><strong>触发模式对状态清除的影响</strong></p>
+<p>边沿触发（Edge-triggered）与电平触发（Level-sensitive）在状态机的维护逻辑上存在关键差异：</p>
+<ul>
+<li><p>边沿触发：只要 CPU 执行应答（Acknowledge）动作，硬件就会自动清除 Pending 状态。如果后续有新的边沿脉冲到达，中断会重新进入 Pending 状态。</p>
+</li>
+<li><p>电平触发：CPU 的应答动作不会自动清除 Pending 状态。Pending 状态完全由外设源头的物理电平驱动，只有当外设硬件主动撤销信号（Deassert）后，Pending 状态才会消失。</p>
+</li>
+</ul>
+<p>边沿触发的状态机：</p>
+<p>  <img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/5.png" alt="5"></p>
+<p>电平触发的状态机：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/6.png" alt="6"></p>
+<h2 id="2-中断流转"><a href="#2-中断流转" class="headerlink" title="2. 中断流转"></a>2. 中断流转</h2><p>物理中断（包括 LPI、SPI 和 PPI）在GICv5 架构中的处理遵循一套标准的硬件流水线机制。中断信号从外设源头产生，最终投递至 CPU 执行，主要分为两个关键阶段：</p>
+<ul>
+<li>中断信号传输（Signalling）：硬件评估并确定当前最高优先级的挂起中断，将其向目标 CPU 核心（PE）发送。</li>
+<li>中断响应与处理（Handling）：CPU 评估优先级掩码，触发异常并执行中断服务程序（ISR），最后完成中断的状态解除。</li>
+</ul>
+<p>对于虚拟中断（vLPI、vSPI 和 vPPI），其整体处理逻辑与物理中断基本一致，但增加了虚拟化层级的数据结构映射与控制逻辑。</p>
+<hr>
+<h3 id="LPIs"><a href="#LPIs" class="headerlink" title="LPIs"></a>LPIs</h3><p>LPI（逻辑外设中断）在 GICv5 系统中的处理路径比传统中断更为复杂，它依赖中断翻译服务（ITS）将源端事件翻译为具体的物理 INTID，再交由中断路由服务（IRS）进行处理与投递。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/7.png" alt="7"></p>
+<p><strong>中断源输入与事件触发</strong></p>
+<p>LPI 中断源分为硬件引脚触发（Wired Interrupts）与消息中断（MSI）两类：</p>
+<ul>
+<li>引脚触发中断：通过中断引脚桥（IWB）接收硬件信号。IWB 捕获事件后，将其封装为标准事件发送给 ITS。在此机制下，DeviceID 唯一标识该 IWB，而 EventID 则对应 IWB 上的具体物理引脚。</li>
+<li>MSI 消息中断：支持 MSI 的设备（如 PCIe 设备）直接向 ITS 发送中断事件。此时 DeviceID 标识发送设备（例如推导自 PCIe Requester ID），架构上要求 DeviceID 严禁伪造；EventID 则代表该设备内部的具体事件。</li>
+</ul>
+<p>发送至 ITS 的事件数据统一包含三个关键信息：DeviceID（源设备标识）、EventID（事件标识）以及 Event 动作类型（<code>SET_EDGE</code>、<code>SET_LEVEL</code> 或 <code>CLEAR</code>）。</p>
+<p><strong>ITS 中断翻译流程</strong></p>
+<p>ITS 收到事件后，通过两级查表机制将 <code>&#123;DeviceID, EventID&#125;</code> 映射为最终的物理 INTID：</p>
+<table>
+<thead>
+<tr>
+<th><strong>查找阶段</strong></th>
+<th><strong>索引依据</strong></th>
+<th><strong>查询的目标数据结构</strong></th>
+<th><strong>返回结果</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>第一级查找</td>
+<td>DeviceID</td>
+<td>设备表（Device Table, DT）</td>
+<td>指向该设备专属中断翻译表（ITT）的指针</td>
+</tr>
+<tr>
+<td>第二级查找</td>
+<td>EventID</td>
+<td>中断翻译表（Interrupt Translation Table, ITT）</td>
+<td>最终对应的物理 LPI INTID</td>
+</tr>
+</tbody></table>
+<p>这种从设备&#x2F;事件 ID 对到 INTID 的映射关系完全由软件控制，可以在系统运行时动态调整。</p>
+<p><strong>IRS 状态查找与 CPU 投递</strong></p>
+<p>ITS 完成翻译后，将得到物理 INTID 及 Event 动作转发给 IRS。</p>
+<p>IRS 收到后，通过 INTID 检索中断状态表（IST）。系统内所有的 IRS 共享同一份 IST 数据结构，用于获取该 LPI 的使能状态、优先级以及路由配置。确认有效后，IRS 确定目标 PE 的 CPU 接口（CPU-IF），并将请求向目标 CPU 核心进行投递。</p>
+<p>为了降低多级内存查表（DT、ITT、IST）带来的延迟开销，GICv5 硬件实现通常会缓存这些内存数据结构，以大幅减少实际的系统内存访问次数。</p>
+<hr>
+<h3 id="SPIs"><a href="#SPIs" class="headerlink" title="SPIs"></a>SPIs</h3><p>共享外设中断（SPI）是直接通过硬件引脚连接到中断路由服务（IRS）的引脚中断（Wired Interrupts）。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/8.png" alt="8"></p>
+<table>
+<thead>
+<tr>
+<th><strong>特性</strong></th>
+<th><strong>SPI（共享外设中断）</strong></th>
+<th><strong>LPI（逻辑外设中断）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>映射关系</td>
+<td>硬件固定。中断源引脚与 INTID 是一一对应的硬编码映射。</td>
+<td>软件控制。中断源与 INTID 的对应关系可由软件动态配置。</td>
+</tr>
+<tr>
+<td>资源与配置</td>
+<td>硬件固化。无需分配内存数据结构，中断数量在芯片设计阶段即已确定。</td>
+<td>动态分配。依赖软件在系统运行期于内存中开辟的数据结构（如 IST）。</td>
+</tr>
+</tbody></table>
+<p><strong>跨核心路由机制</strong></p>
+<p>虽然特定的 SPI 中断源在物理线路上固定连接至某一个 IRS 组件，但架构上并不限制其目标处理核心（PE）。即便 SPI 信号输入到了特定的 IRS，该 IRS 依然可以将中断信号跨组件投递给连接在其他 IRS 上的 PE 进行处理。</p>
+<h3 id="PPIs"><a href="#PPIs" class="headerlink" title="PPIs"></a>PPIs</h3><p>私有外设中断（PPI）是属于特定处理器核心（PE）的私有中断。与 LPI 和 SPI 等全系统可见的全局中断不同，PPI 仅对其绑定的特定 PE 可见，其中断信号由 CPU 接口（CPU-IF）直接管理，无需经过中断路由服务（IRI）。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/9.png" alt="9"></p>
+<table>
+<thead>
+<tr>
+<th><strong>中断类型</strong></th>
+<th><strong>作用域与可见性</strong></th>
+<th><strong>命名空间（Namespace）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>LPI &#x2F; SPI</td>
+<td>全局（Global）。可以路由并投递给连接到 GIC 的任意 PE 处理。</td>
+<td>全局统一编号。</td>
+</tr>
+<tr>
+<td>PPI</td>
+<td>私有（Private）。仅对绑定的特定 PE 可见，如通用定时器（Generic Timers）和 PMU 的中断。</td>
+<td>PE 私有独立。不同 PE 使用相同 PPI INTID 时代表各自不同的中断源。</td>
+</tr>
+</tbody></table>
+<p><strong>INTID 范围划分与分配</strong></p>
+<p>PPI 的 INTID 划分为架构定义与厂商自定义两大区域：</p>
+<ul>
+<li>架构定义 PPI（ID 0 – 63）：其中断源映射由 Arm 架构明确规范定义（例如通用定时器等）。未分配的 ID 保留（Reserved）供未来扩展。</li>
+<li>实现定义 PPI（ID 64 – 127）：其中断源与 INTID 的绑定关系属于 IMPLEMENTATION DEFINED，由芯片厂商（SoC Vendor）自行设计与定义。</li>
+</ul>
+<h2 id="3-中断信号和处理"><a href="#3-中断信号和处理" class="headerlink" title="3. 中断信号和处理"></a>3. 中断信号和处理</h2><p>本节介绍一下内容：</p>
+<ul>
+<li>GIC 如何决定向 PE 呈现哪个中断</li>
+<li>如何将中断表示为 PE 的异常</li>
+<li>软件如何处理中断</li>
+</ul>
+<h3 id="确定最高优先级挂起中断"><a href="#确定最高优先级挂起中断" class="headerlink" title="确定最高优先级挂起中断"></a>确定最高优先级挂起中断</h3><p>在 GICv5 架构中，针对每一个处理器核心（PE）及其对应的中断域（Interrupt Domain），GIC 在任意时刻最多只能向 CPU 接口呈现一个挂起状态的中断。这个被选中的中断被称为<strong>最高优先级挂起中断（HPPI）</strong>。</p>
+<p><strong>HPPI 的两级仲裁机制</strong></p>
+<p>HPPI 的挑选并非一步到位，而是由中断路由服务（IRS）与 CPU 接口（CPU-IF）分工协作，通过两级硬件仲裁流转完成：</p>
+<ul>
+<li><strong>第一级（IRS 侧仲裁）：</strong> IRS 汇总所有处于 Pending 状态的全局中断（SPI 与 LPI），从中挑选出一个最高优先级的候选者（Candidate SPI&#x2F;LPI），并将其转发给 CPU-IF。</li>
+<li><strong>第二级（CPU-IF 侧仲裁）：</strong> CPU-IF 接收到来自 IRS 的候选中断后，将其与当前可用的私有挂起中断（Candidate PPI）进行最终的比对仲裁，挑选出最终的 HPPI 投递给 PE。</li>
+</ul>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/10.png" alt="10"></p>
+<p><strong>候选中断的准入条件</strong></p>
+<p>一个中断要具备参与 HPPI 仲裁的资格，必须同时满足以下条件：</p>
+<ul>
+<li>独立使能： 该中断已被软件单独开启（Enabled）。</li>
+<li>处于挂起态： 状态机当前处于 Pending 状态。</li>
+<li>未处于激活态： 当前未处于 Active 状态（即 ISR 尚未开始处理或尚未响应）。</li>
+<li>目标匹配（针对 LPI 与 SPI）： 该中断明确指向当前 PE，或者配置为 1-of-N（多核随机投递）模式。</li>
+</ul>
+<p><strong>优先级乱序与同级仲裁</strong></p>
+<p>虽然 GIC 硬件会尽量按照优先级挑选中断，但架构规范<strong>并不保证</strong>中断严格按优先级顺序投递：</p>
+<ul>
+<li>时序与竞争（Race Conditions）： 中断本身具备高度异步性。在复杂的总线传输与状态切换中，时序竞争可能导致低优先级中断比高优先级中断先一步到达 CPU-IF。软件设计时绝不能依赖严格的优先级到达顺序。</li>
+<li>相同优先级处理： 当存在多个相同优先级的候选中断时，硬件选择哪一个属于芯片厂商的具体实现（IMPLEMENTATION DEFINED）。</li>
+</ul>
+<h3 id="优先级掩码与运行优先级"><a href="#优先级掩码与运行优先级" class="headerlink" title="优先级掩码与运行优先级"></a>优先级掩码与运行优先级</h3><p>当 CPU 接口（CPU-IF）挑选出最高优先级挂起中断（HPPI）后，并不会直接向处理器核心（PE）抛出异常，而是先评估该中断是否具备“充分优先级”（Sufficient Priority）。</p>
+<p><strong>充分优先级的判断条件</strong></p>
+<p>在数值上，GIC 架构遵循<strong>数值越小、优先级越高</strong>的原则。HPPI 必须同时通过以下两道校验机制，才会被硬件正式向 PE 投递：</p>
+<ul>
+<li>优先级掩码校验（Priority Masking Check）： 中断优先级必须大于或等于软件在 <code>ICC_PCR_EL1</code> 寄存器中配置的优先级掩码值（Priority Mask）。</li>
+<li>运行优先级校验（Running Priority Check）： 中断优先级必须严格高于（数值上小于）当前激活优先级寄存器 <code>ICC_APR_EL1</code> 中记录的运行优先级（Running Priority）。</li>
+</ul>
+<p>关于优先级掩码的判定条件，GICv5 与前代架构存在微小的行为差异：</p>
+<table>
+<thead>
+<tr>
+<th><strong>架构版本</strong></th>
+<th><strong>优先级掩码判定规则（Priority Mask Rule）</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GICv3 &#x2F; GICv4</td>
+<td>中断优先级必须<strong>严格高于</strong>掩码值（数值上 <code>&lt; Priority Mask</code>）。</td>
+</tr>
+<tr>
+<td>GICv5</td>
+<td>中断优先级<strong>大于或等于</strong>掩码值即可通过（数值上 <code>&lt;= Priority Mask</code>）。</td>
+</tr>
+</tbody></table>
+<p><strong>运行优先级的维护机制</strong></p>
+<p>运行优先级用于防止低优先级中断打断正在高优先级中断处理程序（ISR）中运行的 PE。</p>
+<p>当软件应答（Acknowledge）某个中断时，CPU-IF 会将该中断的优先级记录在 <code>ICC_APR_EL1</code> 中，并将其设为当前运行优先级；直至软件完成中断处理并解除激活（Deactivate）后，该记录才会被清除。</p>
+<p>此外，系统的每一个中断域（Interrupt Domain）都是完全独立的，各自拥有专属的 HPPI、优先级掩码、激活优先级列表与运行优先级状态。</p>
+<h3 id="异常产生"><a href="#异常产生" class="headerlink" title="异常产生"></a>异常产生</h3><p>当确定存在符合充分优先级要求的最高优先级挂起中断（HPPI）后，GIC 的最后一个环节是确定向处理器核心（PE）投递何种类型的硬件异常信号。</p>
+<p>PE 为物理中断提供了两个固定的物理输入引脚：IRQ 与 FIQ。GICv5 依据中断所归属的中断域（Interrupt Domain）以及当前 PE 的运行状态来选择映射关系：</p>
+<table>
+<thead>
+<tr>
+<th><strong>异常类型</strong></th>
+<th><strong>核心应用场景</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>IRQ</td>
+<td>当前物理中断域（Current Domain）的目标中断。</td>
+</tr>
+<tr>
+<td>FIQ</td>
+<td>EL3 中断域的中断，或者用于打断非当前物理中断域（Non-current Domain）的抢占式中断。</td>
+</tr>
+</tbody></table>
+<p><strong>IRQ 与 FIQ 的路由逻辑</strong></p>
+<p>CPU 接口（CPU-IF）向 PE 抛出异常的具体规则如下：</p>
+<ul>
+<li><strong>触发 IRQ 异常：</strong> 当 HPPI 属于当前 PE 正在运行的物理中断域时，CPU-IF 向 PE 发送 IRQ 信号。</li>
+<li><strong>触发 FIQ 异常：</strong> 当 HPPI 属于非当前物理中断域、目标为 EL3 中断域，或者 PE 当前本身已运行在 EL3 时，CPU-IF 向 PE 发送 FIQ 信号，以实现跨域的抢占式中断处理。</li>
+</ul>
+<p>简单概括：</p>
+<blockquote>
+<ul>
+<li><p><strong>IRQ</strong> 是<strong>同域处理</strong>（自己世界里的普通中断，顺理成章地响应）。</p>
+</li>
+<li><p><strong>FIQ</strong> 是<strong>高特权</strong>或<strong>跨域抢占</strong>（比如 EL3 的超级权限中断，或者需要强行打断当前世界、切换上下文去救火的中断）。</p>
+</li>
+</ul>
+</blockquote>
+<p><strong>超级优先级与不可屏蔽中断（FEAT_NMI）</strong></p>
+<p>从 Armv9.3-A 架构开始引入了不可屏蔽中断（FEAT_NMI）特性，允许 IRQ 和 FIQ 以超级优先级（Superpriority）形式向 PE 进行投递，从而改变 PE 侧的掩码屏蔽行为。</p>
+<p>在 GICv5 中，中断具备超级优先级的条件及其判定逻辑如下：</p>
+<ul>
+<li><strong>硬件超级优先级判定：</strong> 若中断在 GIC 中的优先级配置为 <code>0x00</code>（即最高优先级），则该中断将以超级优先级形式向 PE 投递。</li>
+<li><strong>NMI 的生效条件：</strong> 中断被定义并按 NMI 机制处理，需同时满足两个条件：一是该中断以超级优先级投递；二是当前异常等级的系统控制寄存器配置项 <code>SCTLR_ELx.NMI</code> 被置为 <code>1</code>。</li>
+</ul>
+<h3 id="中断处理流程"><a href="#中断处理流程" class="headerlink" title="中断处理流程"></a>中断处理流程</h3><p>在 GICv5 架构中，当处理器核心（PE）响应异步异常后，软件需要遵循一套标准的状态转化与控制指令序列来完成中断的应答、处理与状态复位。整个过程包含中断应答、内存同步、优先级降低以及中断停用四个核心步骤。</p>
+<ol>
+<li>应答挂起中断： 软件向 GIC 应答当前中断域的最高优先级挂起中断（HPPI），并获取其对应的 INTID。</li>
+<li>路由处理函数： 软件根据获取到的 INTID 查找并定位该中断专属的 ISR 处理函数。</li>
+<li>执行优先级降低： 当软件准备好接收其他同等优先级的挂起中断时，执行优先级降低操作。</li>
+<li>停用已应答中断： 当软件准备好再次接收该特定中断时，执行停用操作以清除其激活状态。</li>
+</ol>
+<p>详细描述如下：</p>
+<p><strong>中断应答（Interrupt Acknowledge）</strong></p>
+<p>捕获 IRQ 或 FIQ 异常后，软件执行的第一步是向 GIC 发送应答指令。这一步不仅能获取触发中断的具体 INTID，还会触发 CPU 接口自动更新状态：将当前 INTID 置为 Active（若为边沿触发则同时清零 Pending 态），并将其优先级更新至激活优先级寄存器（<code>ICC_APR_ELx</code>），从而提高 CPU 接口的运行优先级（Running Priority）。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/11.png" alt="11"></p>
+<p>GICv5 引入了专门的应答指令来区分常规中断与 NMI（不可屏蔽中断）：</p>
+<table>
+<thead>
+<tr>
+<th><strong>应答指令</strong></th>
+<th><strong>适用场景与准入条件</strong></th>
+<th><strong>执行结果</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GICR &lt;Xd&gt;, CDIA</code></td>
+<td>用于应答常规中断。当当前异常等级配置 <code>SCTLR_ELx.NMI = 1</code> 且该中断优先级为 <code>0x00</code> 时，该指令<strong>无法</strong>应答此中断。</td>
+<td>若应答成功，返回寄存器 <code>Xd</code> 中的 <code>VALID</code> 位标为 <code>1</code>，且包含对应的 INTID 与类型信息；若应答失败，<code>VALID</code> 位为 <code>0</code>，其余字段为 <code>RES0</code>。</td>
+</tr>
+<tr>
+<td><code>GICR &lt;Xd&gt;, CDNMIA</code></td>
+<td>专门用于应答 NMI 中断。仅在当前中断为 NMI（即 <code>SCTLR_ELx.NMI = 1</code> 且优先级为 <code>0x00</code>）时有效。</td>
+<td>机制与 <code>CDIA</code> 一致，非 NMI 中断执行此指令将应答失败（<code>VALID = 0</code>）。</td>
+</tr>
+</tbody></table>
+<p>由于电平敏感中断可能在软件执行应答前解除置位，即使 CPU 捕获了异常，应答指令仍可能返回 <code>VALID = 0</code>。软件在后续处理前必须显式检查 <code>VALID</code> 标志位。</p>
+<p><strong>中断源交互与同步屏障</strong></p>
+<p>获取 INTID 并路由至对应 ISR 处理函数后，软件在读写外设寄存器前必须进行内存序控制。为了在中断操作的侧效应（Interrupt Effects）与内存读写效应（Memory Effects）之间建立严格的顺序约束，GICv5 引入了专门的 GIC 同步屏障指令：</p>
+<ul>
+<li><strong><code>GSB ACK</code> 指令：</strong> 确保外设驱动代码中的内存访问严格排序在前面的 <code>GICR</code> 应答指令效应之后，防止乱序执行导致外设状态读取异常。</li>
+<li><strong><code>GSB SYS</code> 指令：</strong> 用于其他通用系统中断状态的同步屏障。</li>
+</ul>
+<p><strong>优先级降低与中断停用（Priority Drop and Deactivation）</strong></p>
+<p>中断处理完成后，软件需要恢复 CPU 的优先级状态并复位中断控制器中的 Active 状态。在 GICv5 中，这两步被明确拆分为两个严格独立的步骤：</p>
+<ul>
+<li><strong>优先级降低（Priority Drop）：</strong> 软件准备好接收同等优先级的其他中断时，执行 <code>GIC CDEOI</code> 指令。该指令会清除当前中断域在 <code>ICC_APR_ELx</code> 中记录的最高活动优先级，从而下调运行优先级。</li>
+<li><strong>中断停用（Deactivation）：</strong> 软件准备好再次接收该特定中断时，执行 <code>GIC CDDI, &lt;Xt&gt;</code> 指令（通常直接传入应答时获取的 <code>Xt</code> 寄存器值）。该指令将指定 INTID 的 Active 状态清零。未停用的中断无法再次成为候选 HPPI。</li>
+</ul>
+<p>这两个步骤的执行顺序可由软件自行决定。</p>
+<p><strong>标准中断处理示例代码</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">irq_handler:</span><br><span class="line">    &lt;push registers&gt;</span><br><span class="line">    </span><br><span class="line">    // 1. 应答当前域的 HPPI，返回结果存入 X9</span><br><span class="line">    GICR    x9, CDIA</span><br><span class="line">    </span><br><span class="line">    // 检查 VALID 位，若为 0 说明未成功应答中断，直接退出</span><br><span class="line">    CBZ     x9, irq_handler_end</span><br><span class="line"></span><br><span class="line">    // 2. 插入 GIC 同步屏障，保证后续外设内存访问的内存序</span><br><span class="line">    GSB     ACK</span><br><span class="line">    </span><br><span class="line">    // 执行外设具体的 ISR 处理代码</span><br><span class="line">    &lt;&lt;Do something device specific to handle the interrupt&gt;&gt;</span><br><span class="line"></span><br><span class="line">    // 3. 执行优先级降低，允许同优先级中断打断后续流程</span><br><span class="line">    GIC     CDEOI</span><br><span class="line">    </span><br><span class="line">    // 4. 清除该 INTID 的 Active 状态，重新允许其触发</span><br><span class="line">    GIC     CDDI, x9</span><br><span class="line"></span><br><span class="line">irq_handler_end:</span><br><span class="line">    &lt;pop registers&gt;</span><br><span class="line">    ERET</span><br></pre></td></tr></table></figure>
+
+<h2 id="4-配置GIC"><a href="#4-配置GIC" class="headerlink" title="4. 配置GIC"></a>4. 配置GIC</h2><p>本章介绍以下内容：</p>
+<ul>
+<li>如何配置IRI</li>
+<li>如何配置LPI、SPI、PPI、IPI</li>
+<li>故障排除机制</li>
+</ul>
+<p>由运行在最高级别EL的软件负责配置系统中的GIC。</p>
+<h3 id="建立-CPUIF-与-IRI-的链路"><a href="#建立-CPUIF-与-IRI-的链路" class="headerlink" title="建立 CPUIF 与 IRI 的链路"></a>建立 CPUIF 与 IRI 的链路</h3><p>在 GICv5 初始化过程中，建立处理器接口（CPUIF）与中断路由基础设施（IRI）之间的通信链路是启动中断系统的首要步骤。此建立过程统一由系统最高实现异常等级（Highest Implemented EL）承载与管理。若系统中实现了 EL3，Arm 建议在离开 EL3 固件或运行任何通用代码之前完成该链路的建立。</p>
+<p>上电或平台复位后，CPU 接口与 IRI 的初始连接状态取决于芯片具体的硬件实现方案：</p>
+<table>
+<thead>
+<tr>
+<th><strong>硬件实现方案</strong></th>
+<th><strong>ICC_CR0_ELx.LINK 寄存器复位默认值</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>硬件已自动完成连接</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td>硬件未完成连接，需软件介入</td>
+<td><code>0</code></td>
+</tr>
+</tbody></table>
+<p><strong>建立 IRI 链路的握手步骤</strong></p>
+<p>对于硬件复位时未自动连接（<code>LINK</code> 复位值为 <code>0</code>）的平台，启动固件在建立通信链路前必须先完成特定于平台的系统初始化。随后通过以下严格的握手与指令序列完成连接：</p>
+<ul>
+<li><strong>发起连接请求：</strong> 软件向 <code>ICC_CR0_ELx.LINK</code> 位写入 <code>1</code>，向硬件请求建立 CPU 接口与 IRI 之间的连接。</li>
+<li><strong>等待连接完成（Polling）：</strong> 写入完成后，软件必须持续轮询 <code>ICC_CR0_ELx.LINK_IDLE</code> 状态位，直到其读出为 <code>1</code>。只有该标志位到达 <code>1</code> 时，才表明通信链路已达到空闲准备就绪状态。</li>
+<li><strong>插入指令屏障（ISB）：</strong> 在确认 <code>LINK_IDLE</code> 读出为 <code>1</code> 后，必须紧跟执行一条 <code>ISB</code>（Instruction Synchronization Barrier）指令。<code>ISB</code> 用于刷新指令流水线，确保后续所有对 GIC 系统寄存器的写操作或 GIC 系统指令均能基于连接已建立（<code>LINK=1</code>）的状态正确生效。</li>
+</ul>
+<p>当系统实现了 EL3 时，链路管理寄存器使用 <code>ICC_CR0_EL3.&#123;LINK, LINK_IDLE&#125;</code>；此时 EL1 级别的 <code>ICC_CR0_EL1</code> 对应字段将转变为 EL3 寄存器的只读别名（Read-only Aliases）。若系统未实现 EL3，则直接通过 <code>ICC_CR0_EL1.&#123;LINK, LINK_IDLE&#125;</code> 进行配置。</p>
+<blockquote>
+<p>Q：为什么需要软件去建立链路？</p>
+<p>A：软件去写 <code>ICC_CR0_ELx.LINK</code> 不是为了配置业务逻辑，而是作为<strong>底层固件与硬件底层总线之间的“物理合闸开关”</strong>，以此确保全系统基础设施（电源、时钟、总线）就绪后，再安全地启动中断控制器的物理链路。</p>
+</blockquote>
+<p><strong>发现 PE Affinity ID 与 IRS 关联</strong></p>
+<p>在多核系统中，每一个处理器核心（PE）均被分配了一个全系统唯一的亲和性标识符（Interrupt Affinity ID, IAFFID），GIC 借此将目标中断精准路由至对应的 PE。</p>
+<p>为构建系统的拓扑映射，系统软件需要明确每个 PE 究竟连接至哪个中断路由服务（IRS）组件。软件可以通过以下两种机制获取此映射：</p>
+<ul>
+<li><strong>固件静态告知：</strong> 启动固件（如 ACPI&#x2F;DT）在数据表中直接描述 IAFFID 与 IRS 的对应关系，系统软件解析数据表即可建立映射。</li>
+<li><strong>软件动态发现（用于 Bring-up 与调试）：</strong> PE 可以直接从系统寄存器 <code>ICC_IAFFIDR_EL1</code> 中读取自身的 IAFFID。随后，软件可在各个待测 IRS 的配置帧中将该 IAFFID 写入 <code>IRS_PE_SELR</code> 寄存器，并轮询 <code>IRS_PE_STATUSR.IDLE</code> 直至其读出为 <code>1</code>；最终通过读取 <code>IRS_PE_STATUSR.V</code> 标志位是否有效，来验证当前 PE 是否物理连接至该 IRS。</li>
+</ul>
+<blockquote>
+<p>一般是固件静态告知。</p>
+</blockquote>
+<hr>
+<h3 id="配置-LPI"><a href="#配置-LPI" class="headerlink" title="配置 LPI"></a>配置 LPI</h3><h4 id="IWB"><a href="#IWB" class="headerlink" title="IWB"></a>IWB</h4><p>在 GICv5 架构中，特定局部中断（LPI）的来源可能是传统的物理引脚信号线（Wire）。由于 LPI 在 GIC 中本质上以基于内存的事件消息（Message-Based Interrupts）形式进行路由与处理，硬件引入了中断总线桥接器（IWB）组件，专门负责将外设发出的物理引脚信号转换为向中断翻译所（ITS）投递的事件消息。</p>
+<p>每个 IWB 实例对应连接到一个独立的 ITS，且在该 ITS 范围内拥有全系统唯一的设备标识符（DeviceID）。</p>
+<p><strong>信号转换与翻译机制</strong></p>
+<p>当外设通过物理引脚向 IWB 发送信号时，IWB 会将其封装为包含元数据的事件投递给 ITS：</p>
+<ul>
+<li><strong>DeviceID：</strong> 用于在 ITS 中唯一标识当前发出信号的 IWB 实例。</li>
+<li><strong>EventID：</strong> 对应物理引脚在 IWB 上的引脚索引编号（Wire Index）。</li>
+</ul>
+<p>ITS 接收到该事件后，首先根据 DeviceID 检索设备表项（DTE），定位对应的中断翻译表（ITT）；随后使用 EventID 作为索引查询中断翻译表项（ITTE），最终将物理引脚信号翻译为目标 LPI 的中断号（INTID）。</p>
+<p><strong>IWB 配置流程</strong></p>
+<p>为确保物理引脚中断能够正确转换为 LPI 并投递至 ITS，软件需要按如下步骤对 IWB 及相关数据结构进行配置：</p>
+<table>
+<thead>
+<tr>
+<th><strong>步骤</strong></th>
+<th><strong>配置环节</strong></th>
+<th><strong>操作说明与寄存器</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>分配中断域</td>
+<td>通过配置 <code>IWB_WDOMAINR&lt;n&gt;</code> 寄存器，将特定的 IWB 引脚分配至对应的中断域（如 Non-secure、Secure、Realm 或 EL3）。</td>
+</tr>
+<tr>
+<td>2</td>
+<td>配置触发模式</td>
+<td>通过配置 <code>IWB_WTMR&lt;n&gt;</code> 寄存器，将引脚设置为边沿触发（Edge-triggered）或电平敏感（Level-sensitive），以匹配外设的物理信号特性。</td>
+</tr>
+<tr>
+<td>3</td>
+<td>配置 ITS 翻译表</td>
+<td>在 ITS 的映射表中建立与该引脚相对应的设备表项（DTE）与中断翻译表项（ITTE），确保从 (DeviceID, EventID) 能正确映射至有效的 LPI INTID。</td>
+</tr>
+<tr>
+<td>4</td>
+<td>使能物理引脚</td>
+<td>通过配置 <code>IWB_WENABLER&lt;n&gt;</code> 寄存器正式启用该物理引脚。</td>
+</tr>
+</tbody></table>
+<hr>
+<h4 id="ITS"><a href="#ITS" class="headerlink" title="ITS"></a>ITS</h4><p>在 GICv5 架构中，中断翻译所（ITS）负责将事件（ITS Events）翻译为具体的中断事件（LPIs）并转发给中断路由服务（IRS）。这些事件既可以来自前述的中断总线桥接器（IWB），也可以来自外设直接发起的基于内存的消息中断（MSI）。</p>
+<p>对于支持 MSI 的外设，设备通过向 ITS 翻译寄存器写入数据来触发 ITS 事件。其中写入操作携带的物理源标识为 DeviceID，写入寄存器的数据值则被解析为 EventID。</p>
+<p><strong>事件组成与翻译机制</strong></p>
+<p>每个输入到 ITS 的事件均包含以下核心元数据：</p>
+<ul>
+<li><strong>DeviceID：</strong> 全局唯一标识发起中断的源设备。DeviceID 的分配由具体硬件实现决定，通常由 SoC 数据手册定义并通过固件表（如 DT&#x2F;ACPI）告知软件。</li>
+<li><strong>EventID：</strong> 标识该设备发出的特定事件类型&#x2F;索引。</li>
+<li><strong>事件类型（Event Type）：</strong> 包含 <code>SET_EDGE</code>、<code>SET_LEVEL</code> 以及 <code>CLEAR</code>。</li>
+<li><strong>源中断域（Originating Interrupt Domain）：</strong> 对于 MSI，取决于写入 ITS 翻译寄存器时的物理地址空间（PAS）；对于 IWB 事件，取决于该物理引脚所分配的中断域。</li>
+</ul>
+<p>ITS 依赖软件在系统内存（RAM）中建立的两级映射表结构将事件翻译为 LPI：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"> Incoming Event              Device Table (DT)            Interrupt Translation Table (ITT)</span><br><span class="line">┌────────────────┐          ┌──────────────────┐          ┌──────────────────┐</span><br><span class="line">│ DeviceID       ├─────────►│ DeviceID Index   │          │                  │</span><br><span class="line">│ EventID        │          │   └─► ITT Base   ├─────────►│ EventID Index    ├─► LPI (INTID) -&gt; IRS</span><br><span class="line">│ Event Type     │          └──────────────────┘          │   └─► LPI Target │</span><br><span class="line">└────────────────┘                                        └──────────────────┘</span><br><span class="line"></span><br><span class="line">MSI / IWB 事件 </span><br><span class="line">  │</span><br><span class="line">  ├──► [DeviceID] ──► 查 Device Table ──► 找到 DTE (获取该设备的 ITT 内存基地址)</span><br><span class="line">  │</span><br><span class="line">  └──► [EventID]  ──► 查该设备的 ITT ──► 找到 ITE (获取最终的 INTID 和目标 CPU) ──► 转发给 IRS/CPU</span><br></pre></td></tr></table></figure>
+
+<ol>
+<li><strong>查设备表（DT）：</strong> ITS 使用 DeviceID 作为索引检索设备表（DT），获取该设备专属的中断翻译表（ITT）基地址。</li>
+<li><strong>查翻译表（ITT）：</strong> ITS 使用 EventID 作为索引检索该设备的 ITT，获取对应的最终中断号（INTID）及目标信息。</li>
+</ol>
+<p><strong>内存映射表配置与寄存器</strong></p>
+<p>ITS 的翻译表结构存储于系统内存中，且每个 ITS 域（如 Non-secure 域）拥有独立隔离的翻译结构。软件负责分配内存并配置以下关键寄存器：</p>
+<table>
+<thead>
+<tr>
+<th><strong>寄存器名称</strong></th>
+<th><strong>功能与作用</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ITS_DT_BASER</code></td>
+<td>配置设备表（DT）在系统物理内存中的起始基地址。</td>
+</tr>
+<tr>
+<td><code>ITS_DT_CFGR</code></td>
+<td>配置设备表（DT）的大小以及表格拓扑结构（线性单级表或两级级联表）。</td>
+</tr>
+</tbody></table>
+<p>软件为 DT 分配内存后将基地址和属性写入上述寄存器，并为每个连接的设备单独分配 ITT 内存空间。设备表项（DTE）中会记录对应 ITT 的基地址、大小及布局信息。</p>
+<p><strong>表项更新与缓存无效化流程</strong></p>
+<p>为确保性能，ITS 硬件允许对内存中的表项进行内部缓存（包含无效状态 <code>VALID=0</code> 的表项）。当软件在运行期动态安装或更新映射关系时，必须遵循严格的刷新与同步序列：</p>
+<ol>
+<li><strong>写入新映射：</strong> 在系统内存中将新的映射表项（DTE 或 ITTE）写入对应表格。</li>
+<li><strong>内存屏障同步：</strong> 执行恰当的内存屏障指令，确保数据写入对 GIC 硬件全局可见。</li>
+<li><strong>发起失效请求：</strong><ul>
+<li>修改 DTE 时，向 <code>ITS_INV_DEVICER</code> 寄存器写入对应的 DeviceID。</li>
+<li>修改 ITTE 时，向 <code>ITS_INV_EVENTR</code> 寄存器写入对应的 EventID。</li>
+</ul>
+</li>
+<li><strong>轮询状态：</strong> 持续轮询 <code>ITS_STATUSR.IDLE</code> 状态位，直至其读出为 <code>1</code>，确认缓存无效化操作完成。</li>
+</ol>
+<hr>
+<h5 id="ITS-配置步骤"><a href="#ITS-配置步骤" class="headerlink" title="ITS 配置步骤"></a>ITS 配置步骤</h5><p>在 GICv5 架构中，中断翻译所（ITS）通过系统内存（RAM）中的数据结构完成从外设事件到物理 LPI 的映射。软件初始化与配置 ITS 需遵循严格的先后顺序：</p>
+<p><strong>Step-1：分配 ITS 内存翻译结构</strong></p>
+<p>在系统内存（RAM）中分配设备表（DT）及各设备专属的中断翻译表（ITT）：</p>
+<ul>
+<li><strong>设备表（DT）：</strong> 每个 ITS 实例分配一张，使用 DeviceID 进行索引。表项中需配置该设备 ITT 所覆盖的 EventID 位数及 ITT 的物理基地址。</li>
+<li><strong>中断翻译表（ITT）：</strong> 针对具体设备分配，使用 EventID 进行索引，用于指定该事件最终映射到的 LPI INTID。</li>
+</ul>
+<p><strong>Step-2：配置与使能 ITS 寄存器</strong></p>
+<p>通过硬件控制寄存器激活 ITS 逻辑：</p>
+<ul>
+<li>将 DT 的物理基地址写入 <code>ITS_DT_BASER</code>，并通过 <code>ITS_DT_CFGR</code> 配置支持的 DeviceID 位数与表格拓扑结构（线性表或两级表）。</li>
+<li>配置 <code>ITS_CR1</code> 寄存器，设定 ITS 访问内存表格时的共享性（Shareability）和缓存性（Cacheability）属性。</li>
+<li>向 <code>ITS_CR0.ITSEN</code> 写入 <code>1</code> 使能 ITS，随后持续轮询 <code>ITS_CR0.IDLE</code> 状态位直至其变为 <code>0</code>，确认 ITS 控制器已被激活。</li>
+</ul>
+<p><strong>Step-3：填充设备与中断映射条目</strong></p>
+<p>在内存中建立具体的查表映射逻辑：</p>
+<ul>
+<li><strong>设备表项（DTE）：</strong> 填入设备的 DeviceID，指向为该设备分配的 ITT 物理基地址，并指定 ITT 的容量大小与拓扑结构。</li>
+<li><strong>中断翻译表项（ITTE）：</strong> 填入具体的 EventID 到 LPI INTID 的映射关系。初始阶段可将表项设为无效（<code>INVALID</code>），后续按需动态添加有效映射。</li>
+</ul>
+<p><strong>Step-4：执行 ITS 缓存无效化</strong></p>
+<p>映射状态发生任何变更（包括初始化新增）后，必须清除 ITS 内部的旧缓存或“无效状态缓存”：</p>
+<ul>
+<li>将目标 DeviceID 范围写入 <code>ITS_DIDR.DEVICE_ID</code>。</li>
+<li>配置并写入 <code>ITS_INV_DEVICER</code> 寄存器（或设置对应字段）以发起缓存无效化请求。</li>
+<li>轮询 <code>ITS_STATUSR.IDLE</code> 状态位，确认读出为 <code>1</code> 后方可继续。</li>
+</ul>
+<p><strong>Step-5：（可选）软件触发注入测试</strong></p>
+<p>通过软件模拟事件验证 ITS 翻译逻辑配置是否正确：</p>
+<ul>
+<li>将测试事件的 DeviceID 写入 <code>ITS_GEN_EVENT_DIDR</code>，EventID 写入 <code>ITS_GEN_EVENT_EIDR</code>。</li>
+<li>向 <code>ITS_GEN_EVENTR.TARGET_DOMAIN</code> 写入目标安全域，并将 <code>R</code> 位置 <code>1</code> 以触发翻译。</li>
+<li>轮询 <code>ITS_GEN_EVENT_STATUSR.IDLE</code> 标志位，等待事件生成完成。</li>
+</ul>
+<p><strong>Step-6：同步并转发至 IRS</strong></p>
+<p>确保事件成功处理并投递给下游的中断路由服务（IRS）：</p>
+<ul>
+<li>向 <code>ITS_SYNCR.SYNC</code> 写入 <code>1</code>，并轮询 <code>ITS_SYNC_STATUSR.IDLE</code> 直至为 <code>1</code>，确认事件同步成功。</li>
+<li>完成同步且具备有效翻译的事件，将由 ITS 打包发送给关联的 IRS（数据包包含 LPI INTID、物理&#x2F;虚拟中断类型、VMID、事件类型及源安全域）。</li>
+</ul>
+<p>当 Step 6 的同步确认无误，且这个事件在内存里有有效的映射（DTE&#x2F;ITTE 有效）时，ITS 就会把翻译好的成果打成一个 <strong>“数据包裹”</strong>，正式推给 IRS。这个数据包裹里装了 5 样东西：</p>
+<ol>
+<li><strong>最终的中断号</strong>：<code>LPI INTID 8192</code>。</li>
+<li><strong>物理还是虚拟中断</strong>：告诉 IRS 这是给宿主机（Host OS）的物理中断，还是给虚拟机（VM）的虚拟中断。</li>
+<li><strong>VM ID</strong>：如果是虚拟中断，带上目标虚拟机的 ID。</li>
+<li><strong>事件类型</strong>：边沿触发还是电平触发等。</li>
+<li><strong>源安全域</strong>：说明这个中断来自 Non-secure 域还是 Secure 域。</li>
+</ol>
+<p><strong>内存可见性约束与说明</strong></p>
+<p>由于 CPU 与 ITS 硬件存在异步访存，软件在操作上述流程时必须确保内存一致性：</p>
+<ul>
+<li>CPU 在内存中写入 DTE&#x2F;ITTE 后，必须使用恰当的内存屏障指令（Memory Barrier）或内存属性，确保更改对 ITS 硬件全局可见。</li>
+<li>ITS 硬件允许将标记为无效（<code>VALID=0</code>）的表项装载至内部缓存。因此，即便是在全新的空白内存区域安装 DTE&#x2F;ITTE，也必须显式执行 Step-4 的无效化流程，否则 ITS 可能误命中内部的“无效缓存”。</li>
+</ul>
+<hr>
+<h4 id="IRS-的-LPI-配置与路由管理"><a href="#IRS-的-LPI-配置与路由管理" class="headerlink" title="IRS 的 LPI 配置与路由管理"></a>IRS 的 LPI 配置与路由管理</h4><p>在 GICv5 架构中，中断路由服务 (IRS) 负责维护 LPI 的状态与配置、校验中断状态表（Interrupt State Table, IST）、应用路由规则，并将 LPI 中断最终投递至目标处理器的 CPU 接口（CPU Interface）。</p>
+<p>因为 LPI 的数量规模庞大，GICv5 将 LPI 的状态（使能、优先级、挂起状态）保存在系统内存（RAM）中的 IST 中。借助内存存储，系统的 LPI 容量可随内存大小扩展，在实际应用中几乎突破了传统硬件寄存器数量的限制。</p>
+<h5 id="1-LPI-数量确定与-IST-规模估算"><a href="#1-LPI-数量确定与-IST-规模估算" class="headerlink" title="1. LPI 数量确定与 IST 规模估算"></a>1. LPI 数量确定与 IST 规模估算</h5><p>软件通过读取 IRS 的能力寄存器（<code>IRS_IDR*</code>）并写入 <code>IRS_IST_CFGR.LPI_ID_BITS</code>（记为 N）来决定系统支持的 LPI 数量（即 <code>2^N</code> 个）：</p>
+<ol>
+<li><strong>探测硬件上下限：</strong> 读取 <code>IRS_IDR*</code> 寄存器获取硬件支持的最大 LPI ID 位宽，所选的 N 必须小于等于最大允许值，且大于 <code>IRS_IDR2.MIN_LPI_ID_BITS</code>。</li>
+<li><strong>评估所需的 LPI 总数：</strong> 汇总 PCIe 设备&#x2F;功能（MSI&#x2F;MSI-X 向量）、基于 MSI 的平台设备、映射为 LPI 的 IWB 引脚，以及用于核间中断（IPI）的 LPI 需求（通常按 16 x N_{CPEs} + 512 * N_{PCIe} 估算），并预留冗余空间。</li>
+<li><strong>计算位宽与内存大小：</strong> 向上取最接近的 2 的幂次。例如系统需要 12,000 个向量，则选取 16,384 (2^{14})，设置 <code>LPI_ID_BITS = 14</code>，并据此分配 IST 内存空间。</li>
+</ol>
+<h5 id="2-IST-数据结构与路由机制"><a href="#2-IST-数据结构与路由机制" class="headerlink" title="2. IST 数据结构与路由机制"></a>2. IST 数据结构与路由机制</h5><p>IST 支持线性表（Linear Structure）和两级表（2-level Structure）两种内存布局，通过 <code>IRS_IST_CFGR</code> 进行配置：</p>
+<ul>
+<li><strong>线性表：</strong> 适用于 LPI 数量较少的场景，省去一级表，由单一连续的二级表数组构成。</li>
+<li><strong>两级表：</strong> 由一个一级表（L1 IST）指向多个二级表（L2 IST）。二级表项包含对应 LPI 的使能位（Enable）、优先级（Priority）以及挂起位（Pending）。两级表支持运行时按需动态添加 L2 表，扩展性更好。</li>
+</ul>
+<p>当 LPI 被触发时，IRS 查阅对应的 IST 表项，根据路由模式决定目标处理器：</p>
+<table>
+<thead>
+<tr>
+<th><strong>路由模式</strong></th>
+<th><strong>选取规则</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定向路由（Targeted）</td>
+<td>根据中断 Affinity 属性精准投递至指定的 CPU 核心。</td>
+</tr>
+<tr>
+<td>1-of-N 路由</td>
+<td>由 IRS 在候选目标 PE 集合中动态选择一个合适的 CPU 核心进行投递（属于可选支持特性）。</td>
+</tr>
+</tbody></table>
+<p>满足路由条件的候选中断必须同时具备：已使能（Enabled）、已挂起（Pending）且当前处于非激活状态（Inactive）。</p>
+<h5 id="3-LPI-配置与使能的完整软件流程"><a href="#3-LPI-配置与使能的完整软件流程" class="headerlink" title="3. LPI 配置与使能的完整软件流程"></a>3. LPI 配置与使能的完整软件流程</h5><p>在 GICv5 中配置并激活 LPI 需要完成从内存建立、IRS 初始化、系统指令配置到设备和 ITS 绑定的全过程：</p>
+<p><strong>Step-1：安装中断状态表（IST）</strong></p>
+<p>在内存中分配初始化为零的内存区域，根据选定的结构（线性或两级表）建立 IST 表项并标记为有效。<strong>注意：一旦 IST 标记为 VALID&#x3D;1，CPU 便不能再直接改写 IST 内存，后续所有状态更新必须通过 GIC 系统指令完成。</strong></p>
+<p><strong>Step-2：配置 IRS 控制寄存器</strong></p>
+<p>配置 <code>IRS_IST_CFGR</code> 寄存器中的 <code>LPI_ID_BITS</code>、表格大小及拓扑结构；将 IST 的物理基地址写入 <code>IRS_IST_BASER.ADDR</code>，并设置 <code>VALID=1</code> 使能 IST。随后持续轮询 <code>IRS_IST_STATUSR.IDLE</code> 直至读出为 1，确认 IRS 已经就绪。</p>
+<p><strong>Step-3：配置中断优先级与路由</strong></p>
+<p>使用 GIC 系统指令配置各个 LPI 的属性：</p>
+<ul>
+<li>使用 <code>GIC &lt;domain&gt;AFF, Xt</code> 设置路由模式（Targeted 或 1ofN）。</li>
+<li>使用 <code>GIC &lt;domain&gt;PRI, Xt</code> 设置中断优先级。</li>
+<li>可选使用 <code>GIC &lt;domain&gt;HM, Xt</code> 配置处理模式。</li>
+<li>执行 GIC 同步屏障指令（GSB），确保配置对全局可见。</li>
+</ul>
+<p><strong>Step-4：配置中断翻译所（ITS）</strong></p>
+<p>参照 ITS 的配置步骤，建立 RAM 中的 DTE 与 ITTE 映射表，并将设备事件（DeviceID, EventID）关联至对应的 LPI INTID。</p>
+<p><strong>Step-5：配置外设与有线中断</strong></p>
+<p>对于 MSI 外设，将其 MSI&#x2F;MSI-X 配置表中的目标写入地址设置为 <code>ITS_TRANSLATER</code> 寄存器的物理地址，并填入分配好的 EventID；对于有线中断，完成 IWB 引脚到 ITS 的映射。</p>
+<p><strong>Step-6：验证与测试</strong></p>
+<ul>
+<li><strong>软件模拟测试：</strong> 使用 <code>GIC CDEN</code> 指令使能目标 INTID，使用 <code>GIC CDPEND, Xt</code> 设置挂起状态。或者向 <code>ITS_GEN_EVENTR</code> 写入 DeviceID 与 EventID 触发软件事件，验证 ITS 翻译并转发给 IRS 的全链路。</li>
+<li><strong>硬件触发测试：</strong> 触发真实设备的 MSI 中断，观察 CPU 是否收到。在 CPU 侧使用 <code>GICR CDIA</code> 应答中断，并使用 <code>GIC CDEOI</code> 与 <code>GIC CDDI</code> 完成中断响应与清除。</li>
+</ul>
+<p><strong>Step-7：遵循架构同步规则</strong></p>
+<p>若在运行期修改 DTE、ITTE 或 IST 表项（包括安全域变更），必须遵循 GICv5 的同步规范：先禁用相关组件，完成恰当的 CPU 缓存维护（Cache Maintenance），并配合使用 GIC 屏障&#x2F;内存屏障，确保改动对于硬件与 IRS 全局可见。</p>
+<hr>
+<h4 id="两级页表结构：Split-与-Span"><a href="#两级页表结构：Split-与-Span" class="headerlink" title="两级页表结构：Split 与 Span"></a>两级页表结构：Split 与 Span</h4><p>在 GICv5 中，ITS 的设备表（DT）、中断翻译表（ITT）以及 IRS 的中断状态表（IST）均支持线性单级表或两级表结构。两级表主要解决 ID 空间稀疏，以及软件难以在 RAM 中分配超大连续物理内存的问题。</p>
+<p>GICv5 两级表的核心设计机制建立在 <strong>Split</strong> 与 <strong>Span</strong> 两个概念之上。</p>
+<p><strong>Split 与 Span 的核心定义</strong></p>
+<p>两级结构由一级表（L1 Table）和多个二级叶子表（L2 Leaf Tables）组成。Split 定义整体最大尺寸上限，Span 指定具体表项实际分配大小。</p>
+<table>
+<thead>
+<tr>
+<th><strong>概念</strong></th>
+<th><strong>配置位置</strong></th>
+<th><strong>作用说明</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Split</strong></td>
+<td>控制寄存器（<code>x_CFGR.L2SZ</code>）</td>
+<td>设定一级表每个表项所覆盖的 ID 数量上限，决定了任意二级叶子表的最大物理容量。</td>
+</tr>
+<tr>
+<td><strong>Span</strong></td>
+<td>L1 表项（<code>L1_xxxE.SPAN</code>）</td>
+<td>设定特定二级叶子表（L2 Table）实际包含的条目数量（大小为 2^SPAN）。</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>整体寻址链路：</strong></li>
+</ul>
+<p><code>控制寄存器 (Split)  →  索引 L1 表项  →  读取 L1 表项 (Span + L2 地址)  →  访问对应大小的 L2 叶子表</code></p>
+<p><strong>工作机制与内存裁剪</strong></p>
+<p>借助 Split 和 Span，软件可以针对不同密度的 ID 区域动态分配不同大小的 L2 内存，大幅节省 RAM 开销。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/12.png" alt="12"></p>
+<h5 id="示例与边界处理"><a href="#示例与边界处理" class="headerlink" title="示例与边界处理"></a><strong>示例与边界处理</strong></h5><p>若控制寄存器设定 Split，使单个 L2 表最大容纳 256 个条目（对应最大 SPAN&#x3D;8）：</p>
+<ul>
+<li><strong>高密度 ID 区域：</strong> 指向 L2 表 A 的 L1 表项将 Span 设为 <code>8</code>，代表分配了满额的 256（2^8）个条目。</li>
+<li><strong>低密度 ID 区域：</strong> 指向 L2 表 B 的 L1 表项仅将 Span 设为 <code>4</code>，代表实际仅需分配 16（2^4）个条目。</li>
+<li><strong>无效访问处理：</strong> 任何超出某 L2 表实际 Span 覆盖范围的 ID 请求，GIC 硬件在查表时均会直接判定为无效（Invalid）。</li>
+</ul>
+<hr>
+<h3 id="SPI-的配置与路由机制"><a href="#SPI-的配置与路由机制" class="headerlink" title="SPI 的配置与路由机制"></a>SPI 的配置与路由机制</h3><p>共享外设中断（SPI）是由外部共享设备发出的有线中断（Wired Interrupts）。这些设备的物理中断线直接连接至中断路由服务（IRS）。作为系统设计阶段即已固定的中断类型，SPI 在硬件层面具备跨物理中断域（Physical Interrupt Domains）的统一命名空间，允许固件灵活配置每个 SPI 中断所归属的中断域。</p>
+<p><strong>SPI 的核心架构特性</strong></p>
+<p>与基于内存查表机制的 LPI 不同，SPI 在硬件设计与内存依赖上具有显著的独特优势：</p>
+<ul>
+<li><strong>无需内存分配：</strong> SPI 中断的配置与状态信息完全保存在硬件寄存器中，无需像 LPI 一样在 RAM 中预先分配内存表格（如 IST）。</li>
+<li><strong>支持 Early-Boot 引导阶段：</strong> 由于不依赖 RAM 内存池，在系统刚上电、MMU 与 DRAM 尚未初始化的 Early-Boot 早期引导阶段，系统即可使用 SPI 正常响应硬件中断。</li>
+<li><strong>物理中断域映射：</strong> 每个 SPI 都会被分配给特定的 Interrupt Domain，IRS 提供了专用的编程接口，允许固件灵活指定和切换每个 SPI 中断的归属安全域。</li>
+</ul>
+<p><strong>SPI 配置与处理数据流</strong></p>
+<p>SPI 的信号传递与配置流程遵循明确的硬件控制路径：</p>
+<p>外设触发中断线 → IRS 获取 SPI 请求 → 匹配 IRS 寄存器中的安全域与路由配置 → 投递至对应 CPU 接口</p>
+<h4 id="基于-IRS-的-SPI-配置与生命周期"><a href="#基于-IRS-的-SPI-配置与生命周期" class="headerlink" title="基于 IRS 的 SPI 配置与生命周期"></a>基于 IRS 的 SPI 配置与生命周期</h4><p>在 GICv5 架构中，共享外设中断（SPI）由中断路由服务（IRS）进行统一管理。每个 SPI 均由唯一的 INTID 标识，IRS 负责维护其配置参数以及使能（Enable）、挂起（Pending）和激活（Active）状态。</p>
+<p>软件可通过读取 IRS 标识寄存器（<code>IRS_IDR&#123;5..7&#125;</code>）来识别该 IRS 硬件实例所管理的 SPI 范围。</p>
+<h5 id="1-选择并校验目标-SPI"><a href="#1-选择并校验目标-SPI" class="headerlink" title="1. 选择并校验目标 SPI"></a>1. 选择并校验目标 SPI</h5><p>由于配置寄存器采用了选择器机制，在对特定的 SPI 进行属性编程前，必须先在 IRS 中选中目标中断：</p>
+<ul>
+<li><strong>选择中断：</strong> 向 <code>IRS_SPI_SELR</code> 写入目标 SPI 的 INTID。</li>
+<li><strong>确认有效性：</strong> 轮询 <code>IRS_SPI_STATUSR.IDLE</code> 状态位直至其变为 1。若此时 <code>IRS_SPI_STATUSR.V</code>（Valid 位）为 0，表明该 SPI 未连接至当前 IRS 实例；若为 1，则表示该选中事件有效，可继续执行配置。</li>
+</ul>
+<h5 id="2-配置步骤与寄存器交互"><a href="#2-配置步骤与寄存器交互" class="headerlink" title="2. 配置步骤与寄存器交互"></a>2. 配置步骤与寄存器交互</h5><p>确定 SPI 有效后，需按照以下序列完成安全域、触发模式、优先级及路由规则的配置：</p>
+<table>
+<thead>
+<tr>
+<th><strong>步骤</strong></th>
+<th><strong>阶段</strong></th>
+<th><strong>操作说明与指令&#x2F;寄存器交互</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>分配安全域</td>
+<td>写入 <code>IRS_SPI_DOMAINR</code> 寄存器，将该 SPI 划归至特定的安全域（Non-secure、Secure、Realm 或 EL3）。<strong>注：该操作仅允许在 Root&#x2F;EL3 或 Secure 状态下执行。</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>配置触发模式</td>
+<td>写入 <code>IRS_SPI_CFGR</code> 寄存器，设置中断触发方式为边沿触发（Edge-triggered）或电平敏感（Level-sensitive）。</td>
+</tr>
+<tr>
+<td>3</td>
+<td>校验硬件状态</td>
+<td>轮询 <code>IRS_SPI_STATUSR.IDLE</code> 状态位，确认 IRS 硬件已完成上述配置更新。</td>
+</tr>
+<tr>
+<td>4</td>
+<td>配置优先级、路由并使能</td>
+<td>1. 执行系统指令 <code>GIC &lt;domain&gt;AFF, Xt</code> 设置路由模式：  - <strong>Targeted 模式：</strong> 设置 <code>IAFFID</code> 指向确定的单个 CPU 核心。  - <strong>1ofN 模式：</strong> 将 <code>IAFFID</code> 设为 0，广播给任意可接收该中断的 CPU 核心。  2. 执行 <code>GIC &lt;domain&gt;PRI, Xt</code> 设置中断优先级。  3. 执行 <code>GIC &lt;domain&gt;EN, Xt</code> 使能当前 SPI。</td>
+</tr>
+</tbody></table>
+<p>软件修改的配置会在有限时间内生效。如需强行保证改动对全局硬件立即可见，软件可显式执行 GSB（GIC Synchronization Barrier）系统指令。</p>
+<h5 id="3-硬件中断处理生命周期"><a href="#3-硬件中断处理生命周期" class="headerlink" title="3. 硬件中断处理生命周期"></a>3. 硬件中断处理生命周期</h5><p>当外部设备拉高物理中断线后，IRS 会按照以下状态机管理 SPI 的整个处理生命周期：</p>
+<ol>
+<li><strong>信号捕获：</strong> 外设触发物理线后，IRS 将该 SPI 标记为挂起状态（Pending）。</li>
+<li><strong>应用路由规则：</strong> IRS 根据配置的路由模式（Targeted 或 1ofN）和优先级，选择合适的目标 CPU 核心进行投递。</li>
+<li><strong>响应与激活：</strong> 当目标 CPU 核心应答（Acknowledge）该中断时，SPI 状态转为激活状态（Active）。</li>
+<li><strong>完成与清除：</strong> 当 CPU 核心发送中断处理完成信号后，IRS 清除其 Active 状态。若在此期间外设再次触发了中断，IRS 会保留 Pending 状态以便交付下一次中断。</li>
+</ol>
+<hr>
+<h3 id="PPI-配置机制"><a href="#PPI-配置机制" class="headerlink" title="PPI 配置机制"></a>PPI 配置机制</h3><p>私有外设中断（Private Peripheral Interrupt, PPI）属于物理 CPU 接口（Physical CPUIF）内部的本地事件，编号范围为 ID 0 到 127。</p>
+<p>由于 PPI 的目标节点固定为当前本地 PE，硬件信号无需经过中断路由基础设施（IRI）转发。</p>
+<p><strong>1. PPI 核心配置维度与系统寄存器</strong></p>
+<p>对物理 PPI 的配置完全通过 CPUIF 关联的系统寄存器（<code>ICC_PPI_*_EL1</code> &#x2F; <code>EL3</code>）实现。</p>
+<table>
+<thead>
+<tr>
+<th><strong>配置维度</strong></th>
+<th><strong>控制寄存器</strong></th>
+<th><strong>访问与控制规则</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>中断域分配</td>
+<td><code>ICC_PPI_DOMAINR&lt;n&gt;_EL3</code> (n&#x3D;0-3)</td>
+<td>控制 PPI 分配至哪个 Interrupt Domain，仅允许在 EL3 级别访问配置。</td>
+</tr>
+<tr>
+<td>使能状态</td>
+<td><code>ICC_PPI_ENABLER&lt;n&gt;_EL1</code> (n&#x3D;0-1)</td>
+<td>读操作返回使能状态，写操作用于开启&#x2F;关闭中断。若需被选为最高优先级挂起中断（HPPI），必须置 1。</td>
+</tr>
+<tr>
+<td>优先级设置</td>
+<td><code>ICC_PPI_PRIORITYR&lt;n&gt;_EL1</code> (n&#x3D;0-15)</td>
+<td>配置 5-bit 优先级。当启用了 NMI 时，优先级设为 0 将触发超优先级（Superpriority）信号。</td>
+</tr>
+<tr>
+<td>触发模式</td>
+<td><code>ICC_PPI_HMR&lt;n&gt;_EL1</code> (n&#x3D;0-1)</td>
+<td>只读寄存器（RO），软件不可编程，仅用于读取并指示当前 PPI 是边沿触发还是电平触发。</td>
+</tr>
+<tr>
+<td>挂起状态控制</td>
+<td><code>ICC_PPI_SPENDR&lt;n&gt;_EL1</code>  <code>ICC_PPI_CPENDR&lt;n&gt;_EL1</code></td>
+<td>写入 <code>SPENDR</code> 的相应位置 1 可置位 Pending 状态；写入 <code>CPENDR</code> 的相应位置 1 可清除 Pending 状态。</td>
+</tr>
+<tr>
+<td>激活状态控制</td>
+<td><code>ICC_PPI_SACTIVER&lt;n&gt;_EL1</code>  <code>ICC_PPI_CACTIVER&lt;n&gt;_EL1</code></td>
+<td>用于手动置位或清除 Active 状态。此外，执行 <code>GICR CDIA</code> 或 <code>GIC CDDI</code> 指令也会同步更新该状态。</td>
+</tr>
+</tbody></table>
+<p><strong>2. 纯软件 PPI（SW_PPI）与指令同步</strong></p>
+<ul>
+<li>软件注入与未连线 PPI（SW_PPI）：架构允许硬件实现未连接任何物理硬件外设源的 PPI。这类 PPI 专供软件使用，仅能通过向 <code>ICC_PPI_SPENDR&lt;n&gt;_EL1</code> 寄存器写 1 来人工注入并触发挂起状态；对于已连接硬件源的 PPI，挂起状态则由外部设备信号直接驱动。</li>
+<li>配置同步机制：通过系统寄存器修改 PPI 配置后，通常需要执行 <code>ISB</code>（Instruction Synchronization Barrier）屏障指令，以确保配置更新在随后的指令执行中立即生效。</li>
+</ul>
+<p><strong>实战示例：配置并触发软件 PPI ID 10</strong></p>
+<p>以配置 PPI ID 10（软件未连线中断）作为本地定时唤醒信号为例，展示完整的位偏移计算与寄存器写入逻辑：</p>
+<ul>
+<li><p>步骤 1：按位映射规则计算各寄存器参数</p>
+<ul>
+<li>中断域 (DOMAINR)：每个寄存器管理 32 个 ID（各占 2 bit），ID 10 对应组别 <code>n = 10 / 32 = 0</code>，字段偏移为 <code>Bit[(10 % 32)*2 + 1 : (10 % 32)*2]</code>，即 <code>Bit[21:20]</code>。</li>
+<li>优先级 (PRIORITYR)：每个寄存器管理 8 个 ID（各占 8 bit），ID 10 对应组别 <code>n = 10 / 8 = 1</code>，字段偏移为 <code>Bit[(10 % 8)*8 + 7 : (10 % 8)*8]</code>，即 <code>Bit[23:16]</code>。</li>
+<li>使能与挂起 (ENABLER &#x2F; SPENDR)：每个寄存器管理 64 个 ID（各占 1 bit），ID 10 对应组别 <code>n = 10 / 64 = 0</code>，控制位偏移为 <code>Bit[10]</code>。</li>
+</ul>
+</li>
+<li><p>步骤 2：完整配置与触发伪代码</p>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">// 1. 在 EL3 配置中断域 (将 ID 10 对应的 Bit[21:20] 设为 0b01)</span><br><span class="line">MRS  X0, ICC_PPI_DOMAINR0_EL3</span><br><span class="line">BIC  X0, X0, #(0x3 &lt;&lt; 20)      // 清零 Bit[21:20]</span><br><span class="line">ORR  X0, X0, #(0x1 &lt;&lt; 20)      // 写入 0b01 域名标识</span><br><span class="line">MSR  ICC_PPI_DOMAINR0_EL3, X0</span><br><span class="line"></span><br><span class="line">// 2. 配置优先级 (将 ID 10 对应的 Bit[23:16] 设为优先级数值 0x20)</span><br><span class="line">MRS  X0, ICC_PPI_PRIORITYR1_EL1</span><br><span class="line">BIC  X0, X0, #(0xFF &lt;&lt; 16)     // 清零 Bit[23:16]</span><br><span class="line">ORR  X0, X0, #(0x20 &lt;&lt; 16)     // 设置 Priority = 0x20</span><br><span class="line">MSR  ICC_PPI_PRIORITYR1_EL1, X0</span><br><span class="line"></span><br><span class="line">// 3. 使能该中断 (将 ICC_PPI_ENABLER0_EL1 的 Bit[10] 置 1)</span><br><span class="line">MOV  X0, #(1 &lt;&lt; 10)</span><br><span class="line">MSR  ICC_PPI_ENABLER0_EL1, X0</span><br><span class="line"></span><br><span class="line">// 4. 指令屏障同步 (确保所有 MSR 修改彻底生效)</span><br><span class="line">ISB</span><br><span class="line"></span><br><span class="line">// -------------------------------------------------------------</span><br><span class="line">// 5. 软件主动触发 (Software Injection)</span><br><span class="line">// 当需要抛出唤醒信号时，对 ICC_PPI_SPENDR0_EL1 的 Bit[10] 写 1</span><br><span class="line">MOV  X0, #(1 &lt;&lt; 10)</span><br><span class="line">MSR  ICC_PPI_SPENDR0_EL1, X0   // CPU 捕获 Pending 状态并跳转 ISR</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h3 id="IPI-的配置与触发机制"><a href="#IPI-的配置与触发机制" class="headerlink" title="IPI 的配置与触发机制"></a>IPI 的配置与触发机制</h3><p>在 GICv5 架构中，核间中断（IPI）通过将 SPI 或 LPI 配置为<strong>边沿触发</strong>并<strong>定向路由至目标 PE</strong> 来实现。硬件不再依赖固定 SGI，而是统一使用系统指令对指定中断域（CD&#x2F;LD&#x2F;VD）进行配置。</p>
+<p><strong>1. 核心配置与触发流程</strong></p>
+<ol>
+<li><strong>设置触发模式</strong>：使用 <code>GIC &lt;domain&gt;HM, &lt;Xt&gt;</code> 将 Handling Mode 配置为边沿触发（Edge）。</li>
+<li><strong>绑定目标节点</strong>：使用 <code>GIC &lt;domain&gt;AFF, &lt;Xt&gt;</code> 将 Routing Mode 设置为定向路由，并在寄存器参数中通过中断亲和性标识（IAFFID）指定目标 PE 或 VPE。</li>
+<li><strong>触发与挂起</strong>：源 PE 执行 <code>GIC &lt;domain&gt;PEND, &lt;Xt&gt;</code> 发起 IPI 请求。若 Pending 字段为 1 则向中断路由服务（IRS）产生 SET 事件（置为挂起），为 0 则产生 CLEAR 事件，最终由目标 PE 响应挂起的中断。</li>
+</ol>
+<p><strong>2. 指令对照与调用示例</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>操作类型</strong></th>
+<th><strong>关键指令</strong></th>
+<th><strong>参数寄存器（<Xt>）数据</strong></th>
+<th><strong>作用</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>触发模式</td>
+<td><code>GIC &lt;domain&gt;HM, &lt;Xt&gt;</code></td>
+<td>INTID + Edge 模式标识</td>
+<td>设定中断为边沿响应模式</td>
+</tr>
+<tr>
+<td>路由目标</td>
+<td><code>GIC &lt;domain&gt;AFF, &lt;Xt&gt;</code></td>
+<td>INTID + 目标 IAFFID</td>
+<td>将中断精确映射至特定 PE&#x2F;VPE</td>
+</tr>
+<tr>
+<td>请求触发</td>
+<td><code>GIC &lt;domain&gt;PEND, &lt;Xt&gt;</code></td>
+<td>INTID + Pending 状态 (1&#x2F;0)</td>
+<td>向 IRI 请求将中断置为 Pending 或清除</td>
+</tr>
+</tbody></table>
+<p><strong>运行示例</strong>：假设 PE_0 向 PE_1（IAFFID &#x3D; 0x01）发送编号为 INTID_80 的 IPI：</p>
+<ol>
+<li><code>GIC CDHM, X0</code>（X0 配置 INTID_80 为 Edge 模式）</li>
+<li><code>GIC CDAFF, X1</code>（X1 指定 INTID_80 路由至 IAFFID 0x01）</li>
+<li><code>GIC CDPEND, X2</code>（X2 请求将 INTID_80 置为 Pending，触发目标 PE_1 响应）</li>
+</ol>
+<blockquote>
+<p><strong>Q</strong> : PE_1 收到中断后，如何知道“是谁发的”？</p>
+<p><strong>A</strong> : GICv5 硬件不再像旧架构那样自动记录发送方 ID，硬件只负责传递中断信号本身。接收方（PE_1）识别发送方主要依靠软件协议：</p>
+<ul>
+<li>发送方（PE_0）触发中断前会先在共享内存（如 Mailbox）中写入自己的 ID 和任务类型，PE_1 响应中断后直接读取该内存区域即可；</li>
+<li>或者系统在初始化时为不同发送方预分配专属的 INTID，PE_1 即可通过响应的中断号反推源头。</li>
+</ul>
+</blockquote>
+<hr>
+<h3 id="单个中断配置汇总与系统指令集"><a href="#单个中断配置汇总与系统指令集" class="headerlink" title="单个中断配置汇总与系统指令集"></a>单个中断配置汇总与系统指令集</h3><p>在 GICv5 架构中，外设中断（LPI 与 SPI）的配置由中断路由接口（IRI）统一托管。与通过物理 MMIO 寄存器配置中断的传统 GIC 架构不同，GICv5 引入了一套直接在 CPU（PE）上执行的 GIC 系统指令，允许软件快速对指定的 INTID 进行状态控制与属性配置。</p>
+<p><strong>1. GIC 系统指令集中汇总</strong></p>
+<p>针对 LPI 与 SPI 的属性配置，软件通过组合不同的指令前缀与功能后缀来操作指定的 INTID：</p>
+<table>
+<thead>
+<tr>
+<th><strong>系统指令</strong></th>
+<th><strong>功能描述</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GIC xAFF, Xt</code></td>
+<td>设置寄存器 <code>Xt</code> 中指定 INTID 的目标亲和性路由（Target Affinity）。</td>
+</tr>
+<tr>
+<td><code>GIC xDIS, Xt</code></td>
+<td>禁用寄存器 <code>Xt</code> 中指定的 INTID。</td>
+</tr>
+<tr>
+<td><code>GIC xEN, Xt</code></td>
+<td>使能寄存器 <code>Xt</code> 中指定的 INTID，使其具备成为 HPPI 的资格。</td>
+</tr>
+<tr>
+<td><code>GIC xPEND, Xt</code></td>
+<td>设置或清除寄存器 <code>Xt</code> 中指定 INTID 的挂起（Pending）状态。</td>
+</tr>
+<tr>
+<td><code>GIC xPRI, Xt</code></td>
+<td>配置寄存器 <code>Xt</code> 中指定 INTID 的优先级（Priority）。</td>
+</tr>
+</tbody></table>
+<p>指令格式中的前缀 <strong><code>x</code></strong> 代表不同的中断安全域类型：</p>
+<ul>
+<li><strong>CD (Current Domain)：</strong> 作用于当前 CPU 所处的 Interrupt Domain 内的 INTID。</li>
+<li><strong>VD (Virtual Domain)：</strong> 作用于虚拟域中的 INTID。仅在 EL2 和 EL3 权限下可用，由 Hypervisor 用于管理虚拟机（VM）的虚拟中断。</li>
+<li><strong>LD (Logical Domain)：</strong> 作用于由 <code>SCR_EL3.&#123;NS, NSE&#125;</code> 选择的逻辑中断域。仅在 EL3 权限下可用，由 EL3 固件用于配置低特权级的中断域。</li>
+</ul>
+<p>针对超出已分配内存表（如 IST）范围的非关联 INTID，GIC 硬件会将其判定为不可达（Unreachable），指令操作将作为 <code>NOP</code>（空操作）处理，同时 IRI 可能会记录相应的错误以辅助调试。</p>
+<p><strong>使用示例</strong></p>
+<p>以初始化 SPI 中断（假设 INTID &#x3D; 105，优先级设为 <code>0x20</code>，路由至 CPU0）为例，在底层驱动中的硬件交互序列如下：</p>
+<ul>
+<li><p>单独使能&#x2F;禁用中断（<code>GIC CDEN</code> &#x2F; <code>GIC CDDIS</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">MOV x0, #105          // 将 INTID 105 装入寄存器 x0</span><br><span class="line">GIC CDEN, x0          // 使能当前域中的 INTID 105</span><br><span class="line">GIC CDDIS, x0         // 禁用当前域中的 INTID 105</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置优先级（<code>GIC CDPRI</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">// 在 64 位寄存器中打包 Priority 与 INTID：[63:32] Priority, [31:0] INTID</span><br><span class="line">MOV x0, #(0x20 &lt;&lt; 32 | 105)</span><br><span class="line">GIC CDPRI, x0         // 设置 INTID 105 的优先级为 0x20</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>配置目标 CPU 路由（<code>GIC CDAFF</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">// 打包 CPU0 的 Affinity ID 与 INTID 105</span><br><span class="line">MOV x0, x_cpu0_aff_and_int105</span><br><span class="line">GIC CDAFF, x0         // 将 INTID 105 路由定向至 CPU0</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>手动注入&#x2F;清除挂起状态（<code>GIC CDPEND</code>）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">// 最高位置 1 表示触发 Set-Pending（注入中断）</span><br><span class="line">MOV x0, #(1 &lt;&lt; 63 | 105)</span><br><span class="line">GIC CDPEND, x0        // 手动将 INTID 105 拉高为挂起状态</span><br></pre></td></tr></table></figure></li>
+</ul>
+<p><strong>2. 配置生效的异步性与同步要求</strong></p>
+<p>在 GICv5 中，CPU 执行完一条 GIC 配置指令，<strong>仅代表 CPU 把命令发了出去，并不代表 GIC 控制器内部已经把事情办完</strong>。</p>
+<ul>
+<li>指令的侧效应（Side-effects）： 修改中断配置通常会触发一连串的硬件连锁反应。例如，当软件执行 <code>GIC CDDIS</code> 禁用某个中断时，GIC 的路由接口（IRI）需要去把这个中断从 CPU 核心的“待处理队列”里撤回（Recall）。</li>
+<li>异步传播与屏障要求： CPU 执行完指令（Retire）与 GIC 硬件全局更新完成是<strong>异步</strong>的。为了防止 CPU 还没等 GIC 撤回完中断就继续执行后续代码，软件在更新配置后，<strong>必须紧跟一条 <code>GSB</code>（GIC Synchronization Barrier）屏障指令</strong>，强制等待所有 GIC 子模块的配置彻底生效。</li>
+</ul>
+<blockquote>
+<p>CPU 把配置命令发出去只是“寄了信”，硬件彻底改完才算“送达”；中间加个 <code>GSB</code> 屏障，就是强制 CPU 死等“送达回执”，确认 GIC 彻底办完了再继续走后面的代码。</p>
+</blockquote>
+<p><strong>3. 中断状态查询机制</strong></p>
+<p>若软件需要主动查询某个 INTID 的当前配置与运行状态，可以使用 <code>GIC xRCFG</code> 系统指令。</p>
+<p>该指令会向硬件请求特定 INTID 的状态，并将结果间接写入 <code>ICC_ICSR_EL1</code> 系统寄存器中。在不可抢占的上下文（Non-preemptable Context）中，完整的查询代码流示例如下：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">GIC CDRCFG, x5    // 请求 x5 寄存器中 INTID 的当前配置与状态</span><br><span class="line">ISB               // 指令同步屏障，确保间接写入完成</span><br><span class="line">MRS x0, ICC_ICSR_EL1  // 直接读取返回的中断状态信息至 x0</span><br></pre></td></tr></table></figure>
+
+<p>在此序列中，<code>ISB</code> 指令是强制要求的，因为 <code>GIC CDRCFG</code> 对 <code>ICC_ICSR_EL1</code> 执行了间接写入（Indirect Write），而随后的 <code>MRS</code> 指令需要对其进行直接读取（Direct Read），必须通过 <code>ISB</code> 保证寄存器访问的指令序。</p>
+<hr>
+<h3 id="GICv5-同步机制与屏障指令"><a href="#GICv5-同步机制与屏障指令" class="headerlink" title="GICv5 同步机制与屏障指令"></a>GICv5 同步机制与屏障指令</h3><p>在 GICv5 架构中，当软件修改了中断配置（如优先级、路由、使能&#x2F;禁用状态）或更新了内存中的数据结构（如 DT、ITT 表格）时，更改不会自动且实时地作用于整个中断路由基础设施（IRI）。软件必须显式触发相应的同步机制，确保配置变更彻底生效后再触发或接收后续中断。</p>
+<p>GICv5 提供了三种互补的同步机制，分别作用于 CPU 系统指令、ITS 硬件翻译以及 IRS 路由处理三个层面。</p>
+<p><strong>1. GIC 同步屏障指令（GSB）</strong></p>
+<p>当软件通过系统指令修改了中断的属性（如路由、优先级、使能状态或中断域分配）后，这些修改在指令退休时并不保证已全局可见。</p>
+<ul>
+<li><strong>作用机制：</strong> 软件在配置指令后执行 <code>GSB</code> 系统指令，硬件会强制屏障之前的 GIC &#x2F; GICR 指令侧效应。</li>
+<li><strong>效果保证：</strong> 确保所有先前的配置修改完全传播并对整个 GIC IRI 全局可见后，CPU 才会继续执行随后的 Load&#x2F;Store 内存指令。</li>
+</ul>
+<p><strong>2. 中断翻译所同步（ITS Synchronization）</strong></p>
+<p>ITS 同步用于确保外设触发事件的地址翻译流程完整结束，主要应对设备映射变更或中断重用（Re-purposing）场景。</p>
+<table>
+<thead>
+<tr>
+<th><strong>同步类型</strong></th>
+<th><strong>触发与控制方式</strong></th>
+<th><strong>硬件行为与完成标志</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>事件翻译同步</strong></td>
+<td>1. 写入 <code>ITS_SYNCR.SYNC = 1</code> 启动同步。  2. 可通过 <code>ITS_SYNCR.SYNCALL</code> 选项控制作用范围：限制于特定 DeviceID 或作用于整个 ITS 域。</td>
+<td>保证所有由 ITS 接收到的入站事件均已被完整翻译，并成功递交至对应的 IRS。轮询 <code>ITS_SYNC_STATUSR.IDLE == 1</code> 标志操作完成。</td>
+</tr>
+<tr>
+<td><strong>缓存失效同步</strong></td>
+<td>软件修改内存中的设备表（DT）或中断翻译表（ITT）后，须写入 <code>ITS_INV_DEVICER</code> 或 <code>ITS_INV_EVENTR</code> 作废旧 Cache。</td>
+<td>强制 ITS 丢弃内部缓存的映射关系，后续翻译必须重新从 RAM 读取最新数据。轮询 <code>ITS_STATUSR.IDLE == 1</code> 确认缓存作废完成。</td>
+</tr>
+</tbody></table>
+<p>在完成事件翻译同步后，软件应检查 <code>ITS_ERR_STATUSR</code> 以排除由于配置错误导致的无效翻译。</p>
+<p><strong>3. 中断路由服务同步（IRS Synchronization）</strong></p>
+<p>IRS 同步用于确保已被 IRS 接收的中断事件彻底完成路由与交付处理，从而建立清晰的中断事件处理边界。</p>
+<ul>
+<li><strong>触发方式：</strong> 软件向 <code>IRS_SYNCR.SYNC</code> 寄存器写入 <code>1</code>。</li>
+<li><strong>硬件保证：</strong> 在该写操作之前由 IRS 域接收到的所有中断事件，都会被强制处理完毕。</li>
+<li><strong>完成判定：</strong> 持续轮询 <code>IRS_SYNC_STATUSR.IDLE</code> 状态位，直至读出为 <code>1</code>，此时表明所有挂起的处理流程均已落案。</li>
+</ul>
+<p><strong>三种同步机制的核心区别：</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>同步机制</strong></th>
+<th><strong>控制的主体</strong></th>
+<th><strong>作用的硬件范围</strong></th>
+<th><strong>解决了什么问题？</strong></th>
+<th><strong>典型使用场景</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GSB (GIC 同步屏障)</td>
+<td>CPU 指令流</td>
+<td>CPU 与 GIC 路由基础设施（IRI）之间</td>
+<td>阻止 CPU 过快执行后续内存指令。 确保 CPU 刚才发出的 GIC 系统指令（如修改优先级、禁用中断）彻底生效后，再继续干别的活。</td>
+<td>修改中断配置（如 <code>GIC CDDIS</code> 禁用中断）后，防止 CPU 立即访问相关临界区内存。</td>
+</tr>
+<tr>
+<td>ITS Synchronization</td>
+<td>外设 MSI 事件 &#x2F; ITS 翻译</td>
+<td>ITS 硬件翻译引擎 (ITS Domain)</td>
+<td>确保事件翻译“管道”清空。 确保外设发出的 MSI 事件在 ITS 内部已经查表翻译完毕，并成功交接给了下游的 IRS。</td>
+<td>软件修改或作废了内存中的 DTE&#x2F;ITTE 表格（如网卡解绑、中断重用），需清空 ITS 的内部流水线与 Cache。</td>
+</tr>
+<tr>
+<td>IRS Synchronization</td>
+<td>中断路由交付</td>
+<td>IRS 路由服务引擎 (IRS Domain)</td>
+<td>确保下游路由与派发落案。 确保所有已经被 IRS 接受的中断事件彻底处理完成，达到已知无挂起状态。</td>
+<td>系统休眠&#x2F;切域（Security Domain）前，需要清空并冻结当前域内所有正在处理的硬件中断事件。</td>
+</tr>
+</tbody></table>
+<h2 id="5-GICv5-中断虚拟化机制"><a href="#5-GICv5-中断虚拟化机制" class="headerlink" title="5. GICv5 中断虚拟化机制"></a>5. GICv5 中断虚拟化机制</h2><p>GICv5 为虚拟机（VM）及虚拟处理单元（VPE）的中断管理提供了原生的硬件级支持。其核心特性在于为物理中断与虚拟中断提供统一的编程接口，实现了二进制兼容的虚拟化支持，极大地简化了 Hypervisor 与 Guest OS 的开发复杂度。</p>
+<p><strong>兼容性模式与模式切换</strong></p>
+<p>为了兼容旧版架构，GICv5 虚拟 CPU 接口（VCPU Interface）支持在 GICv5 原生模式与 GICv3 传统模式之间切换。控制逻辑由 EL2 级的虚拟 CPU 接口控制寄存器（<code>ICH_VCTLR_EL2</code>）决定：</p>
+<table>
+<thead>
+<tr>
+<th>寄存器标志位 (ICH_VCTLR_EL2.V3)</th>
+<th>模式说明</th>
+<th>架构特性</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>GICv5 原生模式</td>
+<td>实现标准的 GICv5 虚拟 CPU 接口，优先利用内存备份数据结构（Memory-backed structures）加速中断路由与处理。</td>
+</tr>
+<tr>
+<td>1</td>
+<td>GICv3 传统模式</td>
+<td>开启向下兼容机制（可选特性），实现 GICv3 的虚拟 CPU 接口与 Hypervisor 控制逻辑。</td>
+</tr>
+</tbody></table>
+<p><strong>虚拟中断域使能条件与工作流</strong></p>
+<p>当运行在 EL1 的 Guest OS 访问 GIC 寄存器时，只有在 Hypervisor 满足特定的配置条件时，Guest OS 才能正确感知并操作 GICv5 的虚拟 CPU 接口。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">Hypervisor (EL2) 满足判定条件</span><br><span class="line">  │</span><br><span class="line">  ├── ICH_VCTLR_EL2.V3  == 0  (启用 GICv5 原生模式)</span><br><span class="line">  ├── ICH_VCTLR_EL2.EN  == 1  (启用虚拟 CPU 接口)</span><br><span class="line">  └── HCR_EL2.IMO       == 1  (将 IRQ 路由与虚拟化交由 EL2)</span><br><span class="line">  │</span><br><span class="line">  ▼ (三条件同时满足)</span><br><span class="line">进入虚拟中断域 (Virtual Interrupt Domain)</span><br><span class="line">  │</span><br><span class="line">  ├── 隔离机制：Guest OS (EL1) 获得独立的虚拟中断命名空间</span><br><span class="line">  └── 效果：该域接收与发出的信号均直接作为虚拟中断处理</span><br></pre></td></tr></table></figure>
+
+<p><strong>硬件协作与直投机制</strong></p>
+<p>传统 GICv3 架构下，虚拟中断产生后需要先打断 CPU 陷入 EL2 Hypervisor，由软件查询并写入 List Registers 注入给 Guest OS，存在频繁上下文切换的性能开销。GICv5 则通过硬件直接加速这一过程：</p>
+<ol>
+<li><strong>环境初始化</strong>：Hypervisor 将 <code>ICH_VCTLR_EL2.V3</code> 清零（开启 GICv5 模式）、<code>ICH_VCTLR_EL2.EN</code> 置 1 并将 <code>HCR_EL2.IMO</code> 置 1。</li>
+<li><strong>域隔离</strong>：Guest OS 运行在 EL1 时，硬件自动将其限制在虚拟中断域（Virtual Interrupt Domain）中。</li>
+<li><strong>硬件直投注入</strong>：当产生虚拟中断时，中断路由服务（IRS）直接查询内存备份数据结构（Memory-backed structures）确定目标 VPE，由 PE 上的虚拟 CPU 接口直接将虚拟中断抛给 EL1 层的 Guest OS。整个过程由硬件与内存配置表自动完成，无需 Hypervisor 软件干预和上下文切换。</li>
+</ol>
+<blockquote>
+<p>硬件直投注入，就是硬件自己查内存表把中断送到虚拟机手里，不让 Hypervisor（房东）当中间商传话打断 CPU。</p>
+</blockquote>
+<hr>
+<h3 id="GICv5-虚拟中断类型与命名空间隔离"><a href="#GICv5-虚拟中断类型与命名空间隔离" class="headerlink" title="GICv5 虚拟中断类型与命名空间隔离"></a>GICv5 虚拟中断类型与命名空间隔离</h3><p>在 GICv5 架构中，虚拟中断统一归属于虚拟中断域（Virtual Interrupt Domain）。当属于该域的中断被触发时，硬件将向目标抛出虚拟中断信号（vIRQ 或传统模式下的 vFIQ）。GICv5 为三种标准的物理中断类型（PPI、LPI、SPI）分别设计了对应的虚拟化版本：vPPI、vLPI 与 vSPI。</p>
+<p><strong>虚拟中断类型划分</strong></p>
+<ul>
+<li>虚拟私有外设中断（vPPI）：物理 PPI 的虚拟化对应物，专门绑定至具体的虚拟处理单元（VPE，即虚拟机内的虚拟 CPU）。每个物理 PPI 均有对应的 vPPI 实现。</li>
+<li>虚拟特定报文中断（vLPI）：物理 LPI 的虚拟化对应物，专门绑定至具体的虚拟机（VM）。</li>
+<li>虚拟共享外设中断（vSPI）：物理 SPI 的虚拟化对应物，同样绑定至特定的虚拟机（VM）。</li>
+</ul>
+<blockquote>
+<p>Q：为什么 vPPI 绑定至 VPE，而 vLPI 与 vSPI 绑定至 VM？</p>
+<p>A：核心取决于硬件中断源的属性与处理需求：</p>
+<ul>
+<li>vPPI 绑定 VPE：PPI 本身是特定 CPU 独占的私有事件（如虚拟定时器），因此映射到虚拟化层后只能服务于对应的虚拟核。</li>
+<li>vLPI &#x2F; vSPI 绑定 VM：LPI 与 SPI 源自 PCIe 网卡、磁盘控制器等共享外设，这类设备被分配给整个虚拟机（VM）。绑定至 VM 可让中断路由服务（IRS）根据负载，将中断弹性分发给该 VM 旗下的任意空闲 VPE 处理。</li>
+</ul>
+</blockquote>
+<p><strong>存储位置与命名空间隔离规则</strong></p>
+<p>为了保障多租户与多 VM 环境下的数据安全与调度独立性，不同的虚拟中断类型采用了差异化的存储介质与命名空间隔离策略。</p>
+<table>
+<thead>
+<tr>
+<th>虚拟中断类型</th>
+<th>存储位置</th>
+<th><strong>命名空间隔离粒度</strong></th>
+<th>可达性（Reachable）判定条件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>vPPI</td>
+<td>CPU 接口系统寄存器（<code>ICV_PPI_*</code>）</td>
+<td>Per-PE（单核物理 CPU 接口级隔离）</td>
+<td>只要硬件实现了该 vPPI 即处于可达状态。</td>
+</tr>
+<tr>
+<td>vLPI</td>
+<td>内存中配置的虚拟 LPI 中断状态表（vLPI IST）</td>
+<td>VM 级隔离（同 VM 内所有 VPE 共享）</td>
+<td>VM 处于有效状态、INTID 处于配置范围内，且 vLPI IST 表配置有效。</td>
+</tr>
+<tr>
+<td>vSPI</td>
+<td>内存中配置的虚拟 SPI 中断状态表（vSPI IST）</td>
+<td>VM 级隔离（同 VM 内所有 VPE 共享）</td>
+<td>VM 处于有效状态、INTID 处于配置范围内，且 vSPI IST 表配置有效。</td>
+</tr>
+</tbody></table>
+<p><strong>内存数据结构共享限制</strong></p>
+<p>对于依赖内存备份数据结构的 vLPI 与 vSPI：</p>
+<ul>
+<li>系统级共享：Hypervisor 会为每个虚拟机单独分配独立的虚拟中断状态表（vLPI IST 与 vSPI IST），这些表会被系统内所有的中断路由服务（IRS）共享访问，以确保任意物理核都能正确获取该 VM 的虚拟中断状态。</li>
+<li>虚拟机间绝对隔离：架构严格禁止跨 VM 共享同一个虚拟 IST 表，从而在硬件层杜绝了不同虚拟机之间的中断状态污染与越权访问。</li>
+</ul>
+<h3 id="GICv5-虚拟化数据结构与内存管理"><a href="#GICv5-虚拟化数据结构与内存管理" class="headerlink" title="GICv5 虚拟化数据结构与内存管理"></a>GICv5 虚拟化数据结构与内存管理</h3><p>GICv5 在中断路由服务（IRS）中引入了基于内存的数据结构（Memory-backed structures），用硬件查表取代了传统 GICv3 繁重的 Hypervisor 软件模拟流程。这些数据结构层层递进，构成了虚拟机（VM）与虚拟处理单元（VPE）的中断路由管理体系。</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/13.png" alt="13"></p>
+<p><strong>虚拟化核心数据结构</strong></p>
+<p>IRS 维护的核心数据结构呈树状层级关系，由 VM 表作为顶层索引，逐级向下展开：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">VM Table (顶层目录)</span><br><span class="line">  │</span><br><span class="line">  └── L2 VMTE (虚拟机条目)</span><br><span class="line">        ├── VM Descriptor (VM 工作内存)</span><br><span class="line">        ├── Virtual LPI IST (虚拟 LPI 状态表)</span><br><span class="line">        ├── Virtual SPI IST (虚拟 SPI 状态表)</span><br><span class="line">        └── VPE Table (VPE 目录)</span><br><span class="line">              │</span><br><span class="line">              └── VPETE (VPE 条目) ───► VPE Descriptor (VPE 工作内存)</span><br></pre></td></tr></table></figure>
+
+<table>
+<thead>
+<tr>
+<th><strong>数据结构名称</strong></th>
+<th><strong>配置与管理寄存器</strong></th>
+<th><strong>作用与机制</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>VM Table</td>
+<td><code>IRS_VMT_BASER</code>  <code>IRS_VMT_CFGR</code></td>
+<td>IRS 域内所有已知 VM 的顶层目录。每个表项（L2_VMTE）包含当前 VM 的配置，并指向 VPE Table、vLPI IST 和 vSPI IST。<strong>VM Table（虚拟机表）在每个 IRS 域（IRS Domain）内有且只有一个</strong>。</td>
+</tr>
+<tr>
+<td>VM Descriptor</td>
+<td><code>IRS_IDR3.VMD</code>（能力查询）</td>
+<td>软件为 IRS 提供用于管理该 VM 的内存空间，作为 IRS 的工作内存。一旦 VM 被设为有效，该描述符在物理内存中的位置不可移动，且初始化时必须清零。</td>
+</tr>
+<tr>
+<td>VPE Table</td>
+<td><code>IRS_VMAP_VPER</code></td>
+<td>每个 VM 独立对应一个 VPE 表，表项（VPETE）记录各个 VPE （虚拟CPU）的配置并指向其对应的 VPE Descriptor。Hypervisor 通过写入寄存器进行配置。</td>
+</tr>
+<tr>
+<td>VPE Descriptor</td>
+<td><code>IRS_IDR4.VPED_SZ</code>（大小查询）</td>
+<td>每个有效 VPE 专属的工作内存，供 IRS 实时读写和更新状态，软件初始化时必须清零。</td>
+</tr>
+<tr>
+<td>Virtual LPI &#x2F; SPI IST</td>
+<td>-</td>
+<td>分别记录虚拟 LPI 和虚拟 SPI 的使能、挂起（Pending）、优先级与路由信息。与物理 SPI 不同，虚拟 SPI 必须由 Hypervisor 在内存中为其显式分配存储空间。</td>
+</tr>
+</tbody></table>
+<p><strong>顶层 VM 表的初始化与使能流程</strong></p>
+<p>Hypervisor 在初始化硬件层面的 VM 表时，需要通过寄存器状态机完成使能校验。对于线性表与多级表（2-level），其使能逻辑如下：</p>
+<h5 id="基础使能流程"><a href="#基础使能流程" class="headerlink" title="基础使能流程"></a>基础使能流程</h5><ol>
+<li>将 VM 表的物理基地址写入 <code>IRS_VMT_BASER.ADDR</code> 寄存器；</li>
+<li>轮询检查 <code>IRS_VMT_STATUSR.IDLE</code> 标志位；</li>
+<li>当 <code>IRS_VMT_STATUSR.IDLE == 1</code> 且 <code>IRS_VMT_BASER.VALID</code> 被成功置 1 时，VM 表被正式激活，IRS 获准访问该虚拟化数据结构。</li>
+</ol>
+<h5 id="二级-VM-表（2-level-Structure）动态分配"><a href="#二级-VM-表（2-level-Structure）动态分配" class="headerlink" title="二级 VM 表（2-level Structure）动态分配"></a>二级 VM 表（2-level Structure）动态分配</h5><p>当一级 VM 表（Level 1 VM Table）分配完毕并有效后，二级 VM 表（Level 2 VM Table）的动态分配分为三个步骤：</p>
+<ol>
+<li><strong>软件配置基地址</strong>：软件将新二级表的物理地址写入 <code>L1_VMTE.L2_ADDR</code>，此时暂将 <code>L1_VMTE.VALID</code> 保持为 0；</li>
+<li><strong>软件触发映射</strong>：软件写入 <code>IRS_VMAP_L2_VMTR</code> 寄存器，将使能位 <code>M</code> 置 1，请求激活该二级表；</li>
+<li><strong>硬件自动更新</strong>：IRS 收到请求后，自动将一级表项中的 <code>L1_VMTE.VALID</code> 更新为 1，并将 <code>IRS_VMT_STATUSR.IDLE</code> 置 1 表示配置完成。</li>
+</ol>
+<h3 id="物理中断向-VM-与-VPE-的分配与映射"><a href="#物理中断向-VM-与-VPE-的分配与映射" class="headerlink" title="物理中断向 VM 与 VPE 的分配与映射"></a>物理中断向 VM 与 VPE 的分配与映射</h3><p>GICv5 虚拟化机制的核心优势之一，是具备将物理事件作为虚拟中断直接呈现给虚拟机（VM）与虚拟处理单元（VPE）的能力。在此架构下，Hypervisor 负责控制并配置物理中断到虚拟中断的映射规则，而 VM 与 VPE 则像感知普通物理中断一样直接接收到达的虚拟中断，对底层软件所编程的翻译和路由过程完全无感。</p>
+<p>在映射体系中存在两个关键标识符：</p>
+<ul>
+<li><p>VM ID 用于在 GIC 虚拟化域内唯一标识一个虚拟机（需注意，此 ID 与 Arm 内存管理架构 VMSA 中定义的 VMID 无直接关联）；</p>
+</li>
+<li><p>VPE ID 则代表 VM 内部的一个执行上下文，用于在特定 VM 语境下唯一标识一个虚拟 CPU 核心。</p>
+</li>
+</ul>
+<p>硬件接收到物理中断事件后，会依据软件配置好的映射表，自动将其转换为目标 VM 或特定 VPE 的虚拟中断并完成直投，极大降低了虚拟化环境下的中断响应延迟。</p>
+<hr>
+<h4 id="vLPI-映射与路由机制"><a href="#vLPI-映射与路由机制" class="headerlink" title="vLPI 映射与路由机制"></a>vLPI 映射与路由机制</h4><p>vLPI 是物理 LPI 中断在虚拟化环境下的对应实现。Hypervisor 在初始化 VM 时，需要通过写配置把虚拟 LPI 空间配置到对应的 <code>L2_VMTE</code> 中，并为其开辟和使能专属的虚拟 LPI 中断状态表（vLPI IST）。</p>
+<p><strong>1. vLPI 空间的硬件配置与使能</strong></p>
+<p>Hypervisor 配置 vLPI 空间主要依赖写入该 VM 对应 <code>L2_VMTE</code> 表项中的三个关键参数：</p>
+<ul>
+<li><strong>结构类型</strong>：通过 <code>L2_VMTE.LPI_IST_STRUCTURE</code> 指定 vLPI IST 采用线性表还是二级表（2-level）结构。</li>
+<li><strong>中断容量</strong>：通过 <code>L2_VMTE.LPI_ID_BITS</code> 决定该 VM 支持的最大 vLPI 数量，直接影响 IST 占用的物理内存大小。</li>
+<li><strong>基物理地址</strong>：通过 <code>L2_VMTE.LPI_IST_ADDR</code> 指向已分配的 vLPI IST 物理内存基地址。</li>
+</ul>
+<p>填妥上述配置后，Hypervisor 写入 <code>IRS_VMAP_VISTR</code> 寄存器请求使能。中断路由服务（IRS）接收到指令后会自动修改内存中的 <code>L2_VMTE.LPI_IST_VALID</code> 字段，将其从 0 改写为 1。当 <code>IRS_VMT_STATUSR.IDLE</code> 标志位置 1 时，即代表 vLPI IST 映射完成并成功激活。</p>
+<p><strong>2. vLPI 挂起状态（Pending）的触发途径</strong></p>
+<p>在 GICv5 中，将一个 vLPI 置为挂起状态（Pending）主要有两种途径：硬件外设触发（ITS 动态路由）与 <strong>软件直接注入（Hypervisor 指令）</strong>。</p>
+<p><strong>（1）硬件外设触发（ITS 翻译与状态更新）</strong></p>
+<p>当物理外设触发 MSI&#x2F;MSI-X 中断时，硬件会通过以下流水线完成 vLPI 挂起状态的更新：</p>
+<ul>
+<li><strong>ITS 地址翻译</strong>：ITS 接收来自外设的中断事件（包含 <code>DeviceID</code> 与 <code>EventID</code>），查表将其翻译为目标虚拟机的 <code>VM ID</code> 以及虚拟中断号 <code>vINTID</code>。</li>
+<li><strong>Pending 状态写入</strong>：翻译完成后，只要目标 VM 处于可达且有效状态，ITS 便会生成中断事件告知中断路由服务（IRS）。IRS 随后自动去内存中找到该 VM 的 vLPI IST，将对应 <code>vINTID</code> 表项中的 Pending 标志位置 1。</li>
+</ul>
+<p><strong>（2）软件直接注入（Hypervisor 强行设置）</strong></p>
+<p>Hypervisor 软件可以使用 GIC 系统指令 <code>GIC VDPEND</code> 绕过外设与 ITS 翻译，直接强行设置某个 vLPI 的 Pending 状态。</p>
+<ul>
+<li>该指令直接在其参数中指定目标 <code>VM ID</code> 和 <code>vINTID</code>，无需依赖当前物理 CPU 上正在运行哪个 VPE。</li>
+</ul>
+<p><strong>3. 路由过程与全路径硬件流向</strong></p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/14.png" alt="14"></p>
+<p>触发后的 vLPI 会依据对应 VM 内的 vLPI IST 配置进行下一步路由。Guest OS 可以在 VM 内部通过 <code>GIC CDAFF</code> 等指令配置其中断亲和性（IAFFID，在虚拟中断域中即代表目标 VPE ID）以及路由模式（Targeted 精准投递或 1ofN 负载均衡）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">外设 MSI (DeviceID, EventID) / 线缆中断</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">       ITS (查 DT/ITT 表翻译出 VM ID 和 vINTID)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">       IRS (查 VMT/vIST 表更新 Pending 状态并读取优先级/路由配置)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">    vCPU IF (虚拟 CPU 接口直投 vIRQ/vFIQ)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">      PE (硬件 CPU 核心执行 Guest OS)</span><br></pre></td></tr></table></figure>
+
+<p>对于 Guest OS 而言，只要 Hypervisor 正确建立并激活了 ITS 和 IST 映射，虚拟机的操作系统就可以像在无虚拟化环境下操作普通物理 LPI 一样配置和响应 vLPI，对底层硬件完成的表项查找与路由过程完全无感。</p>
+<blockquote>
+<p>直投模式下，1 个物理 LPI 只能绑定 1 个 VM。</p>
+</blockquote>
+<hr>
+<h4 id="vSPI-映射与路由机制"><a href="#vSPI-映射与路由机制" class="headerlink" title="vSPI 映射与路由机制"></a>vSPI 映射与路由机制</h4><p>vSPI 是物理共享外设中断（SPI）在虚拟化环境下的对应实现，专用于为特定的虚拟机（VM）提供虚拟外设中断服务。通常情况下，系统中的 SPI 设备由 Hypervisor 软件进行模拟，默认情况下 vSPI 与物理 SPI 之间不存在直接的硬件连接。</p>
+<p><strong>1. vSPI 的硬件配置与内存数据结构</strong></p>
+<p>vSPI 的配置与状态存储于专门为该 VM 分配的虚拟 SPI 中断状态表（Virtual SPI IST）中。</p>
+<ul>
+<li><strong>内存隔离与共享</strong>：Virtual SPI IST 由 Hypervisor 为每个 VM 独立分配，严禁在多个 VM 之间共享；但系统内的所有中断路由服务（IRS）节点均可访问同一个 VM 的 IST。</li>
+<li><strong>容量配置</strong>：Hypervisor 通过写入 <code>L2_VMTE.SPI_ID_BITS</code> 字段决定 VM 所支持的 vSPI 数量。该字段最小值为 0（代表最少支持 1 个 vSPI）。</li>
+<li><strong>可达性条件</strong>：当对应的 VM 处于有效（Valid）状态时，该 VM 的 vSPI 即为硬件可达状态。</li>
+<li><strong>状态控制</strong>：Hypervisor 通过系统指令 <code>GIC VDPEND</code> 驱动 vSPI 的挂起（Pending）状态；Guest VM 则通过 <code>GIC CDXXX</code> 类指令控制 vSPI 的使能（Enable）与亲和性（Affinity）等配置。</li>
+</ul>
+<p><strong>2. 物理 SPI 的硬件直投机制</strong></p>
+<p>若硬件实现支持将物理 SPI 直接注入 VM，Hypervisor 可通过配置将特定物理 SPI 直接映射给目标 VM。当物理 SPI 完成映射后，该物理 SPI 对 Hypervisor 将变为不可达状态，其断言（Asserted）信号将直接更新对应 vSPI 的挂起状态。</p>
+<p>物理 SPI 直投配置的具体步骤如下：</p>
+<table>
+<thead>
+<tr>
+<th><strong>步骤</strong></th>
+<th><strong>操作阶段</strong></th>
+<th><strong>详细描述</strong></th>
+<th><strong>硬件&#x2F;寄存器行为</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>选择物理 SPI</td>
+<td>软件指定要分配的物理 SPI</td>
+<td>写入 <code>IRS_SPI_SELR</code> 寄存器填入目标 <code>INTID.ID</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>状态检查</td>
+<td>确认硬件已就绪</td>
+<td>轮询 <code>IRS_SPI_STATUS.IDLE</code> 为 1，并验证 <code>IRS_SPI_STATUS.V</code> 为 1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>分配 VM ID</td>
+<td>将物理 SPI 绑定至目标 VM</td>
+<td>写入 <code>IRS_SPI_VMR</code> 寄存器，置位 <code>VIRT</code> 并指定有效的 <code>VM ID</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>确认完成</td>
+<td>确保硬件动作执行完毕</td>
+<td>再次轮询 <code>IRS_SPI_STATUS.IDLE</code> 为 1，确认 <code>V</code> 位保持为 1</td>
+</tr>
+</tbody></table>
+<p>需要注意的是，若要将已分配给 VM 的物理 SPI 重新分配给其他 VM，必须先清除 <code>IRS_SPI_VMR.VIRT</code>（置 0）解除原有绑定，方可重新进行配置。</p>
+<p><strong>3. 全路径硬件路由流向</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">共享线缆中断 (Wired Interrupts)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">       IRS (查阅 VMT 获取 vIST/VPET 配置，定位目标 VM)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">  vSPI INTID / Priority (写入挂起状态并读取优先级)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">  vCPUIF (虚拟 CPU 接口向 CPU 核心投递 vIRQ / vFIQ)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">      PE (硬件 CPU 核心执行 Guest OS)</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h4 id="VPE-调度与常驻（Residency）机制"><a href="#VPE-调度与常驻（Residency）机制" class="headerlink" title="VPE 调度与常驻（Residency）机制"></a>VPE 调度与常驻（Residency）机制</h4><p>在 GICv5 虚拟化架构中，虚拟处理单元（VPE）代表属于某个 VM 的虚拟 CPU 核心。当一个 VPE 被调度并当前激活运行在某个物理 CPU（PE）上时，该状态被称为<strong>常驻（Residency）</strong>。只有当 VPE 处于常驻状态时，硬件中断路由服务（IRS）才会为其触发最高优先级虚拟挂起中断（vHPPI）的选择，并向其投递 vSPI 和 vLPI。</p>
+<p><strong>1. 常驻状态与虚拟 CPU 接口</strong></p>
+<p>VPE 的常驻状态由软件（Hypervisor）与硬件配合进行动态切换与控制：</p>
+<ul>
+<li><strong>核心作用</strong>：若当前 PE 上没有常驻的 VPE，虽然虚拟 CPU 接口（Virtual CPU Interface）仍可保持激活状态，但所有发往该 PE 的 vSPI 和 vLPI 都将被硬件视为不可达（Unreachable）而无法完成最终投递。</li>
+<li><strong>控制寄存器</strong>：Hypervisor 通过修改系统寄存器 <code>ICH_CONTEXTR_EL2</code> 来显式控制当前 PE 上 VPE 的常驻与非常驻切换。</li>
+</ul>
+<p><strong>2. ICH_CONTEXTR_EL2 寄存器控制逻辑</strong></p>
+<p><code>ICH_CONTEXTR_EL2</code>寄存器包含了控制 VPE 激活与绑定的核心位域：</p>
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/15.png" alt="15"></p>
+<table>
+<thead>
+<tr>
+<th><strong>位域&#x2F;字段</strong></th>
+<th><strong>功能描述</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>V (Bit 63)</td>
+<td>有效位（Valid）。写入 1 表示使指定 VPE 变为常驻状态；写入 0 表示将当前常驻的 VPE 设置为非常驻。</td>
+</tr>
+<tr>
+<td>F (Bit 62)</td>
+<td>失败标志（Failure）。由硬件更新，用于指示软件发起的常驻使能操作是否成功（例如，请求的 VPE 在硬件数据结构中不存在时会置位）。</td>
+</tr>
+<tr>
+<td>VM</td>
+<td>VM Table 索引，唯一指定目标 VPE 所属的虚拟机。</td>
+</tr>
+<tr>
+<td>VPE</td>
+<td>对应 VM 内 VPE Table 的索引，唯一指定目标虚拟 CPU 核心。</td>
+</tr>
+</tbody></table>
+<p><strong>3. 上下文切换与流向规范</strong></p>
+<p>当 Hypervisor 在物理 CPU 上切换不同的虚拟 CPU 核心时，架构规范强制要求采用“先取消常驻，再建立新常驻”的两步式清除流程，严禁在不清除 V 位的情况下直接在两个 VPE 之间进行一键切换。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">MSR  ICH_CONTEXTR_EL2, x0        // Make VPE A resident</span><br><span class="line">ISB</span><br><span class="line">...</span><br><span class="line">MSR   ICH_CONTEXTR_EL2, xzr      // Make VPE A non-resident</span><br><span class="line">MSR  ICH_CONTEXTR_EL2, x5        // Make VPE B resident</span><br><span class="line">ISB</span><br></pre></td></tr></table></figure>
+
+<hr>
+<h4 id="门铃中断（Doorbell）机制"><a href="#门铃中断（Doorbell）机制" class="headerlink" title="门铃中断（Doorbell）机制"></a>门铃中断（Doorbell）机制</h4><p>在 GICv5 架构中，当某个虚拟处理单元（VPE）处于非常驻（Non-resident）状态时，若有虚拟中断到达，硬件无法将其直接投递给 CPU。为此，GICv5 引入了门铃中断机制，通过物理 LPI 中断的形式通知 Hypervisor，以便软件能及时重新调度对应的 VPE 上线处理中断。</p>
+<p><strong>1 门铃中断的两种类型</strong></p>
+<p>GICv5 主要定义了两类门铃机制，分别对应特定的调度通知场景：</p>
+<table>
+<thead>
+<tr>
+<th><strong>门铃类型</strong></th>
+<th><strong>物理中断形式</strong></th>
+<th><strong>触发场景与核心作用</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>VPE Doorbell</td>
+<td>物理 LPI 中断</td>
+<td>当特定 VPE 处于非常驻状态且有虚拟中断挂起时触发，提醒 Hypervisor 调度该专属 VPE。</td>
+</tr>
+<tr>
+<td>1ofN Doorbell</td>
+<td>物理 LPI 中断</td>
+<td>当 VM 收到负载均衡类（1ofN）虚拟中断，且该 VM 内当前没有任何使能了 1ofN 接收能力的常驻 VPE 时触发，<br />通知 Hypervisor 唤醒预先指定的目标 VPE。</td>
+</tr>
+</tbody></table>
+<p><strong>2 VPE Doorbell 的工作原理与状态转换</strong></p>
+<p>Hypervisor 为每个 VPE 创建上下文时，都会分配一个唯一的物理 LPI INTID 作为其专属门铃中断。该中断遵循普通 LPI 的优先级与屏蔽规则。</p>
+<ul>
+<li><strong>使能与请求方式</strong>：Hypervisor 在写 <code>ICH_CONTEXTR_EL2</code> 清除 V 位使 VPE 变为非常驻时，可将 <code>DB</code> 位置 1 来请求门铃中断；也可以通过向 <code>IRS_VPE_DBR.REQ_DB</code> 位写 1 手动请求。</li>
+<li><strong>挂起与直投分支</strong>：<ul>
+<li><strong>常驻状态（Resident）</strong>：中断路由服务（IRS）跳过门铃，虚拟 CPU 接口（vCPUIF）根据优先级和路由规则直接向 PE 发送 vIRQ&#x2F;vFIQ。</li>
+<li><strong>非常驻状态（Non-resident）</strong>：若软件请求了门铃，IRS 会自动将对应的门铃 INTID 置为挂起状态（Pending），从而触发物理中断通知 Hypervisor。</li>
+</ul>
+</li>
+</ul>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">虚拟中断到达 (Virtual Interrupt Arrives)</span><br><span class="line">                 │</span><br><span class="line">                 ▼</span><br><span class="line">          VPE 是否常驻？</span><br><span class="line">          ├── 是 (Resident)      ──► vCPUIF 直接向 CPU 投递 vIRQ/vFIQ</span><br><span class="line">          └── 否 (Non-resident)  ──► 检查是否请求了 Doorbell</span><br><span class="line">                                        │</span><br><span class="line">                                        ▼</span><br><span class="line">                                 IRS 将物理 Doorbell LPI 置为 Pending</span><br><span class="line">                                        │</span><br><span class="line">                                        ▼</span><br><span class="line">                                 触发物理中断，唤醒 Hypervisor 进行调度</span><br></pre></td></tr></table></figure>
+
+<p><strong>3 门铃滤波与防打扰优化</strong></p>
+<p>为了避免因频繁打扰 Hypervisor 而降低系统性能，GICv5 提供了多重硬件优化机制：</p>
+<ul>
+<li><strong>单次触发（Once-per-VPE）限制</strong>：当 VPE 处于非常驻状态时，IRS 仅在该 VPE 接收到“第一个”挂起虚拟中断时触发一次门铃。后续再有新的虚拟中断到达不会重复产生门铃中断。</li>
+<li><strong>门铃优先级掩码（DBPM）过滤</strong>：硬件支持通过 <code>DBPM</code> 字段设置门铃触发的最低优先级阈值。若到达的虚拟中断优先级低于 <code>DBPM</code>（代表 Guest OS 本身当前也屏蔽了该优先级的处理），IRS 将忽略该中断而不触发门铃，避免为无法及时处理的低优先级中断无效唤醒 CPU。Hypervisor 可根据 Guest 的 <code>ICC_APR_EL1</code> 与 <code>ICH_PCR_EL1</code> 动态计算此掩码值。</li>
+</ul>
+<blockquote>
+<p>门铃中断的作用是：当 vCPU 处于非常驻（不在线）状态时，通知 Hypervisor 将其重新调度上线，以便响应挂起的虚拟中断。</p>
+</blockquote>
+<h4 id="vPPI-映射与状态管理"><a href="#vPPI-映射与状态管理" class="headerlink" title="vPPI 映射与状态管理"></a>vPPI 映射与状态管理</h4><p>虚拟私有中断（vPPI）是物理私有中断（PPI）在虚拟化环境下的对应实现。每个 vPPI 专门服务于特定虚拟处理单元（VPE），用以模拟仅对特定 CPU 核心可见的私有外设中断（如虚拟架构定时器）。</p>
+<p><strong>1. vPPI 的硬件架构与隔离性</strong></p>
+<p>与 vLPI 或 vSPI 不同，vPPI 不依赖由中断路由服务（IRS）管理的内存中断状态表（IST），其配置与状态信息主要直接保存在虚拟 CPU 接口（Virtual CPU Interface）内部的硬件寄存器中。</p>
+<ul>
+<li><strong>一对一独立映射</strong>：每个物理 CPU 核心（PE）上实现的所有物理 PPI，都有一个具有相同 INTID 的 vPPI 与之对应。虽然它们共享相同的 INTID，但在硬件层面是相互独立的隔离中断。例如，PE 0 上的物理 PPI 15 与 PE 0 上的 vPPI 15 属于两个完全不同的中断源。</li>
+<li><strong>寄存器分级控制</strong>：若系统支持虚拟 CPU 接口，Guest OS 内的 VPE 使用 ICV_PPI_<em>EL1 系统寄存器配置自身的 vPPI；Hypervisor 则通过 ICH_PPI</em>_EL2 系列寄存器对其进行管理与控制。</li>
+<li><strong>触发来源</strong>：vPPI 可以由 Hypervisor 软件模拟产生，也可以通过硬件直接映射相应的物理 PPI 进行注入。</li>
+</ul>
+<p><strong>2. 物理 PPI 的直接注入机制</strong></p>
+<p>GICv5 架构支持一种硬件级别的直接注入机制，允许将物理 PPI 的挂起（Pending）状态直接映射为对应 vPPI 的挂起状态，从而最大限度地减少 Hypervisor 的软件干预开销。</p>
+<p>物理 PPI 的直接注入由 <code>ICH_PPI_DVIR&lt;n&gt;_EL2</code> 寄存器进行控制。将 <code>ICH_PPI_DVIR&lt;n&gt;_EL2.DVI</code> 字段置为 1 时，硬件会自动将物理 PPI 的挂起状态同步至对应 INTID 的 vPPI 中。</p>
+<p>直接注入触发后的状态与响应逻辑如下：</p>
+<table>
+<thead>
+<tr>
+<th><strong>触发阶段 &#x2F; 状态</strong></th>
+<th><strong>硬件与软件行为</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>状态同步</td>
+<td>当物理 PPI 触发并挂起时，物理 PPI 与对应的 vPPI 会同时进入挂起状态。</td>
+</tr>
+<tr>
+<td>响应与应答</td>
+<td>物理 PPI 和 vPPI 可以在各自对应的中断域（EL2 或 Guest EL1）中分别被应答（Acknowledge）。</td>
+</tr>
+<tr>
+<td>软件配置要求</td>
+<td>架构规范要求 Hypervisor 在使能直接注入时禁能物理 PPI 的处理，以避免两套独立的中断处理例程同时尝试响应同一个中断源。</td>
+</tr>
+</tbody></table>
+<h3 id="虚拟-CPU-接口（Virtual-CPU-Interface）"><a href="#虚拟-CPU-接口（Virtual-CPU-Interface）" class="headerlink" title="虚拟 CPU 接口（Virtual CPU Interface）"></a>虚拟 CPU 接口（Virtual CPU Interface）</h3><p>虚拟 CPU 接口 是 GICv5 中专为虚拟化扩展设计的硬件模块，在逻辑上位于中断路由网络与 CPU 核心之间。</p>
+<p>前面的章节完成了全局中断路由、内存数据结构寻址与 vCPU 调度的配置，而虚拟 CPU 接口则负责“临门一脚”的硬件级裁决——当物理 CPU（PE）运行在 EL2 以下级别（如 Guest OS 运行的 EL1）且使能了虚拟化支持时，该模块最终决定是否真正向 CPU 硬件管脚触发 vIRQ&#x2F;vFIQ 信号。</p>
+<p><strong>1. 核心职能与中断裁决逻辑</strong></p>
+<p>虚拟 CPU 接口执行与物理 CPU 接口相同的中断管理任务。对于 Guest OS 而言，只有当某个虚拟中断满足优先级裁决条件，成为最高优先级挂起中断（HPPI）时，才会被感知。其具体处理逻辑如下：</p>
+<ul>
+<li><strong>HPPI 裁决</strong>：接口综合考虑来自中断路由基础设施（IRI）推荐的候选虚拟中断以及本地管理的虚拟私有中断（vPPI），裁决出当前虚拟中断域中的最高优先级挂起中断（HPPI）。</li>
+<li><strong>优先级掩码与运行优先级</strong>：结合虚拟优先级掩码寄存器（ICV_PCR_EL1.PRIORITY）与虚拟当前运行优先级（存储在 ICV_APR_EL1 中的最高激活优先级）进行过滤。只有当 HPPI 的优先级高于当前运行优先级且达到或高于优先级掩码阈值时，才会真正向 PE 发送 vIRQ。</li>
+<li><strong>超级优先级与 NMI 支持</strong>：若 HPPI 的优先级配置为最高（0x00）且使能了不可屏蔽中断（NMI），该虚拟中断将以超级优先级（Superpriority）的形式进行信号发送。</li>
+<li><strong>HPPI 上报机制</strong>：与 GICv3 行为不同，ICV_HPPIR_EL1 寄存器仅在 HPPI 满足“足够优先级（Sufficient Priority）”要求时才会上报该中断。</li>
+</ul>
+<p><strong>2. 专用系统寄存器架构</strong></p>
+<p>为了确保 Guest OS 的二进制兼容性，虚拟 CPU 接口提供了一套专用的 ICV_* 系统寄存器。这些寄存器在功能和结构上完全镜像了物理端的 ICC_* 寄存器。Guest 软件在代码层面上始终使用标准的 ICC_* 名字进行访问，硬件会自动将其重定向映射至对应的 ICV_* 寄存器。</p>
+<table>
+<thead>
+<tr>
+<th><strong>寄存器类别</strong></th>
+<th><strong>典型寄存器</strong></th>
+<th><strong>功能与作用描述</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>控制&#x2F;状态</td>
+<td>ICV_CR0_EL1</td>
+<td>控制虚拟中断域内的整体行为（例如使能&#x2F;禁能虚拟中断）。</td>
+</tr>
+<tr>
+<td>优先级掩码</td>
+<td>ICV_PCR_EL1</td>
+<td>控制虚拟中断的优先级掩码阈值。</td>
+</tr>
+<tr>
+<td>HPPI 与优先级</td>
+<td>ICV_HPPIR_EL1</td>
+<td>读取并上报当前虚拟中断域中满足“足够优先级”条件的 HPPI。</td>
+</tr>
+<tr>
+<td>vPPI 状态管理</td>
+<td>ICV_PPI_PRIORITYR_EL1</td>
+<td>配置本地 vPPI 的优先级。</td>
+</tr>
+<tr>
+<td>Hypervisor 上下文</td>
+<td>ICH_CONTEXTR_EL2</td>
+<td>由 EL2 级别的 Hypervisor 写入，选择当前常驻的 VPE 和 VM ID，决定虚拟操作的目标上下文。</td>
+</tr>
+</tbody></table>
+<p><strong>3. 虚拟中断信号发送工作流</strong></p>
+<p>在非兼容（Non-legacy）模式下，GICv5 虚拟 CPU 接口接收来自 IRI 的候选中断与本地 vPPI，并通过以下流水线完成信号发送：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">IRI 候选 vLPI / vSPI  +  本地 vPPI</span><br><span class="line">                 │</span><br><span class="line">                 ▼</span><br><span class="line">     裁决得出虚拟 HPPI (vHPPI)</span><br><span class="line">                 │</span><br><span class="line">                 ▼</span><br><span class="line">  应用虚拟优先级掩码与运行优先级过滤</span><br><span class="line">                 │</span><br><span class="line">                 ▼</span><br><span class="line">      满足 Sufficient Priority？</span><br><span class="line">       ├── 否 ──► 保持挂起，不向 PE 发送信号</span><br><span class="line">       └── 是 ──► 检查优先级是否为 0x00 且使能 NMI</span><br><span class="line">                     ├── 是 ──► 向 PE 发送带 Superpriority 的 vIRQ</span><br><span class="line">                     └── 否 ──► 向 PE 发送普通 vIRQ / vFIQ</span><br></pre></td></tr></table></figure>
+
+<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/16.png" alt="16"></p>
+<p>GICv5 虚拟 CPU 接口支持原生模式与 GICv3 兼容模式（Legacy）两种信号发送逻辑：</p>
+<ul>
+<li><strong>原生模式（Non-legacy）</strong>：<ol>
+<li>从 IRI 推荐的候选 vHPPI 与本地 vPPI 中选出全局 vHPPI。</li>
+<li>应用软件配置的虚拟优先级掩码与虚拟运行优先级进行筛选。</li>
+<li>若满足发送条件，向 PE 发送 vIRQ；若优先级为 <code>0x00</code> 且使能 NMI，则附加 Superpriority 标志。</li>
+</ol>
+</li>
+<li><strong>兼容模式（Legacy）</strong>：<ol>
+<li>从<strong>列表寄存器（List Registers &#x2F; LRs）</strong>中裁决出 vHPPI。</li>
+<li>应用中断分组（Grouping）与优先级掩码过滤。</li>
+<li>确定向 PE 发送 vIRQ 或 vFIQ 信号，并在配置为优先级 <code>0x00</code> 时判定是否发送带 Superpriority 的中断。</li>
+</ol>
+</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th><strong>对比维度</strong></th>
+<th><strong>原生模式 (Non-legacy)</strong></th>
+<th><strong>兼容模式 (Legacy)</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td>中断状态存储</td>
+<td>IRI&#x2F;内存（无数量上限）</td>
+<td>List Registers (LRs，只有几项)</td>
+</tr>
+<tr>
+<td>Hypervisor 开销</td>
+<td>极低（硬件自动推送到 CPU 接口）</td>
+<td>高（需要不断维护&#x2F;刷写 LRs 队列）</td>
+</tr>
+<tr>
+<td>信号类型</td>
+<td>统一发送 vIRQ（结合 Superpriority）</td>
+<td>支持发送 vIRQ 或 vFIQ</td>
+</tr>
+<tr>
+<td>分组逻辑</td>
+<td>简化，不再强制依赖 Grouping</td>
+<td>必须支持 Group 0 &#x2F; Group 1 划分</td>
+</tr>
+</tbody></table>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/AArch64/" rel="tag"># AArch64</a>
+          </div>
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-item">
+                <a href="/2026/08/15/Minos-%E8%99%9A%E6%8B%9F%E5%8C%96-Hypercall-%E4%B8%8E%E8%AE%BE%E5%A4%87%E8%99%9A%E6%8B%9F%E5%8C%96/" rel="prev" title="Minos 虚拟化: Hypercall 与设备虚拟化">
+                  <i class="fa fa-angle-left"></i> Minos 虚拟化: Hypercall 与设备虚拟化
+                </a>
+            </div>
+            <div class="post-nav-item">
+            </div>
+          </div>
+    </footer>
+  </article>
+</div>
+
+
+
+
+
+
+</div>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+
+  <div class="copyright">
+    &copy; 2019 – 
+    <span itemprop="copyrightYear">2026</span>
+    <span class="with-love">
+      <i class="fa fa-heart"></i>
+    </span>
+    <span class="author" itemprop="copyrightHolder">Vonku</span>
+  </div>
+  <div class="powered-by">由 <a href="https://hexo.io/" rel="noopener" target="_blank">Hexo</a> & <a href="https://theme-next.js.org/" rel="noopener" target="_blank">NexT.Gemini</a> 强力驱动
+  </div>
+
+    </div>
+  </footer>
+
+  
+  <div class="toggle sidebar-toggle" role="button">
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+    <span class="toggle-line"></span>
+  </div>
+  <div class="sidebar-dimmer"></div>
+  <div class="back-to-top" role="button" aria-label="返回顶部">
+    <i class="fa fa-arrow-up fa-lg"></i>
+    <span>0%</span>
+  </div>
+
+<noscript>
+  <div class="noscript-warning">Theme NexT works best with JavaScript enabled</div>
+</noscript>
+
+</body>
+</html>
