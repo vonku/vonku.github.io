@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.0/css/all.min.css" integrity="sha256-VHqXKFhhMxcpubYf9xiWdCiojEbY9NexQ4jh8AxbvcM=" crossorigin="anonymous">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.css" integrity="sha256-gkQVf8UKZgQ0HyuxL/VnacadJ+D2Kox2TCEBuNQg5+w=" crossorigin="anonymous">
 
-<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"}}</script><script src="/js/config.js" defer></script>
+<script class="next-config" data-name="main" type="application/json">{"hostname":"yoursite.com","root":"/","images":"/images","scheme":"Gemini","darkmode":false,"version":"8.27.0","exturl":false,"sidebar":{"position":"left","width_expanded":320,"width_dual_column":240,"display":"post","padding":18,"offset":12},"hljswrap":true,"codeblock":{"theme":{"light":"default","dark":"tomorrow-night-bright"},"prism":{"light":"prism","dark":"prism-dark"},"copy_button":{"enable":true,"style":null},"fold":{"enable":false,"height":500},"language":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"stickytabs":false,"motion":{"enable":false,"async":false,"duration":200,"transition":{"menu_item":"fadeInDown","post_block":"fadeIn","post_header":"fadeInDown","post_body":"fadeInDown","coll_header":"fadeInLeft","sidebar":"fadeInUp"}},"prism":false,"i18n":{"placeholder":"搜索...","empty":"没有找到任何搜索结果：${query}","hits_time":"找到 ${hits} 个搜索结果（用时 ${time} 毫秒）","hits":"找到 ${hits} 个搜索结果"},"path":"/search.xml","localsearch":{"enable":true,"top_n_per_article":1,"unescape":false,"preload":false}}</script><script src="/js/config.js" defer></script>
 
     <meta name="description" content="本文介绍 Arm 通用中断控制器 GIC v5的主要特性，并与GIC v3&#x2F;v4进行对比。">
 <meta property="og:type" content="article">
@@ -26,28 +26,28 @@
 <meta property="og:site_name" content="Vonku&#39;s Blog">
 <meta property="og:description" content="本文介绍 Arm 通用中断控制器 GIC v5的主要特性，并与GIC v3&#x2F;v4进行对比。">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/1.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/2.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/3.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/4.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/5.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/6.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/7.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/8.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/9.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/10.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/11.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/12.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/13.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/14.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/15.png">
-<meta property="og:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/16.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/1.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/2.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/3.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/4.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/5.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/6.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/7.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/8.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/9.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/10.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/11.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/12.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/13.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/14.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/15.png">
+<meta property="og:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/16.png">
 <meta property="article:published_time" content="2026-08-29T02:18:35.000Z">
 <meta property="article:modified_time" content="2026-08-29T02:31:33.556Z">
 <meta property="article:author" content="Vonku">
 <meta property="article:tag" content="AArch64">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="http://yoursite.com/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/1.png">
+<meta name="twitter:image" content="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/1.png">
 
 
 <link rel="canonical" href="http://yoursite.com/2026/08/29/AArch64-GICv5-Overview/">
@@ -71,7 +71,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/fancyapps-ui/5.0.31/fancybox/fancybox.umd.js" integrity="sha256-a+H7FYzJv6oU2hfsfDGM2Ohw/cR9v+hPfxHCLdmCrE8=" crossorigin="anonymous" defer></script>
 <script src="/js/utils.js" defer></script><script src="/js/sidebar.js" defer></script><script src="/js/next-boot.js" defer></script>
 
-  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hexo-generator-searchdb/1.5.0/search.js" integrity="sha256-xFC6PJ82SL9b3WkGjFavNiA9gm5z6UBxWPiu4CYjptg=" crossorigin="anonymous" defer></script>
+<script src="/js/third-party/search/local-search.js" defer></script>
+
 
 
 
@@ -116,6 +118,7 @@
 
   <div class="site-nav-right">
     <div class="toggle popup-trigger" aria-label="搜索" role="button">
+        <i class="fa fa-search fa-fw fa-lg"></i>
     </div>
   </div>
 </div>
@@ -124,11 +127,37 @@
 
 <nav class="site-nav">
   <ul class="main-menu menu"><li class="menu-item menu-item-home"><a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a></li><li class="menu-item menu-item-about"><a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a></li><li class="menu-item menu-item-tags"><a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a></li><li class="menu-item menu-item-categories"><a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a></li><li class="menu-item menu-item-archives"><a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a></li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
   </ul>
 </nav>
 
 
 
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+      <div class="search-header">
+        <span class="search-icon">
+          <i class="fa fa-search"></i>
+        </span>
+        <div class="search-input-container">
+          <input autocomplete="off" autocapitalize="off" maxlength="80"
+                placeholder="搜索..." spellcheck="false"
+                type="search" class="search-input">
+        </div>
+        <span class="popup-btn-close" role="button">
+          <i class="fa fa-times-circle"></i>
+        </span>
+      </div>
+      <div class="search-result-container">
+        <div class="search-result-icon">
+          <i class="fa fa-spinner fa-pulse fa-5x"></i>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </header>
         
@@ -269,7 +298,7 @@
 <li><strong>原生机密计算支持（Confidential Compute）：</strong> 原生集成 Arm Realm Management Extension (RME)，为构建硬件级安全的 Arm Confidential Compute环境提供底层中断安全保障。</li>
 </ul>
 <h2 id="1-GICv5-基础"><a href="#1-GICv5-基础" class="headerlink" title="1. GICv5 基础"></a>1. GICv5 基础</h2><h3 id="GIC-架构组件"><a href="#GIC-架构组件" class="headerlink" title="GIC 架构组件"></a>GIC 架构组件</h3><p>GICv5 架构主要由两大模块组成：中断路由基础设施（IRI）与紧邻处理核心（PE）的 <strong>CPU 接口（CPU-IF）</strong>。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/1.png" alt="1"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/1.png" alt="1"></p>
 <p><strong>中断路由基础设施（IRI）</strong></p>
 <p>IRI 负责整体中断信号的接收、转换与路由，由以下三个服务&#x2F;硬件单元协同工作：</p>
 <ul>
@@ -279,7 +308,7 @@
 </ul>
 <p><strong>处理器接口组件 (CPU interface)</strong></p>
 <p><strong>CPU 接口（CPU-IF）</strong>：每个 PE 旁独立的组件，通过 IRI Link 连接至 IRS。除了负责私有外设中断（PPI）的管理、优先级屏蔽与响应&#x2F;清除接口外，还在 EL2 具备时原生支持物理与虚拟中断的处理。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/2.png" alt="2"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/2.png" alt="2"></p>
 <p>从内部信号交互来看，CPU-IF 与 PE 内核紧密绑定，主要包含以下关键模块与接口：</p>
 <ul>
 <li><strong>Physical CPU interface</strong>：负责物理中断的处理，通过 <code>IRQ</code> &#x2F; <code>FIQ</code> 线路向 PE 触发中断信号，PE 则通过系统指令（<code>MSR</code>&#x2F;<code>MRS</code>）与 CPU-IF 交互以响应或清除中断。</li>
@@ -327,7 +356,7 @@
 </tbody></table>
 <p><strong>硬件隔离与独立编程接口</strong></p>
 <p>各个中断域之间保持严格的独立性。为了防止跨域干涉，GICv5 硬件的底层组件——包括中断路由服务（IRS）、中断转换服务（ITS）以及中断引脚桥（IWB）——都会为不同的中断域提供各自独立的编程接口和物理地址空间（PAS）。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/3.png" alt="3"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/3.png" alt="3"></p>
 <p>在硬件部署与实现上，GICv5 遵循以下两条核心约束：</p>
 <ul>
 <li>动态适配原则：如果处理核心（PE）未实现某种安全状态或异常级别，GIC 硬件就不会实现对应的中断域。例如，若系统 CPU 不支持 Realm 状态，GIC 便不会包含 Realm 中断域。</li>
@@ -365,7 +394,7 @@
 <li>Type 字段：标明该中断属于 LPI、SPI 还是 PPI。</li>
 <li>ID 字段：特定中断类型下的具体编号。每种中断类型拥有独立的 ID 命名空间，例如 <code>&#123;SPI, 8&#125;</code> 与 <code>&#123;LPI, 8&#125;</code> 代表两个完全不同的独立中断。</li>
 </ul>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/4.png" alt="4"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/4.png" alt="4"></p>
 <p>在中断域（Interrupt Domain）的隔离维度上，不同中断类型的命名空间规则如下：</p>
 <ul>
 <li>LPI 的 ID 命名空间是按中断域独立隔离的。即 Non-secure 域中的 LPI 42 与 Secure 域中的 LPI 42 是完全互不干扰的两个独立中断。</li>
@@ -485,9 +514,9 @@
 </li>
 </ul>
 <p>边沿触发的状态机：</p>
-<p>  <img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/5.png" alt="5"></p>
+<p>  <img src="/2026/08/29/AArch64-GICv5-Overview/5.png" alt="5"></p>
 <p>电平触发的状态机：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/6.png" alt="6"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/6.png" alt="6"></p>
 <h2 id="2-中断流转"><a href="#2-中断流转" class="headerlink" title="2. 中断流转"></a>2. 中断流转</h2><p>物理中断（包括 LPI、SPI 和 PPI）在GICv5 架构中的处理遵循一套标准的硬件流水线机制。中断信号从外设源头产生，最终投递至 CPU 执行，主要分为两个关键阶段：</p>
 <ul>
 <li>中断信号传输（Signalling）：硬件评估并确定当前最高优先级的挂起中断，将其向目标 CPU 核心（PE）发送。</li>
@@ -496,7 +525,7 @@
 <p>对于虚拟中断（vLPI、vSPI 和 vPPI），其整体处理逻辑与物理中断基本一致，但增加了虚拟化层级的数据结构映射与控制逻辑。</p>
 <hr>
 <h3 id="LPIs"><a href="#LPIs" class="headerlink" title="LPIs"></a>LPIs</h3><p>LPI（逻辑外设中断）在 GICv5 系统中的处理路径比传统中断更为复杂，它依赖中断翻译服务（ITS）将源端事件翻译为具体的物理 INTID，再交由中断路由服务（IRS）进行处理与投递。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/7.png" alt="7"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/7.png" alt="7"></p>
 <p><strong>中断源输入与事件触发</strong></p>
 <p>LPI 中断源分为硬件引脚触发（Wired Interrupts）与消息中断（MSI）两类：</p>
 <ul>
@@ -535,7 +564,7 @@
 <p>为了降低多级内存查表（DT、ITT、IST）带来的延迟开销，GICv5 硬件实现通常会缓存这些内存数据结构，以大幅减少实际的系统内存访问次数。</p>
 <hr>
 <h3 id="SPIs"><a href="#SPIs" class="headerlink" title="SPIs"></a>SPIs</h3><p>共享外设中断（SPI）是直接通过硬件引脚连接到中断路由服务（IRS）的引脚中断（Wired Interrupts）。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/8.png" alt="8"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/8.png" alt="8"></p>
 <table>
 <thead>
 <tr>
@@ -558,7 +587,7 @@
 <p><strong>跨核心路由机制</strong></p>
 <p>虽然特定的 SPI 中断源在物理线路上固定连接至某一个 IRS 组件，但架构上并不限制其目标处理核心（PE）。即便 SPI 信号输入到了特定的 IRS，该 IRS 依然可以将中断信号跨组件投递给连接在其他 IRS 上的 PE 进行处理。</p>
 <h3 id="PPIs"><a href="#PPIs" class="headerlink" title="PPIs"></a>PPIs</h3><p>私有外设中断（PPI）是属于特定处理器核心（PE）的私有中断。与 LPI 和 SPI 等全系统可见的全局中断不同，PPI 仅对其绑定的特定 PE 可见，其中断信号由 CPU 接口（CPU-IF）直接管理，无需经过中断路由服务（IRI）。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/9.png" alt="9"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/9.png" alt="9"></p>
 <table>
 <thead>
 <tr>
@@ -597,7 +626,7 @@
 <li><strong>第一级（IRS 侧仲裁）：</strong> IRS 汇总所有处于 Pending 状态的全局中断（SPI 与 LPI），从中挑选出一个最高优先级的候选者（Candidate SPI&#x2F;LPI），并将其转发给 CPU-IF。</li>
 <li><strong>第二级（CPU-IF 侧仲裁）：</strong> CPU-IF 接收到来自 IRS 的候选中断后，将其与当前可用的私有挂起中断（Candidate PPI）进行最终的比对仲裁，挑选出最终的 HPPI 投递给 PE。</li>
 </ul>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/10.png" alt="10"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/10.png" alt="10"></p>
 <p><strong>候选中断的准入条件</strong></p>
 <p>一个中断要具备参与 HPPI 仲裁的资格，必须同时满足以下条件：</p>
 <ul>
@@ -690,7 +719,7 @@
 <p>详细描述如下：</p>
 <p><strong>中断应答（Interrupt Acknowledge）</strong></p>
 <p>捕获 IRQ 或 FIQ 异常后，软件执行的第一步是向 GIC 发送应答指令。这一步不仅能获取触发中断的具体 INTID，还会触发 CPU 接口自动更新状态：将当前 INTID 置为 Active（若为边沿触发则同时清零 Pending 态），并将其优先级更新至激活优先级寄存器（<code>ICC_APR_ELx</code>），从而提高 CPU 接口的运行优先级（Running Priority）。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/11.png" alt="11"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/11.png" alt="11"></p>
 <p>GICv5 引入了专门的应答指令来区分常规中断与 NMI（不可屏蔽中断）：</p>
 <table>
 <thead>
@@ -1006,7 +1035,7 @@
 <p><code>控制寄存器 (Split)  →  索引 L1 表项  →  读取 L1 表项 (Span + L2 地址)  →  访问对应大小的 L2 叶子表</code></p>
 <p><strong>工作机制与内存裁剪</strong></p>
 <p>借助 Split 和 Span，软件可以针对不同密度的 ID 区域动态分配不同大小的 L2 内存，大幅节省 RAM 开销。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/12.png" alt="12"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/12.png" alt="12"></p>
 <h5 id="示例与边界处理"><a href="#示例与边界处理" class="headerlink" title="示例与边界处理"></a><strong>示例与边界处理</strong></h5><p>若控制寄存器设定 Split，使单个 L2 表最大容纳 256 个条目（对应最大 SPAN&#x3D;8）：</p>
 <ul>
 <li><strong>高密度 ID 区域：</strong> 指向 L2 表 A 的 L1 表项将 Span 设为 <code>8</code>，代表分配了满额的 256（2^8）个条目。</li>
@@ -1414,7 +1443,7 @@
 <li>虚拟机间绝对隔离：架构严格禁止跨 VM 共享同一个虚拟 IST 表，从而在硬件层杜绝了不同虚拟机之间的中断状态污染与越权访问。</li>
 </ul>
 <h3 id="GICv5-虚拟化数据结构与内存管理"><a href="#GICv5-虚拟化数据结构与内存管理" class="headerlink" title="GICv5 虚拟化数据结构与内存管理"></a>GICv5 虚拟化数据结构与内存管理</h3><p>GICv5 在中断路由服务（IRS）中引入了基于内存的数据结构（Memory-backed structures），用硬件查表取代了传统 GICv3 繁重的 Hypervisor 软件模拟流程。这些数据结构层层递进，构成了虚拟机（VM）与虚拟处理单元（VPE）的中断路由管理体系。</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/13.png" alt="13"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/13.png" alt="13"></p>
 <p><strong>虚拟化核心数据结构</strong></p>
 <p>IRS 维护的核心数据结构呈树状层级关系，由 VM 表作为顶层索引，逐级向下展开：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">VM Table (顶层目录)</span><br><span class="line">  │</span><br><span class="line">  └── L2 VMTE (虚拟机条目)</span><br><span class="line">        ├── VM Descriptor (VM 工作内存)</span><br><span class="line">        ├── Virtual LPI IST (虚拟 LPI 状态表)</span><br><span class="line">        ├── Virtual SPI IST (虚拟 SPI 状态表)</span><br><span class="line">        └── VPE Table (VPE 目录)</span><br><span class="line">              │</span><br><span class="line">              └── VPETE (VPE 条目) ───► VPE Descriptor (VPE 工作内存)</span><br></pre></td></tr></table></figure>
@@ -1499,7 +1528,7 @@
 <li>该指令直接在其参数中指定目标 <code>VM ID</code> 和 <code>vINTID</code>，无需依赖当前物理 CPU 上正在运行哪个 VPE。</li>
 </ul>
 <p><strong>3. 路由过程与全路径硬件流向</strong></p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/14.png" alt="14"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/14.png" alt="14"></p>
 <p>触发后的 vLPI 会依据对应 VM 内的 vLPI IST 配置进行下一步路由。Guest OS 可以在 VM 内部通过 <code>GIC CDAFF</code> 等指令配置其中断亲和性（IAFFID，在虚拟中断域中即代表目标 VPE ID）以及路由模式（Targeted 精准投递或 1ofN 负载均衡）。</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">外设 MSI (DeviceID, EventID) / 线缆中断</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">       ITS (查 DT/ITT 表翻译出 VM ID 和 vINTID)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">       IRS (查 VMT/vIST 表更新 Pending 状态并读取优先级/路由配置)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">    vCPU IF (虚拟 CPU 接口直投 vIRQ/vFIQ)</span><br><span class="line">         │</span><br><span class="line">         ▼</span><br><span class="line">      PE (硬件 CPU 核心执行 Guest OS)</span><br></pre></td></tr></table></figure>
 
@@ -1568,7 +1597,7 @@
 </ul>
 <p><strong>2. ICH_CONTEXTR_EL2 寄存器控制逻辑</strong></p>
 <p><code>ICH_CONTEXTR_EL2</code>寄存器包含了控制 VPE 激活与绑定的核心位域：</p>
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/15.png" alt="15"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/15.png" alt="15"></p>
 <table>
 <thead>
 <tr>
@@ -1723,7 +1752,7 @@
 <p>在非兼容（Non-legacy）模式下，GICv5 虚拟 CPU 接口接收来自 IRI 的候选中断与本地 vPPI，并通过以下流水线完成信号发送：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">IRI 候选 vLPI / vSPI  +  本地 vPPI</span><br><span class="line">                 │</span><br><span class="line">                 ▼</span><br><span class="line">     裁决得出虚拟 HPPI (vHPPI)</span><br><span class="line">                 │</span><br><span class="line">                 ▼</span><br><span class="line">  应用虚拟优先级掩码与运行优先级过滤</span><br><span class="line">                 │</span><br><span class="line">                 ▼</span><br><span class="line">      满足 Sufficient Priority？</span><br><span class="line">       ├── 否 ──► 保持挂起，不向 PE 发送信号</span><br><span class="line">       └── 是 ──► 检查优先级是否为 0x00 且使能 NMI</span><br><span class="line">                     ├── 是 ──► 向 PE 发送带 Superpriority 的 vIRQ</span><br><span class="line">                     └── 否 ──► 向 PE 发送普通 vIRQ / vFIQ</span><br></pre></td></tr></table></figure>
 
-<p><img src="/2019/09/22/8086CPU%E6%B1%87%E7%BC%96%E8%AF%AD%E8%A8%80%E7%9F%A5%E8%AF%86%E7%82%B9%E6%B1%87%E6%80%BB/rview/16.png" alt="16"></p>
+<p><img src="/2026/08/29/AArch64-GICv5-Overview/16.png" alt="16"></p>
 <p>GICv5 虚拟 CPU 接口支持原生模式与 GICv3 兼容模式（Legacy）两种信号发送逻辑：</p>
 <ul>
 <li><strong>原生模式（Non-legacy）</strong>：<ol>
