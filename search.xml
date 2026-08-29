@@ -1199,12 +1199,14 @@
 </tbody></table>
 <p><strong>顶层 VM 表的初始化与使能流程</strong></p>
 <p>Hypervisor 在初始化硬件层面的 VM 表时，需要通过寄存器状态机完成使能校验。对于线性表与多级表（2-level），其使能逻辑如下：</p>
-<h5 id="基础使能流程"><a href="#基础使能流程" class="headerlink" title="基础使能流程"></a>基础使能流程</h5><ol>
+<p><strong>基础使能流程</strong></p>
+<ol>
 <li>将 VM 表的物理基地址写入 <code>IRS_VMT_BASER.ADDR</code> 寄存器；</li>
 <li>轮询检查 <code>IRS_VMT_STATUSR.IDLE</code> 标志位；</li>
 <li>当 <code>IRS_VMT_STATUSR.IDLE == 1</code> 且 <code>IRS_VMT_BASER.VALID</code> 被成功置 1 时，VM 表被正式激活，IRS 获准访问该虚拟化数据结构。</li>
 </ol>
-<h5 id="二级-VM-表（2-level-Structure）动态分配"><a href="#二级-VM-表（2-level-Structure）动态分配" class="headerlink" title="二级 VM 表（2-level Structure）动态分配"></a>二级 VM 表（2-level Structure）动态分配</h5><p>当一级 VM 表（Level 1 VM Table）分配完毕并有效后，二级 VM 表（Level 2 VM Table）的动态分配分为三个步骤：</p>
+<p><strong>二级 VM 表（2-level Structure）动态分配</strong></p>
+<p>当一级 VM 表（Level 1 VM Table）分配完毕并有效后，二级 VM 表（Level 2 VM Table）的动态分配分为三个步骤：</p>
 <ol>
 <li><strong>软件配置基地址</strong>：软件将新二级表的物理地址写入 <code>L1_VMTE.L2_ADDR</code>，此时暂将 <code>L1_VMTE.VALID</code> 保持为 0；</li>
 <li><strong>软件触发映射</strong>：软件写入 <code>IRS_VMAP_L2_VMTR</code> 寄存器，将使能位 <code>M</code> 置 1，请求激活该二级表；</li>
